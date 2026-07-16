@@ -1,5 +1,5 @@
 {
-  "catalogVersion": 1,
+  "catalogVersion": 2,
   "stores": ["Grocery store", "Costco"],
   "recipes": [
     {
@@ -45,17 +45,17 @@
     }
   ],
   "config": {
-    "ground beef": { "store": "Grocery store", "aisle": 12 },
-    "tortillas": { "store": "Grocery store", "aisle": 6 },
-    "cheddar cheese": { "store": "Grocery store", "aisle": 11 },
-    "salsa": { "store": "Grocery store", "aisle": 6 },
-    "yellow onion": { "store": "Grocery store", "aisle": 1 },
-    "spaghetti": { "store": "Grocery store", "aisle": 5 },
-    "marinara sauce": { "store": "Grocery store", "aisle": 5 },
-    "parmesan": { "store": "Grocery store", "aisle": 11 },
-    "chicken breast": { "store": "Costco", "aisle": 3 },
-    "broccoli": { "store": "Grocery store", "aisle": 1 },
-    "soy sauce": { "store": "Grocery store", "aisle": 7 },
-    "jasmine rice": { "store": "Costco", "aisle": 5 }
+    "ground beef": { "store": "Grocery store", "aisles": { "Grocery store": 12 } },
+    "tortillas": { "store": "Grocery store", "aisles": { "Grocery store": 6 } },
+    "cheddar cheese": { "store": "Grocery store", "aisles": { "Grocery store": 11 } },
+    "salsa": { "store": "Grocery store", "aisles": { "Grocery store": 6 } },
+    "yellow onion": { "store": "Grocery store", "aisles": { "Grocery store": 1 } },
+    "spaghetti": { "store": "Grocery store", "aisles": { "Grocery store": 5 } },
+    "marinara sauce": { "store": "Grocery store", "aisles": { "Grocery store": 5 } },
+    "parmesan": { "store": "Grocery store", "aisles": { "Grocery store": 11, "Costco": 8 } },
+    "chicken breast": { "store": "Costco", "aisles": { "Costco": 3, "Grocery store": 14 } },
+    "broccoli": { "store": "Grocery store", "aisles": { "Grocery store": 1 } },
+    "soy sauce": { "store": "Grocery store", "aisles": { "Grocery store": 7 } },
+    "jasmine rice": { "store": "Costco", "aisles": { "Costco": 5 } }
   }
 }

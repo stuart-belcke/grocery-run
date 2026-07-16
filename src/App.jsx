@@ -47,6 +47,26 @@ const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 const uid = () => Math.random().toString(36).slice(2, 10);
 const r2 = (x) => Math.round(x * 100) / 100;
 
+// An ingredient config is { store: defaultStore, aisles: { storeName: number } }.
+// Older data used a single { store, aisle }; normalizeCfg upgrades it so the
+// legacy aisle becomes that store's entry in the aisles map.
+function normalizeCfg(cfg) {
+  if (!cfg) return { store: UNASSIGNED, aisles: {} };
+  if (cfg.aisles) return { store: cfg.store || UNASSIGNED, aisles: { ...cfg.aisles } };
+  const aisles = {};
+  if (cfg.aisle !== undefined && cfg.aisle !== null && cfg.aisle !== "" && cfg.store) {
+    aisles[cfg.store] = Number(cfg.aisle);
+  }
+  return { store: cfg.store || UNASSIGNED, aisles };
+}
+
+// Aisle for a specific store, or "" if none set.
+function aisleFor(cfg, store) {
+  const n = normalizeCfg(cfg);
+  const a = n.aisles[store];
+  return a === undefined || a === null ? "" : a;
+}
+
 /* ---------------------------- storage ----------------------------- */
 
 let storageOk = true;
@@ -68,7 +88,7 @@ const emptyLocal = () => ({
   version: 1,
   localRecipes: [],
   recipeOverrides: {}, // catalogId -> edited recipe, or null = hidden
-  configOverrides: {}, // ingredient key -> {store, aisle}
+  configOverrides: {}, // ingredient key -> { store, aisles: { storeName: number } }
   extraStores: [],
   removedStores: [],
   list: { selections: {}, overrides: {}, checked: {}, extras: [] },
@@ -426,9 +446,9 @@ function ListTab({ data, update }) {
 
   const items = useMemo(() => aggregateItems(data), [data]);
   const storeOf = (key) => data.list.overrides[key] ?? data.config[key]?.store ?? UNASSIGNED;
-  const aisleOf = (key) => {
-    const a = data.config[key]?.aisle;
-    return a === undefined || a === null || a === "" ? Infinity : Number(a);
+  const aisleOf = (key, store) => {
+    const a = aisleFor(data.config[key], store);
+    return a === "" ? Infinity : Number(a);
   };
   const storeOptions = [...data.stores, UNASSIGNED];
   const totals = servingsByRecipe(data);
@@ -470,7 +490,8 @@ function ListTab({ data, update }) {
   const renderItem = (item, showAisle) => {
     const checked = !!data.list.checked[item.key];
     const cfg = data.config[item.key];
-    const aisle = cfg?.aisle;
+    const itemStore = storeOf(item.key);
+    const aisle = aisleFor(cfg, itemStore);
     const open = inspectKey === item.key;
     return (
       <li key={item.key} style={{ padding: "10px 2px", borderBottom: `1px dashed ${C.line}`, opacity: checked ? 0.45 : 1 }}>
@@ -485,7 +506,7 @@ function ListTab({ data, update }) {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 500, textDecoration: checked ? "line-through" : "none" }}>
               {item.name}
-              {showAisle && aisle !== undefined && aisle !== "" && aisle !== null && (
+              {showAisle && aisle !== "" && (
                 <span style={{ marginLeft: 8, fontSize: 11, color: C.faint }}>aisle {aisle}</span>
               )}
             </div>
@@ -551,13 +572,22 @@ function ListTab({ data, update }) {
             </div>
             <div style={{ color: C.faint, borderTop: `1px dashed ${C.line}`, paddingTop: 6 }}>
               Matches ingredients named <b style={{ color: C.ink }}>"{item.key}"</b> (case-insensitive — a different spelling becomes a separate line). Default store:{" "}
-              <b style={{ color: C.ink }}>{cfg?.store || UNASSIGNED}</b>
-              {aisle !== undefined && aisle !== "" && aisle !== null && <>, aisle {aisle}</>}.
+              <b style={{ color: C.ink }}>{normalizeCfg(cfg).store}</b>.
               {data.list.overrides[item.key] != null && (
                 <>
                   {" "}
                   Today it's rerouted to <b style={{ color: C.ink }}>{data.list.overrides[item.key]}</b>.
                 </>
+              )}
+              {" "}
+              At <b style={{ color: C.ink }}>{itemStore}</b>
+              {aisle !== "" ? (
+                <>
+                  {" "}
+                  it's in <b style={{ color: C.ink }}>aisle {aisle}</b>.
+                </>
+              ) : (
+                <> no aisle is set yet (set it on the Ingredients tab).</>
               )}
             </div>
           </div>
@@ -588,7 +618,7 @@ function ListTab({ data, update }) {
     body = order.map((store) => {
       const g = groups.get(store);
       const sorted = [...g].sort((a, b) =>
-        storeSort === "flow" ? aisleOf(a.key) - aisleOf(b.key) || a.name.localeCompare(b.name) : a.name.localeCompare(b.name)
+        storeSort === "flow" ? aisleOf(a.key, store) - aisleOf(b.key, store) || a.name.localeCompare(b.name) : a.name.localeCompare(b.name)
       );
       const left = g.filter((i) => !data.list.checked[i.key]).length;
       return (
@@ -691,7 +721,7 @@ function MealsTab({ data, catalog, update }) {
       }
       for (const ing of clean.ingredients) {
         const k = norm(ing.name);
-        if (!data.config[k] && !d.configOverrides[k]) d.configOverrides[k] = { store: UNASSIGNED, aisle: "" };
+        if (!data.config[k] && !d.configOverrides[k]) d.configOverrides[k] = { store: UNASSIGNED, aisles: {} };
       }
       return d;
     });
@@ -1085,8 +1115,18 @@ function PantryTab({ data, catalog, local, update, setLocal, code, setCode, sync
 
   const setCfg = (key, patch) =>
     update((d) => {
-      const current = d.configOverrides[key] || data.config[key] || { store: UNASSIGNED, aisle: "" };
-      d.configOverrides[key] = { ...current, ...patch };
+      const base = normalizeCfg(d.configOverrides[key] || data.config[key]);
+      d.configOverrides[key] = { ...base, ...patch };
+      return d;
+    });
+
+  const setAisle = (key, store, value) =>
+    update((d) => {
+      const base = normalizeCfg(d.configOverrides[key] || data.config[key]);
+      const aisles = { ...base.aisles };
+      if (value === "") delete aisles[store];
+      else aisles[store] = Number(value);
+      d.configOverrides[key] = { ...base, aisles };
       return d;
     });
 
@@ -1120,7 +1160,7 @@ function PantryTab({ data, catalog, local, update, setLocal, code, setCode, sync
     if (!name) return;
     const key = norm(name);
     update((d) => {
-      if (!data.config[key] && !d.configOverrides[key]) d.configOverrides[key] = { store: UNASSIGNED, aisle: "" };
+      if (!data.config[key] && !d.configOverrides[key]) d.configOverrides[key] = { store: UNASSIGNED, aisles: {} };
       return d;
     });
     setNewItem("");
@@ -1132,7 +1172,7 @@ function PantryTab({ data, catalog, local, update, setLocal, code, setCode, sync
     if (used) {
       window.alert(`"${name}" is used by a meal or the current list, so it can't be removed here — its defaults were reset instead.`);
       update((d) => {
-        d.configOverrides[key] = { store: UNASSIGNED, aisle: "" };
+        d.configOverrides[key] = { store: UNASSIGNED, aisles: {} };
         return d;
       });
     } else if (window.confirm(`Remove "${name}" from ingredient settings?`)) {
@@ -1140,7 +1180,7 @@ function PantryTab({ data, catalog, local, update, setLocal, code, setCode, sync
         delete d.configOverrides[key];
         delete d.list.overrides[key];
         // if it exists in the catalog config, shadow it as removed-by-reset
-        if (catalog.config[key]) d.configOverrides[key] = { store: UNASSIGNED, aisle: "" };
+        if (catalog.config[key]) d.configOverrides[key] = { store: UNASSIGNED, aisles: {} };
         return d;
       });
     }
@@ -1180,11 +1220,13 @@ function PantryTab({ data, catalog, local, update, setLocal, code, setCode, sync
       notes: r.notes || "",
       ingredients: r.ingredients,
     }));
+    const config = {};
+    for (const [k, cfg] of Object.entries(data.config)) config[k] = normalizeCfg(cfg);
     const out = {
       catalogVersion: (Number(catalog.catalogVersion) || 0) + 1,
       stores: data.stores,
       recipes,
-      config: data.config,
+      config,
     };
     return JSON.stringify(out, null, 2);
   };
@@ -1254,7 +1296,7 @@ function PantryTab({ data, catalog, local, update, setLocal, code, setCode, sync
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
         <h3 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 2px" }}>Ingredient defaults</h3>
         <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
-          Set where you normally buy each item and its aisle number (lower = earlier in your walk through the store).
+          Set where you normally buy each item, and its aisle at each store (lower = earlier in your walk). Each store has its own layout, so aisle numbers are per store.
         </p>
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           <input placeholder="Add an item (e.g. coffee, paper towels)" value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addItem()} style={{ ...inputStyle, flex: 1 }} />
@@ -1262,34 +1304,42 @@ function PantryTab({ data, catalog, local, update, setLocal, code, setCode, sync
         </div>
         {keys.length === 0 && <div style={{ color: C.faint, fontSize: 14 }}>Ingredients appear here as you add meals.</div>}
         <div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 130px 62px 24px", gap: 8, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, padding: "0 2px 6px" }}>
-            <span>Ingredient</span>
-            <span>Default store</span>
-            <span>Aisle</span>
-            <span></span>
-          </div>
           {keys.map(({ key, name }) => {
-            const cfg = data.config[key] || { store: UNASSIGNED, aisle: "" };
+            const cfg = normalizeCfg(data.config[key]);
             return (
-              <div key={key} style={{ display: "grid", gridTemplateColumns: "1fr 130px 62px 24px", gap: 8, alignItems: "center", padding: "7px 2px", borderBottom: `1px dashed ${C.line}` }}>
-                <span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
-                <select value={cfg.store || UNASSIGNED} onChange={(e) => setCfg(key, { store: e.target.value })} style={{ fontSize: 13, padding: "6px 6px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff" }}>
-                  {[...data.stores, UNASSIGNED].map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  min="0"
-                  value={cfg.aisle ?? ""}
-                  onChange={(e) => setCfg(key, { aisle: e.target.value === "" ? "" : Number(e.target.value) })}
-                  style={{ width: "100%", boxSizing: "border-box", fontSize: 13, padding: "6px 8px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums" }}
-                />
-                <button onClick={() => removeItem(key, name)} aria-label={`Remove ${name}`} style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 0 }}>
-                  ✕
-                </button>
+              <div key={key} style={{ padding: "10px 2px", borderBottom: `1px dashed ${C.line}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ flex: 1, minWidth: 0, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+                  <label style={{ fontSize: 11, color: C.faint }}>Usually at</label>
+                  <select value={cfg.store || UNASSIGNED} onChange={(e) => setCfg(key, { store: e.target.value })} style={{ fontSize: 13, padding: "6px 6px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", maxWidth: 140 }}>
+                    {[...data.stores, UNASSIGNED].map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                  <button onClick={() => removeItem(key, name)} aria-label={`Remove ${name}`} style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 0 }}>
+                    ✕
+                  </button>
+                </div>
+                {data.stores.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginTop: 6 }}>
+                    <span style={{ fontSize: 11, color: C.faint }}>Aisle:</span>
+                    {data.stores.map((s) => (
+                      <label key={s} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: cfg.store === s ? C.ink : C.faint }}>
+                        <span style={{ fontWeight: cfg.store === s ? 500 : 400 }}>{s}</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={cfg.aisles[s] ?? ""}
+                          onChange={(e) => setAisle(key, s, e.target.value === "" ? "" : Number(e.target.value))}
+                          aria-label={`Aisle for ${name} at ${s}`}
+                          style={{ width: 52, fontSize: 13, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: cfg.store === s ? C.greenSoft : "#fff" }}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
