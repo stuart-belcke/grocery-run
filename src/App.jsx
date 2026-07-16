@@ -1,13 +1,25 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import {
+  syncEnabled,
+  loadDeviceCode,
+  saveDeviceCode,
+  cleanCode,
+  loadCache,
+  saveCache,
+  subscribeHousehold,
+  watchConnection,
+  writeHousehold,
+} from "./sync";
 
 /* ------------------------------------------------------------------ */
 /*  Grocery Run — meal picker → aggregated, store-grouped shopping list
     Data model:
       CATALOG (read-only master, versioned in GitHub): stores, recipes,
         ingredient defaults. Fetched from ./catalog.json, cached locally.
-      LOCAL (this device only, localStorage): your list, week plan,
-        recipe edits/additions, setting overrides. Export/import moves
-        it between phones.                                              */
+      HOUSEHOLD (the "local" object below): your list, week plan, store
+        overrides, and un-pushed recipe edits. Stored in each device's
+        localStorage; when Firebase is configured it also syncs live
+        between phones via households/{code} in the Realtime Database.  */
 /* ------------------------------------------------------------------ */
 
 const LOCAL_KEY = "grocery-run-local-v1";
@@ -161,15 +173,27 @@ export default function App() {
     const cached = loadJSON(CATALOG_KEY);
     return validCatalog(cached) ? cached : FALLBACK_CATALOG;
   });
-  const [local, setLocal] = useState(() => {
-    const saved = loadJSON(LOCAL_KEY);
-    return validLocal(saved) ? { ...emptyLocal(), ...saved } : emptyLocal();
+  const [code, setCode] = useState(() => loadDeviceCode());
+  const [local, setLocalState] = useState(() => {
+    const cached = loadCache(code);
+    if (cached) return { ...emptyLocal(), ...cached };
+    const legacy = loadJSON(LOCAL_KEY); // migrate pre-sync saves
+    return validLocal(legacy) ? { ...emptyLocal(), ...legacy } : emptyLocal();
   });
   const [tab, setTab] = useState("list");
-  const [saveState, setSaveState] = useState(storageOk ? "saved" : "off");
+  const [syncStatus, setSyncStatus] = useState(syncEnabled ? "connecting" : "local-only");
   const [catalogNote, setCatalogNote] = useState("");
-  const saveTimer = useRef(null);
-  const first = useRef(true);
+
+  const localRef = useRef(local);
+  localRef.current = local;
+
+  // Persist + (if enabled) push to Firebase. Used for all user edits.
+  const setLocal = (next) => {
+    setLocalState(next);
+    saveCache(code, next);
+    if (syncEnabled) writeHousehold(code, next);
+  };
+  const update = (fn) => setLocal(fn(structuredClone(localRef.current)));
 
   // fetch the latest catalog from the site on load
   useEffect(() => {
@@ -192,22 +216,34 @@ export default function App() {
       });
   }, []);
 
-  // debounced autosave of local state
+  // Subscribe to the household node whenever the code changes.
   useEffect(() => {
-    if (first.current) {
-      first.current = false;
+    saveDeviceCode(code);
+    const cached = loadCache(code);
+    if (cached) setLocalState({ ...emptyLocal(), ...cached });
+
+    if (!syncEnabled) {
+      setSyncStatus("local-only");
       return;
     }
-    if (!storageOk) return;
-    setSaveState("saving");
-    clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      setSaveState(saveJSON(LOCAL_KEY, local) ? "saved" : "error");
-    }, 400);
-    return () => clearTimeout(saveTimer.current);
-  }, [local]);
-
-  const update = (fn) => setLocal((d) => fn(structuredClone(d)));
+    setSyncStatus("connecting");
+    const unsub = subscribeHousehold(code, (remote) => {
+      if (remote) {
+        // remote is the source of truth; adopt it (don't re-push — avoids loops)
+        setLocalState({ ...emptyLocal(), ...remote });
+        saveCache(code, remote);
+      } else {
+        // brand-new household: seed it with whatever this device has
+        writeHousehold(code, localRef.current);
+      }
+    });
+    const unwatch = watchConnection(setSyncStatus);
+    return () => {
+      unsub();
+      unwatch();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code]);
 
   /* ------- effective data = catalog + local overrides ------- */
   const data = useMemo(() => {
@@ -238,8 +274,25 @@ export default function App() {
         <header style={{ marginBottom: 18 }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
             <h1 style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 30, margin: 0 }}>Grocery Run</h1>
-            <span style={{ fontSize: 12, color: C.faint }}>
-              {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved on this device" : saveState === "error" ? "Save failed" : ""}
+            <span style={{ fontSize: 12, color: syncStatus === "offline" ? C.tomato : C.faint, display: "inline-flex", alignItems: "center", gap: 5 }}>
+              {syncEnabled && (
+                <span
+                  aria-hidden
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    background: syncStatus === "synced" ? C.green : syncStatus === "offline" ? C.tomato : C.faint,
+                  }}
+                />
+              )}
+              {!syncEnabled
+                ? "Saved on this device"
+                : syncStatus === "synced"
+                ? "Synced"
+                : syncStatus === "offline"
+                ? "Offline — will sync"
+                : "Connecting…"}
             </span>
           </div>
           <div style={{ marginTop: 10 }}>
@@ -282,7 +335,18 @@ export default function App() {
         {tab === "list" && <ListTab data={data} update={update} />}
         {tab === "meals" && <MealsTab data={data} catalog={catalog} update={update} />}
         {tab === "week" && <WeekTab data={data} update={update} />}
-        {tab === "pantry" && <PantryTab data={data} catalog={catalog} local={local} update={update} setLocal={setLocal} />}
+        {tab === "pantry" && (
+          <PantryTab
+            data={data}
+            catalog={catalog}
+            local={local}
+            update={update}
+            setLocal={setLocal}
+            code={code}
+            setCode={setCode}
+            syncStatus={syncStatus}
+          />
+        )}
       </div>
     </div>
   );
@@ -637,7 +701,7 @@ function MealsTab({ data, catalog, update }) {
   const deleteRecipe = (r) => {
     const catalogRecipe = isCatalogId(r.id);
     const msg = catalogRecipe
-      ? "Hide this catalog meal on this device? (To delete it everywhere, also remove it from catalog.json on GitHub — Ingredients tab → Export catalog makes that easy.)"
+      ? "Hide this catalog meal on this device? (To remove it everywhere, also delete it from catalog.json on GitHub — Ingredients tab → Publish changes makes that easy.)"
       : "Delete this meal?";
     if (!window.confirm(msg)) return;
     update((d) => {
@@ -832,7 +896,7 @@ function MealsTab({ data, catalog, update }) {
           />
           {draft.fromCatalog && (
             <div style={{ fontSize: 12, color: C.faint, marginBottom: 8 }}>
-              This meal comes from the shared catalog. Saving stores your edits on this device; use "Export catalog" on the Ingredients tab to make them permanent for both phones.
+              This meal comes from the shared catalog. Saving stores your edits on this device; use "Publish changes" on the Ingredients tab to make them permanent for both phones.
             </div>
           )}
           <div style={{ display: "flex", gap: 8 }}>
@@ -985,12 +1049,31 @@ function WeekTab({ data, update }) {
 
 /* ====================== ingredients + backup ====================== */
 
-function PantryTab({ data, catalog, local, update, setLocal }) {
+function PantryTab({ data, catalog, local, update, setLocal, code, setCode, syncStatus }) {
   const [newStore, setNewStore] = useState("");
   const [newItem, setNewItem] = useState("");
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
   const [msg, setMsg] = useState("");
+  const [codeInput, setCodeInput] = useState(code);
+  const [codeMsg, setCodeMsg] = useState("");
+
+  useEffect(() => setCodeInput(code), [code]);
+
+  const joinCode = () => {
+    const c = cleanCode(codeInput);
+    if (c.length < 8) {
+      setCodeMsg("Use at least 8 letters/numbers so the code stays private.");
+      return;
+    }
+    if (c === code) {
+      setCodeMsg("Already using that code.");
+      return;
+    }
+    if (!window.confirm(`Switch this phone to household "${c}"? It will start showing that household's synced list and settings.`)) return;
+    setCode(c);
+    setCodeMsg("Joined — this phone now syncs with that household.");
+  };
 
   const keys = useMemo(() => {
     const set = new Map();
@@ -1213,24 +1296,83 @@ function PantryTab({ data, catalog, local, update, setLocal }) {
         </div>
       </div>
 
+      <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <h3 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 2px" }}>Phone-to-phone sync</h3>
+          {syncEnabled && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: syncStatus === "offline" ? C.tomato : C.faint }}>
+              <span aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: syncStatus === "synced" ? C.green : syncStatus === "offline" ? C.tomato : C.faint }} />
+              {syncStatus === "synced" ? "Synced" : syncStatus === "offline" ? "Offline" : "Connecting…"}
+            </span>
+          )}
+        </div>
+        {!syncEnabled ? (
+          <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 0" }}>
+            Sync is off — data is saved only on this device. To sync your shopping list, week plan, and store choices live between phones, add a free Firebase database (see the "Phone-to-phone sync" steps in README.md), then reopen the app. Until then, use the Backup buttons below to copy data over manually.
+          </p>
+        ) : (
+          <>
+            <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 12px" }}>
+              Both phones using the <b>same household code</b> share one live shopping list, week plan, and store choices. Set the same code on each phone once; after that, changes appear on both whenever you're online (and queue up when you're not).
+            </p>
+            <label style={{ fontSize: 12, color: C.faint, display: "block", marginBottom: 4 }}>Household code</label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <input
+                value={codeInput}
+                onChange={(e) => setCodeInput(e.target.value)}
+                spellCheck={false}
+                autoCapitalize="none"
+                style={{ ...inputStyle, flex: 1, minWidth: 180, fontFamily: "ui-monospace, Menlo, monospace" }}
+              />
+              <Btn kind="primary" onClick={joinCode}>Use this code</Btn>
+              <Btn onClick={() => copyText(code, "Code copied — enter it on your other phone.")}>Copy code</Btn>
+            </div>
+            {codeMsg && <div style={{ fontSize: 12, color: C.faint, marginTop: 8 }}>{codeMsg}</div>}
+            <p style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
+              Keep this code private — anyone who knows it can see and edit your list. Joining a different code makes this phone adopt that household's data (this phone's current list is replaced, so export a backup first if you need it).
+            </p>
+          </>
+        )}
+      </div>
+
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16 }}>
-        <h3 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 2px" }}>Backup, transfer &amp; catalog</h3>
-        <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
-          Your recipes and defaults live safely in <b>catalog.json</b> on GitHub. Day-to-day changes live only on this device
-          {overrideCount > 0 ? ` — currently ${overrideCount} local change${overrideCount === 1 ? "" : "s"} not yet in the catalog.` : " — currently in sync with the catalog."}
+        <h3 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 2px" }}>Publish &amp; recover</h3>
+        <p style={{ fontSize: 13, color: C.faint, margin: "0 0 14px" }}>
+          Your recipes and defaults live safely in <b>catalog.json</b> on GitHub. Meals and settings you add or edit in the app start as local changes
+          {overrideCount > 0 ? ` — you currently have ${overrideCount} not yet published.` : " — you're currently all published and in sync."}
+        </p>
+
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 6 }}>
+          Publish to catalog
+        </div>
+        <p style={{ fontSize: 12, color: C.faint, margin: "0 0 8px" }}>
+          Push this device's recipe and setting changes into the shared GitHub catalog so they're permanent for both phones. Copy, then paste over <b>catalog.json</b> on GitHub and commit.
         </p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
           <Btn kind="primary" onClick={() => copyText(catalogJson(), "Catalog copied — paste it over catalog.json on GitHub and commit.")}>
-            Export catalog (copy)
+            Publish changes (copy)
           </Btn>
-          <Btn onClick={() => download("catalog.json", catalogJson())}>Export catalog (file)</Btn>
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          <Btn onClick={() => download(`grocery-run-backup-${new Date().toISOString().slice(0, 10)}.json`, backupJson())}>Backup this device (file)</Btn>
-          <Btn onClick={() => copyText(backupJson(), "Backup copied — paste it into Import on the other phone.")}>Backup (copy)</Btn>
-          <Btn onClick={() => setImportOpen(!importOpen)}>{importOpen ? "Close import" : "Import…"}</Btn>
+          <Btn onClick={() => download("catalog.json", catalogJson())}>Publish changes (file)</Btn>
           {overrideCount > 0 && <Btn kind="danger" onClick={clearOverrides}>Reset to catalog</Btn>}
         </div>
+        <p style={{ fontSize: 12, color: C.faint, margin: "0 0 16px" }}>
+          After committing on GitHub, "Reset to catalog" clears the local copies so this device is cleanly in sync.
+        </p>
+
+        <div style={{ borderTop: `1px dashed ${C.line}`, paddingTop: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 6 }}>
+            Backup &amp; recover
+          </div>
+          <p style={{ fontSize: 12, color: C.faint, margin: "0 0 8px" }}>
+            A full snapshot of this device's data (list, plan, and un-published edits). Handy for moving to a new phone or restoring after a browser wipe. Restoring <b>replaces</b> everything on this device.
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <Btn onClick={() => download(`grocery-run-backup-${new Date().toISOString().slice(0, 10)}.json`, backupJson())}>Save backup (file)</Btn>
+            <Btn onClick={() => copyText(backupJson(), "Backup copied — paste it into Restore on the other device.")}>Save backup (copy)</Btn>
+            <Btn onClick={() => setImportOpen(!importOpen)}>{importOpen ? "Close restore" : "Restore…"}</Btn>
+          </div>
+        </div>
+
         {msg && <div style={{ fontSize: 12, color: C.faint, marginTop: 10 }}>{msg}</div>}
         {importOpen && (
           <div style={{ marginTop: 12, borderTop: `1px dashed ${C.line}`, paddingTop: 12 }}>
@@ -1244,7 +1386,7 @@ function PantryTab({ data, catalog, local, update, setLocal }) {
             <textarea value={importText} onChange={(e) => setImportText(e.target.value)} placeholder="Paste backup data here" rows={5} style={{ ...inputStyle, width: "100%", boxSizing: "border-box", fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12 }} />
             <div style={{ display: "flex", marginTop: 8 }}>
               <div style={{ flex: 1 }} />
-              <Btn kind="primary" onClick={() => importText.trim() ? applyImport(importText.trim()) : setMsg("Paste backup data or choose a file first.")}>Import &amp; replace</Btn>
+              <Btn kind="primary" onClick={() => importText.trim() ? applyImport(importText.trim()) : setMsg("Paste backup data or choose a file first.")}>Restore &amp; replace</Btn>
             </div>
           </div>
         )}
