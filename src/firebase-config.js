@@ -9,12 +9,14 @@
  *  field that truly matters for sync is `databaseURL`.
  * ------------------------------------------------------------------ */
 
+// Unused value   messagingSenderId: "1068831481481",
 export const firebaseConfig = {
-  apiKey: "",
-  authDomain: "",
-  databaseURL: "", // e.g. "https://grocery-run-xxxx-default-rtdb.firebaseio.com"
-  projectId: "",
-  appId: "",
+  apiKey: "AIzaSyAnlVxM3gkp-cCoXguO8ew6QahSxfHpxzI",
+  authDomain: "grocery-run-d5e06.firebaseapp.com",
+  databaseURL: "https://grocery-run-d5e06-default-rtdb.firebaseio.com",
+  projectId: "grocery-run-d5e06",
+  storageBucket: "grocery-run-d5e06.firebasestorage.app",
+  appId: "1:1068831481481:web:847663add77665cc73f058"
 };
 
 // Sync switches on automatically once a databaseURL is present.
