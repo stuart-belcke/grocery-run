@@ -1,0 +1,61 @@
+{
+  "catalogVersion": 1,
+  "stores": ["Grocery store", "Costco"],
+  "recipes": [
+    {
+      "id": "taco-night",
+      "name": "Taco Night",
+      "mealTypes": ["Dinner"],
+      "servings": 4,
+      "notes": "Brown the beef with taco seasoning. Warm tortillas in a dry skillet.",
+      "ingredients": [
+        { "name": "Ground beef", "qty": 1, "unit": "lb" },
+        { "name": "Tortillas", "qty": 12, "unit": "" },
+        { "name": "Cheddar cheese", "qty": 8, "unit": "oz" },
+        { "name": "Salsa", "qty": 1, "unit": "jar" },
+        { "name": "Yellow onion", "qty": 1, "unit": "" }
+      ]
+    },
+    {
+      "id": "spaghetti-meat-sauce",
+      "name": "Spaghetti & Meat Sauce",
+      "mealTypes": ["Dinner"],
+      "servings": 4,
+      "notes": "",
+      "ingredients": [
+        { "name": "Spaghetti", "qty": 1, "unit": "lb" },
+        { "name": "Marinara sauce", "qty": 1, "unit": "jar" },
+        { "name": "Ground beef", "qty": 1, "unit": "lb" },
+        { "name": "Parmesan", "qty": 4, "unit": "oz" },
+        { "name": "Yellow onion", "qty": 1, "unit": "" }
+      ]
+    },
+    {
+      "id": "chicken-stir-fry",
+      "name": "Chicken Stir-Fry",
+      "mealTypes": ["Lunch", "Dinner"],
+      "servings": 2,
+      "notes": "High heat, cook chicken first, vegetables second, sauce last.",
+      "ingredients": [
+        { "name": "Chicken breast", "qty": 1.5, "unit": "lb" },
+        { "name": "Broccoli", "qty": 1, "unit": "head" },
+        { "name": "Soy sauce", "qty": 1, "unit": "bottle" },
+        { "name": "Jasmine rice", "qty": 2, "unit": "cups" }
+      ]
+    }
+  ],
+  "config": {
+    "ground beef": { "store": "Grocery store", "aisle": 12 },
+    "tortillas": { "store": "Grocery store", "aisle": 6 },
+    "cheddar cheese": { "store": "Grocery store", "aisle": 11 },
+    "salsa": { "store": "Grocery store", "aisle": 6 },
+    "yellow onion": { "store": "Grocery store", "aisle": 1 },
+    "spaghetti": { "store": "Grocery store", "aisle": 5 },
+    "marinara sauce": { "store": "Grocery store", "aisle": 5 },
+    "parmesan": { "store": "Grocery store", "aisle": 11 },
+    "chicken breast": { "store": "Costco", "aisle": 3 },
+    "broccoli": { "store": "Grocery store", "aisle": 1 },
+    "soy sauce": { "store": "Grocery store", "aisle": 7 },
+    "jasmine rice": { "store": "Costco", "aisle": 5 }
+  }
+}
