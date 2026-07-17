@@ -707,6 +707,7 @@ function MealsTab({ data, catalog, update }) {
   const [draft, setDraft] = useState(null);
   const [mealView, setMealView] = useState("az");
   const [easyOnly, setEasyOnly] = useState(false);
+  const [query, setQuery] = useState("");
   const [notesOpen, setNotesOpen] = useState(null);
 
   const isCatalogId = (id) => catalog.recipes.some((r) => r.id === id);
@@ -863,7 +864,12 @@ function MealsTab({ data, catalog, update }) {
   };
 
   const sorted = [...data.recipes].sort((a, b) => a.name.localeCompare(b.name));
-  const visible = easyOnly ? sorted.filter((r) => r.easy) : sorted;
+  const q = norm(query);
+  const visible = sorted.filter(
+    (r) =>
+      (!easyOnly || r.easy) &&
+      (!q || norm(r.name).includes(q) || r.ingredients.some((i) => norm(i.name).includes(q)))
+  );
 
   return (
     <div>
@@ -887,7 +893,26 @@ function MealsTab({ data, catalog, update }) {
         >
           ⚡ Easy only
         </button>
-        <div style={{ flex: 1 }} />
+        <div style={{ position: "relative", flex: "1 1 170px", minWidth: 140 }}>
+          <input
+            placeholder="Search meals or ingredients"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Escape" && setQuery("")}
+            aria-label="Search meals or ingredients"
+            style={{ ...inputStyle, width: "100%", boxSizing: "border-box", paddingRight: 28 }}
+          />
+          {query && (
+            <button
+              onClick={() => setQuery("")}
+              title="Clear search"
+              aria-label="Clear search"
+              style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 4 }}
+            >
+              ✕
+            </button>
+          )}
+        </div>
         <Btn kind="primary" onClick={startNew}>Add meal</Btn>
       </div>
       <p style={{ margin: "0 0 12px", fontSize: 13, color: C.faint }}>
@@ -1023,7 +1048,9 @@ function MealsTab({ data, catalog, update }) {
 
       {sorted.length > 0 && visible.length === 0 && (
         <div style={{ textAlign: "center", padding: "32px 16px", color: C.faint, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12 }}>
-          No meals are tagged ⚡ Easy yet — edit a meal to tag it.
+          {q
+            ? <>Nothing matches "{query.trim()}"{easyOnly ? " among ⚡ Easy meals" : ""}.</>
+            : "No meals are tagged ⚡ Easy yet — edit a meal to tag it."}
         </div>
       )}
 
