@@ -31,6 +31,29 @@
       ]
     },
     {
+      "id": "creamy-chicken-sausage-orzo-skillet",
+      "name": "Creamy Chicken Sausage Orzo Skillet",
+      "mealTypes": ["Dinner"],
+      "servings": 4,
+      "notes": "Brown sausage in olive oil, then set aside. Saute garlic, then toast orzo. Add broth, soy sauce, and seasonings; simmer until orzo is tender. Stir in coconut milk (or cream), parmesan, spinach, and the sausage; cook until spinach wilts.",
+      "ingredients": [
+        { "name": "Olive oil", "qty": 1, "unit": "tbsp" },
+        { "name": "Chicken sausage", "qty": 12, "unit": "oz" },
+        { "name": "Garlic", "qty": 6, "unit": "cloves" },
+        { "name": "Orzo", "qty": 1, "unit": "cup" },
+        { "name": "Chicken broth", "qty": 2, "unit": "cups" },
+        { "name": "Coconut milk", "qty": 0.25, "unit": "cup" },
+        { "name": "Soy sauce", "qty": 1, "unit": "tbsp" },
+        { "name": "Onion powder", "qty": 1, "unit": "tsp" },
+        { "name": "Red pepper flakes", "qty": 0.5, "unit": "tsp" },
+        { "name": "Black pepper", "qty": 0.5, "unit": "tsp" },
+        { "name": "Salt", "qty": 0.25, "unit": "tsp" },
+        { "name": "Thyme", "qty": 1, "unit": "tsp" },
+        { "name": "Parmesan", "qty": 0.5, "unit": "cup" },
+        { "name": "Baby spinach", "qty": 2, "unit": "cups" }
+      ]
+    },
+    {
       "id": "chicken-stir-fry",
       "name": "Chicken Stir-Fry",
       "mealTypes": ["Lunch", "Dinner"],
@@ -56,6 +79,18 @@
     "chicken breast": { "store": "Costco", "aisles": { "Costco": 3, "Grocery store": 14 } },
     "broccoli": { "store": "Grocery store", "aisles": { "Grocery store": 1 } },
     "soy sauce": { "store": "Grocery store", "aisles": { "Grocery store": 7 } },
-    "jasmine rice": { "store": "Costco", "aisles": { "Costco": 5 } }
+    "jasmine rice": { "store": "Costco", "aisles": { "Costco": 5 } },
+    "olive oil": { "store": "Grocery store", "aisles": { "Grocery store": 8 } },
+    "chicken sausage": { "store": "Grocery store", "aisles": { "Grocery store": 12 } },
+    "garlic": { "store": "Grocery store", "aisles": { "Grocery store": 1 } },
+    "orzo": { "store": "Grocery store", "aisles": { "Grocery store": 5 } },
+    "chicken broth": { "store": "Grocery store", "aisles": { "Grocery store": 7 } },
+    "coconut milk": { "store": "Grocery store", "aisles": { "Grocery store": 7 } },
+    "onion powder": { "store": "Grocery store", "aisles": { "Grocery store": 8 } },
+    "red pepper flakes": { "store": "Grocery store", "aisles": { "Grocery store": 8 } },
+    "black pepper": { "store": "Grocery store", "aisles": { "Grocery store": 8 } },
+    "salt": { "store": "Grocery store", "aisles": { "Grocery store": 8 } },
+    "thyme": { "store": "Grocery store", "aisles": { "Grocery store": 8 } },
+    "baby spinach": { "store": "Grocery store", "aisles": { "Grocery store": 1 } }
   }
 }
