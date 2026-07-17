@@ -26,7 +26,7 @@ const LOCAL_KEY = "grocery-run-local-v1";
 const CATALOG_KEY = "grocery-run-catalog-cache-v1";
 const UNASSIGNED = "Unassigned";
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const MEAL_TYPES = ["Breakfast", "Lunch", "Dinner"];
+const MEAL_TYPES = ["Breakfast", "Lunch", "Dinner", "Dessert"];
 
 const C = {
   paper: "#F7F5EF",
@@ -38,6 +38,8 @@ const C = {
   line: "#E3E0D4",
   tomato: "#C2452D",
   tomatoSoft: "#F7E4DF",
+  gold: "#8A6D1D",
+  goldSoft: "#F6EFD7",
 };
 const fontDisplay = "'Fraunces', Georgia, serif";
 const fontBody = "'Space Grotesk', system-ui, -apple-system, sans-serif";
@@ -704,6 +706,7 @@ function ListTab({ data, update }) {
 function MealsTab({ data, catalog, update }) {
   const [draft, setDraft] = useState(null);
   const [mealView, setMealView] = useState("az");
+  const [easyOnly, setEasyOnly] = useState(false);
   const [notesOpen, setNotesOpen] = useState(null);
 
   const isCatalogId = (id) => catalog.recipes.some((r) => r.id === id);
@@ -715,12 +718,13 @@ function MealsTab({ data, catalog, update }) {
       return d;
     });
 
-  const startNew = () => setDraft({ id: null, name: "", mealTypes: [], servings: "4", notes: "", ingredients: [{ name: "", qty: "1", unit: "" }] });
+  const startNew = () => setDraft({ id: null, name: "", mealTypes: [], easy: false, servings: "4", notes: "", ingredients: [{ name: "", qty: "1", unit: "" }] });
   const startEdit = (r) =>
     setDraft({
       id: r.id,
       name: r.name,
       mealTypes: (r.mealTypes || []).slice(),
+      easy: !!r.easy,
       servings: String(r.servings || 4),
       notes: r.notes || "",
       ingredients: r.ingredients.map((i) => ({ ...i, qty: String(i.qty) })),
@@ -736,6 +740,7 @@ function MealsTab({ data, catalog, update }) {
       id: draft.id || uid(),
       name: draft.name.trim(),
       mealTypes: draft.mealTypes,
+      easy: !!draft.easy,
       servings: Math.max(1, Number(draft.servings) || 4),
       notes: draft.notes.trim(),
       ingredients: draft.ingredients
@@ -809,6 +814,11 @@ function MealsTab({ data, catalog, update }) {
                   {t}
                 </span>
               ))}
+              {r.easy && (
+                <span title="Quick, low-effort meal" style={{ fontSize: 11, fontWeight: 500, background: C.goldSoft, color: C.gold, padding: "2px 8px", borderRadius: 999 }}>
+                  ⚡ Easy
+                </span>
+              )}
               {r.fromCatalog && (
                 <span style={{ fontSize: 11, color: C.faint }} title={r.edited ? "From the shared catalog, edited on this device" : "From the shared catalog"}>
                   catalog{r.edited ? "*" : ""}
@@ -853,11 +863,30 @@ function MealsTab({ data, catalog, update }) {
   };
 
   const sorted = [...data.recipes].sort((a, b) => a.name.localeCompare(b.name));
+  const visible = easyOnly ? sorted.filter((r) => r.easy) : sorted;
 
   return (
     <div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 10 }}>
         <Seg options={[{ value: "az", label: "A–Z" }, { value: "type", label: "By meal type" }]} value={mealView} onChange={setMealView} />
+        <button
+          onClick={() => setEasyOnly(!easyOnly)}
+          aria-pressed={easyOnly}
+          title="Show only quick, low-effort meals"
+          style={{
+            fontFamily: fontBody,
+            fontSize: 13,
+            fontWeight: 500,
+            padding: "5px 12px",
+            borderRadius: 999,
+            cursor: "pointer",
+            border: `1px solid ${easyOnly ? C.gold : C.line}`,
+            background: easyOnly ? C.goldSoft : "#fff",
+            color: easyOnly ? C.gold : C.ink,
+          }}
+        >
+          ⚡ Easy only
+        </button>
         <div style={{ flex: 1 }} />
         <Btn kind="primary" onClick={startNew}>Add meal</Btn>
       </div>
@@ -898,6 +927,24 @@ function MealsTab({ data, catalog, update }) {
                 </button>
               );
             })}
+            <button
+              onClick={() => setDraft({ ...draft, easy: !draft.easy })}
+              aria-pressed={draft.easy}
+              title="Quick, low-effort meal — for when time and energy are short"
+              style={{
+                fontFamily: fontBody,
+                fontSize: 13,
+                fontWeight: 500,
+                padding: "5px 12px",
+                borderRadius: 999,
+                cursor: "pointer",
+                border: `1px solid ${draft.easy ? C.gold : C.line}`,
+                background: draft.easy ? C.goldSoft : "#fff",
+                color: draft.easy ? C.gold : C.ink,
+              }}
+            >
+              ⚡ Easy
+            </button>
             <span style={{ flex: 1 }} />
             <label style={{ fontSize: 12, color: C.faint, display: "flex", alignItems: "center", gap: 6 }}>
               Serves
@@ -974,12 +1021,18 @@ function MealsTab({ data, catalog, update }) {
         </div>
       )}
 
+      {sorted.length > 0 && visible.length === 0 && (
+        <div style={{ textAlign: "center", padding: "32px 16px", color: C.faint, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12 }}>
+          No meals are tagged ⚡ Easy yet — edit a meal to tag it.
+        </div>
+      )}
+
       {mealView === "az"
-        ? sorted.map(renderCard)
+        ? visible.map(renderCard)
         : [...MEAL_TYPES, "Untagged"]
             .map((t) => ({
               label: t,
-              recipes: sorted.filter((r) => (t === "Untagged" ? !(r.mealTypes || []).length : (r.mealTypes || []).includes(t))),
+              recipes: visible.filter((r) => (t === "Untagged" ? !(r.mealTypes || []).length : (r.mealTypes || []).includes(t))),
             }))
             .filter((g) => g.recipes.length > 0)
             .map((g) => (
@@ -1069,7 +1122,7 @@ function WeekTab({ data, update }) {
                         <optgroup label={`${type} meals`}>
                           {tagged.map((r) => (
                             <option key={r.id} value={r.id}>
-                              {r.name}
+                              {r.easy ? "⚡ " : ""}{r.name}
                             </option>
                           ))}
                         </optgroup>
@@ -1078,7 +1131,7 @@ function WeekTab({ data, update }) {
                         <optgroup label="Other meals">
                           {other.map((r) => (
                             <option key={r.id} value={r.id}>
-                              {r.name}
+                              {r.easy ? "⚡ " : ""}{r.name}
                             </option>
                           ))}
                         </optgroup>
@@ -1247,6 +1300,7 @@ function PantryTab({ data, catalog, local, update, setLocal, code, setCode, sync
       id: r.id,
       name: r.name,
       mealTypes: r.mealTypes || [],
+      easy: !!r.easy,
       servings: r.servings || 4,
       notes: r.notes || "",
       ingredients: r.ingredients,
