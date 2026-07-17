@@ -1472,6 +1472,10 @@ function PantryTab({ data, catalog, local, update, setLocal, code, setCode, sync
           </div>
         )}
       </div>
+
+      <p style={{ fontSize: 11, color: C.faint, textAlign: "center", margin: "14px 0 4px", fontFamily: "ui-monospace, Menlo, monospace" }}>
+        Build {__BUILD__}
+      </p>
     </div>
   );
 }
