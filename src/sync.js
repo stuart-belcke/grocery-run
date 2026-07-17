@@ -144,7 +144,10 @@ export function writeHousehold(code, state) {
     try {
       await set(ref(db, `households/${code}/state`), pending);
     } catch (e) {
-      /* offline writes are queued by the SDK and flush on reconnect */
+      // Offline never rejects (the SDK queues and flushes on reconnect);
+      // reaching here means the server refused the write — usually the
+      // security rules. Data is NOT syncing, so make it visible.
+      console.error("Grocery Run: sync write rejected", e);
     }
   }, 250);
 }

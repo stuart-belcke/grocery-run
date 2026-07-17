@@ -95,6 +95,37 @@ const emptyLocal = () => ({
   plan: {},
 });
 
+// Firebase strips empty objects/arrays (and nulls) when saving and can
+// hand arrays back as index-keyed objects, so state arriving from sync
+// (or from the cache/backup of such state) may be missing nested fields.
+// The rule everywhere below: an absent field means empty. Rebuild the
+// full shape before rendering ever touches it.
+const asArray = (v) => (Array.isArray(v) ? v : v && typeof v === "object" ? Object.values(v) : []);
+const asObject = (v) => (v && typeof v === "object" && !Array.isArray(v) ? v : {});
+const normalizeRecipe = (r) => ({ ...r, mealTypes: asArray(r.mealTypes), ingredients: asArray(r.ingredients) });
+function normalizeLocal(raw) {
+  const d = raw && typeof raw === "object" ? raw : {};
+  const recipeOverrides = {};
+  for (const [id, v] of Object.entries(asObject(d.recipeOverrides)))
+    recipeOverrides[id] = v && typeof v === "object" ? normalizeRecipe(v) : v;
+  return {
+    ...emptyLocal(),
+    ...d,
+    localRecipes: asArray(d.localRecipes).map(normalizeRecipe),
+    recipeOverrides,
+    configOverrides: asObject(d.configOverrides),
+    extraStores: asArray(d.extraStores),
+    removedStores: asArray(d.removedStores),
+    list: {
+      selections: asObject(d.list && d.list.selections),
+      overrides: asObject(d.list && d.list.overrides),
+      checked: asObject(d.list && d.list.checked),
+      extras: asArray(d.list && d.list.extras),
+    },
+    plan: asObject(d.plan),
+  };
+}
+
 function loadJSON(key) {
   if (!storageOk) return null;
   try {
@@ -196,9 +227,9 @@ export default function App() {
   const [code, setCode] = useState(() => loadDeviceCode());
   const [local, setLocalState] = useState(() => {
     const cached = loadCache(code);
-    if (cached) return { ...emptyLocal(), ...cached };
+    if (cached) return normalizeLocal(cached);
     const legacy = loadJSON(LOCAL_KEY); // migrate pre-sync saves
-    return validLocal(legacy) ? { ...emptyLocal(), ...legacy } : emptyLocal();
+    return validLocal(legacy) ? normalizeLocal(legacy) : emptyLocal();
   });
   const [tab, setTab] = useState("list");
   const [syncStatus, setSyncStatus] = useState(syncEnabled ? "connecting" : "local-only");
@@ -240,7 +271,7 @@ export default function App() {
   useEffect(() => {
     saveDeviceCode(code);
     const cached = loadCache(code);
-    if (cached) setLocalState({ ...emptyLocal(), ...cached });
+    if (cached) setLocalState(normalizeLocal(cached));
 
     if (!syncEnabled) {
       setSyncStatus("local-only");
@@ -250,7 +281,7 @@ export default function App() {
     const unsub = subscribeHousehold(code, (remote) => {
       if (remote) {
         // remote is the source of truth; adopt it (don't re-push — avoids loops)
-        setLocalState({ ...emptyLocal(), ...remote });
+        setLocalState(normalizeLocal(remote));
         saveCache(code, remote);
       } else {
         // brand-new household: seed it with whatever this device has
@@ -270,7 +301,7 @@ export default function App() {
     const recipes = [];
     for (const r of catalog.recipes) {
       const ov = local.recipeOverrides[r.id];
-      if (ov === null) continue; // hidden on this device
+      if (ov === false || ov === null) continue; // hidden (null = legacy marker)
       recipes.push(ov ? { ...ov, id: r.id, fromCatalog: true, edited: true } : { ...r, fromCatalog: true });
     }
     for (const r of local.localRecipes) recipes.push({ ...r, fromCatalog: false });
@@ -735,7 +766,7 @@ function MealsTab({ data, catalog, update }) {
       : "Delete this meal?";
     if (!window.confirm(msg)) return;
     update((d) => {
-      if (catalogRecipe) d.recipeOverrides[r.id] = null;
+      if (catalogRecipe) d.recipeOverrides[r.id] = false; // false, not null: Firebase drops nulls
       else d.localRecipes = d.localRecipes.filter((x) => x.id !== r.id);
       delete d.list.selections[r.id];
       for (const day of Object.keys(d.plan || {})) {
@@ -1245,7 +1276,7 @@ function PantryTab({ data, catalog, local, update, setLocal, code, setCode, sync
       return;
     }
     if (!window.confirm("Import this backup? It replaces this device's meals edits, settings, week plan, and current list.")) return;
-    setLocal({ ...emptyLocal(), ...incoming });
+    setLocal(normalizeLocal(incoming));
     setImportOpen(false);
     setImportText("");
     setMsg("Imported.");
