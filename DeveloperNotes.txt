@@ -1,0 +1,10 @@
+
+
+maybe make an option to create or join a household?
+
+Add the ability to export to or link to a gmail calendar using the household
+Move the settings stuff from the bottom of the ingredients page to a settings tab or hamburger at the top
+Add the "info" icon ability to the ingredients tab to see what recipes it is used in
+Add the ability to add ingredients to the shopping list straight from the ingredients tab. The idea being, you could search for an item like bananas and add to shopping list manually rather than having a recipe or having to type the item by hand into the List tab.
+Also have the "add an item" bar look through the ingredients tab and suggest items as you type. This way you can add/select things to the list that are already listed as ingredients rather than possibly adding a duplicate item.
+Update it so that I can delete households. DOes that take logging everyone out or something? Or being able to log specific households out? THe households were created by other devices that we dont use. If someone has the webapp open with uncommited changes on a seperate household, it will live in the RTDB forever.
