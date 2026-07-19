@@ -1,11 +1,12 @@
 {
-  "catalogVersion": 2,
+  "catalogVersion": 3,
   "stores": ["Grocery store", "Costco"],
   "recipes": [
     {
       "id": "taco-night",
       "name": "Taco Night",
       "mealTypes": ["Dinner"],
+      "easy": false,
       "servings": 4,
       "notes": "Brown the beef with taco seasoning. Warm tortillas in a dry skillet.",
       "ingredients": [
@@ -20,6 +21,7 @@
       "id": "spaghetti-meat-sauce",
       "name": "Spaghetti & Meat Sauce",
       "mealTypes": ["Dinner"],
+      "easy": false,
       "servings": 4,
       "notes": "",
       "ingredients": [
@@ -34,6 +36,7 @@
       "id": "creamy-chicken-sausage-orzo-skillet",
       "name": "Creamy Chicken Sausage Orzo Skillet",
       "mealTypes": ["Dinner"],
+      "easy": false,
       "servings": 4,
       "notes": "Cook sausage in olive oil over medium-high heat, 6-7 min, until browned. Add garlic, saute 30 sec. Add orzo, toast 60 sec. Pour in broth to deglaze, then add coconut milk, soy sauce, seasonings, and thyme. Bring to a boil, cover, reduce heat, and simmer 10-12 min, stirring occasionally, until orzo is tender and liquid is absorbed. Stir in spinach until wilted, then mix in parmesan. Season with extra salt and pepper to taste.\n\nSource: https://www.eatyourselfskinny.com/creamy-chicken-sausage-orzo-skillet/",
       "ingredients": [
@@ -57,6 +60,7 @@
       "id": "chicken-stir-fry",
       "name": "Chicken Stir-Fry",
       "mealTypes": ["Lunch", "Dinner"],
+      "easy": false,
       "servings": 2,
       "notes": "High heat, cook chicken first, vegetables second, sauce last.",
       "ingredients": [
@@ -70,6 +74,7 @@
       "id": "tex-mex-beef-black-bean-casserole",
       "name": "Tex-Mex Beef & Black Bean Casserole",
       "mealTypes": ["Dinner"],
+      "easy": false,
       "servings": 6,
       "notes": "Preheat oven to 375F. Heat olive oil in an oven-safe skillet and cook onion until softened, about 4 min; add garlic and cook 1 min more. Add beef and cook until browned, breaking it up, then drain fat and stir in taco seasoning. Stir in black beans, corn, Rotel, and enchilada sauce; simmer 3-4 min. Layer half the beef mixture, tortilla strips, and cheese in a 9x13 dish; repeat layers. Bake uncovered 20-25 min until bubbly. Rest 5 min, then serve with sour cream.",
       "ingredients": [
@@ -91,6 +96,7 @@
       "id": "lemon-herb-salmon-asparagus-sheet-pan",
       "name": "Lemon Herb Salmon & Asparagus Sheet Pan",
       "mealTypes": ["Dinner"],
+      "easy": false,
       "servings": 4,
       "notes": "Preheat oven to 400F and line a sheet pan with parchment. Toss asparagus with half the olive oil, salt, and pepper, and spread on one half of the pan. Whisk the remaining olive oil, garlic, Dijon, juice of one lemon, dill/parsley, salt, and pepper. Place salmon on the other half of the pan, spoon sauce over the fillets, top with capers, and lay slices from the second lemon over top. Roast 12-15 min until salmon flakes easily and asparagus is lightly crispy.",
       "ingredients": [
@@ -110,6 +116,7 @@
       "id": "herb-roasted-pork-loin-potatoes-carrots",
       "name": "One-Pan Herb Roasted Pork Loin with Potatoes & Carrots",
       "mealTypes": ["Dinner"],
+      "easy": true,
       "servings": 6,
       "notes": "Preheat oven to 425F and pat pork dry. Rub pork with a mix of Dijon, garlic, salt, and pepper. Toss potatoes and carrots with olive oil, salt, and pepper directly in a roasting pan. Sear pork on all sides in the remaining oil, about 2 min per side, then nestle into the vegetables. Lay rosemary and thyme sprigs over top and pour chicken broth into the pan. Roast uncovered 45-55 min until pork reaches 145F internal and vegetables are golden. Rest pork 10 min before slicing; serve with pan juices.",
       "ingredients": [
@@ -120,7 +127,7 @@
         { "name": "Garlic", "qty": 4, "unit": "cloves" },
         { "name": "Rosemary", "qty": 3, "unit": "sprigs" },
         { "name": "Thyme", "qty": 4, "unit": "sprigs" },
-        { "name": "Chicken broth", "qty": 0.5, "unit": "cups" },
+        { "name": "Chicken broth", "qty": 0.5, "unit": "cup" },
         { "name": "Dijon mustard", "qty": 2, "unit": "tbsp" },
         { "name": "Salt", "qty": 1.5, "unit": "tsp" },
         { "name": "Black pepper", "qty": 1, "unit": "tsp" }
@@ -130,6 +137,7 @@
       "id": "baked-creamy-orzo-chickpeas-spinach",
       "name": "Baked Creamy Orzo with Chickpeas & Spinach",
       "mealTypes": ["Dinner"],
+      "easy": false,
       "servings": 4,
       "notes": "Preheat oven to 375F. Add all ingredients except the lemon juice to a 9x13 casserole dish and stir well. Cover tightly with foil and bake 30 min. Stir, then bake uncovered another 15-20 min until the orzo is tender and creamy. Finish with lemon juice and season with salt and pepper to taste.",
       "ingredients": [
@@ -149,6 +157,7 @@
       "id": "vanilla-marshmallow-boob-cake",
       "name": "One-Year Breastfeeding Cake (Vanilla Marshmallow \"Boob Cake\")",
       "mealTypes": [],
+      "easy": false,
       "servings": 12,
       "notes": "Preheat oven to 350F; grease and line two 8-9in round pans. Whisk flour, baking powder, and salt. Cream butter and granulated sugar 2-3 min until fluffy, then mix in egg whites and vanilla. Alternate adding the flour mixture and milk in three additions, mixing just until combined. Divide batter into pans and bake 25-30 min; cool completely. For the filling, whip the cream with powdered sugar to soft peaks, then fold in marshmallow fluff and vanilla; chill. Stack the cooled cakes, carve a center hole leaving about a 1in base, fill with marshmallow filling, and replace the top piece; carve into a smooth dome. For the buttercream, beat the butter, then gradually add powdered sugar, milk/cream, vanilla, and a pinch of salt until fluffy. Apply a thin crumb coat and chill 20-30 min, then frost smoothly into a dome shape. Tint a small amount of frosting pink and pipe a circle in the center. Refrigerate up to 3 days; bring to room temp before serving.",
       "ingredients": [
@@ -171,11 +180,11 @@
       "id": "baked-cod-lemon-garlic",
       "name": "Baked Cod with Lemon and Garlic",
       "mealTypes": ["Dinner"],
+      "easy": false,
       "servings": 5,
       "notes": "Preheat oven to 400F. Mix lemon juice, olive oil, and melted butter in a shallow bowl (no garlic yet); set aside. In another shallow bowl, mix flour, coriander, paprika, cumin, salt, and pepper. Pat fish dry, dip in the lemon sauce then the flour mixture, shaking off excess; reserve the remaining lemon sauce. Heat 2 tbsp olive oil in a cast iron or oven-safe skillet over medium-high and sear fish about 2 min per side for color, then remove from heat. Stir the minced garlic into the reserved lemon sauce and drizzle over the fish. Bake until the fish flakes easily, about 10 min. Sprinkle with parsley and serve immediately.\n\nSource: https://www.themediterraneandish.com/baked-cod-recipe-lemon-garlic/",
       "ingredients": [
         { "name": "Cod fillets", "qty": 1.5, "unit": "lb" },
-        { "name": "Fresh parsley", "qty": 0.25, "unit": "cup" },
         { "name": "Lemon juice", "qty": 5, "unit": "tbsp" },
         { "name": "Olive oil", "qty": 7, "unit": "tbsp" },
         { "name": "Butter", "qty": 2, "unit": "tbsp" },
@@ -192,6 +201,7 @@
       "id": "baked-chicken-veggie-meatballs",
       "name": "Baked Chicken & Veggie Meatballs for Baby (and Kids, Too!)",
       "mealTypes": ["Lunch", "Dinner"],
+      "easy": false,
       "servings": 4,
       "notes": "Yields about 24-30 1-inch meatballs (age 6 months+). Preheat oven to 400F and line a baking sheet with parchment. Combine all ingredients in a large bowl and gently fold together until just incorporated; let sit 5 min. Roll into 1-inch balls, wetting hands as needed. Bake 15-20 min until cooked through and lightly browned. Let cool and serve. Season with salt and pepper to taste. Store in the fridge up to 4 days or freezer up to 3 months.\n\nSource: https://babyfoode.com/blog/mini-chicken-carrot-meatballs-for-baby/",
       "ingredients": [
@@ -210,23 +220,25 @@
       "id": "garlicky-pesto-flatbread-pizza",
       "name": "Garlicky Pesto Flatbread Pizza with Tomatoes and Arugula",
       "mealTypes": ["Dinner"],
+      "easy": false,
       "servings": 4,
-      "notes": "Preheat oven to 425F. Brush flatbreads with garlic puree and bake 3-5 min to crisp up. Spread pesto over flatbreads, top with mozzarella and tomato slices, season with salt and pepper, and bake on a sheet pan 10-13 min until cheese is bubbling and edges are crisp. Top with arugula, torn basil, and red pepper flakes if desired. Slice and serve.\n\nSource: https://www.eatyourselfskinny.com/garlicky-pesto-flatbread-pizza-with-tomatoes-arugula/",
+      "notes": "Preheat oven to 425F. Brush flatbreads with garlic puree and bake 3-5 min to crisp up. Spread red pesto over flatbreads, top with mozzarella, chicken, and tomato slices, season with salt and pepper, and bake on a sheet pan 10-13 min until cheese is bubbling and edges are crisp. Top with torn basil and balsamic glaze. Slice and serve.\n\nSource: https://www.eatyourselfskinny.com/garlicky-pesto-flatbread-pizza-with-tomatoes-arugula/",
       "ingredients": [
         { "name": "Naan flatbreads", "qty": 2, "unit": "" },
         { "name": "Garlic puree", "qty": 1, "unit": "tbsp" },
-        { "name": "Pesto", "qty": 0.5, "unit": "cup" },
+        { "name": "Red Pesto", "qty": 0.5, "unit": "cup" },
         { "name": "Fresh mozzarella", "qty": 6, "unit": "slices" },
         { "name": "Tomatoes", "qty": 0.5, "unit": "lb" },
-        { "name": "Sun-dried tomatoes", "qty": 0.5, "unit": "cup" },
-        { "name": "Arugula", "qty": 2, "unit": "cups" },
-        { "name": "Fresh basil", "qty": 1, "unit": "handful, torn" }
+        { "name": "Fresh basil", "qty": 1, "unit": "handful, torn" },
+        { "name": "Canned chicken", "qty": 0.5, "unit": "Jar" },
+        { "name": "Balsamic glaze", "qty": 1, "unit": "Tbsp" }
       ]
     },
     {
       "id": "crockpot-taco-burritos",
       "name": "Crockpot Taco Burritos",
       "mealTypes": ["Lunch"],
+      "easy": false,
       "servings": 10,
       "notes": "Cook ground beef first. Then combine beef, onions, bell peppers, jalapeno, black beans, brown rice, broth, and the taco seasoning spices (chili powder through red pepper flakes) in the crockpot; cook until the rice is tender. Warm tortillas, fill with the taco rice mixture, and top with feta. \n\nSubstitute: in place of the homemade seasoning spices, you can use 2 store-bought taco seasoning packets. Swap the garlic powder for onion powder if you prefer.",
       "ingredients": [
@@ -253,6 +265,7 @@
       "id": "turkey-sausage-chili",
       "name": "Turkey & Sausage Chili",
       "mealTypes": ["Dinner"],
+      "easy": false,
       "servings": 12,
       "notes": "Cook the ground turkey and sausage until browned, then combine with the onions, peppers, beans, tomatoes, and seasoning in a large pot. Simmer until heated through and flavors meld.",
       "ingredients": [
@@ -377,6 +390,9 @@
     "crushed tomatoes": { "store": "Grocery store", "aisles": { "Grocery store": 7 } },
     "tomato sauce": { "store": "Grocery store", "aisles": { "Grocery store": 7 } },
     "diced tomatoes": { "store": "Grocery store", "aisles": { "Grocery store": 7 } },
-    "cayenne powder": { "store": "Grocery store", "aisles": { "Grocery store": 8 } }
+    "cayenne powder": { "store": "Grocery store", "aisles": { "Grocery store": 8 } },
+    "balsamic glaze": { "store": "Unassigned", "aisles": {} },
+    "canned chicken": { "store": "Unassigned", "aisles": {} },
+    "red pesto": { "store": "Unassigned", "aisles": {} }
   }
 }
