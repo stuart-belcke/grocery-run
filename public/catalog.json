@@ -391,8 +391,8 @@
     "tomato sauce": { "store": "Grocery store", "aisles": { "Grocery store": 7 } },
     "diced tomatoes": { "store": "Grocery store", "aisles": { "Grocery store": 7 } },
     "cayenne powder": { "store": "Grocery store", "aisles": { "Grocery store": 8 } },
-    "balsamic glaze": { "store": "Unassigned", "aisles": {  } },
-    "canned chicken": { "store": "Unassigned", "aisles": {  } },
-    "red pesto": { "store": "Unassigned", "aisles": {  } }
+    "balsamic glaze": { "store": "Unassigned", "aisles": {} },
+    "canned chicken": { "store": "Unassigned", "aisles": {} },
+    "red pesto": { "store": "Unassigned", "aisles": {} }
   }
 }

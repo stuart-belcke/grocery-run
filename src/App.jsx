@@ -49,6 +49,50 @@ const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 const uid = () => Math.random().toString(36).slice(2, 10);
 const r2 = (x) => Math.round(x * 100) / 100;
 
+// Render a value on a single line, matching the hand-authored catalog.json
+// style: arrays as [a, b], objects as { "k": v, ... }, everything else via
+// JSON.stringify. Used to keep the published catalog compact.
+const inlineJson = (v) => {
+  if (Array.isArray(v)) return v.length ? "[" + v.map(inlineJson).join(", ") + "]" : "[]";
+  if (v && typeof v === "object") {
+    const entries = Object.entries(v);
+    return entries.length ? "{ " + entries.map(([k, val]) => `${JSON.stringify(k)}: ${inlineJson(val)}`).join(", ") + " }" : "{}";
+  }
+  return JSON.stringify(v);
+};
+
+// Serialize the catalog with one recipe field / ingredient / config entry per
+// line, so committed catalog.json stays readable and diffs stay small — instead
+// of JSON.stringify's fully-expanded (one token per line) output.
+function formatCatalog(out) {
+  const lines = ["{"];
+  lines.push(`  "catalogVersion": ${JSON.stringify(out.catalogVersion)},`);
+  lines.push(`  "stores": ${inlineJson(out.stores)},`);
+  lines.push(`  "recipes": [`);
+  out.recipes.forEach((r, ri) => {
+    lines.push("    {");
+    for (const k of Object.keys(r)) {
+      if (k === "ingredients") continue;
+      lines.push(`      ${JSON.stringify(k)}: ${inlineJson(r[k])},`);
+    }
+    lines.push(`      "ingredients": [`);
+    r.ingredients.forEach((ing, ii) => {
+      lines.push(`        ${inlineJson(ing)}${ii < r.ingredients.length - 1 ? "," : ""}`);
+    });
+    lines.push("      ]");
+    lines.push(`    }${ri < out.recipes.length - 1 ? "," : ""}`);
+  });
+  lines.push("  ],");
+  lines.push(`  "config": {`);
+  const cfg = Object.entries(out.config);
+  cfg.forEach(([k, v], ci) => {
+    lines.push(`    ${JSON.stringify(k)}: ${inlineJson(v)}${ci < cfg.length - 1 ? "," : ""}`);
+  });
+  lines.push("  }");
+  lines.push("}");
+  return lines.join("\n") + "\n";
+}
+
 // An ingredient config is { store: defaultStore, aisles: { storeName: number } }.
 // Older data used a single { store, aisle }; normalizeCfg upgrades it so the
 // legacy aisle becomes that store's entry in the aisles map.
@@ -1340,7 +1384,7 @@ function PantryTab({ data, catalog, local, update, setLocal, code, setCode, sync
       recipes,
       config,
     };
-    return JSON.stringify(out, null, 2);
+    return formatCatalog(out);
   };
 
   const applyImport = (text) => {
