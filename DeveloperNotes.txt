@@ -2,6 +2,8 @@
 
 maybe make an option to create or join a household?
 
+
+Once something is checked on the List, move it to the bottom of the filter (this might be best implimented with a toggled filter at the top, open to design ideas)
 Add the ability to export to or link to a gmail calendar using the household
 Move the settings stuff from the bottom of the ingredients page to a settings tab or hamburger at the top
 Add the "info" icon ability to the ingredients tab to see what recipes it is used in
