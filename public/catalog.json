@@ -258,6 +258,35 @@
         { "name": "Dried oregano", "qty": 1, "unit": "tsp" },
         { "name": "Red pepper flakes", "qty": 0.125, "unit": "tsp (pinch, optional)" }
       ]
+    },
+    {
+      "id": "turkey-sausage-chili",
+      "name": "Turkey & Sausage Chili",
+      "mealTypes": ["Dinner"],
+      "servings": 12,
+      "notes": "Cook the ground turkey and sausage until browned, then combine with the onions, peppers, beans, tomatoes, and seasoning in a large pot. Simmer until heated through and flavors meld.",
+      "ingredients": [
+        { "name": "Ground turkey", "qty": 3.6, "unit": "lb" },
+        { "name": "Ground sausage", "qty": 16, "unit": "oz" },
+        { "name": "Red onion", "qty": 1, "unit": "medium" },
+        { "name": "Yellow onion", "qty": 1, "unit": "small/medium" },
+        { "name": "Sweet peppers", "qty": 24, "unit": "oz" },
+        { "name": "Banana peppers", "qty": 6, "unit": "large (7-8 in)" },
+        { "name": "Kidney beans", "qty": 3, "unit": "can (15 oz)" },
+        { "name": "Pinto beans", "qty": 2, "unit": "can (16 oz)" },
+        { "name": "Great northern beans", "qty": 1, "unit": "can (15.8 oz)" },
+        { "name": "Crushed tomatoes", "qty": 1, "unit": "can (28 oz)" },
+        { "name": "Tomato sauce", "qty": 3, "unit": "can (8 oz)" },
+        { "name": "Diced tomatoes", "qty": 3, "unit": "can (14.5 oz)" },
+        { "name": "Chili powder", "qty": 0.125, "unit": "cup" },
+        { "name": "Paprika", "qty": 0.125, "unit": "cup" },
+        { "name": "Ground cumin", "qty": 0.125, "unit": "cup" },
+        { "name": "Onion powder", "qty": 0.125, "unit": "cup" },
+        { "name": "Garlic powder", "qty": 0.125, "unit": "cup" },
+        { "name": "Cayenne powder", "qty": 0.125, "unit": "cup" },
+        { "name": "Salt", "qty": 4, "unit": "tsp (can omit)" },
+        { "name": "Black pepper", "qty": 0.125, "unit": "cup" }
+      ]
     }
   ],
   "config": {
@@ -347,6 +376,17 @@
     "chili powder": { "store": "Grocery store", "aisles": { "Grocery store": 8 } },
     "smoked paprika": { "store": "Grocery store", "aisles": { "Grocery store": 8 } },
     "garlic powder": { "store": "Grocery store", "aisles": { "Grocery store": 8 } },
-    "dried oregano": { "store": "Grocery store", "aisles": { "Grocery store": 8 } }
+    "dried oregano": { "store": "Grocery store", "aisles": { "Grocery store": 8 } },
+    "ground turkey": { "store": "Grocery store", "aisles": { "Grocery store": 12 } },
+    "ground sausage": { "store": "Grocery store", "aisles": { "Grocery store": 12 } },
+    "sweet peppers": { "store": "Grocery store", "aisles": { "Grocery store": 1 } },
+    "banana peppers": { "store": "Grocery store", "aisles": { "Grocery store": 1 } },
+    "kidney beans": { "store": "Grocery store", "aisles": { "Grocery store": 7 } },
+    "pinto beans": { "store": "Grocery store", "aisles": { "Grocery store": 7 } },
+    "great northern beans": { "store": "Grocery store", "aisles": { "Grocery store": 7 } },
+    "crushed tomatoes": { "store": "Grocery store", "aisles": { "Grocery store": 7 } },
+    "tomato sauce": { "store": "Grocery store", "aisles": { "Grocery store": 7 } },
+    "diced tomatoes": { "store": "Grocery store", "aisles": { "Grocery store": 7 } },
+    "cayenne powder": { "store": "Grocery store", "aisles": { "Grocery store": 8 } }
   }
 }
