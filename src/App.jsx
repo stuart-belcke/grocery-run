@@ -556,9 +556,19 @@ function ListTab({ data, update }) {
   };
 
   const addExtra = () => {
-    if (!extra.name.trim()) return;
+    const name = extra.name.trim();
+    if (!name) return;
+    const key = norm(name);
+    // Unknown items can be saved as an Ingredient so the store/aisle picked
+    // for them outlives this list; otherwise they're a one-time buy.
+    const saveToIngredients =
+      !data.config[key] &&
+      window.confirm(
+        `"${name}" isn't in your Ingredients yet.\n\nOK — save it to Ingredients so it keeps a default store and aisle for future lists.\nCancel — one-time buy, just for this list.`
+      );
     update((d) => {
-      d.list.extras.push({ name: extra.name.trim(), qty: Number(extra.qty) || 1, unit: extra.unit.trim() });
+      d.list.extras.push({ name, qty: Number(extra.qty) || 1, unit: extra.unit.trim() });
+      if (saveToIngredients && !d.configOverrides[key]) d.configOverrides[key] = { store: UNASSIGNED, aisles: {} };
       return d;
     });
     setExtra({ name: "", qty: "1", unit: "" });
