@@ -228,7 +228,7 @@
       "name": "Crockpot Taco Burritos",
       "mealTypes": ["Lunch"],
       "servings": 10,
-      "notes": "Built from a shopping list rather than a full recipe. Combine beef, onions, bell peppers, jalapeno, black beans, brown rice, broth, and the taco seasoning spices (chili powder through red pepper flakes) in the crockpot; cook until the beef is cooked through and the rice is tender. Warm tortillas, fill with the taco rice mixture, and top with feta. (Shopping note: buy 1 extra yellow onion if also making a separate casserole that week.)\n\nSubstitute: in place of the homemade seasoning spices, you can use 2 store-bought taco seasoning packets. Swap the garlic powder for onion powder if you prefer.",
+      "notes": "Cook ground beef first. Then combine beef, onions, bell peppers, jalapeno, black beans, brown rice, broth, and the taco seasoning spices (chili powder through red pepper flakes) in the crockpot; cook until the rice is tender. Warm tortillas, fill with the taco rice mixture, and top with feta. \n\nSubstitute: in place of the homemade seasoning spices, you can use 2 store-bought taco seasoning packets. Swap the garlic powder for onion powder if you prefer.",
       "ingredients": [
         { "name": "Ground beef", "qty": 2.15, "unit": "lb" },
         { "name": "Yellow onion", "qty": 2, "unit": "" },
