@@ -518,7 +518,7 @@ function qtyLabel(parts) {
 function ListTab({ data, update }) {
   const [view, setView] = useState("store");
   const [storeSort, setStoreSort] = useState("az");
-  const [extra, setExtra] = useState({ name: "", qty: "1", unit: "" });
+  const [extra, setExtra] = useState({ name: "", qty: "1", unit: "", store: "", aisle: "" });
   const [inspectKey, setInspectKey] = useState(null);
 
   const items = useMemo(() => aggregateItems(data), [data]);
@@ -559,19 +559,59 @@ function ListTab({ data, update }) {
     const name = extra.name.trim();
     if (!name) return;
     const key = norm(name);
+    const store = extra.store;
+    const aisle = extra.aisle.trim() !== "" && !isNaN(Number(extra.aisle)) ? Number(extra.aisle) : "";
+    const known = !!data.config[key];
     // Unknown items can be saved as an Ingredient so the store/aisle picked
     // for them outlives this list; otherwise they're a one-time buy.
     const saveToIngredients =
-      !data.config[key] &&
+      !known &&
       window.confirm(
-        `"${name}" isn't in your Ingredients yet.\n\nOK — save it to Ingredients so it keeps a default store and aisle for future lists.\nCancel — one-time buy, just for this list.`
+        `"${name}" isn't in your Ingredients yet.\n\nOK — save it to Ingredients so it keeps its store and aisle for future lists.\nCancel — one-time buy, just for this list.`
       );
     update((d) => {
       d.list.extras.push({ name, qty: Number(extra.qty) || 1, unit: extra.unit.trim() });
-      if (saveToIngredients && !d.configOverrides[key]) d.configOverrides[key] = { store: UNASSIGNED, aisles: {} };
+      if (saveToIngredients) {
+        d.configOverrides[key] = {
+          store: store || UNASSIGNED,
+          aisles: store && aisle !== "" ? { [store]: aisle } : {},
+        };
+      } else if (store) {
+        if (known) {
+          // Same semantics as the store dropdown on a list row: an override
+          // only when it differs from the item's default store.
+          const def = d.configOverrides[key]?.store ?? data.config[key]?.store ?? UNASSIGNED;
+          if (store === def) delete d.list.overrides[key];
+          else d.list.overrides[key] = store;
+          if (aisle !== "") {
+            const cfg = normalizeCfg(d.configOverrides[key] || data.config[key]);
+            cfg.aisles[store] = aisle;
+            d.configOverrides[key] = cfg;
+          }
+        } else {
+          // One-time buy with a store: group it under that store for this list.
+          d.list.overrides[key] = store;
+        }
+      }
       return d;
     });
-    setExtra({ name: "", qty: "1", unit: "" });
+    setExtra({ name: "", qty: "1", unit: "", store: "", aisle: "" });
+  };
+
+  // Remove an item's hand-added entries from the current list. Recipe
+  // contributions (if any) stay; bookkeeping is dropped only when the
+  // hand-added entry was the item's sole source.
+  const removeExtra = (item) => {
+    if (!window.confirm(`Remove hand-added "${item.name}" from this list?`)) return;
+    update((d) => {
+      d.list.extras = d.list.extras.filter((e) => norm(e.name) !== item.key);
+      if (item.sources.length === 1) {
+        delete d.list.checked[item.key];
+        delete d.list.overrides[item.key];
+      }
+      return d;
+    });
+    setInspectKey(null);
   };
 
   const renderItem = (item, showAisle) => {
@@ -677,6 +717,13 @@ function ListTab({ data, update }) {
                 <> no aisle is set yet (set it on the Ingredients tab).</>
               )}
             </div>
+            {item.sources.includes("Added by hand") && (
+              <div style={{ marginTop: 8 }}>
+                <Btn kind="danger" small onClick={() => removeExtra(item)}>
+                  Remove hand-added entry
+                </Btn>
+              </div>
+            )}
           </div>
         )}
       </li>
@@ -748,6 +795,26 @@ function ListTab({ data, update }) {
           />
           <input placeholder="Qty" value={extra.qty} onChange={(e) => setExtra({ ...extra, qty: e.target.value })} style={{ ...inputStyle, width: 60 }} />
           <input placeholder="Unit" value={extra.unit} onChange={(e) => setExtra({ ...extra, unit: e.target.value })} style={{ ...inputStyle, width: 80 }} />
+          <select
+            value={extra.store}
+            onChange={(e) => setExtra({ ...extra, store: e.target.value })}
+            aria-label="Store for new item"
+            style={{ ...inputStyle, width: 120, background: "#fff" }}
+          >
+            <option value="">Store?</option>
+            {storeOptions.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <input
+            placeholder="Aisle"
+            inputMode="numeric"
+            value={extra.aisle}
+            onChange={(e) => setExtra({ ...extra, aisle: e.target.value })}
+            style={{ ...inputStyle, width: 60 }}
+          />
           <Btn kind="primary" onClick={addExtra}>Add</Btn>
         </div>
       </div>
