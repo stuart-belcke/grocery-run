@@ -166,6 +166,27 @@
         { "name": "Marshmallow fluff", "qty": 1, "unit": "jar (7-8 oz)" },
         { "name": "Pink food coloring", "qty": 1, "unit": "bottle" }
       ]
+    },
+    {
+      "id": "baked-cod-lemon-garlic",
+      "name": "Baked Cod with Lemon and Garlic",
+      "mealTypes": ["Dinner"],
+      "servings": 5,
+      "notes": "Preheat oven to 400F. Mix lemon juice, olive oil, and melted butter in a shallow bowl (no garlic yet); set aside. In another shallow bowl, mix flour, coriander, paprika, cumin, salt, and pepper. Pat fish dry, dip in the lemon sauce then the flour mixture, shaking off excess; reserve the remaining lemon sauce. Heat 2 tbsp olive oil in a cast iron or oven-safe skillet over medium-high and sear fish about 2 min per side for color, then remove from heat. Stir the minced garlic into the reserved lemon sauce and drizzle over the fish. Bake until the fish flakes easily, about 10 min. Sprinkle with parsley and serve immediately.",
+      "ingredients": [
+        { "name": "Cod fillets", "qty": 1.5, "unit": "lb" },
+        { "name": "Fresh parsley", "qty": 0.25, "unit": "cup" },
+        { "name": "Lemon juice", "qty": 5, "unit": "tbsp" },
+        { "name": "Olive oil", "qty": 7, "unit": "tbsp" },
+        { "name": "Butter", "qty": 2, "unit": "tbsp" },
+        { "name": "Garlic", "qty": 5, "unit": "cloves" },
+        { "name": "All-purpose flour", "qty": 0.33, "unit": "cup" },
+        { "name": "Ground coriander", "qty": 1, "unit": "tsp" },
+        { "name": "Paprika", "qty": 0.75, "unit": "tsp" },
+        { "name": "Ground cumin", "qty": 0.75, "unit": "tsp" },
+        { "name": "Salt", "qty": 0.75, "unit": "tsp" },
+        { "name": "Black pepper", "qty": 0.5, "unit": "tsp" }
+      ]
     }
   ],
   "config": {
@@ -229,6 +250,12 @@
     "eggs": { "store": "Grocery store", "aisles": { "Grocery store": 11 } },
     "vanilla extract": { "store": "Grocery store", "aisles": { "Grocery store": 9 } },
     "marshmallow fluff": { "store": "Grocery store", "aisles": { "Grocery store": 9 } },
-    "pink food coloring": { "store": "Grocery store", "aisles": { "Grocery store": 9 } }
+    "pink food coloring": { "store": "Grocery store", "aisles": { "Grocery store": 9 } },
+    "cod fillets": { "store": "Grocery store", "aisles": { "Grocery store": 13 } },
+    "fresh parsley": { "store": "Grocery store", "aisles": { "Grocery store": 1 } },
+    "lemon juice": { "store": "Grocery store", "aisles": { "Grocery store": 1 } },
+    "butter": { "store": "Grocery store", "aisles": { "Grocery store": 11 } },
+    "ground coriander": { "store": "Grocery store", "aisles": { "Grocery store": 8 } },
+    "ground cumin": { "store": "Grocery store", "aisles": { "Grocery store": 8 } }
   }
 }
