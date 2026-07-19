@@ -187,6 +187,24 @@
         { "name": "Salt", "qty": 0.75, "unit": "tsp" },
         { "name": "Black pepper", "qty": 0.5, "unit": "tsp" }
       ]
+    },
+    {
+      "id": "baked-chicken-veggie-meatballs",
+      "name": "Baked Chicken & Veggie Meatballs for Baby (and Kids, Too!)",
+      "mealTypes": ["Lunch", "Dinner"],
+      "servings": 4,
+      "notes": "Yields about 24-30 1-inch meatballs (age 6 months+). Preheat oven to 400F and line a baking sheet with parchment. Combine all ingredients in a large bowl and gently fold together until just incorporated; let sit 5 min. Roll into 1-inch balls, wetting hands as needed. Bake 15-20 min until cooked through and lightly browned. Let cool and serve. Season with salt and pepper to taste. Store in the fridge up to 4 days or freezer up to 3 months.",
+      "ingredients": [
+        { "name": "Ground chicken", "qty": 1, "unit": "lb" },
+        { "name": "Applesauce", "qty": 0.25, "unit": "cup" },
+        { "name": "Carrots", "qty": 0.5, "unit": "cup, shredded" },
+        { "name": "Spinach", "qty": 0.5, "unit": "cup, chopped" },
+        { "name": "Green onion", "qty": 0.25, "unit": "cup, chopped" },
+        { "name": "Eggs", "qty": 1, "unit": "" },
+        { "name": "Breadcrumbs", "qty": 0.5, "unit": "cup" },
+        { "name": "Olive oil", "qty": 1, "unit": "tbsp" },
+        { "name": "Ground cumin", "qty": 0.5, "unit": "tsp" }
+      ]
     }
   ],
   "config": {
@@ -256,6 +274,10 @@
     "lemon juice": { "store": "Grocery store", "aisles": { "Grocery store": 1 } },
     "butter": { "store": "Grocery store", "aisles": { "Grocery store": 11 } },
     "ground coriander": { "store": "Grocery store", "aisles": { "Grocery store": 8 } },
-    "ground cumin": { "store": "Grocery store", "aisles": { "Grocery store": 8 } }
+    "ground cumin": { "store": "Grocery store", "aisles": { "Grocery store": 8 } },
+    "ground chicken": { "store": "Grocery store", "aisles": { "Grocery store": 12 } },
+    "applesauce": { "store": "Grocery store", "aisles": { "Grocery store": 9 } },
+    "green onion": { "store": "Grocery store", "aisles": { "Grocery store": 1 } },
+    "breadcrumbs": { "store": "Grocery store", "aisles": { "Grocery store": 9 } }
   }
 }
