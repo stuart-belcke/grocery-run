@@ -520,6 +520,7 @@ function ListTab({ data, update }) {
   const [storeSort, setStoreSort] = useState("az");
   const [extra, setExtra] = useState({ name: "", qty: "1", unit: "", store: "", aisle: "" });
   const [inspectKey, setInspectKey] = useState(null);
+  const [editExtra, setEditExtra] = useState(null); // { key, name, qty, unit } while editing a hand-added entry
 
   const items = useMemo(() => aggregateItems(data), [data]);
   const storeOf = (key) => data.list.overrides[key] ?? data.config[key]?.store ?? UNASSIGNED;
@@ -612,6 +613,36 @@ function ListTab({ data, update }) {
       return d;
     });
     setInspectKey(null);
+  };
+
+  const startExtraEdit = (item) => {
+    const ex = data.list.extras.find((e) => norm(e.name) === item.key);
+    if (!ex) return;
+    setEditExtra({ key: item.key, name: ex.name, qty: String(ex.qty), unit: ex.unit });
+  };
+
+  // Replaces the item's hand-added entries with the edited one. A rename
+  // carries this list's checked state and store override to the new name;
+  // renaming to an existing ingredient merges into that row.
+  const saveExtraEdit = (item) => {
+    const name = editExtra.name.trim();
+    if (!name) return;
+    const newKey = norm(name);
+    update((d) => {
+      d.list.extras = d.list.extras.filter((e) => norm(e.name) !== item.key);
+      d.list.extras.push({ name, qty: Number(editExtra.qty) || 1, unit: editExtra.unit.trim() });
+      if (newKey !== item.key) {
+        if (d.list.overrides[item.key] != null && d.list.overrides[newKey] == null) d.list.overrides[newKey] = d.list.overrides[item.key];
+        if (d.list.checked[item.key]) d.list.checked[newKey] = true;
+        if (item.sources.length === 1) {
+          delete d.list.overrides[item.key];
+          delete d.list.checked[item.key];
+        }
+      }
+      return d;
+    });
+    setEditExtra(null);
+    if (newKey !== item.key) setInspectKey(null);
   };
 
   const renderItem = (item, showAisle) => {
@@ -719,9 +750,37 @@ function ListTab({ data, update }) {
             </div>
             {item.sources.includes("Added by hand") && (
               <div style={{ marginTop: 8 }}>
-                <Btn kind="danger" small onClick={() => removeExtra(item)}>
-                  Remove hand-added entry
-                </Btn>
+                {editExtra && editExtra.key === item.key ? (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                    <input
+                      value={editExtra.name}
+                      onChange={(e) => setEditExtra({ ...editExtra, name: e.target.value })}
+                      aria-label={`New name for ${item.name}`}
+                      style={{ ...inputStyle, flex: "2 1 130px" }}
+                    />
+                    <input
+                      value={editExtra.qty}
+                      onChange={(e) => setEditExtra({ ...editExtra, qty: e.target.value })}
+                      aria-label="Quantity"
+                      style={{ ...inputStyle, width: 56 }}
+                    />
+                    <input
+                      value={editExtra.unit}
+                      onChange={(e) => setEditExtra({ ...editExtra, unit: e.target.value })}
+                      aria-label="Unit"
+                      style={{ ...inputStyle, width: 70 }}
+                    />
+                    <Btn kind="primary" small onClick={() => saveExtraEdit(item)}>Save</Btn>
+                    <Btn small onClick={() => setEditExtra(null)}>Cancel</Btn>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <Btn small onClick={() => startExtraEdit(item)}>Edit hand-added entry</Btn>
+                    <Btn kind="danger" small onClick={() => removeExtra(item)}>
+                      Remove hand-added entry
+                    </Btn>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1314,6 +1373,7 @@ function WeekTab({ data, update }) {
 function PantryTab({ data, catalog, local, update, setLocal, code, setCode, syncStatus }) {
   const [newStore, setNewStore] = useState("");
   const [newItem, setNewItem] = useState("");
+  const [editItem, setEditItem] = useState(null); // { key, name } while renaming an ingredient
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
   const [msg, setMsg] = useState("");
@@ -1396,6 +1456,63 @@ function PantryTab({ data, catalog, local, update, setLocal, code, setCode, sync
       return d;
     });
     setNewItem("");
+  };
+
+  // Rename an ingredient. If recipes use it, the user chooses between
+  // renaming it inside those recipes too or saving the new name as a
+  // separate item. Renaming to an existing ingredient merges into it
+  // (the existing item's store/aisles win).
+  const saveItemEdit = () => {
+    if (!editItem) return;
+    const newName = editItem.name.trim();
+    const oldKey = editItem.key;
+    const newKey = norm(newName);
+    if (!newName || newKey === oldKey) return setEditItem(null);
+    const affected = data.recipes.filter((r) => r.ingredients.some((i) => norm(i.name) === oldKey));
+    let asNew = false;
+    if (affected.length > 0) {
+      const names = affected.map((r) => r.name).join('", "');
+      if (!window.confirm(`Renaming "${cap(oldKey)}" to "${newName}" will affect: "${names}".\n\nContinue?`)) return;
+      asNew = !window.confirm(
+        `Apply the new name inside ${affected.length === 1 ? "that recipe" : "those recipes"} too?\n\nOK — rename it everywhere.\nCancel — leave the recipes alone and save "${newName}" as a new item.`
+      );
+    }
+    const isCatalogId = (id) => catalog.recipes.some((r) => r.id === id);
+    update((d) => {
+      const cfg = normalizeCfg(d.configOverrides[oldKey] || data.config[oldKey]);
+      if (!data.config[newKey]) d.configOverrides[newKey] = cfg;
+      if (asNew) return d;
+      for (const r of affected) {
+        const renamed = {
+          id: r.id,
+          name: r.name,
+          mealTypes: r.mealTypes || [],
+          easy: !!r.easy,
+          servings: r.servings || 4,
+          notes: r.notes || "",
+          ingredients: r.ingredients.map((i) => (norm(i.name) === oldKey ? { ...i, name: newName } : i)),
+        };
+        if (isCatalogId(r.id)) d.recipeOverrides[r.id] = renamed;
+        else {
+          const idx = d.localRecipes.findIndex((x) => x.id === r.id);
+          if (idx >= 0) d.localRecipes[idx] = renamed;
+        }
+      }
+      d.list.extras = d.list.extras.map((e) => (norm(e.name) === oldKey ? { ...e, name: newName } : e));
+      if (d.list.overrides[oldKey] != null) {
+        if (d.list.overrides[newKey] == null) d.list.overrides[newKey] = d.list.overrides[oldKey];
+        delete d.list.overrides[oldKey];
+      }
+      if (d.list.checked[oldKey]) {
+        d.list.checked[newKey] = true;
+        delete d.list.checked[oldKey];
+      }
+      // retire the old entry; catalog keys can only be shadowed, like removeItem
+      delete d.configOverrides[oldKey];
+      if (catalog.config[oldKey]) d.configOverrides[oldKey] = { store: UNASSIGNED, aisles: {} };
+      return d;
+    });
+    setEditItem(null);
   };
 
   const removeItem = (key, name) => {
@@ -1542,18 +1659,42 @@ function PantryTab({ data, catalog, local, update, setLocal, code, setCode, sync
             return (
               <div key={key} style={{ padding: "10px 2px", borderBottom: `1px dashed ${C.line}` }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ flex: 1, minWidth: 0, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
-                  <label style={{ fontSize: 11, color: C.faint }}>Usually at</label>
-                  <select value={cfg.store || UNASSIGNED} onChange={(e) => setCfg(key, { store: e.target.value })} style={{ fontSize: 13, padding: "6px 6px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", maxWidth: 140 }}>
-                    {[...data.stores, UNASSIGNED].map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                  <button onClick={() => removeItem(key, name)} aria-label={`Remove ${name}`} style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 0 }}>
-                    ✕
-                  </button>
+                  {editItem && editItem.key === key ? (
+                    <>
+                      <input
+                        value={editItem.name}
+                        onChange={(e) => setEditItem({ ...editItem, name: e.target.value })}
+                        onKeyDown={(e) => e.key === "Enter" && saveItemEdit()}
+                        aria-label={`New name for ${name}`}
+                        style={{ ...inputStyle, flex: 1, minWidth: 0 }}
+                      />
+                      <Btn kind="primary" small onClick={saveItemEdit}>Save</Btn>
+                      <Btn small onClick={() => setEditItem(null)}>Cancel</Btn>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ flex: 1, minWidth: 0, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+                      <label style={{ fontSize: 11, color: C.faint }}>Usually at</label>
+                      <select value={cfg.store || UNASSIGNED} onChange={(e) => setCfg(key, { store: e.target.value })} style={{ fontSize: 13, padding: "6px 6px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", maxWidth: 140 }}>
+                        {[...data.stores, UNASSIGNED].map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => setEditItem({ key, name })}
+                        aria-label={`Rename ${name}`}
+                        title="Rename this item"
+                        style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 0 }}
+                      >
+                        ⚙
+                      </button>
+                      <button onClick={() => removeItem(key, name)} aria-label={`Remove ${name}`} style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 0 }}>
+                        ✕
+                      </button>
+                    </>
+                  )}
                 </div>
                 {data.stores.length > 0 && (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginTop: 6 }}>
