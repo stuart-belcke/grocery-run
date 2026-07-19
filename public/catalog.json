@@ -205,6 +205,23 @@
         { "name": "Olive oil", "qty": 1, "unit": "tbsp" },
         { "name": "Ground cumin", "qty": 0.5, "unit": "tsp" }
       ]
+    },
+    {
+      "id": "garlicky-pesto-flatbread-pizza",
+      "name": "Garlicky Pesto Flatbread Pizza with Tomatoes and Arugula",
+      "mealTypes": ["Dinner"],
+      "servings": 4,
+      "notes": "Preheat oven to 425F. Brush flatbreads with garlic puree and bake 3-5 min to crisp up. Spread pesto over flatbreads, top with mozzarella and tomato slices, season with salt and pepper, and bake on a sheet pan 10-13 min until cheese is bubbling and edges are crisp. Top with arugula, torn basil, and red pepper flakes if desired. Slice and serve.",
+      "ingredients": [
+        { "name": "Naan flatbreads", "qty": 2, "unit": "" },
+        { "name": "Garlic puree", "qty": 1, "unit": "tbsp" },
+        { "name": "Pesto", "qty": 0.5, "unit": "cup" },
+        { "name": "Fresh mozzarella", "qty": 6, "unit": "slices" },
+        { "name": "Tomatoes", "qty": 0.5, "unit": "lb" },
+        { "name": "Sun-dried tomatoes", "qty": 0.5, "unit": "cup" },
+        { "name": "Arugula", "qty": 2, "unit": "cups" },
+        { "name": "Fresh basil", "qty": 1, "unit": "handful, torn" }
+      ]
     }
   ],
   "config": {
@@ -278,6 +295,13 @@
     "ground chicken": { "store": "Grocery store", "aisles": { "Grocery store": 12 } },
     "applesauce": { "store": "Grocery store", "aisles": { "Grocery store": 9 } },
     "green onion": { "store": "Grocery store", "aisles": { "Grocery store": 1 } },
-    "breadcrumbs": { "store": "Grocery store", "aisles": { "Grocery store": 9 } }
+    "breadcrumbs": { "store": "Grocery store", "aisles": { "Grocery store": 9 } },
+    "naan flatbreads": { "store": "Grocery store", "aisles": { "Grocery store": 6 } },
+    "garlic puree": { "store": "Grocery store", "aisles": { "Grocery store": 7 } },
+    "pesto": { "store": "Grocery store", "aisles": { "Grocery store": 5 } },
+    "fresh mozzarella": { "store": "Grocery store", "aisles": { "Grocery store": 11 } },
+    "tomatoes": { "store": "Grocery store", "aisles": { "Grocery store": 1 } },
+    "arugula": { "store": "Grocery store", "aisles": { "Grocery store": 1 } },
+    "fresh basil": { "store": "Grocery store", "aisles": { "Grocery store": 1 } }
   }
 }
