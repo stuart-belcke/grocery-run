@@ -6,7 +6,7 @@
 import { useState, useMemo } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Stripe, Btn, Seg } from "../ui";
-import { UNASSIGNED, norm, r2, normalizeCfg, aisleFor, servingsByRecipe, aggregateItems, qtyLabel } from "../lib";
+import { UNASSIGNED, norm, r2, normalizeCfg, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions } from "../lib";
 
 export function ListTab({ data, update }) {
   const [view, setView] = useState("store");
@@ -16,6 +16,7 @@ export function ListTab({ data, update }) {
   const [editExtra, setEditExtra] = useState(null); // { key, name, qty, unit } while editing a hand-added entry
 
   const items = useMemo(() => aggregateItems(data), [data]);
+  const units = useMemo(() => unitSuggestions(data), [data]);
   const storeOf = (key) => data.list.overrides[key] ?? data.config[key]?.store ?? UNASSIGNED;
   const aisleOf = (key, store) => {
     const a = aisleFor(data.config[key], store);
@@ -154,15 +155,19 @@ export function ListTab({ data, update }) {
             aria-label={`Bought ${item.name}`}
             style={{ width: 18, height: 18, accentColor: C.green, flexShrink: 0 }}
           />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 500, textDecoration: checked ? "line-through" : "none" }}>
+          <button
+            onClick={() => setInspectKey(open ? null : item.key)}
+            aria-expanded={open}
+            title="Tap to see which meals this item is for"
+            style={{ flex: 1, minWidth: 0, textAlign: "left", background: "transparent", border: "none", padding: 0, cursor: "pointer", color: C.ink, fontFamily: "inherit" }}
+          >
+            <span style={{ fontWeight: 500, textDecoration: checked ? "line-through" : "none" }}>
               {item.name}
               {showAisle && aisle !== "" && (
                 <span style={{ marginLeft: 8, fontSize: 11, color: C.faint }}>aisle {aisle}</span>
               )}
-            </div>
-            <div style={{ fontSize: 12, color: C.faint }}>{item.sources.join(" · ")}</div>
-          </div>
+            </span>
+          </button>
           <span style={{ fontVariantNumeric: "tabular-nums", fontSize: 14, fontWeight: 700, whiteSpace: "nowrap" }}>
             {qtyLabel(item.parts) || "—"}
           </span>
@@ -211,6 +216,9 @@ export function ListTab({ data, update }) {
         {open && (
           <div style={{ margin: "8px 0 2px 28px", padding: "10px 12px", background: C.paper, border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 12 }}>
             <div style={{ marginBottom: 6 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 4 }}>
+                On the list for
+              </div>
               {item.contribs.map((c, i) => (
                 <div key={i} style={{ display: "flex", gap: 8, padding: "2px 0" }}>
                   <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700, minWidth: 56, textAlign: "right" }}>
@@ -346,7 +354,12 @@ export function ListTab({ data, update }) {
             style={{ ...inputStyle, flex: "2 1 170px" }}
           />
           <input placeholder="Qty" value={extra.qty} onChange={(e) => setExtra({ ...extra, qty: e.target.value })} style={{ ...inputStyle, width: 60 }} />
-          <input placeholder="Unit" value={extra.unit} onChange={(e) => setExtra({ ...extra, unit: e.target.value })} style={{ ...inputStyle, width: 80 }} />
+          <input placeholder="Unit" list="unit-suggestions" value={extra.unit} onChange={(e) => setExtra({ ...extra, unit: e.target.value })} style={{ ...inputStyle, width: 80 }} />
+          <datalist id="unit-suggestions">
+            {units.map((u) => (
+              <option key={u} value={u} />
+            ))}
+          </datalist>
           <select
             value={extra.store}
             onChange={(e) => setExtra({ ...extra, store: e.target.value })}

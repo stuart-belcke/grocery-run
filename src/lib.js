@@ -10,6 +10,27 @@ export const UNASSIGNED = "Unassigned";
 export const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 export const MEAL_TYPES = ["Breakfast", "Lunch", "Dinner", "Dessert"];
 
+// Common grocery units offered as autocomplete when adding an item, merged
+// with whatever units already appear in the user's recipes / list.
+export const COMMON_UNITS = [
+  "ea", "lb", "oz", "g", "kg", "cup", "tbsp", "tsp", "ml", "l",
+  "can", "jar", "bag", "box", "pack", "bunch", "clove", "head", "loaf", "dozen", "pinch", "slice", "stick",
+];
+
+// Deduped unit suggestions: units seen in this household's data first, then
+// any common units not already present. Order is stable for a tidy datalist.
+export function unitSuggestions(data) {
+  const seen = [];
+  const add = (u) => {
+    const t = (u || "").trim();
+    if (t && !seen.some((x) => x.toLowerCase() === t.toLowerCase())) seen.push(t);
+  };
+  for (const r of data.recipes) for (const i of r.ingredients) add(i.unit);
+  for (const e of data.list.extras) add(e.unit);
+  for (const u of COMMON_UNITS) add(u);
+  return seen;
+}
+
 export const norm = (s) => (s || "").trim().toLowerCase();
 export const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 export const uid = () => Math.random().toString(36).slice(2, 10);

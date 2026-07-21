@@ -3,38 +3,53 @@ name: Build and deploy to GitHub Pages
 on:
   push:
     branches: [main]
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
   workflow_dispatch:
 
+# Both deploy actions push to the gh-pages branch, and the preview action
+# comments the preview link on the PR, so the job needs write access to
+# contents and pull requests (not the id-token flow the old official
+# Pages deployment used).
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
+  pull-requests: write
 
-concurrency:
-  group: pages
-  cancel-in-progress: true
+# One in-flight run per branch / PR. Don't cancel, so a preview teardown
+# on a closed PR is never interrupted midway.
+concurrency: pages-${{ github.ref }}
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-      - run: npm install
-      - run: npm run build
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v4
-        with:
-          path: dist
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v5
+      # Nothing to build when we're only tearing down a closed PR's preview.
+      - name: Build
+        if: github.event.action != 'closed'
+        run: |
+          npm install
+          npm run build
+
+      # Production: publish dist to the root of gh-pages. clean-exclude keeps
+      # the pr-preview/ folder so open PRs' previews aren't wiped on a deploy.
+      - name: Deploy production
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: dist
+          clean-exclude: pr-preview/
+
+      # Pull requests: build a preview at <site>/pr-preview/pr-<N>/ and comment
+      # the link; when the PR closes, remove that folder. Works for same-repo
+      # PRs (where the token has write access), which this branch is.
+      - name: Deploy PR preview
+        if: github.event_name == 'pull_request'
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: dist

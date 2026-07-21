@@ -6,14 +6,24 @@
 import { useState, useMemo } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, Seg } from "../ui";
-import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2 } from "../lib";
+import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, unitSuggestions } from "../lib";
+import { RecipeDetail } from "../RecipeDetail";
+
+// Rounded "pill" grouping a remove / count / add cluster so the controls read
+// as one unit — used for both shopping-list batches and week-plan slots.
+const pillWrap = { display: "inline-flex", alignItems: "center", gap: 2, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 999, padding: "2px 4px" };
+const pillBtn = { minWidth: 26, height: 26, padding: "0 4px", borderRadius: 999, border: "none", background: "transparent", cursor: "pointer", fontSize: 14, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: fontBody };
+const pillLabel = { fontSize: 11, fontWeight: 600, color: C.faint, padding: "0 2px", whiteSpace: "nowrap" };
+const pillCount = { minWidth: 26, textAlign: "center", fontWeight: 700, fontVariantNumeric: "tabular-nums", fontSize: 14 };
+const planSelect = { fontSize: 13, padding: "6px 8px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", fontFamily: fontBody };
 
 export function MealsTab({ data, catalog, update }) {
   const [draft, setDraft] = useState(null);
   const [mealView, setMealView] = useState("az");
   const [easyOnly, setEasyOnly] = useState(false);
   const [query, setQuery] = useState("");
-  const [notesOpen, setNotesOpen] = useState(null);
+  const [detailOpen, setDetailOpen] = useState(null);
+  const [planPick, setPlanPick] = useState(null); // { id, day, type } while choosing a week-plan slot
 
   const isCatalogId = (id) => catalog.recipes.some((r) => r.id === id);
 
@@ -21,6 +31,22 @@ export function MealsTab({ data, catalog, update }) {
     update((d) => {
       if (servings <= 0) delete d.list.selections[id];
       else d.list.selections[id] = servings;
+      return d;
+    });
+
+  // Week-plan slot helpers. Assigning uses the recipe's base servings times the
+  // batch multiplier; the +/− on a plan pill step whole batches, and the trash
+  // clears the slot. The plan already feeds the shopping list, so these don't
+  // touch list.selections (which would double-count the ingredients).
+  const assignPlan = (r, day, type, servings) =>
+    update((d) => {
+      if (!d.plan[day]) d.plan[day] = {};
+      d.plan[day][type] = { recipeId: r.id, servings };
+      return d;
+    });
+  const removePlanSlot = (day, type) =>
+    update((d) => {
+      if (d.plan[day]) delete d.plan[day][type];
       return d;
     });
 
@@ -73,7 +99,7 @@ export function MealsTab({ data, catalog, update }) {
   const deleteRecipe = (r) => {
     const catalogRecipe = isCatalogId(r.id);
     const msg = catalogRecipe
-      ? "Hide this catalog meal on this device? (To remove it everywhere, also delete it from catalog.json on GitHub — Ingredients tab → Publish changes makes that easy.)"
+      ? "Hide this catalog meal on this device? (To remove it everywhere, also delete it from catalog.json on GitHub — Settings tab → Publish changes makes that easy.)"
       : "Delete this meal?";
     if (!window.confirm(msg)) return;
     update((d) => {
@@ -89,21 +115,24 @@ export function MealsTab({ data, catalog, update }) {
     });
   };
 
-  const plannedIds = useMemo(() => {
-    const ids = new Set();
-    for (const day of DAYS) for (const t of MEAL_TYPES) if (data.plan?.[day]?.[t]?.recipeId) ids.add(data.plan[day][t].recipeId);
-    return ids;
-  }, [data.plan]);
+  const units = useMemo(() => unitSuggestions(data), [data]);
 
   const renderCard = (r) => {
     const base = r.servings || 4;
     const servings = data.list.selections[r.id] || 0;
-    const onPlan = plannedIds.has(r.id);
-    const notesShown = notesOpen === r.id;
+    const detailShown = detailOpen === r.id;
+    const picking = planPick?.id === r.id;
+    const planSlots = [];
+    for (const day of DAYS) for (const type of MEAL_TYPES) {
+      const slot = data.plan?.[day]?.[type];
+      if (slot?.recipeId === r.id) planSlots.push({ day, type, servings: Number(slot.servings) || base });
+    }
+    const onPlan = planSlots.length > 0;
     return (
       <div
         key={r.id}
         style={{
+          position: "relative",
           background: C.card,
           border: `1px solid ${servings > 0 || onPlan ? C.green : C.line}`,
           borderRadius: 12,
@@ -111,57 +140,117 @@ export function MealsTab({ data, catalog, update }) {
           marginBottom: 10,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 160 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <span style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 18 }}>{r.name}</span>
-              {(r.mealTypes || []).map((t) => (
-                <span key={t} style={{ fontSize: 11, fontWeight: 500, background: C.greenSoft, color: C.green, padding: "2px 8px", borderRadius: 999 }}>
-                  {t}
-                </span>
-              ))}
-              {r.easy && (
-                <span title="Quick, low-effort meal" style={{ fontSize: 11, fontWeight: 500, background: C.goldSoft, color: C.gold, padding: "2px 8px", borderRadius: 999 }}>
-                  ⚡ Easy
-                </span>
-              )}
-              {r.fromCatalog && (
-                <span style={{ fontSize: 11, color: C.faint }} title={r.edited ? "From the shared catalog, edited on this device" : "From the shared catalog"}>
-                  catalog{r.edited ? "*" : ""}
-                </span>
-              )}
-              {onPlan && <span style={{ fontSize: 11, fontWeight: 500, color: C.faint }}>on week plan</span>}
-            </div>
-            <div style={{ fontSize: 12, color: C.faint, marginTop: 2 }}>
-              Serves {base} · {r.ingredients.map((i) => i.name).join(", ")}
-            </div>
-            {r.notes && (
-              <button
-                onClick={() => setNotesOpen(notesShown ? null : r.id)}
-                style={{ border: "none", background: "transparent", color: C.green, cursor: "pointer", fontSize: 12, fontWeight: 500, padding: 0, marginTop: 4, fontFamily: fontBody }}
-              >
-                {notesShown ? "Hide notes" : "Cooking notes"}
-              </button>
+        <button
+          onClick={() => deleteRecipe(r)}
+          aria-label={`Delete ${r.name}`}
+          title="Delete this meal"
+          style={{ position: "absolute", top: 8, right: 10, border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 4 }}
+        >
+          ✕
+        </button>
+
+        <div style={{ paddingRight: 22 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <button
+              onClick={() => setDetailOpen(detailShown ? null : r.id)}
+              aria-expanded={detailShown}
+              title="Show ingredients and notes"
+              style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 18, background: "transparent", border: "none", padding: 0, cursor: "pointer", color: C.ink, textAlign: "left" }}
+            >
+              {r.name}
+            </button>
+            {(r.mealTypes || []).map((t) => (
+              <span key={t} style={{ fontSize: 11, fontWeight: 500, background: C.greenSoft, color: C.green, padding: "2px 8px", borderRadius: 999 }}>
+                {t}
+              </span>
+            ))}
+            {r.easy && (
+              <span title="Quick, low-effort meal" style={{ fontSize: 11, fontWeight: 500, background: C.goldSoft, color: C.gold, padding: "2px 8px", borderRadius: 999 }}>
+                ⚡ Easy
+              </span>
             )}
-            {notesShown && r.notes && (
-              <div style={{ fontSize: 13, marginTop: 6, padding: "8px 10px", background: C.paper, borderRadius: 8, whiteSpace: "pre-wrap" }}>{r.notes}</div>
+            {r.fromCatalog && (
+              <span style={{ fontSize: 11, color: C.faint }} title={r.edited ? "From the shared catalog, edited on this device" : "From the shared catalog"}>
+                catalog{r.edited ? "*" : ""}
+              </span>
             )}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ fontSize: 12, color: C.faint, marginTop: 2 }}>
+            Serves {base} · {r.ingredients.map((i) => i.name).join(", ")}
+          </div>
+          <button
+            onClick={() => setDetailOpen(detailShown ? null : r.id)}
+            aria-expanded={detailShown}
+            style={{ border: "none", background: "transparent", color: C.green, cursor: "pointer", fontSize: 12, fontWeight: 500, padding: 0, marginTop: 4, fontFamily: fontBody }}
+          >
+            {detailShown ? "Hide details ▲" : `Details${r.notes ? " & notes" : ""} ▾`}
+          </button>
+          {detailShown && <RecipeDetail recipe={r} />}
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+          {/* Unplanned meals = the shopping list: batches you want but haven't
+              scheduled to a day. Whole-batch pill editing (🗑 / ± / count). */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             {servings > 0 ? (
-              <>
-                <Btn small onClick={() => setServings(r.id, servings - 1)} title="One serving fewer">−</Btn>
-                <span style={{ minWidth: 64, textAlign: "center", fontWeight: 700, fontVariantNumeric: "tabular-nums", fontSize: 13 }}>
-                  {servings} sv
-                  {servings !== base && <span style={{ fontWeight: 400, color: C.faint }}> (×{r2(servings / base)})</span>}
-                </span>
-                <Btn small onClick={() => setServings(r.id, servings + 1)} title="One serving more">+</Btn>
-              </>
+              <span style={pillWrap} title={`${r2(servings / base)} unplanned — ${servings} servings on the shopping list`}>
+                <span style={pillLabel}>Unplanned</span>
+                {servings > base ? (
+                  <button style={{ ...pillBtn, color: C.ink }} onClick={() => setServings(r.id, servings - base)} title="One fewer" aria-label={`One fewer unplanned ${r.name}`}>−</button>
+                ) : (
+                  <button style={{ ...pillBtn, color: C.tomato }} onClick={() => setServings(r.id, 0)} title="Remove the unplanned meal" aria-label={`Remove unplanned ${r.name}`}>🗑</button>
+                )}
+                <span style={pillCount}>×{r2(servings / base)}</span>
+                <button style={{ ...pillBtn, color: C.ink }} onClick={() => setServings(r.id, servings + base)} title="Another unplanned meal" aria-label={`Another unplanned ${r.name}`}>+</button>
+              </span>
             ) : (
-              <Btn small kind="primary" onClick={() => setServings(r.id, base)}>Add to list</Btn>
+              <Btn small kind="primary" onClick={() => setServings(r.id, base)}>Add unplanned meal</Btn>
             )}
+            <div style={{ flex: 1 }} />
             <Btn small onClick={() => startEdit(r)}>Edit</Btn>
-            <Btn small kind="danger" onClick={() => deleteRecipe(r)}>Delete</Btn>
+          </div>
+
+          {/* Planned meals = week-plan slots. A live summary of every slot this
+              recipe fills (added here or on the Week tab), each removable. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {planSlots.length > 0 && (
+              <span style={{ fontSize: 12, color: C.faint }}>
+                {planSlots.length} planned meal{planSlots.length === 1 ? "" : "s"}:
+              </span>
+            )}
+            {planSlots.map(({ day, type, servings: sv }) => (
+              <span key={day + type} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: C.greenSoft, color: C.green, fontSize: 12, fontWeight: 500, padding: "3px 4px 3px 9px", borderRadius: 999 }}>
+                {day} · {type}{sv !== base ? ` ×${r2(sv / base)}` : ""}
+                <button
+                  onClick={() => removePlanSlot(day, type)}
+                  aria-label={`Remove ${r.name} from ${day} ${type}`}
+                  title="Remove from the week plan"
+                  style={{ border: "none", background: "transparent", color: C.green, cursor: "pointer", fontSize: 13, lineHeight: 1, padding: "0 2px" }}
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+            {picking ? (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <select value={planPick.day} onChange={(e) => setPlanPick({ ...planPick, day: e.target.value })} aria-label="Day" style={planSelect}>
+                  {DAYS.map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+                <select value={planPick.type} onChange={(e) => setPlanPick({ ...planPick, type: e.target.value })} aria-label="Meal" style={planSelect}>
+                  {MEAL_TYPES.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+                <Btn small kind="primary" onClick={() => { assignPlan(r, planPick.day, planPick.type, base); setPlanPick(null); }}>Add</Btn>
+                <Btn small onClick={() => setPlanPick(null)}>Cancel</Btn>
+              </span>
+            ) : (
+              <Btn small onClick={() => setPlanPick({ id: r.id, day: DAYS[0], type: (r.mealTypes && r.mealTypes[0]) || "Dinner" })}>
+                Add to week's plan
+              </Btn>
+            )}
           </div>
         </div>
       </div>
@@ -311,6 +400,7 @@ export function MealsTab({ data, catalog, update }) {
               />
               <input
                 placeholder="Unit"
+                list="unit-suggestions"
                 value={ing.unit}
                 onChange={(e) => {
                   const list = [...draft.ingredients];
@@ -325,6 +415,11 @@ export function MealsTab({ data, catalog, update }) {
           <Btn small onClick={() => setDraft({ ...draft, ingredients: [...draft.ingredients, { name: "", qty: "1", unit: "" }] })} style={{ marginBottom: 10 }}>
             + Ingredient
           </Btn>
+          <datalist id="unit-suggestions">
+            {units.map((u) => (
+              <option key={u} value={u} />
+            ))}
+          </datalist>
           <textarea
             placeholder="Cooking instructions / notes (optional)"
             value={draft.notes}
@@ -334,7 +429,7 @@ export function MealsTab({ data, catalog, update }) {
           />
           {draft.fromCatalog && (
             <div style={{ fontSize: 12, color: C.faint, marginBottom: 8 }}>
-              This meal comes from the shared catalog. Saving stores your edits on this device; use "Publish changes" on the Ingredients tab to make them permanent for both phones.
+              This meal comes from the shared catalog. Saving stores your edits on this device; use "Publish changes" on the Settings tab to make them permanent for both phones.
             </div>
           )}
           <div style={{ display: "flex", gap: 8 }}>
