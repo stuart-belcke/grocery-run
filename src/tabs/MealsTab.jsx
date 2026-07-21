@@ -9,12 +9,21 @@ import { Stripe, Btn, Seg } from "../ui";
 import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, unitSuggestions } from "../lib";
 import { RecipeDetail } from "../RecipeDetail";
 
+// Rounded "pill" grouping a remove / count / add cluster so the controls read
+// as one unit — used for both shopping-list batches and week-plan slots.
+const pillWrap = { display: "inline-flex", alignItems: "center", gap: 2, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 999, padding: "2px 4px" };
+const pillBtn = { minWidth: 26, height: 26, padding: "0 4px", borderRadius: 999, border: "none", background: "transparent", cursor: "pointer", fontSize: 14, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: fontBody };
+const pillLabel = { fontSize: 11, fontWeight: 600, color: C.faint, padding: "0 2px", whiteSpace: "nowrap" };
+const pillCount = { minWidth: 26, textAlign: "center", fontWeight: 700, fontVariantNumeric: "tabular-nums", fontSize: 14 };
+const planSelect = { fontSize: 13, padding: "6px 8px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", fontFamily: fontBody };
+
 export function MealsTab({ data, catalog, update }) {
   const [draft, setDraft] = useState(null);
   const [mealView, setMealView] = useState("az");
   const [easyOnly, setEasyOnly] = useState(false);
   const [query, setQuery] = useState("");
   const [detailOpen, setDetailOpen] = useState(null);
+  const [planPick, setPlanPick] = useState(null); // { id, day, type } while choosing a week-plan slot
 
   const isCatalogId = (id) => catalog.recipes.some((r) => r.id === id);
 
@@ -22,6 +31,27 @@ export function MealsTab({ data, catalog, update }) {
     update((d) => {
       if (servings <= 0) delete d.list.selections[id];
       else d.list.selections[id] = servings;
+      return d;
+    });
+
+  // Week-plan slot helpers. Assigning uses the recipe's base servings times the
+  // batch multiplier; the +/− on a plan pill step whole batches, and the trash
+  // clears the slot. The plan already feeds the shopping list, so these don't
+  // touch list.selections (which would double-count the ingredients).
+  const assignPlan = (r, day, type, servings) =>
+    update((d) => {
+      if (!d.plan[day]) d.plan[day] = {};
+      d.plan[day][type] = { recipeId: r.id, servings };
+      return d;
+    });
+  const setPlanServings = (day, type, servings) =>
+    update((d) => {
+      if (d.plan[day]?.[type]) d.plan[day][type].servings = servings;
+      return d;
+    });
+  const removePlanSlot = (day, type) =>
+    update((d) => {
+      if (d.plan[day]) delete d.plan[day][type];
       return d;
     });
 
@@ -92,21 +122,25 @@ export function MealsTab({ data, catalog, update }) {
 
   const units = useMemo(() => unitSuggestions(data), [data]);
 
-  const plannedIds = useMemo(() => {
-    const ids = new Set();
-    for (const day of DAYS) for (const t of MEAL_TYPES) if (data.plan?.[day]?.[t]?.recipeId) ids.add(data.plan[day][t].recipeId);
-    return ids;
-  }, [data.plan]);
-
   const renderCard = (r) => {
     const base = r.servings || 4;
     const servings = data.list.selections[r.id] || 0;
-    const onPlan = plannedIds.has(r.id);
     const detailShown = detailOpen === r.id;
+    const picking = planPick?.id === r.id;
+    // Whole batches on the list, defaulting to 1 when it isn't on the list yet —
+    // this seeds the servings for a new week-plan slot.
+    const addMult = Math.max(1, Math.round(servings / base));
+    const planSlots = [];
+    for (const day of DAYS) for (const type of MEAL_TYPES) {
+      const slot = data.plan?.[day]?.[type];
+      if (slot?.recipeId === r.id) planSlots.push({ day, type, servings: Number(slot.servings) || base });
+    }
+    const onPlan = planSlots.length > 0;
     return (
       <div
         key={r.id}
         style={{
+          position: "relative",
           background: C.card,
           border: `1px solid ${servings > 0 || onPlan ? C.green : C.line}`,
           borderRadius: 12,
@@ -114,68 +148,107 @@ export function MealsTab({ data, catalog, update }) {
           marginBottom: 10,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 160 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <button
-                onClick={() => setDetailOpen(detailShown ? null : r.id)}
-                aria-expanded={detailShown}
-                title="Show ingredients and notes"
-                style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 18, background: "transparent", border: "none", padding: 0, cursor: "pointer", color: C.ink, textAlign: "left" }}
-              >
-                {r.name}
-              </button>
-              {(r.mealTypes || []).map((t) => (
-                <span key={t} style={{ fontSize: 11, fontWeight: 500, background: C.greenSoft, color: C.green, padding: "2px 8px", borderRadius: 999 }}>
-                  {t}
-                </span>
-              ))}
-              {r.easy && (
-                <span title="Quick, low-effort meal" style={{ fontSize: 11, fontWeight: 500, background: C.goldSoft, color: C.gold, padding: "2px 8px", borderRadius: 999 }}>
-                  ⚡ Easy
-                </span>
-              )}
-              {r.fromCatalog && (
-                <span style={{ fontSize: 11, color: C.faint }} title={r.edited ? "From the shared catalog, edited on this device" : "From the shared catalog"}>
-                  catalog{r.edited ? "*" : ""}
-                </span>
-              )}
-              {onPlan && <span style={{ fontSize: 11, fontWeight: 500, color: C.faint }}>on week plan</span>}
-            </div>
-            <div style={{ fontSize: 12, color: C.faint, marginTop: 2 }}>
-              Serves {base} · {r.ingredients.map((i) => i.name).join(", ")}
-            </div>
+        <button
+          onClick={() => deleteRecipe(r)}
+          aria-label={`Delete ${r.name}`}
+          title="Delete this meal"
+          style={{ position: "absolute", top: 8, right: 10, border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 4 }}
+        >
+          ✕
+        </button>
+
+        <div style={{ paddingRight: 22 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <button
               onClick={() => setDetailOpen(detailShown ? null : r.id)}
               aria-expanded={detailShown}
-              style={{ border: "none", background: "transparent", color: C.green, cursor: "pointer", fontSize: 12, fontWeight: 500, padding: 0, marginTop: 4, fontFamily: fontBody }}
+              title="Show ingredients and notes"
+              style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 18, background: "transparent", border: "none", padding: 0, cursor: "pointer", color: C.ink, textAlign: "left" }}
             >
-              {detailShown ? "Hide details ▲" : `Details${r.notes ? " & notes" : ""} ▾`}
+              {r.name}
             </button>
-            {detailShown && <RecipeDetail recipe={r} />}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            {servings > 0 ? (
-              <>
-                {servings > base ? (
-                  <Btn small onClick={() => setServings(r.id, servings - base)} title="One fewer batch" aria-label={`Remove one batch of ${r.name}`}>−</Btn>
-                ) : (
-                  <Btn small kind="danger" onClick={() => setServings(r.id, 0)} title="Remove from the shopping list" aria-label={`Remove ${r.name} from the list`}>🗑</Btn>
-                )}
-                <span
-                  title={`${servings} servings on the list (${r2(servings / base)}× this recipe)`}
-                  style={{ minWidth: 44, textAlign: "center", fontWeight: 700, fontVariantNumeric: "tabular-nums", fontSize: 14 }}
-                >
-                  ×{r2(servings / base)}
-                </span>
-                <Btn small onClick={() => setServings(r.id, servings + base)} title="Add another batch (multiplies the ingredients)" aria-label={`Add another batch of ${r.name}`}>+</Btn>
-              </>
-            ) : (
-              <Btn small kind="primary" onClick={() => setServings(r.id, base)}>Add to list</Btn>
+            {(r.mealTypes || []).map((t) => (
+              <span key={t} style={{ fontSize: 11, fontWeight: 500, background: C.greenSoft, color: C.green, padding: "2px 8px", borderRadius: 999 }}>
+                {t}
+              </span>
+            ))}
+            {r.easy && (
+              <span title="Quick, low-effort meal" style={{ fontSize: 11, fontWeight: 500, background: C.goldSoft, color: C.gold, padding: "2px 8px", borderRadius: 999 }}>
+                ⚡ Easy
+              </span>
             )}
-            <Btn small onClick={() => startEdit(r)}>Edit</Btn>
-            <Btn small kind="danger" onClick={() => deleteRecipe(r)}>Delete</Btn>
+            {r.fromCatalog && (
+              <span style={{ fontSize: 11, color: C.faint }} title={r.edited ? "From the shared catalog, edited on this device" : "From the shared catalog"}>
+                catalog{r.edited ? "*" : ""}
+              </span>
+            )}
           </div>
+          <div style={{ fontSize: 12, color: C.faint, marginTop: 2 }}>
+            Serves {base} · {r.ingredients.map((i) => i.name).join(", ")}
+          </div>
+          <button
+            onClick={() => setDetailOpen(detailShown ? null : r.id)}
+            aria-expanded={detailShown}
+            style={{ border: "none", background: "transparent", color: C.green, cursor: "pointer", fontSize: 12, fontWeight: 500, padding: 0, marginTop: 4, fontFamily: fontBody }}
+          >
+            {detailShown ? "Hide details ▲" : `Details${r.notes ? " & notes" : ""} ▾`}
+          </button>
+          {detailShown && <RecipeDetail recipe={r} />}
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+          {/* shopping list */}
+          {servings > 0 ? (
+            <span style={pillWrap} title={`On the list: ${servings} servings (${r2(servings / base)}× this recipe)`}>
+              <span style={pillLabel}>List</span>
+              {servings > base ? (
+                <button style={{ ...pillBtn, color: C.ink }} onClick={() => setServings(r.id, servings - base)} title="One fewer batch" aria-label={`Remove one batch of ${r.name} from the list`}>−</button>
+              ) : (
+                <button style={{ ...pillBtn, color: C.tomato }} onClick={() => setServings(r.id, 0)} title="Remove from the shopping list" aria-label={`Remove ${r.name} from the list`}>🗑</button>
+              )}
+              <span style={pillCount}>×{r2(servings / base)}</span>
+              <button style={{ ...pillBtn, color: C.ink }} onClick={() => setServings(r.id, servings + base)} title="Add another batch to the list" aria-label={`Add another batch of ${r.name} to the list`}>+</button>
+            </span>
+          ) : (
+            <Btn small kind="primary" onClick={() => setServings(r.id, base)}>Add to list</Btn>
+          )}
+
+          {/* week-plan slots this recipe is assigned to */}
+          {planSlots.map(({ day, type, servings: sv }) => (
+            <span key={day + type} style={pillWrap} title={`Week plan · ${day} ${type}: ${sv} servings`}>
+              <span style={pillLabel}>{day} · {type}</span>
+              {sv > base ? (
+                <button style={{ ...pillBtn, color: C.ink }} onClick={() => setPlanServings(day, type, sv - base)} title="One fewer batch" aria-label={`${r.name} ${day} ${type}: one fewer batch`}>−</button>
+              ) : (
+                <button style={{ ...pillBtn, color: C.tomato }} onClick={() => removePlanSlot(day, type)} title="Remove from the week plan" aria-label={`Remove ${r.name} from ${day} ${type}`}>🗑</button>
+              )}
+              <span style={pillCount}>×{r2(sv / base)}</span>
+              <button style={{ ...pillBtn, color: C.ink }} onClick={() => setPlanServings(day, type, sv + base)} title="Add another batch" aria-label={`${r.name} ${day} ${type}: add another batch`}>+</button>
+            </span>
+          ))}
+
+          {/* add to week's plan */}
+          {picking ? (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <select value={planPick.day} onChange={(e) => setPlanPick({ ...planPick, day: e.target.value })} aria-label="Day" style={planSelect}>
+                {DAYS.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+              <select value={planPick.type} onChange={(e) => setPlanPick({ ...planPick, type: e.target.value })} aria-label="Meal" style={planSelect}>
+                {MEAL_TYPES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <Btn small kind="primary" onClick={() => { assignPlan(r, planPick.day, planPick.type, addMult * base); setPlanPick(null); }}>Add</Btn>
+              <Btn small onClick={() => setPlanPick(null)}>Cancel</Btn>
+            </span>
+          ) : (
+            <Btn small onClick={() => setPlanPick({ id: r.id, day: DAYS[0], type: (r.mealTypes && r.mealTypes[0]) || "Dinner" })}>Add to week's plan</Btn>
+          )}
+
+          <div style={{ flex: 1 }} />
+          <Btn small onClick={() => startEdit(r)}>Edit</Btn>
         </div>
       </div>
     );
