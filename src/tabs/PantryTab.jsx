@@ -13,6 +13,8 @@ export function PantryTab({ data, catalog, update }) {
   const [newStore, setNewStore] = useState("");
   const [newItem, setNewItem] = useState("");
   const [editItem, setEditItem] = useState(null); // { key, name } while renaming an ingredient
+  const [query, setQuery] = useState("");
+  const [storeFilter, setStoreFilter] = useState(""); // "" = all stores
 
   const keys = useMemo(() => {
     const set = new Map();
@@ -21,6 +23,19 @@ export function PantryTab({ data, catalog, update }) {
     for (const e of data.list.extras) set.set(norm(e.name), cap(e.name.trim()));
     return [...set.entries()].map(([key, name]) => ({ key, name })).sort((a, b) => a.name.localeCompare(b.name));
   }, [data]);
+
+  // Search by name + narrow to one default store. A-Z ordering is inherited
+  // from `keys`; these only hide non-matching rows.
+  const q = norm(query);
+  const visibleKeys = useMemo(
+    () =>
+      keys.filter(
+        ({ key, name }) =>
+          (!q || norm(name).includes(q)) &&
+          (!storeFilter || normalizeCfg(data.config[key]).store === storeFilter)
+      ),
+    [keys, q, storeFilter, data.config]
+  );
 
   const setCfg = (key, patch) =>
     update((d) => {
@@ -179,9 +194,53 @@ export function PantryTab({ data, catalog, update }) {
           <input placeholder="Add an item (e.g. coffee, paper towels)" value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addItem()} style={{ ...inputStyle, flex: 1 }} />
           <Btn kind="primary" onClick={addItem}>Add item</Btn>
         </div>
+        {keys.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 12 }}>
+            <div style={{ position: "relative", flex: "1 1 170px", minWidth: 140 }}>
+              <input
+                placeholder="Search ingredients"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Escape" && setQuery("")}
+                aria-label="Search ingredients"
+                style={{ ...inputStyle, width: "100%", boxSizing: "border-box", paddingRight: 28 }}
+              />
+              {query && (
+                <button
+                  onClick={() => setQuery("")}
+                  title="Clear search"
+                  aria-label="Clear search"
+                  style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 4 }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <select
+              value={storeFilter}
+              onChange={(e) => setStoreFilter(e.target.value)}
+              aria-label="Filter by store"
+              style={{ ...inputStyle, width: 150, background: storeFilter ? C.greenSoft : "#fff" }}
+            >
+              <option value="">All stores</option>
+              {[...data.stores, UNASSIGNED].map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         {keys.length === 0 && <div style={{ color: C.faint, fontSize: 14 }}>Ingredients appear here as you add meals.</div>}
+        {keys.length > 0 && visibleKeys.length === 0 && (
+          <div style={{ color: C.faint, fontSize: 14, padding: "8px 2px" }}>
+            {query.trim()
+              ? <>No ingredients match "{query.trim()}"{storeFilter ? ` at ${storeFilter}` : ""}.</>
+              : <>No ingredients default to {storeFilter}.</>}
+          </div>
+        )}
         <div>
-          {keys.map(({ key, name }) => {
+          {visibleKeys.map(({ key, name }) => {
             const cfg = normalizeCfg(data.config[key]);
             return (
               <div key={key} style={{ padding: "10px 2px", borderBottom: `1px dashed ${C.line}` }}>
