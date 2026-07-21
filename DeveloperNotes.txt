@@ -49,9 +49,8 @@ Tier 3 — data-model / sorting
     so it still routes correctly on the list — the flag only controls grouping /
     labeling and records that it's something we keep stocked. Additive to the
     existing { store, aisles } config schema; nothing existing breaks.
-11. Once an item is checked on the List, move it to the bottom of its group and
-    keep following the A-Z / store-flow sort the user has selected (likely a
-    toggle at the top — open to design ideas).
+11. [DONE] Once an item is checked on the List, move it to the bottom of its
+    group and keep following the A-Z / store-flow sort the user has selected.
 
 
 Tier 4 — multi-device / integrations (highest risk, do last)
