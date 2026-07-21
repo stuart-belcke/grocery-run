@@ -7,13 +7,14 @@ import { useState, useMemo } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, Seg } from "../ui";
 import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2 } from "../lib";
+import { RecipeDetail } from "../RecipeDetail";
 
 export function MealsTab({ data, catalog, update }) {
   const [draft, setDraft] = useState(null);
   const [mealView, setMealView] = useState("az");
   const [easyOnly, setEasyOnly] = useState(false);
   const [query, setQuery] = useState("");
-  const [notesOpen, setNotesOpen] = useState(null);
+  const [detailOpen, setDetailOpen] = useState(null);
 
   const isCatalogId = (id) => catalog.recipes.some((r) => r.id === id);
 
@@ -99,7 +100,7 @@ export function MealsTab({ data, catalog, update }) {
     const base = r.servings || 4;
     const servings = data.list.selections[r.id] || 0;
     const onPlan = plannedIds.has(r.id);
-    const notesShown = notesOpen === r.id;
+    const detailShown = detailOpen === r.id;
     return (
       <div
         key={r.id}
@@ -114,7 +115,14 @@ export function MealsTab({ data, catalog, update }) {
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <div style={{ flex: 1, minWidth: 160 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <span style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 18 }}>{r.name}</span>
+              <button
+                onClick={() => setDetailOpen(detailShown ? null : r.id)}
+                aria-expanded={detailShown}
+                title="Show ingredients and notes"
+                style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 18, background: "transparent", border: "none", padding: 0, cursor: "pointer", color: C.ink, textAlign: "left" }}
+              >
+                {r.name}
+              </button>
               {(r.mealTypes || []).map((t) => (
                 <span key={t} style={{ fontSize: 11, fontWeight: 500, background: C.greenSoft, color: C.green, padding: "2px 8px", borderRadius: 999 }}>
                   {t}
@@ -135,17 +143,14 @@ export function MealsTab({ data, catalog, update }) {
             <div style={{ fontSize: 12, color: C.faint, marginTop: 2 }}>
               Serves {base} · {r.ingredients.map((i) => i.name).join(", ")}
             </div>
-            {r.notes && (
-              <button
-                onClick={() => setNotesOpen(notesShown ? null : r.id)}
-                style={{ border: "none", background: "transparent", color: C.green, cursor: "pointer", fontSize: 12, fontWeight: 500, padding: 0, marginTop: 4, fontFamily: fontBody }}
-              >
-                {notesShown ? "Hide notes" : "Cooking notes"}
-              </button>
-            )}
-            {notesShown && r.notes && (
-              <div style={{ fontSize: 13, marginTop: 6, padding: "8px 10px", background: C.paper, borderRadius: 8, whiteSpace: "pre-wrap" }}>{r.notes}</div>
-            )}
+            <button
+              onClick={() => setDetailOpen(detailShown ? null : r.id)}
+              aria-expanded={detailShown}
+              style={{ border: "none", background: "transparent", color: C.green, cursor: "pointer", fontSize: 12, fontWeight: 500, padding: 0, marginTop: 4, fontFamily: fontBody }}
+            >
+              {detailShown ? "Hide details ▲" : `Details${r.notes ? " & notes" : ""} ▾`}
+            </button>
+            {detailShown && <RecipeDetail recipe={r} />}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             {servings > 0 ? (
