@@ -28,6 +28,7 @@ import { ListTab } from "./tabs/ListTab";
 import { MealsTab } from "./tabs/MealsTab";
 import { WeekTab } from "./tabs/WeekTab";
 import { PantryTab } from "./tabs/PantryTab";
+import { SettingsTab } from "./tabs/SettingsTab";
 
 /* ------------------------------------------------------------------ */
 /*  Grocery Run — meal picker → aggregated, store-grouped shopping list
@@ -187,6 +188,7 @@ export default function App() {
               { id: "meals", label: "Meals" },
               { id: "week", label: "Week plan" },
               { id: "pantry", label: "Ingredients" },
+              { id: "settings", label: "Settings" },
             ].map((t) => (
               <button
                 key={t.id}
@@ -212,8 +214,9 @@ export default function App() {
         {tab === "list" && <ListTab data={data} update={update} />}
         {tab === "meals" && <MealsTab data={data} catalog={catalog} update={update} />}
         {tab === "week" && <WeekTab data={data} update={update} />}
-        {tab === "pantry" && (
-          <PantryTab
+        {tab === "pantry" && <PantryTab data={data} catalog={catalog} update={update} />}
+        {tab === "settings" && (
+          <SettingsTab
             data={data}
             catalog={catalog}
             local={local}

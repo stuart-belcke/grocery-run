@@ -74,7 +74,7 @@ export function MealsTab({ data, catalog, update }) {
   const deleteRecipe = (r) => {
     const catalogRecipe = isCatalogId(r.id);
     const msg = catalogRecipe
-      ? "Hide this catalog meal on this device? (To remove it everywhere, also delete it from catalog.json on GitHub — Ingredients tab → Publish changes makes that easy.)"
+      ? "Hide this catalog meal on this device? (To remove it everywhere, also delete it from catalog.json on GitHub — Settings tab → Publish changes makes that easy.)"
       : "Delete this meal?";
     if (!window.confirm(msg)) return;
     update((d) => {
@@ -348,7 +348,7 @@ export function MealsTab({ data, catalog, update }) {
           />
           {draft.fromCatalog && (
             <div style={{ fontSize: 12, color: C.faint, marginBottom: 8 }}>
-              This meal comes from the shared catalog. Saving stores your edits on this device; use "Publish changes" on the Ingredients tab to make them permanent for both phones.
+              This meal comes from the shared catalog. Saving stores your edits on this device; use "Publish changes" on the Settings tab to make them permanent for both phones.
             </div>
           )}
           <div style={{ display: "flex", gap: 8 }}>
