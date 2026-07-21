@@ -6,7 +6,7 @@
 import { useState, useMemo } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, Seg } from "../ui";
-import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2 } from "../lib";
+import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, unitSuggestions } from "../lib";
 import { RecipeDetail } from "../RecipeDetail";
 
 export function MealsTab({ data, catalog, update }) {
@@ -89,6 +89,8 @@ export function MealsTab({ data, catalog, update }) {
       return d;
     });
   };
+
+  const units = useMemo(() => unitSuggestions(data), [data]);
 
   const plannedIds = useMemo(() => {
     const ids = new Set();
@@ -317,6 +319,7 @@ export function MealsTab({ data, catalog, update }) {
               />
               <input
                 placeholder="Unit"
+                list="unit-suggestions"
                 value={ing.unit}
                 onChange={(e) => {
                   const list = [...draft.ingredients];
@@ -331,6 +334,11 @@ export function MealsTab({ data, catalog, update }) {
           <Btn small onClick={() => setDraft({ ...draft, ingredients: [...draft.ingredients, { name: "", qty: "1", unit: "" }] })} style={{ marginBottom: 10 }}>
             + Ingredient
           </Btn>
+          <datalist id="unit-suggestions">
+            {units.map((u) => (
+              <option key={u} value={u} />
+            ))}
+          </datalist>
           <textarea
             placeholder="Cooking instructions / notes (optional)"
             value={draft.notes}

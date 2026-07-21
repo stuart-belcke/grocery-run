@@ -6,7 +6,7 @@
 import { useState, useMemo } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Stripe, Btn, Seg } from "../ui";
-import { UNASSIGNED, norm, r2, normalizeCfg, aisleFor, servingsByRecipe, aggregateItems, qtyLabel } from "../lib";
+import { UNASSIGNED, norm, r2, normalizeCfg, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions } from "../lib";
 import { RecipeDetail } from "../RecipeDetail";
 
 export function ListTab({ data, update }) {
@@ -18,6 +18,7 @@ export function ListTab({ data, update }) {
   const [editExtra, setEditExtra] = useState(null); // { key, name, qty, unit } while editing a hand-added entry
 
   const items = useMemo(() => aggregateItems(data), [data]);
+  const units = useMemo(() => unitSuggestions(data), [data]);
   const storeOf = (key) => data.list.overrides[key] ?? data.config[key]?.store ?? UNASSIGNED;
   const aisleOf = (key, store) => {
     const a = aisleFor(data.config[key], store);
@@ -373,7 +374,12 @@ export function ListTab({ data, update }) {
             style={{ ...inputStyle, flex: "2 1 170px" }}
           />
           <input placeholder="Qty" value={extra.qty} onChange={(e) => setExtra({ ...extra, qty: e.target.value })} style={{ ...inputStyle, width: 60 }} />
-          <input placeholder="Unit" value={extra.unit} onChange={(e) => setExtra({ ...extra, unit: e.target.value })} style={{ ...inputStyle, width: 80 }} />
+          <input placeholder="Unit" list="unit-suggestions" value={extra.unit} onChange={(e) => setExtra({ ...extra, unit: e.target.value })} style={{ ...inputStyle, width: 80 }} />
+          <datalist id="unit-suggestions">
+            {units.map((u) => (
+              <option key={u} value={u} />
+            ))}
+          </datalist>
           <select
             value={extra.store}
             onChange={(e) => setExtra({ ...extra, store: e.target.value })}
