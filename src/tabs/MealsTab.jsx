@@ -157,13 +157,18 @@ export function MealsTab({ data, catalog, update }) {
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             {servings > 0 ? (
               <>
-                <Btn small onClick={() => setServings(r.id, servings - 1)} title="One serving fewer">−</Btn>
-                <span style={{ minWidth: 64, textAlign: "center", fontWeight: 700, fontVariantNumeric: "tabular-nums", fontSize: 13 }}>
-                  {servings} sv
-                  {servings !== base && <span style={{ fontWeight: 400, color: C.faint }}> (×{r2(servings / base)})</span>}
+                {servings > base ? (
+                  <Btn small onClick={() => setServings(r.id, servings - base)} title="One fewer batch" aria-label={`Remove one batch of ${r.name}`}>−</Btn>
+                ) : (
+                  <Btn small kind="danger" onClick={() => setServings(r.id, 0)} title="Remove from the shopping list" aria-label={`Remove ${r.name} from the list`}>🗑</Btn>
+                )}
+                <span
+                  title={`${servings} servings on the list (${r2(servings / base)}× this recipe)`}
+                  style={{ minWidth: 44, textAlign: "center", fontWeight: 700, fontVariantNumeric: "tabular-nums", fontSize: 14 }}
+                >
+                  ×{r2(servings / base)}
                 </span>
-                <Btn small onClick={() => setServings(r.id, servings + 1)} title="One serving more">+</Btn>
-                <Btn small onClick={() => setServings(r.id, 0)} title="Remove from the shopping list" aria-label={`Remove ${r.name} from the list`}>✕</Btn>
+                <Btn small onClick={() => setServings(r.id, servings + base)} title="Add another batch (multiplies the ingredients)" aria-label={`Add another batch of ${r.name}`}>+</Btn>
               </>
             ) : (
               <Btn small kind="primary" onClick={() => setServings(r.id, base)}>Add to list</Btn>

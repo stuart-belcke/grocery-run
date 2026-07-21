@@ -18,7 +18,7 @@ export function Stripe() {
   );
 }
 
-export function Btn({ children, onClick, kind = "ghost", small, style, title, disabled }) {
+export function Btn({ children, onClick, kind = "ghost", small, style, title, disabled, ...rest }) {
   const base = {
     fontFamily: fontBody,
     fontWeight: 500,
@@ -35,7 +35,7 @@ export function Btn({ children, onClick, kind = "ghost", small, style, title, di
     danger: { background: C.tomatoSoft, color: C.tomato, borderColor: "transparent" },
   };
   return (
-    <button title={title} disabled={disabled} onClick={onClick} style={{ ...base, ...kinds[kind], ...style }}>
+    <button title={title} disabled={disabled} onClick={onClick} style={{ ...base, ...kinds[kind], ...style }} {...rest}>
       {children}
     </button>
   );
