@@ -25,14 +25,14 @@ Tier 1 — small, high-value, low-risk
 
 Tier 2 — Ingredients-tab cluster (shared refactor, then features)
 -----------------------------------------------------------------
-5. Ingredients tab row treatment. Give each ingredient row the same
-   collapsed/expand-on-tap treatment as the Meals tab cards (#12), but expand
-   into aisle editing instead of recipe details. Not everything needs to show
-   for every entry all the time — default to just the ingredient name with a
-   gear and an X on the right. Tapping the gear (or the ingredient title)
-   expands the row to edit its default store and aisle numbers.
-6. Make the Ingredients tab filterable by store and A-Z, and add search. Reuse
-   the Seg + search pattern already built in the Meals tab.
+5. [DONE] Ingredients tab row treatment. Each row now collapses to just the
+   ingredient name (with a subtle default-store · aisle hint), a gear, and an
+   X. Tapping the gear or the name expands the row to edit the default store
+   and per-store aisle numbers; Rename lives inside that expanded panel.
+6. [DONE] Make the Ingredients tab filterable by store and A-Z, and add
+   search. A search box (name match, with a clear ✕, mirroring the Meals tab)
+   plus a store-filter dropdown ("All stores" / each store / Unassigned) that
+   narrows to items with that default store. List stays A-Z sorted.
 7. Add an "info" icon to each ingredient to see which recipes it's used in.
 8. Add ingredients to the shopping list straight from the Ingredients tab —
    e.g. search "bananas" and add it directly, instead of needing a recipe or
