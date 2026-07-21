@@ -161,6 +161,7 @@ export function MealsTab({ data, catalog, update }) {
                   {servings !== base && <span style={{ fontWeight: 400, color: C.faint }}> (×{r2(servings / base)})</span>}
                 </span>
                 <Btn small onClick={() => setServings(r.id, servings + 1)} title="One serving more">+</Btn>
+                <Btn small onClick={() => setServings(r.id, 0)} title="Remove from the shopping list" aria-label={`Remove ${r.name} from the list`}>✕</Btn>
               </>
             ) : (
               <Btn small kind="primary" onClick={() => setServings(r.id, base)}>Add to list</Btn>
