@@ -201,7 +201,7 @@ export function servingsByRecipe(data) {
 
 export function aggregateItems(data) {
   const map = new Map();
-  const addPart = (name, qty, unit, sourceName, detail, recipeId) => {
+  const addPart = (name, qty, unit, sourceName, detail) => {
     const key = norm(name);
     if (!key) return;
     if (!map.has(key)) map.set(key, { key, name: cap(name.trim()), parts: {}, sources: [], contribs: [] });
@@ -209,9 +209,7 @@ export function aggregateItems(data) {
     const u = (unit || "").trim();
     item.parts[u] = (item.parts[u] || 0) + qty;
     if (sourceName && !item.sources.includes(sourceName)) item.sources.push(sourceName);
-    // recipeId links a contribution back to its recipe so the List tab can
-    // reveal that meal's details on demand; hand-added parts leave it null.
-    item.contribs.push({ label: detail, qty, unit: u, recipeId: recipeId || null });
+    item.contribs.push({ label: detail, qty, unit: u });
   };
   const addRecipe = (r, servings, origin) => {
     if (!(servings > 0)) return;
@@ -223,8 +221,7 @@ export function aggregateItems(data) {
         (Number(ing.qty) || 0) * scale,
         ing.unit,
         r.name,
-        `${r.name} · ${origin} · ${servings} sv${servings !== base ? ` (recipe makes ${base}, so ×${r2(scale)})` : ""}`,
-        r.id
+        `${r.name} · ${origin} · ${servings} sv${servings !== base ? ` (recipe makes ${base}, so ×${r2(scale)})` : ""}`
       );
     }
   };
