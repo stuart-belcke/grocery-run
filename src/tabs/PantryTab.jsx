@@ -248,7 +248,7 @@ export function PantryTab({ data, catalog, update }) {
             // Aisle set at the item's default store, shown as a collapsed-row hint.
             const homeAisle = cfg.store !== UNASSIGNED ? cfg.aisles[cfg.store] : undefined;
             return (
-              <div key={key} style={{ padding: "8px 2px", borderBottom: `1px dashed ${C.line}` }}>
+              <div key={key} style={{ padding: "10px 2px", borderBottom: `1px dashed ${C.line}` }}>
                 {renaming ? (
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <input
@@ -266,24 +266,17 @@ export function PantryTab({ data, catalog, update }) {
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <button
                         onClick={() => setOpenItem(open ? null : key)}
-                        aria-expanded={open}
-                        title="Edit default store and aisles"
-                        style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", gap: 8, textAlign: "left", background: "transparent", border: "none", padding: "2px 0", cursor: "pointer", color: C.ink, fontFamily: "inherit" }}
-                      >
-                        <span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
-                        <span style={{ fontSize: 11, color: C.faint, whiteSpace: "nowrap", flexShrink: 0 }}>
-                          {cfg.store === UNASSIGNED ? "no store set" : cfg.store}
-                          {homeAisle != null && homeAisle !== "" ? ` · aisle ${homeAisle}` : ""}
-                        </span>
-                      </button>
-                      <button
-                        onClick={() => setOpenItem(open ? null : key)}
                         aria-label={`Edit store and aisles for ${name}`}
                         aria-expanded={open}
                         title="Edit default store and aisles"
-                        style={{ border: "none", background: "transparent", color: open ? C.green : C.faint, cursor: "pointer", fontSize: 15, padding: 2, lineHeight: 1 }}
+                        style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", background: "transparent", border: "none", padding: "2px 0", cursor: "pointer", color: C.ink, fontFamily: "inherit" }}
                       >
-                        ⚙
+                        <span style={{ fontSize: 16, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{name}</span>
+                        <span style={{ fontSize: 12, color: C.faint, whiteSpace: "nowrap", flexShrink: 0 }}>
+                          {cfg.store === UNASSIGNED ? "no store set" : cfg.store}
+                          {homeAisle != null && homeAisle !== "" ? ` · aisle ${homeAisle}` : ""}
+                        </span>
+                        <span aria-hidden style={{ marginLeft: "auto", paddingLeft: 8, color: open ? C.green : C.faint, fontSize: 15, flexShrink: 0, lineHeight: 1 }}>⚙</span>
                       </button>
                       <button onClick={() => removeItem(key, name)} aria-label={`Remove ${name}`} title="Remove this item" style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 15, padding: 2, lineHeight: 1 }}>
                         ✕
