@@ -10,6 +10,33 @@ import {
   watchConnection,
   writeHousehold,
 } from "./sync";
+import { C, fontDisplay, fontBody, inputStyle } from "./theme";
+import { Stripe, Btn, Seg } from "./ui";
+import {
+  LOCAL_KEY,
+  CATALOG_KEY,
+  UNASSIGNED,
+  DAYS,
+  MEAL_TYPES,
+  norm,
+  cap,
+  uid,
+  r2,
+  formatCatalog,
+  normalizeCfg,
+  aisleFor,
+  storageOk,
+  FALLBACK_CATALOG,
+  emptyLocal,
+  normalizeLocal,
+  loadJSON,
+  saveJSON,
+  validLocal,
+  validCatalog,
+  servingsByRecipe,
+  aggregateItems,
+  qtyLabel,
+} from "./lib";
 
 /* ------------------------------------------------------------------ */
 /*  Grocery Run — meal picker → aggregated, store-grouped shopping list
@@ -19,249 +46,11 @@ import {
       HOUSEHOLD (the "local" object below): your list, week plan, store
         overrides, and un-pushed recipe edits. Stored in each device's
         localStorage; when Firebase is configured it also syncs live
-        between phones via households/{code} in the Realtime Database.  */
+        between phones via households/{code} in the Realtime Database.
+
+    Shared theme, UI primitives, and framework-free helpers live in
+    ./theme, ./ui, and ./lib respectively.                             */
 /* ------------------------------------------------------------------ */
-
-const LOCAL_KEY = "grocery-run-local-v1";
-const CATALOG_KEY = "grocery-run-catalog-cache-v1";
-const UNASSIGNED = "Unassigned";
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const MEAL_TYPES = ["Breakfast", "Lunch", "Dinner", "Dessert"];
-
-const C = {
-  paper: "#F7F5EF",
-  card: "#FFFFFF",
-  ink: "#24301F",
-  faint: "#6B7263",
-  green: "#3E6B3A",
-  greenSoft: "#E4EDE0",
-  line: "#E3E0D4",
-  tomato: "#C2452D",
-  tomatoSoft: "#F7E4DF",
-  gold: "#8A6D1D",
-  goldSoft: "#F6EFD7",
-};
-const fontDisplay = "'Fraunces', Georgia, serif";
-const fontBody = "'Space Grotesk', system-ui, -apple-system, sans-serif";
-
-const norm = (s) => (s || "").trim().toLowerCase();
-const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
-const uid = () => Math.random().toString(36).slice(2, 10);
-const r2 = (x) => Math.round(x * 100) / 100;
-
-// Render a value on a single line, matching the hand-authored catalog.json
-// style: arrays as [a, b], objects as { "k": v, ... }, everything else via
-// JSON.stringify. Used to keep the published catalog compact.
-const inlineJson = (v) => {
-  if (Array.isArray(v)) return v.length ? "[" + v.map(inlineJson).join(", ") + "]" : "[]";
-  if (v && typeof v === "object") {
-    const entries = Object.entries(v);
-    return entries.length ? "{ " + entries.map(([k, val]) => `${JSON.stringify(k)}: ${inlineJson(val)}`).join(", ") + " }" : "{}";
-  }
-  return JSON.stringify(v);
-};
-
-// Serialize the catalog with one recipe field / ingredient / config entry per
-// line, so committed catalog.json stays readable and diffs stay small — instead
-// of JSON.stringify's fully-expanded (one token per line) output.
-function formatCatalog(out) {
-  const lines = ["{"];
-  lines.push(`  "catalogVersion": ${JSON.stringify(out.catalogVersion)},`);
-  lines.push(`  "stores": ${inlineJson(out.stores)},`);
-  lines.push(`  "recipes": [`);
-  out.recipes.forEach((r, ri) => {
-    lines.push("    {");
-    for (const k of Object.keys(r)) {
-      if (k === "ingredients") continue;
-      lines.push(`      ${JSON.stringify(k)}: ${inlineJson(r[k])},`);
-    }
-    lines.push(`      "ingredients": [`);
-    r.ingredients.forEach((ing, ii) => {
-      lines.push(`        ${inlineJson(ing)}${ii < r.ingredients.length - 1 ? "," : ""}`);
-    });
-    lines.push("      ]");
-    lines.push(`    }${ri < out.recipes.length - 1 ? "," : ""}`);
-  });
-  lines.push("  ],");
-  lines.push(`  "config": {`);
-  const cfg = Object.entries(out.config);
-  cfg.forEach(([k, v], ci) => {
-    lines.push(`    ${JSON.stringify(k)}: ${inlineJson(v)}${ci < cfg.length - 1 ? "," : ""}`);
-  });
-  lines.push("  }");
-  lines.push("}");
-  return lines.join("\n") + "\n";
-}
-
-// An ingredient config is { store: defaultStore, aisles: { storeName: number } }.
-// Older data used a single { store, aisle }; normalizeCfg upgrades it so the
-// legacy aisle becomes that store's entry in the aisles map.
-function normalizeCfg(cfg) {
-  if (!cfg) return { store: UNASSIGNED, aisles: {} };
-  if (cfg.aisles) return { store: cfg.store || UNASSIGNED, aisles: { ...cfg.aisles } };
-  const aisles = {};
-  if (cfg.aisle !== undefined && cfg.aisle !== null && cfg.aisle !== "" && cfg.store) {
-    aisles[cfg.store] = Number(cfg.aisle);
-  }
-  return { store: cfg.store || UNASSIGNED, aisles };
-}
-
-// Aisle for a specific store, or "" if none set.
-function aisleFor(cfg, store) {
-  const n = normalizeCfg(cfg);
-  const a = n.aisles[store];
-  return a === undefined || a === null ? "" : a;
-}
-
-/* ---------------------------- storage ----------------------------- */
-
-let storageOk = true;
-try {
-  localStorage.setItem("__t", "1");
-  localStorage.removeItem("__t");
-} catch (e) {
-  storageOk = false;
-}
-
-const FALLBACK_CATALOG = {
-  catalogVersion: 0,
-  stores: ["Grocery store"],
-  recipes: [],
-  config: {},
-};
-
-const emptyLocal = () => ({
-  version: 1,
-  localRecipes: [],
-  recipeOverrides: {}, // catalogId -> edited recipe, or null = hidden
-  configOverrides: {}, // ingredient key -> { store, aisles: { storeName: number } }
-  extraStores: [],
-  removedStores: [],
-  list: { selections: {}, overrides: {}, checked: {}, extras: [] },
-  plan: {},
-});
-
-// Firebase strips empty objects/arrays (and nulls) when saving and can
-// hand arrays back as index-keyed objects, so state arriving from sync
-// (or from the cache/backup of such state) may be missing nested fields.
-// The rule everywhere below: an absent field means empty. Rebuild the
-// full shape before rendering ever touches it.
-const asArray = (v) => (Array.isArray(v) ? v : v && typeof v === "object" ? Object.values(v) : []);
-const asObject = (v) => (v && typeof v === "object" && !Array.isArray(v) ? v : {});
-const normalizeRecipe = (r) => ({ ...r, mealTypes: asArray(r.mealTypes), ingredients: asArray(r.ingredients) });
-function normalizeLocal(raw) {
-  const d = raw && typeof raw === "object" ? raw : {};
-  const recipeOverrides = {};
-  for (const [id, v] of Object.entries(asObject(d.recipeOverrides)))
-    recipeOverrides[id] = v && typeof v === "object" ? normalizeRecipe(v) : v;
-  return {
-    ...emptyLocal(),
-    ...d,
-    localRecipes: asArray(d.localRecipes).map(normalizeRecipe),
-    recipeOverrides,
-    configOverrides: asObject(d.configOverrides),
-    extraStores: asArray(d.extraStores),
-    removedStores: asArray(d.removedStores),
-    list: {
-      selections: asObject(d.list && d.list.selections),
-      overrides: asObject(d.list && d.list.overrides),
-      checked: asObject(d.list && d.list.checked),
-      extras: asArray(d.list && d.list.extras),
-    },
-    plan: asObject(d.plan),
-  };
-}
-
-function loadJSON(key) {
-  if (!storageOk) return null;
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : null;
-  } catch (e) {
-    return null;
-  }
-}
-function saveJSON(key, value) {
-  if (!storageOk) return false;
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
-function validLocal(d) {
-  return d && typeof d === "object" && d.list && Array.isArray(d.localRecipes);
-}
-function validCatalog(d) {
-  return d && typeof d === "object" && Array.isArray(d.recipes) && Array.isArray(d.stores) && typeof d.config === "object";
-}
-
-/* --------------------------- tiny pieces --------------------------- */
-
-function Stripe() {
-  return (
-    <div
-      aria-hidden
-      style={{
-        height: 6,
-        borderRadius: 3,
-        background: `repeating-linear-gradient(45deg, ${C.green} 0 10px, ${C.paper} 10px 20px)`,
-      }}
-    />
-  );
-}
-
-function Btn({ children, onClick, kind = "ghost", small, style, title, disabled }) {
-  const base = {
-    fontFamily: fontBody,
-    fontWeight: 500,
-    borderRadius: 8,
-    cursor: disabled ? "default" : "pointer",
-    border: "1px solid transparent",
-    padding: small ? "4px 10px" : "8px 14px",
-    fontSize: small ? 13 : 14,
-    opacity: disabled ? 0.5 : 1,
-  };
-  const kinds = {
-    primary: { background: C.green, color: "#fff" },
-    ghost: { background: "transparent", color: C.ink, borderColor: C.line },
-    danger: { background: C.tomatoSoft, color: C.tomato, borderColor: "transparent" },
-  };
-  return (
-    <button title={title} disabled={disabled} onClick={onClick} style={{ ...base, ...kinds[kind], ...style }}>
-      {children}
-    </button>
-  );
-}
-
-function Seg({ options, value, onChange }) {
-  return (
-    <div style={{ display: "inline-flex", border: `1px solid ${C.line}`, borderRadius: 8, overflow: "hidden", background: "#fff" }}>
-      {options.map((o) => (
-        <button
-          key={o.value}
-          onClick={() => onChange(o.value)}
-          style={{
-            fontFamily: fontBody,
-            fontSize: 13,
-            fontWeight: 500,
-            padding: "6px 12px",
-            border: "none",
-            cursor: "pointer",
-            background: value === o.value ? C.green : "transparent",
-            color: value === o.value ? "#fff" : C.ink,
-          }}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-const inputStyle = { padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.line}`, fontFamily: fontBody, fontSize: 14 };
 
 /* ------------------------------ app ------------------------------- */
 
@@ -447,70 +236,6 @@ export default function App() {
       </div>
     </div>
   );
-}
-
-/* =========================== aggregation =========================== */
-
-function servingsByRecipe(data) {
-  const totals = {};
-  for (const [id, s] of Object.entries(data.list.selections)) totals[id] = (totals[id] || 0) + s;
-  for (const day of DAYS) {
-    for (const type of MEAL_TYPES) {
-      const slot = data.plan?.[day]?.[type];
-      if (slot?.recipeId) totals[slot.recipeId] = (totals[slot.recipeId] || 0) + (Number(slot.servings) || 0);
-    }
-  }
-  return totals;
-}
-
-function aggregateItems(data) {
-  const map = new Map();
-  const addPart = (name, qty, unit, sourceName, detail) => {
-    const key = norm(name);
-    if (!key) return;
-    if (!map.has(key)) map.set(key, { key, name: cap(name.trim()), parts: {}, sources: [], contribs: [] });
-    const item = map.get(key);
-    const u = (unit || "").trim();
-    item.parts[u] = (item.parts[u] || 0) + qty;
-    if (sourceName && !item.sources.includes(sourceName)) item.sources.push(sourceName);
-    item.contribs.push({ label: detail, qty, unit: u });
-  };
-  const addRecipe = (r, servings, origin) => {
-    if (!(servings > 0)) return;
-    const base = r.servings || 4;
-    const scale = servings / base;
-    for (const ing of r.ingredients) {
-      addPart(
-        ing.name,
-        (Number(ing.qty) || 0) * scale,
-        ing.unit,
-        r.name,
-        `${r.name} · ${origin} · ${servings} sv${servings !== base ? ` (recipe makes ${base}, so ×${r2(scale)})` : ""}`
-      );
-    }
-  };
-  for (const [id, s] of Object.entries(data.list.selections)) {
-    const r = data.recipes.find((x) => x.id === id);
-    if (r) addRecipe(r, s, "Meals tab");
-  }
-  for (const day of DAYS) {
-    for (const type of MEAL_TYPES) {
-      const slot = data.plan?.[day]?.[type];
-      if (slot?.recipeId) {
-        const r = data.recipes.find((x) => x.id === slot.recipeId);
-        if (r) addRecipe(r, Number(slot.servings) || 0, `week plan, ${day} ${type}`);
-      }
-    }
-  }
-  for (const ex of data.list.extras) addPart(ex.name, Number(ex.qty) || 0, ex.unit, "Added by hand", "Added by hand on the shopping list");
-  return [...map.values()];
-}
-
-function qtyLabel(parts) {
-  return Object.entries(parts)
-    .filter(([, q]) => q > 0)
-    .map(([u, q]) => (u ? `${r2(q)} ${u}` : `${r2(q)}`))
-    .join(" + ");
 }
 
 /* =========================== shopping list ========================= */
