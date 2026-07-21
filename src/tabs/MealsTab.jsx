@@ -44,11 +44,6 @@ export function MealsTab({ data, catalog, update }) {
       d.plan[day][type] = { recipeId: r.id, servings };
       return d;
     });
-  const setPlanServings = (day, type, servings) =>
-    update((d) => {
-      if (d.plan[day]?.[type]) d.plan[day][type].servings = servings;
-      return d;
-    });
   const removePlanSlot = (day, type) =>
     update((d) => {
       if (d.plan[day]) delete d.plan[day][type];
@@ -127,9 +122,6 @@ export function MealsTab({ data, catalog, update }) {
     const servings = data.list.selections[r.id] || 0;
     const detailShown = detailOpen === r.id;
     const picking = planPick?.id === r.id;
-    // Whole batches on the list, defaulting to 1 when it isn't on the list yet —
-    // this seeds the servings for a new week-plan slot.
-    const addMult = Math.max(1, Math.round(servings / base));
     const planSlots = [];
     for (const day of DAYS) for (const type of MEAL_TYPES) {
       const slot = data.plan?.[day]?.[type];
@@ -196,59 +188,70 @@ export function MealsTab({ data, catalog, update }) {
           {detailShown && <RecipeDetail recipe={r} />}
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-          {/* shopping list */}
-          {servings > 0 ? (
-            <span style={pillWrap} title={`On the list: ${servings} servings (${r2(servings / base)}× this recipe)`}>
-              <span style={pillLabel}>List</span>
-              {servings > base ? (
-                <button style={{ ...pillBtn, color: C.ink }} onClick={() => setServings(r.id, servings - base)} title="One fewer batch" aria-label={`Remove one batch of ${r.name} from the list`}>−</button>
-              ) : (
-                <button style={{ ...pillBtn, color: C.tomato }} onClick={() => setServings(r.id, 0)} title="Remove from the shopping list" aria-label={`Remove ${r.name} from the list`}>🗑</button>
-              )}
-              <span style={pillCount}>×{r2(servings / base)}</span>
-              <button style={{ ...pillBtn, color: C.ink }} onClick={() => setServings(r.id, servings + base)} title="Add another batch to the list" aria-label={`Add another batch of ${r.name} to the list`}>+</button>
-            </span>
-          ) : (
-            <Btn small kind="primary" onClick={() => setServings(r.id, base)}>Add to list</Btn>
-          )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+          {/* Unplanned meals = the shopping list: batches you want but haven't
+              scheduled to a day. Whole-batch pill editing (🗑 / ± / count). */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {servings > 0 ? (
+              <span style={pillWrap} title={`${r2(servings / base)} unplanned — ${servings} servings on the shopping list`}>
+                <span style={pillLabel}>Unplanned</span>
+                {servings > base ? (
+                  <button style={{ ...pillBtn, color: C.ink }} onClick={() => setServings(r.id, servings - base)} title="One fewer" aria-label={`One fewer unplanned ${r.name}`}>−</button>
+                ) : (
+                  <button style={{ ...pillBtn, color: C.tomato }} onClick={() => setServings(r.id, 0)} title="Remove the unplanned meal" aria-label={`Remove unplanned ${r.name}`}>🗑</button>
+                )}
+                <span style={pillCount}>×{r2(servings / base)}</span>
+                <button style={{ ...pillBtn, color: C.ink }} onClick={() => setServings(r.id, servings + base)} title="Another unplanned meal" aria-label={`Another unplanned ${r.name}`}>+</button>
+              </span>
+            ) : (
+              <Btn small kind="primary" onClick={() => setServings(r.id, base)}>Add unplanned meal</Btn>
+            )}
+            <div style={{ flex: 1 }} />
+            <Btn small onClick={() => startEdit(r)}>Edit</Btn>
+          </div>
 
-          {/* week-plan slots this recipe is assigned to */}
-          {planSlots.map(({ day, type, servings: sv }) => (
-            <span key={day + type} style={pillWrap} title={`Week plan · ${day} ${type}: ${sv} servings`}>
-              <span style={pillLabel}>{day} · {type}</span>
-              {sv > base ? (
-                <button style={{ ...pillBtn, color: C.ink }} onClick={() => setPlanServings(day, type, sv - base)} title="One fewer batch" aria-label={`${r.name} ${day} ${type}: one fewer batch`}>−</button>
-              ) : (
-                <button style={{ ...pillBtn, color: C.tomato }} onClick={() => removePlanSlot(day, type)} title="Remove from the week plan" aria-label={`Remove ${r.name} from ${day} ${type}`}>🗑</button>
-              )}
-              <span style={pillCount}>×{r2(sv / base)}</span>
-              <button style={{ ...pillBtn, color: C.ink }} onClick={() => setPlanServings(day, type, sv + base)} title="Add another batch" aria-label={`${r.name} ${day} ${type}: add another batch`}>+</button>
-            </span>
-          ))}
-
-          {/* add to week's plan */}
-          {picking ? (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <select value={planPick.day} onChange={(e) => setPlanPick({ ...planPick, day: e.target.value })} aria-label="Day" style={planSelect}>
-                {DAYS.map((d) => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
-              </select>
-              <select value={planPick.type} onChange={(e) => setPlanPick({ ...planPick, type: e.target.value })} aria-label="Meal" style={planSelect}>
-                {MEAL_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-              <Btn small kind="primary" onClick={() => { assignPlan(r, planPick.day, planPick.type, addMult * base); setPlanPick(null); }}>Add</Btn>
-              <Btn small onClick={() => setPlanPick(null)}>Cancel</Btn>
-            </span>
-          ) : (
-            <Btn small onClick={() => setPlanPick({ id: r.id, day: DAYS[0], type: (r.mealTypes && r.mealTypes[0]) || "Dinner" })}>Add to week's plan</Btn>
-          )}
-
-          <div style={{ flex: 1 }} />
-          <Btn small onClick={() => startEdit(r)}>Edit</Btn>
+          {/* Planned meals = week-plan slots. A live summary of every slot this
+              recipe fills (added here or on the Week tab), each removable. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {planSlots.length > 0 && (
+              <span style={{ fontSize: 12, color: C.faint }}>
+                {planSlots.length} planned meal{planSlots.length === 1 ? "" : "s"}:
+              </span>
+            )}
+            {planSlots.map(({ day, type, servings: sv }) => (
+              <span key={day + type} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: C.greenSoft, color: C.green, fontSize: 12, fontWeight: 500, padding: "3px 4px 3px 9px", borderRadius: 999 }}>
+                {day} · {type}{sv !== base ? ` ×${r2(sv / base)}` : ""}
+                <button
+                  onClick={() => removePlanSlot(day, type)}
+                  aria-label={`Remove ${r.name} from ${day} ${type}`}
+                  title="Remove from the week plan"
+                  style={{ border: "none", background: "transparent", color: C.green, cursor: "pointer", fontSize: 13, lineHeight: 1, padding: "0 2px" }}
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+            {picking ? (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <select value={planPick.day} onChange={(e) => setPlanPick({ ...planPick, day: e.target.value })} aria-label="Day" style={planSelect}>
+                  {DAYS.map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+                <select value={planPick.type} onChange={(e) => setPlanPick({ ...planPick, type: e.target.value })} aria-label="Meal" style={planSelect}>
+                  {MEAL_TYPES.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+                <Btn small kind="primary" onClick={() => { assignPlan(r, planPick.day, planPick.type, base); setPlanPick(null); }}>Add</Btn>
+                <Btn small onClick={() => setPlanPick(null)}>Cancel</Btn>
+              </span>
+            ) : (
+              <Btn small onClick={() => setPlanPick({ id: r.id, day: DAYS[0], type: (r.mealTypes && r.mealTypes[0]) || "Dinner" })}>
+                Add to week's plan
+              </Btn>
+            )}
+          </div>
         </div>
       </div>
     );
