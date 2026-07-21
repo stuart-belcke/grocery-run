@@ -10,52 +10,59 @@ multi-device / integration work last.
 
 Tier 1 — small, high-value, low-risk
 ------------------------------------
-1. Recipe detail view. Tapping a recipe card in the Meals tab expands its full
-   ingredients + notes, read-only, without having to hit Edit.
-2. Remove a meal from "the list". After "Add to list" from the Meals tab, give
-   an explicit way to take it back off. Also handle meals that reached the list
-   via the Week plan, not just the Meals tab.
-3. Suggested "unit" values when adding a new item.
-4. Move the settings section off the bottom of the Ingredients page into a
-   dedicated Settings tab (or a hamburger menu at the top). Do this before
-   adding search/filter to the Ingredients tab so it isn't cluttered.
+1. [DONE — #11, #12] Recipe detail view. Tapping a recipe card in the Meals
+   tab expands its full ingredients + notes, read-only, without having to hit
+   Edit.
+2. [DONE — #11] Remove a meal from "the list". After "Add to list" from the
+   Meals tab, give an explicit way to take it back off. Also handle meals that
+   reached the list via the Week plan, not just the Meals tab.
+3. [DONE — #11] Suggested "unit" values when adding a new item.
+4. [DONE — #11] Move the settings section off the bottom of the Ingredients
+   page into a dedicated Settings tab (or a hamburger menu at the top). Do
+   this before adding search/filter to the Ingredients tab so it isn't
+   cluttered.
 
 
 Tier 2 — Ingredients-tab cluster (shared refactor, then features)
 -----------------------------------------------------------------
-5. Make the Ingredients tab filterable by store and A-Z, and add search. Reuse
+5. Ingredients tab row treatment. Give each ingredient row the same
+   collapsed/expand-on-tap treatment as the Meals tab cards (#12), but expand
+   into aisle editing instead of recipe details. Not everything needs to show
+   for every entry all the time — default to just the ingredient name with a
+   gear and an X on the right. Tapping the gear (or the ingredient title)
+   expands the row to edit its default store and aisle numbers.
+6. Make the Ingredients tab filterable by store and A-Z, and add search. Reuse
    the Seg + search pattern already built in the Meals tab.
-6. Add an "info" icon to each ingredient to see which recipes it's used in.
-7. Add ingredients to the shopping list straight from the Ingredients tab —
+7. Add an "info" icon to each ingredient to see which recipes it's used in.
+8. Add ingredients to the shopping list straight from the Ingredients tab —
    e.g. search "bananas" and add it directly, instead of needing a recipe or
    hand-typing it into the List tab.
-8. Have the List tab's "add an item" bar look through the Ingredients tab and
+9. Have the List tab's "add an item" bar look through the Ingredients tab and
    suggest matches as you type, so you select an existing item rather than
    creating a duplicate.
 
 
 Tier 3 — data-model / sorting
 -----------------------------
-9. Pantry staples. Model chosen: a staple is a normal ingredient with an added
-   `staple: true` flag. It keeps its real default store (aisles map unchanged),
-   so it still routes correctly on the list — the flag only controls grouping /
-   labeling and records that it's something we keep stocked. Additive to the
-   existing { store, aisles } config schema; nothing existing breaks.
-10. Once an item is checked on the List, move it to the bottom of its group and
-    keep following the A-Z / store-flow sort the user has selected (likely a
-    toggle at the top — open to design ideas).
+10. Pantry staples. Model chosen: a staple is a normal ingredient with an added
+    `staple: true` flag. It keeps its real default store (aisles map unchanged),
+    so it still routes correctly on the list — the flag only controls grouping /
+    labeling and records that it's something we keep stocked. Additive to the
+    existing { store, aisles } config schema; nothing existing breaks.
+11. [DONE] Once an item is checked on the List, move it to the bottom of its
+    group and keep following the A-Z / store-flow sort the user has selected.
 
 
 Tier 4 — multi-device / integrations (highest risk, do last)
 ------------------------------------------------------------
-11. Formalize create/join household. Household codes already exist under the
+12. Formalize create/join household. Household codes already exist under the
     hood; this makes creating or joining one a first-class flow.
-12. Delete / log out of households, and clean up orphaned data. Households
+13. Delete / log out of households, and clean up orphaned data. Households
     created by devices we no longer use linger in the RTDB forever; a device
     with uncommitted changes on a separate household keeps it alive. Figure out
     whether deleting requires logging everyone out (or logging specific
     households out) and how to reclaim abandoned nodes.
-13. Export to / link with a Google calendar, keyed off the household.
+14. Export to / link with a Google calendar, keyed off the household.
 
 
 Refactor notes
@@ -67,4 +74,4 @@ each feature edits a small, reviewable surface:
     normalization, list aggregation)
   - per-tab components (List, Meals, Week, Ingredients) in their own files
 A `usedInRecipes(key)` selector is worth centralizing — it's needed by the
-Ingredients info icon (item 6), the remove-item safety check, and rename logic.
+Ingredients info icon (item 7), the remove-item safety check, and rename logic.

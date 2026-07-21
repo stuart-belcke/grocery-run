@@ -299,7 +299,11 @@ export function ListTab({ data, update }) {
       </div>
     );
   } else if (view === "all") {
-    const sorted = [...items].sort((a, b) => a.name.localeCompare(b.name));
+    const sorted = [...items].sort((a, b) => {
+      const ac = !!data.list.checked[a.key], bc = !!data.list.checked[b.key];
+      if (ac !== bc) return ac ? 1 : -1;
+      return a.name.localeCompare(b.name);
+    });
     body = <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>{sorted.map((i) => renderItem(i, true))}</ul>;
   } else {
     const groups = new Map();
@@ -311,9 +315,11 @@ export function ListTab({ data, update }) {
     const order = [...data.stores, UNASSIGNED].filter((s) => groups.has(s));
     body = order.map((store) => {
       const g = groups.get(store);
-      const sorted = [...g].sort((a, b) =>
-        storeSort === "flow" ? aisleOf(a.key, store) - aisleOf(b.key, store) || a.name.localeCompare(b.name) : a.name.localeCompare(b.name)
-      );
+      const sorted = [...g].sort((a, b) => {
+        const ac = !!data.list.checked[a.key], bc = !!data.list.checked[b.key];
+        if (ac !== bc) return ac ? 1 : -1;
+        return storeSort === "flow" ? aisleOf(a.key, store) - aisleOf(b.key, store) || a.name.localeCompare(b.name) : a.name.localeCompare(b.name);
+      });
       const left = g.filter((i) => !data.list.checked[i.key]).length;
       return (
         <section key={store} style={{ marginBottom: 20 }}>
