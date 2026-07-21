@@ -150,40 +150,38 @@ export function MealsTab({ data, catalog, update }) {
         </button>
 
         <div style={{ paddingRight: 22 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <button
-              onClick={() => setDetailOpen(detailShown ? null : r.id)}
-              aria-expanded={detailShown}
-              title="Show ingredients and notes"
-              style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 18, background: "transparent", border: "none", padding: 0, cursor: "pointer", color: C.ink, textAlign: "left" }}
-            >
-              {r.name}
-            </button>
-            {(r.mealTypes || []).map((t) => (
-              <span key={t} style={{ fontSize: 11, fontWeight: 500, background: C.greenSoft, color: C.green, padding: "2px 8px", borderRadius: 999 }}>
-                {t}
-              </span>
-            ))}
-            {r.easy && (
-              <span title="Quick, low-effort meal" style={{ fontSize: 11, fontWeight: 500, background: C.goldSoft, color: C.gold, padding: "2px 8px", borderRadius: 999 }}>
-                ⚡ Easy
-              </span>
-            )}
-            {r.fromCatalog && (
-              <span style={{ fontSize: 11, color: C.faint }} title={r.edited ? "From the shared catalog, edited on this device" : "From the shared catalog"}>
-                catalog{r.edited ? "*" : ""}
-              </span>
-            )}
-          </div>
-          <div style={{ fontSize: 12, color: C.faint, marginTop: 2 }}>
-            Serves {base} · {r.ingredients.map((i) => i.name).join(", ")}
-          </div>
           <button
             onClick={() => setDetailOpen(detailShown ? null : r.id)}
             aria-expanded={detailShown}
-            style={{ border: "none", background: "transparent", color: C.green, cursor: "pointer", fontSize: 12, fontWeight: 500, padding: 0, marginTop: 4, fontFamily: fontBody }}
+            title="Show ingredients and recipe"
+            style={{ display: "block", width: "100%", background: "transparent", border: "none", padding: 0, cursor: "pointer", textAlign: "left", fontFamily: fontBody }}
           >
-            {detailShown ? "Hide details ▲" : `Details${r.notes ? " & notes" : ""} ▾`}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 18, color: C.ink }}>
+                {r.name}
+              </span>
+              {(r.mealTypes || []).map((t) => (
+                <span key={t} style={{ fontSize: 11, fontWeight: 500, background: C.greenSoft, color: C.green, padding: "2px 8px", borderRadius: 999 }}>
+                  {t}
+                </span>
+              ))}
+              {r.easy && (
+                <span title="Quick, low-effort meal" style={{ fontSize: 11, fontWeight: 500, background: C.goldSoft, color: C.gold, padding: "2px 8px", borderRadius: 999 }}>
+                  ⚡ Easy
+                </span>
+              )}
+              {r.fromCatalog && (
+                <span style={{ fontSize: 11, color: C.faint }} title={r.edited ? "From the shared catalog, edited on this device" : "From the shared catalog"}>
+                  catalog{r.edited ? "*" : ""}
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 12, color: C.faint, marginTop: 2 }}>
+              Serves {base} · {r.ingredients.map((i) => i.name).join(", ")}
+            </div>
+            <div style={{ color: C.green, fontSize: 12, fontWeight: 500, marginTop: 4 }}>
+              {detailShown ? "Hide details ▲" : "Ingredients & recipe ▾"}
+            </div>
           </button>
           {detailShown && <RecipeDetail recipe={r} />}
         </div>
