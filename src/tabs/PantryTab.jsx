@@ -13,6 +13,7 @@ export function PantryTab({ data, catalog, update }) {
   const [newStore, setNewStore] = useState("");
   const [newItem, setNewItem] = useState("");
   const [editItem, setEditItem] = useState(null); // { key, name } while renaming an ingredient
+  const [openItem, setOpenItem] = useState(null); // key of the row expanded for store/aisle editing
   const [query, setQuery] = useState("");
   const [storeFilter, setStoreFilter] = useState(""); // "" = all stores
 
@@ -242,63 +243,87 @@ export function PantryTab({ data, catalog, update }) {
         <div>
           {visibleKeys.map(({ key, name }) => {
             const cfg = normalizeCfg(data.config[key]);
+            const open = openItem === key;
+            const renaming = editItem && editItem.key === key;
+            // Aisle set at the item's default store, shown as a collapsed-row hint.
+            const homeAisle = cfg.store !== UNASSIGNED ? cfg.aisles[cfg.store] : undefined;
             return (
-              <div key={key} style={{ padding: "10px 2px", borderBottom: `1px dashed ${C.line}` }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {editItem && editItem.key === key ? (
-                    <>
-                      <input
-                        value={editItem.name}
-                        onChange={(e) => setEditItem({ ...editItem, name: e.target.value })}
-                        onKeyDown={(e) => e.key === "Enter" && saveItemEdit()}
-                        aria-label={`New name for ${name}`}
-                        style={{ ...inputStyle, flex: 1, minWidth: 0 }}
-                      />
-                      <Btn kind="primary" small onClick={saveItemEdit}>Save</Btn>
-                      <Btn small onClick={() => setEditItem(null)}>Cancel</Btn>
-                    </>
-                  ) : (
-                    <>
-                      <span style={{ flex: 1, minWidth: 0, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
-                      <label style={{ fontSize: 11, color: C.faint }}>Usually at</label>
-                      <select value={cfg.store || UNASSIGNED} onChange={(e) => setCfg(key, { store: e.target.value })} style={{ fontSize: 13, padding: "6px 6px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", maxWidth: 140 }}>
-                        {[...data.stores, UNASSIGNED].map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
+              <div key={key} style={{ padding: "8px 2px", borderBottom: `1px dashed ${C.line}` }}>
+                {renaming ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input
+                      value={editItem.name}
+                      onChange={(e) => setEditItem({ ...editItem, name: e.target.value })}
+                      onKeyDown={(e) => e.key === "Enter" && saveItemEdit()}
+                      aria-label={`New name for ${name}`}
+                      style={{ ...inputStyle, flex: 1, minWidth: 0 }}
+                    />
+                    <Btn kind="primary" small onClick={saveItemEdit}>Save</Btn>
+                    <Btn small onClick={() => setEditItem(null)}>Cancel</Btn>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <button
-                        onClick={() => setEditItem({ key, name })}
-                        aria-label={`Rename ${name}`}
-                        title="Rename this item"
-                        style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 0 }}
+                        onClick={() => setOpenItem(open ? null : key)}
+                        aria-expanded={open}
+                        title="Edit default store and aisles"
+                        style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", gap: 8, textAlign: "left", background: "transparent", border: "none", padding: "2px 0", cursor: "pointer", color: C.ink, fontFamily: "inherit" }}
+                      >
+                        <span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+                        <span style={{ fontSize: 11, color: C.faint, whiteSpace: "nowrap", flexShrink: 0 }}>
+                          {cfg.store === UNASSIGNED ? "no store set" : cfg.store}
+                          {homeAisle != null && homeAisle !== "" ? ` · aisle ${homeAisle}` : ""}
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => setOpenItem(open ? null : key)}
+                        aria-label={`Edit store and aisles for ${name}`}
+                        aria-expanded={open}
+                        title="Edit default store and aisles"
+                        style={{ border: "none", background: "transparent", color: open ? C.green : C.faint, cursor: "pointer", fontSize: 15, padding: 2, lineHeight: 1 }}
                       >
                         ⚙
                       </button>
-                      <button onClick={() => removeItem(key, name)} aria-label={`Remove ${name}`} style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 0 }}>
+                      <button onClick={() => removeItem(key, name)} aria-label={`Remove ${name}`} title="Remove this item" style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 15, padding: 2, lineHeight: 1 }}>
                         ✕
                       </button>
-                    </>
-                  )}
-                </div>
-                {data.stores.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginTop: 6 }}>
-                    <span style={{ fontSize: 11, color: C.faint }}>Aisle:</span>
-                    {data.stores.map((s) => (
-                      <label key={s} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: cfg.store === s ? C.ink : C.faint }}>
-                        <span style={{ fontWeight: cfg.store === s ? 500 : 400 }}>{s}</span>
-                        <input
-                          type="number"
-                          min="0"
-                          value={cfg.aisles[s] ?? ""}
-                          onChange={(e) => setAisle(key, s, e.target.value === "" ? "" : Number(e.target.value))}
-                          aria-label={`Aisle for ${name} at ${s}`}
-                          style={{ width: 52, fontSize: 13, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: cfg.store === s ? C.greenSoft : "#fff" }}
-                        />
-                      </label>
-                    ))}
-                  </div>
+                    </div>
+                    {open && (
+                      <div style={{ margin: "8px 0 4px", padding: "10px 12px", background: C.paper, border: `1px solid ${C.line}`, borderRadius: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <label style={{ fontSize: 11, color: C.faint }}>Usually at</label>
+                          <select value={cfg.store || UNASSIGNED} onChange={(e) => setCfg(key, { store: e.target.value })} aria-label={`Default store for ${name}`} style={{ fontSize: 13, padding: "6px 6px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", maxWidth: 160 }}>
+                            {[...data.stores, UNASSIGNED].map((s) => (
+                              <option key={s} value={s}>
+                                {s}
+                              </option>
+                            ))}
+                          </select>
+                          <span style={{ flex: 1 }} />
+                          <Btn small onClick={() => setEditItem({ key, name })}>Rename</Btn>
+                        </div>
+                        {data.stores.length > 0 && (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginTop: 10 }}>
+                            <span style={{ fontSize: 11, color: C.faint }}>Aisle:</span>
+                            {data.stores.map((s) => (
+                              <label key={s} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: cfg.store === s ? C.ink : C.faint }}>
+                                <span style={{ fontWeight: cfg.store === s ? 500 : 400 }}>{s}</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={cfg.aisles[s] ?? ""}
+                                  onChange={(e) => setAisle(key, s, e.target.value === "" ? "" : Number(e.target.value))}
+                                  aria-label={`Aisle for ${name} at ${s}`}
+                                  style={{ width: 52, fontSize: 13, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: cfg.store === s ? C.greenSoft : "#fff" }}
+                                />
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             );
