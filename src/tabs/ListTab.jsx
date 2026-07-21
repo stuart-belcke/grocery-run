@@ -7,12 +7,14 @@ import { useState, useMemo } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Stripe, Btn, Seg } from "../ui";
 import { UNASSIGNED, norm, r2, normalizeCfg, aisleFor, servingsByRecipe, aggregateItems, qtyLabel } from "../lib";
+import { RecipeDetail } from "../RecipeDetail";
 
 export function ListTab({ data, update }) {
   const [view, setView] = useState("store");
   const [storeSort, setStoreSort] = useState("az");
   const [extra, setExtra] = useState({ name: "", qty: "1", unit: "", store: "", aisle: "" });
   const [inspectKey, setInspectKey] = useState(null);
+  const [detailRecipeId, setDetailRecipeId] = useState(null); // meal expanded inside the open "i" panel
   const [editExtra, setEditExtra] = useState(null); // { key, name, qty, unit } while editing a hand-added entry
 
   const items = useMemo(() => aggregateItems(data), [data]);
@@ -186,7 +188,10 @@ export function ListTab({ data, update }) {
             ))}
           </select>
           <button
-            onClick={() => setInspectKey(open ? null : item.key)}
+            onClick={() => {
+              setInspectKey(open ? null : item.key);
+              setDetailRecipeId(null);
+            }}
             aria-label={`Show where ${item.name} comes from`}
             aria-expanded={open}
             title="Where does this come from?"
@@ -211,15 +216,37 @@ export function ListTab({ data, update }) {
         {open && (
           <div style={{ margin: "8px 0 2px 28px", padding: "10px 12px", background: C.paper, border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 12 }}>
             <div style={{ marginBottom: 6 }}>
-              {item.contribs.map((c, i) => (
-                <div key={i} style={{ display: "flex", gap: 8, padding: "2px 0" }}>
-                  <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700, minWidth: 56, textAlign: "right" }}>
-                    {r2(c.qty)}
-                    {c.unit ? ` ${c.unit}` : ""}
-                  </span>
-                  <span style={{ color: C.faint }}>{c.label}</span>
-                </div>
-              ))}
+              {item.contribs.map((c, i) => {
+                const recipe = c.recipeId ? data.recipes.find((x) => x.id === c.recipeId) : null;
+                const detailShown = recipe && detailRecipeId === c.recipeId;
+                return (
+                  <div key={i}>
+                    <div style={{ display: "flex", gap: 8, padding: "2px 0" }}>
+                      <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700, minWidth: 56, textAlign: "right" }}>
+                        {r2(c.qty)}
+                        {c.unit ? ` ${c.unit}` : ""}
+                      </span>
+                      {recipe ? (
+                        <button
+                          onClick={() => setDetailRecipeId(detailShown ? null : c.recipeId)}
+                          aria-expanded={detailShown}
+                          title="Show this meal's ingredients and notes"
+                          style={{ border: "none", background: "transparent", color: C.green, cursor: "pointer", fontSize: 12, fontWeight: 500, padding: 0, textAlign: "left", fontFamily: "inherit" }}
+                        >
+                          {c.label} {detailShown ? "▲" : "▾"}
+                        </button>
+                      ) : (
+                        <span style={{ color: C.faint }}>{c.label}</span>
+                      )}
+                    </div>
+                    {detailShown && (
+                      <div style={{ margin: "2px 0 6px 64px" }}>
+                        <RecipeDetail recipe={recipe} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
             <div style={{ color: C.faint, borderTop: `1px dashed ${C.line}`, paddingTop: 6 }}>
               Matches ingredients named <b style={{ color: C.ink }}>"{item.key}"</b> (case-insensitive — a different spelling becomes a separate line). Default store:{" "}
