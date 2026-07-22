@@ -7,7 +7,7 @@
 import { useState, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Btn } from "../ui";
-import { formatCatalog, normalizeCfg, normalizeLocal, validLocal } from "../lib";
+import { formatCatalog, normalizeCfg, normalizeLocal, validLocal, unpublishedCount } from "../lib";
 import { syncEnabled, cleanCode } from "../sync";
 
 export function SettingsTab({ data, catalog, local, update, setLocal, code, setCode, syncStatus }) {
@@ -108,8 +108,9 @@ export function SettingsTab({ data, catalog, local, update, setLocal, code, setC
     reader.readAsText(f);
   };
 
-  const overrideCount =
-    Object.keys(local.recipeOverrides).length + local.localRecipes.length + Object.keys(local.configOverrides).length + local.extraStores.length + local.removedStores.length;
+  // Only count changes that still differ from the catalog — overrides the
+  // catalog already reflects (e.g. after a publish + reload) don't count.
+  const overrideCount = unpublishedCount(local, catalog);
 
   const clearOverrides = () => {
     if (!window.confirm("Reset this device to match the shared catalog exactly? Local recipe edits/additions and setting changes will be removed. (Do this AFTER exporting them into catalog.json, or they're gone.)")) return;

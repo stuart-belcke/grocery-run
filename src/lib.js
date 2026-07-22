@@ -185,6 +185,78 @@ export function validCatalog(d) {
   return d && typeof d === "object" && Array.isArray(d.recipes) && Array.isArray(d.stores) && typeof d.config === "object";
 }
 
+/* --------------------- catalog reconciliation --------------------- */
+// Canonical string forms so an override can be compared to the catalog by
+// value — field order, and the order of mealTypes, don't matter.
+const recipeShape = (r) =>
+  JSON.stringify({
+    name: (r.name || "").trim(),
+    mealTypes: [...asArray(r.mealTypes)].map((t) => String(t)).sort(),
+    easy: !!r.easy,
+    servings: r.servings || 4,
+    notes: (r.notes || "").trim(),
+    ingredients: asArray(r.ingredients).map((i) => ({ name: (i.name || "").trim(), qty: Number(i.qty) || 0, unit: (i.unit || "").trim() })),
+  });
+const cfgShape = (c) => {
+  const n = normalizeCfg(c);
+  const aisles = {};
+  for (const k of Object.keys(n.aisles).sort()) aisles[k] = Number(n.aisles[k]);
+  return JSON.stringify({ store: n.store, aisles });
+};
+
+// The subset of a device's local overrides that still genuinely differ from the
+// catalog. Anything the catalog already reflects — e.g. right after publishing
+// and reloading — is dropped, so the "unpublished" state tracks real, still-
+// unpushed work rather than every override ever recorded. A locally-added
+// recipe whose id has since entered the catalog is either identical (dropped)
+// or edited-since (folded into recipeOverrides so it renders once, as an edit).
+export function unpublishedChanges(local, catalog) {
+  const cat = validCatalog(catalog) ? catalog : FALLBACK_CATALOG;
+  const catById = new Map(cat.recipes.map((r) => [r.id, r]));
+
+  const recipeOverrides = {};
+  for (const [id, ov] of Object.entries(asObject(local.recipeOverrides))) {
+    const catR = catById.get(id);
+    if (ov === false || ov === null) {
+      if (catR) recipeOverrides[id] = ov; // a hide only matters while the catalog still lists it
+    } else if (ov && typeof ov === "object") {
+      if (!catR || recipeShape(catR) !== recipeShape(ov)) recipeOverrides[id] = ov;
+    }
+  }
+
+  const localRecipes = [];
+  for (const r of asArray(local.localRecipes)) {
+    const catR = catById.get(r.id);
+    if (!catR) localRecipes.push(r); // still purely local
+    else if (recipeShape(catR) !== recipeShape(r)) recipeOverrides[r.id] = r; // promoted but edited since
+    // identical to the catalog copy → drop it
+  }
+
+  const configOverrides = {};
+  for (const [k, cfg] of Object.entries(asObject(local.configOverrides))) {
+    const catCfg = cat.config[k];
+    if (catCfg === undefined || cfgShape(catCfg) !== cfgShape(cfg)) configOverrides[k] = cfg;
+  }
+
+  const extraStores = asArray(local.extraStores).filter((s) => !cat.stores.some((c) => norm(c) === norm(s)));
+  const removedStores = asArray(local.removedStores).filter((s) => cat.stores.includes(s));
+
+  return { recipeOverrides, localRecipes, configOverrides, extraStores, removedStores };
+}
+
+// How many local changes still differ from the catalog (drives the Settings
+// tab's "N not yet published" copy and the Reset button's visibility).
+export function unpublishedCount(local, catalog) {
+  const u = unpublishedChanges(local, catalog);
+  return (
+    Object.keys(u.recipeOverrides).length +
+    u.localRecipes.length +
+    Object.keys(u.configOverrides).length +
+    u.extraStores.length +
+    u.removedStores.length
+  );
+}
+
 /* =========================== aggregation =========================== */
 
 export function servingsByRecipe(data) {
