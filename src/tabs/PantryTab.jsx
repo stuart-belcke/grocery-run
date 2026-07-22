@@ -7,7 +7,7 @@
 import { useState, useMemo } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Btn } from "../ui";
-import { UNASSIGNED, norm, cap, normalizeCfg } from "../lib";
+import { UNASSIGNED, norm, cap, r2, normalizeCfg, ingredientNames } from "../lib";
 
 export function PantryTab({ data, catalog, update }) {
   const [newStore, setNewStore] = useState("");
@@ -17,13 +17,7 @@ export function PantryTab({ data, catalog, update }) {
   const [query, setQuery] = useState("");
   const [storeFilter, setStoreFilter] = useState(""); // "" = all stores
 
-  const keys = useMemo(() => {
-    const set = new Map();
-    for (const k of Object.keys(data.config)) set.set(k, cap(k));
-    for (const r of data.recipes) for (const i of r.ingredients) set.set(norm(i.name), cap(i.name.trim()));
-    for (const e of data.list.extras) set.set(norm(e.name), cap(e.name.trim()));
-    return [...set.entries()].map(([key, name]) => ({ key, name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [data]);
+  const keys = useMemo(() => ingredientNames(data), [data]);
 
   // Search by name + narrow to one default store. A-Z ordering is inherited
   // from `keys`; these only hide non-matching rows.
@@ -86,6 +80,39 @@ export function PantryTab({ data, catalog, update }) {
     const key = norm(name);
     update((d) => {
       if (!data.config[key] && !d.configOverrides[key]) d.configOverrides[key] = { store: UNASSIGNED, aisles: {} };
+      return d;
+    });
+    setNewItem("");
+  };
+
+  // How much of an ingredient is already hand-added to the current shopping
+  // list, so the "add to list" button can show it's already there.
+  const inListQty = (key) => {
+    const e = data.list.extras.find((x) => norm(x.name) === key);
+    return e ? Number(e.qty) || 0 : 0;
+  };
+
+  // Add a known ingredient straight to the shopping list as a one-time /
+  // hand-added entry, at its usual store — no need to hop to the List tab
+  // and retype it. A second click just bumps the quantity.
+  const addToList = (key, name) =>
+    update((d) => {
+      const existing = d.list.extras.find((e) => norm(e.name) === key);
+      if (existing) existing.qty = (Number(existing.qty) || 0) + 1;
+      else d.list.extras.push({ name, qty: 1, unit: "" });
+      return d;
+    });
+
+  // Define a brand-new item (like addItem) and put it on the list in one step.
+  const addItemToList = () => {
+    const name = newItem.trim();
+    if (!name) return;
+    const key = norm(name);
+    update((d) => {
+      if (!data.config[key] && !d.configOverrides[key]) d.configOverrides[key] = { store: UNASSIGNED, aisles: {} };
+      const existing = d.list.extras.find((e) => norm(e.name) === key);
+      if (existing) existing.qty = (Number(existing.qty) || 0) + 1;
+      else d.list.extras.push({ name, qty: 1, unit: "" });
       return d;
     });
     setNewItem("");
@@ -194,6 +221,7 @@ export function PantryTab({ data, catalog, update }) {
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           <input placeholder="Add an item (e.g. coffee, paper towels)" value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addItem()} style={{ ...inputStyle, flex: 1 }} />
           <Btn kind="primary" onClick={addItem}>Add item</Btn>
+          <Btn onClick={addItemToList} title="Add this item to the shopping list too">+ List</Btn>
         </div>
         {keys.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 12 }}>
@@ -247,6 +275,7 @@ export function PantryTab({ data, catalog, update }) {
             const renaming = editItem && editItem.key === key;
             // Aisle set at the item's default store, shown as a collapsed-row hint.
             const homeAisle = cfg.store !== UNASSIGNED ? cfg.aisles[cfg.store] : undefined;
+            const onListQty = inListQty(key);
             return (
               <div key={key} style={{ padding: "10px 2px", borderBottom: `1px dashed ${C.line}` }}>
                 {renaming ? (
@@ -276,7 +305,33 @@ export function PantryTab({ data, catalog, update }) {
                           {cfg.store === UNASSIGNED ? "no store set" : cfg.store}
                           {homeAisle != null && homeAisle !== "" ? ` · aisle ${homeAisle}` : ""}
                         </span>
+                        {onListQty > 0 && (
+                          <span style={{ fontSize: 11, fontWeight: 500, color: C.green, background: C.greenSoft, borderRadius: 999, padding: "2px 7px", whiteSpace: "nowrap", flexShrink: 0 }}>
+                            on list ×{r2(onListQty)}
+                          </span>
+                        )}
                         <span aria-hidden style={{ marginLeft: "auto", paddingLeft: 8, color: open ? C.green : C.faint, fontSize: 15, flexShrink: 0, lineHeight: 1 }}>⚙</span>
+                      </button>
+                      <button
+                        onClick={() => addToList(key, name)}
+                        aria-label={`Add ${name} to shopping list`}
+                        title="Add to shopping list"
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: "50%",
+                          border: `1px solid ${C.green}`,
+                          background: "transparent",
+                          color: C.green,
+                          cursor: "pointer",
+                          fontSize: 14,
+                          fontWeight: 700,
+                          flexShrink: 0,
+                          lineHeight: 1,
+                          padding: 0,
+                        }}
+                      >
+                        +
                       </button>
                       <button onClick={() => removeItem(key, name)} aria-label={`Remove ${name}`} title="Remove this item" style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 15, padding: 2, lineHeight: 1 }}>
                         ✕

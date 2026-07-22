@@ -6,7 +6,7 @@
 import { useState, useMemo } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Stripe, Btn, Seg } from "../ui";
-import { UNASSIGNED, norm, r2, normalizeCfg, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions } from "../lib";
+import { UNASSIGNED, norm, r2, normalizeCfg, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions, ingredientNames } from "../lib";
 
 export function ListTab({ data, update }) {
   const [view, setView] = useState("store");
@@ -17,6 +17,7 @@ export function ListTab({ data, update }) {
 
   const items = useMemo(() => aggregateItems(data), [data]);
   const units = useMemo(() => unitSuggestions(data), [data]);
+  const knownItems = useMemo(() => ingredientNames(data), [data]);
   const storeOf = (key) => data.list.overrides[key] ?? data.config[key]?.store ?? UNASSIGNED;
   const aisleOf = (key, store) => {
     const a = aisleFor(data.config[key], store);
@@ -357,8 +358,14 @@ export function ListTab({ data, update }) {
             value={extra.name}
             onChange={(e) => setExtra({ ...extra, name: e.target.value })}
             onKeyDown={(e) => e.key === "Enter" && addExtra()}
+            list="item-suggestions"
             style={{ ...inputStyle, flex: "2 1 170px" }}
           />
+          <datalist id="item-suggestions">
+            {knownItems.map((k) => (
+              <option key={k.key} value={k.name} />
+            ))}
+          </datalist>
           <input placeholder="Qty" value={extra.qty} onChange={(e) => setExtra({ ...extra, qty: e.target.value })} style={{ ...inputStyle, width: 60 }} />
           <input placeholder="Unit" list="unit-suggestions" value={extra.unit} onChange={(e) => setExtra({ ...extra, unit: e.target.value })} style={{ ...inputStyle, width: 80 }} />
           <datalist id="unit-suggestions">
