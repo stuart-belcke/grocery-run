@@ -7,7 +7,7 @@
 import { useState, useMemo } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Btn } from "../ui";
-import { UNASSIGNED, norm, cap, r2, normalizeCfg, ingredientNames } from "../lib";
+import { UNASSIGNED, norm, cap, r2, normalizeCfg, ingredientNames, unitSuggestions } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
 // "how many of this on the list" reads the same everywhere in the app.
@@ -22,8 +22,10 @@ export function PantryTab({ data, catalog, update }) {
   const [openItem, setOpenItem] = useState(null); // key of the row expanded for store/aisle editing
   const [query, setQuery] = useState("");
   const [storeFilter, setStoreFilter] = useState(""); // "" = all stores
+  const [editList, setEditList] = useState(null); // { key, qty, unit } while typing an exact list amount
 
   const keys = useMemo(() => ingredientNames(data), [data]);
+  const unitList = useMemo(() => unitSuggestions(data), [data]);
 
   // Search by name + narrow to one default store. A-Z ordering is inherited
   // from `keys`; these only hide non-matching rows.
@@ -130,6 +132,29 @@ export function PantryTab({ data, catalog, update }) {
       }
       return d;
     });
+
+  // Set an exact quantity and unit for the hand-added entry (from the inline
+  // editor), allowing fractions and a different unit than the quick-step default.
+  const setListEntry = (key, name, qty, unit) =>
+    update((d) => {
+      const idx = d.list.extras.findIndex((e) => norm(e.name) === key);
+      const q = Number(qty);
+      const u = (unit || "").trim();
+      if (!(q > 0)) {
+        if (idx >= 0) d.list.extras.splice(idx, 1);
+      } else if (idx >= 0) {
+        d.list.extras[idx] = { ...d.list.extras[idx], qty: q, unit: u };
+      } else {
+        d.list.extras.push({ name, qty: q, unit: u });
+      }
+      return d;
+    });
+
+  const commitListEdit = (name) => {
+    if (!editList) return;
+    setListEntry(editList.key, name, editList.qty, editList.unit);
+    setEditList(null);
+  };
 
   // Rename an ingredient. If recipes use it, the user chooses between
   // renaming it inside those recipes too or saving the new name as a
@@ -280,6 +305,11 @@ export function PantryTab({ data, catalog, update }) {
               : <>No ingredients default to {storeFilter}.</>}
           </div>
         )}
+        <datalist id="pantry-unit-suggestions">
+          {unitList.map((u) => (
+            <option key={u} value={u} />
+          ))}
+        </datalist>
         {/* While a filter is active the visible list shrinks, which would collapse
             the page under the scroll position and jerk everything (search bar
             included) as the browser clamps the scroll. Holding a screenful of
@@ -326,14 +356,50 @@ export function PantryTab({ data, catalog, update }) {
                         </span>
                         <span aria-hidden style={{ marginLeft: "auto", paddingLeft: 8, color: open ? C.green : C.faint, fontSize: 15, flexShrink: 0, lineHeight: 1 }}>⚙</span>
                       </button>
-                      {onListQty > 0 ? (
+                      {editList && editList.key === key ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                          <input
+                            value={editList.qty}
+                            onChange={(e) => setEditList({ ...editList, qty: e.target.value })}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") commitListEdit(name);
+                              else if (e.key === "Escape") setEditList(null);
+                            }}
+                            inputMode="decimal"
+                            autoFocus
+                            aria-label={`Amount of ${name} on the shopping list`}
+                            style={{ ...inputStyle, width: 54, padding: "5px 6px", fontVariantNumeric: "tabular-nums" }}
+                          />
+                          <input
+                            value={editList.unit}
+                            onChange={(e) => setEditList({ ...editList, unit: e.target.value })}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") commitListEdit(name);
+                              else if (e.key === "Escape") setEditList(null);
+                            }}
+                            list="pantry-unit-suggestions"
+                            placeholder="unit"
+                            aria-label={`Unit for ${name}`}
+                            style={{ ...inputStyle, width: 64, padding: "5px 6px" }}
+                          />
+                          <Btn kind="primary" small onClick={() => commitListEdit(name)} title="Save amount" aria-label={`Save amount of ${name}`}>✓</Btn>
+                          <Btn small onClick={() => setEditList(null)} title="Cancel" aria-label="Cancel">✕</Btn>
+                        </span>
+                      ) : onListQty > 0 ? (
                         <span style={pillWrap} title={`${onListUnit ? `${r2(onListQty)} ${onListUnit}` : `${r2(onListQty)}`} on the shopping list`}>
                           {onListQty > 1 ? (
                             <button style={pillBtn} onClick={() => setListQty(key, name, onListQty - 1)} title="One fewer on the list" aria-label={`One fewer ${name} on the shopping list`}>−</button>
                           ) : (
                             <button style={pillBtn} onClick={() => setListQty(key, name, 0)} title="Remove from the list" aria-label={`Remove ${name} from the shopping list`}>🗑</button>
                           )}
-                          <span style={pillCount}>{onListUnit ? `${r2(onListQty)} ${onListUnit}` : `×${r2(onListQty)}`}</span>
+                          <button
+                            onClick={() => setEditList({ key, qty: String(r2(onListQty)), unit: onListUnit })}
+                            title="Type an exact amount"
+                            aria-label={`Set exact amount of ${name}`}
+                            style={{ ...pillCount, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit" }}
+                          >
+                            {onListUnit ? `${r2(onListQty)} ${onListUnit}` : `×${r2(onListQty)}`}
+                          </button>
                           <button style={pillBtn} onClick={() => setListQty(key, name, onListQty + 1)} title="Add one more" aria-label={`Add another ${name} to the shopping list`}>+</button>
                         </span>
                       ) : (
