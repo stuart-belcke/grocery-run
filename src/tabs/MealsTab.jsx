@@ -35,13 +35,12 @@ export function MealsTab({ data, catalog, update }) {
       return d;
     });
 
-  // Commit the inline batch-count editor: interpret the typed value as a batch
-  // multiplier (so it matches the "×N" the user tapped) and store it as
-  // servings. Allows fractional batches — an exact amount between whole steps.
+  // Commit the inline editor: the typed value is a servings count, stored
+  // directly. Allows an exact amount that isn't a whole number of batches.
   const commitServingsEdit = (r) => {
     if (!editServings) return;
-    const mult = Number(editServings.value);
-    setServings(r.id, mult > 0 ? mult * (r.servings || 4) : 0);
+    const sv = Number(editServings.value);
+    setServings(r.id, sv > 0 ? sv : 0);
     setEditServings(null);
   };
 
@@ -204,7 +203,6 @@ export function MealsTab({ data, catalog, update }) {
             {editServings && editServings.id === r.id ? (
               <span style={pillWrap}>
                 <span style={pillLabel}>Unplanned</span>
-                <span aria-hidden style={{ fontWeight: 700, fontSize: 14, color: C.faint, padding: "0 1px" }}>×</span>
                 <input
                   value={editServings.value}
                   onChange={(e) => setEditServings({ ...editServings, value: e.target.value })}
@@ -214,29 +212,30 @@ export function MealsTab({ data, catalog, update }) {
                   }}
                   inputMode="decimal"
                   autoFocus
-                  aria-label={`Batches of ${r.name} on the shopping list`}
+                  aria-label={`Servings of ${r.name} on the shopping list`}
                   style={{ ...inputStyle, width: 48, padding: "4px 6px", fontVariantNumeric: "tabular-nums" }}
                 />
-                <button style={{ ...pillBtn, color: C.green }} onClick={() => commitServingsEdit(r)} title="Save amount" aria-label={`Save batches of ${r.name}`}>✓</button>
+                <span aria-hidden style={{ fontSize: 12, color: C.faint, padding: "0 1px" }}>sv</span>
+                <button style={{ ...pillBtn, color: C.green }} onClick={() => commitServingsEdit(r)} title="Save amount" aria-label={`Save servings of ${r.name}`}>✓</button>
                 <button style={{ ...pillBtn, color: C.faint }} onClick={() => setEditServings(null)} title="Cancel" aria-label="Cancel">✕</button>
               </span>
             ) : servings > 0 ? (
-              <span style={pillWrap} title={`${r2(servings / base)} unplanned — ${r2(servings)} servings on the shopping list`}>
+              <span style={pillWrap} title={`${r2(servings)} servings — ${r2(servings / base)}× the recipe (makes ${base}) on the shopping list`}>
                 <span style={pillLabel}>Unplanned</span>
                 {servings > base ? (
-                  <button style={{ ...pillBtn, color: C.ink }} onClick={() => setServings(r.id, servings - base)} title="One fewer" aria-label={`One fewer unplanned ${r.name}`}>−</button>
+                  <button style={{ ...pillBtn, color: C.ink }} onClick={() => setServings(r.id, servings - base)} title="One batch fewer" aria-label={`One batch fewer unplanned ${r.name}`}>−</button>
                 ) : (
                   <button style={{ ...pillBtn, color: C.tomato }} onClick={() => setServings(r.id, 0)} title="Remove the unplanned meal" aria-label={`Remove unplanned ${r.name}`}>🗑</button>
                 )}
                 <button
-                  onClick={() => setEditServings({ id: r.id, value: String(r2(servings / base)) })}
-                  title="Type an exact amount"
-                  aria-label={`Set exact batches of ${r.name}`}
+                  onClick={() => setEditServings({ id: r.id, value: String(r2(servings)) })}
+                  title="Type an exact number of servings"
+                  aria-label={`Set exact servings of ${r.name}`}
                   style={{ ...pillCount, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit" }}
                 >
-                  ×{r2(servings / base)}
+                  {r2(servings)} sv
                 </button>
-                <button style={{ ...pillBtn, color: C.ink }} onClick={() => setServings(r.id, servings + base)} title="Another unplanned meal" aria-label={`Another unplanned ${r.name}`}>+</button>
+                <button style={{ ...pillBtn, color: C.ink }} onClick={() => setServings(r.id, servings + base)} title="One batch more" aria-label={`One batch more unplanned ${r.name}`}>+</button>
               </span>
             ) : (
               <Btn small kind="primary" onClick={() => setServings(r.id, base)}>Add unplanned meal</Btn>
