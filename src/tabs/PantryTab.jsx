@@ -9,6 +9,12 @@ import { C, fontDisplay, inputStyle } from "../theme";
 import { Btn } from "../ui";
 import { UNASSIGNED, norm, cap, r2, normalizeCfg, ingredientNames } from "../lib";
 
+// Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
+// "how many of this on the list" reads the same everywhere in the app.
+const pillWrap = { display: "inline-flex", alignItems: "center", gap: 2, background: C.greenSoft, border: `1px solid ${C.green}`, borderRadius: 999, padding: "2px 3px", flexShrink: 0 };
+const pillBtn = { minWidth: 24, height: 24, padding: "0 3px", borderRadius: 999, border: "none", background: "transparent", cursor: "pointer", fontSize: 13, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", color: C.green };
+const pillCount = { minWidth: 22, textAlign: "center", fontWeight: 700, fontVariantNumeric: "tabular-nums", fontSize: 13, color: C.green, padding: "0 2px" };
+
 export function PantryTab({ data, catalog, update }) {
   const [newStore, setNewStore] = useState("");
   const [newItem, setNewItem] = useState("");
@@ -85,38 +91,29 @@ export function PantryTab({ data, catalog, update }) {
     setNewItem("");
   };
 
-  // How much of an ingredient is already hand-added to the current shopping
-  // list, so the "add to list" button can show it's already there.
+  // How many of this ingredient are hand-added to the current shopping list —
+  // drives the per-row stepper. (Recipe contributions are counted separately on
+  // the list itself; this pill only manages what you add straight from here.)
   const inListQty = (key) => {
     const e = data.list.extras.find((x) => norm(x.name) === key);
     return e ? Number(e.qty) || 0 : 0;
   };
 
-  // Add a known ingredient straight to the shopping list as a one-time /
-  // hand-added entry, at its usual store — no need to hop to the List tab
-  // and retype it. A second click just bumps the quantity.
-  const addToList = (key, name) =>
+  // Set the hand-added quantity for a known ingredient on the shopping list, at
+  // its usual store — no need to hop to the List tab and retype it. Zero (or
+  // less) drops the hand-added entry entirely.
+  const setListQty = (key, name, qty) =>
     update((d) => {
-      const existing = d.list.extras.find((e) => norm(e.name) === key);
-      if (existing) existing.qty = (Number(existing.qty) || 0) + 1;
-      else d.list.extras.push({ name, qty: 1, unit: "" });
+      const idx = d.list.extras.findIndex((e) => norm(e.name) === key);
+      if (qty <= 0) {
+        if (idx >= 0) d.list.extras.splice(idx, 1);
+      } else if (idx >= 0) {
+        d.list.extras[idx] = { ...d.list.extras[idx], qty };
+      } else {
+        d.list.extras.push({ name, qty, unit: "" });
+      }
       return d;
     });
-
-  // Define a brand-new item (like addItem) and put it on the list in one step.
-  const addItemToList = () => {
-    const name = newItem.trim();
-    if (!name) return;
-    const key = norm(name);
-    update((d) => {
-      if (!data.config[key] && !d.configOverrides[key]) d.configOverrides[key] = { store: UNASSIGNED, aisles: {} };
-      const existing = d.list.extras.find((e) => norm(e.name) === key);
-      if (existing) existing.qty = (Number(existing.qty) || 0) + 1;
-      else d.list.extras.push({ name, qty: 1, unit: "" });
-      return d;
-    });
-    setNewItem("");
-  };
 
   // Rename an ingredient. If recipes use it, the user chooses between
   // renaming it inside those recipes too or saving the new name as a
@@ -221,7 +218,6 @@ export function PantryTab({ data, catalog, update }) {
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           <input placeholder="Add an item (e.g. coffee, paper towels)" value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addItem()} style={{ ...inputStyle, flex: 1 }} />
           <Btn kind="primary" onClick={addItem}>Add item</Btn>
-          <Btn onClick={addItemToList} title="Add this item to the shopping list too">+ List</Btn>
         </div>
         {keys.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 12 }}>
@@ -306,34 +302,23 @@ export function PantryTab({ data, catalog, update }) {
                           {cfg.store === UNASSIGNED ? "no store set" : cfg.store}
                           {homeAisle != null && homeAisle !== "" ? ` · aisle ${homeAisle}` : ""}
                         </span>
-                        {onListQty > 0 && (
-                          <span style={{ fontSize: 11, fontWeight: 500, color: C.green, background: C.greenSoft, borderRadius: 999, padding: "2px 7px", whiteSpace: "nowrap", flexShrink: 0 }}>
-                            on list ×{r2(onListQty)}
-                          </span>
-                        )}
                         <span aria-hidden style={{ marginLeft: "auto", paddingLeft: 8, color: open ? C.green : C.faint, fontSize: 15, flexShrink: 0, lineHeight: 1 }}>⚙</span>
                       </button>
-                      <button
-                        onClick={() => addToList(key, name)}
-                        aria-label={`Add ${name} to shopping list`}
-                        title="Add to shopping list"
-                        style={{
-                          width: 24,
-                          height: 24,
-                          borderRadius: "50%",
-                          border: `1px solid ${C.green}`,
-                          background: "transparent",
-                          color: C.green,
-                          cursor: "pointer",
-                          fontSize: 14,
-                          fontWeight: 700,
-                          flexShrink: 0,
-                          lineHeight: 1,
-                          padding: 0,
-                        }}
-                      >
-                        +
-                      </button>
+                      {onListQty > 0 ? (
+                        <span style={pillWrap} title={`${r2(onListQty)} on the shopping list`}>
+                          {onListQty > 1 ? (
+                            <button style={pillBtn} onClick={() => setListQty(key, name, onListQty - 1)} title="One fewer on the list" aria-label={`One fewer ${name} on the shopping list`}>−</button>
+                          ) : (
+                            <button style={pillBtn} onClick={() => setListQty(key, name, 0)} title="Remove from the list" aria-label={`Remove ${name} from the shopping list`}>🗑</button>
+                          )}
+                          <span style={pillCount}>×{r2(onListQty)}</span>
+                          <button style={pillBtn} onClick={() => setListQty(key, name, onListQty + 1)} title="Add one more" aria-label={`Add another ${name} to the shopping list`}>+</button>
+                        </span>
+                      ) : (
+                        <Btn small onClick={() => setListQty(key, name, 1)} title="Add to the shopping list" aria-label={`Add ${name} to the shopping list`}>
+                          + List
+                        </Btn>
+                      )}
                       <button onClick={() => removeItem(key, name)} aria-label={`Remove ${name}`} title="Remove this item" style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 15, padding: 2, lineHeight: 1 }}>
                         ✕
                       </button>
