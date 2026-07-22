@@ -7,7 +7,13 @@
 import { useState, useMemo } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Btn } from "../ui";
-import { UNASSIGNED, norm, cap, normalizeCfg } from "../lib";
+import { UNASSIGNED, norm, cap, r2, normalizeCfg, ingredientNames, unitSuggestions } from "../lib";
+
+// Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
+// "how many of this on the list" reads the same everywhere in the app.
+const pillWrap = { display: "inline-flex", alignItems: "center", gap: 2, background: C.greenSoft, border: `1px solid ${C.green}`, borderRadius: 999, padding: "2px 3px", flexShrink: 0 };
+const pillBtn = { minWidth: 24, height: 24, padding: "0 3px", borderRadius: 999, border: "none", background: "transparent", cursor: "pointer", fontSize: 13, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", color: C.green };
+const pillCount = { minWidth: 22, textAlign: "center", fontWeight: 700, fontVariantNumeric: "tabular-nums", fontSize: 13, color: C.green, padding: "0 2px" };
 
 export function PantryTab({ data, catalog, update }) {
   const [newStore, setNewStore] = useState("");
@@ -16,14 +22,10 @@ export function PantryTab({ data, catalog, update }) {
   const [openItem, setOpenItem] = useState(null); // key of the row expanded for store/aisle editing
   const [query, setQuery] = useState("");
   const [storeFilter, setStoreFilter] = useState(""); // "" = all stores
+  const [editList, setEditList] = useState(null); // { key, qty, unit } while typing an exact list amount
 
-  const keys = useMemo(() => {
-    const set = new Map();
-    for (const k of Object.keys(data.config)) set.set(k, cap(k));
-    for (const r of data.recipes) for (const i of r.ingredients) set.set(norm(i.name), cap(i.name.trim()));
-    for (const e of data.list.extras) set.set(norm(e.name), cap(e.name.trim()));
-    return [...set.entries()].map(([key, name]) => ({ key, name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [data]);
+  const keys = useMemo(() => ingredientNames(data), [data]);
+  const unitList = useMemo(() => unitSuggestions(data), [data]);
 
   // Search by name + narrow to one default store. A-Z ordering is inherited
   // from `keys`; these only hide non-matching rows.
@@ -89,6 +91,69 @@ export function PantryTab({ data, catalog, update }) {
       return d;
     });
     setNewItem("");
+  };
+
+  // This ingredient's hand-added shopping-list entry (qty + unit), or null.
+  // Recipe contributions are counted separately on the list itself; this pill
+  // only manages what you add straight from here.
+  const listEntry = (key) => data.list.extras.find((x) => norm(x.name) === key) || null;
+
+  // The unit to measure a quick-add in: whatever recipes most commonly use for
+  // this ingredient (e.g. garlic → "cloves"), so a hand-add reads and totals
+  // with those recipes instead of as a bare, unitless count. Count-y items no
+  // recipe measures (eggs, paper towels) stay unitless.
+  const unitForKey = (key) => {
+    const counts = {};
+    for (const r of data.recipes)
+      for (const i of r.ingredients) {
+        if (norm(i.name) !== key) continue;
+        const u = (i.unit || "").trim();
+        if (u) counts[u] = (counts[u] || 0) + 1;
+      }
+    let best = "";
+    let bestN = 0;
+    for (const [u, n] of Object.entries(counts)) if (n > bestN) [best, bestN] = [u, n];
+    return best;
+  };
+
+  // Set the hand-added quantity for a known ingredient on the shopping list, at
+  // its usual store — no need to hop to the List tab and retype it. A brand-new
+  // entry takes the item's natural unit; an existing one keeps whatever unit it
+  // already has. Zero (or less) drops the hand-added entry entirely.
+  const setListQty = (key, name, qty) =>
+    update((d) => {
+      const idx = d.list.extras.findIndex((e) => norm(e.name) === key);
+      if (qty <= 0) {
+        if (idx >= 0) d.list.extras.splice(idx, 1);
+      } else if (idx >= 0) {
+        d.list.extras[idx] = { ...d.list.extras[idx], qty };
+      } else {
+        d.list.extras.push({ name, qty, unit: unitForKey(key) });
+      }
+      return d;
+    });
+
+  // Set an exact quantity and unit for the hand-added entry (from the inline
+  // editor), allowing fractions and a different unit than the quick-step default.
+  const setListEntry = (key, name, qty, unit) =>
+    update((d) => {
+      const idx = d.list.extras.findIndex((e) => norm(e.name) === key);
+      const q = Number(qty);
+      const u = (unit || "").trim();
+      if (!(q > 0)) {
+        if (idx >= 0) d.list.extras.splice(idx, 1);
+      } else if (idx >= 0) {
+        d.list.extras[idx] = { ...d.list.extras[idx], qty: q, unit: u };
+      } else {
+        d.list.extras.push({ name, qty: q, unit: u });
+      }
+      return d;
+    });
+
+  const commitListEdit = (name) => {
+    if (!editList) return;
+    setListEntry(editList.key, name, editList.qty, editList.unit);
+    setEditList(null);
   };
 
   // Rename an ingredient. If recipes use it, the user chooses between
@@ -240,13 +305,26 @@ export function PantryTab({ data, catalog, update }) {
               : <>No ingredients default to {storeFilter}.</>}
           </div>
         )}
-        <div>
+        <datalist id="pantry-unit-suggestions">
+          {unitList.map((u) => (
+            <option key={u} value={u} />
+          ))}
+        </datalist>
+        {/* While a filter is active the visible list shrinks, which would collapse
+            the page under the scroll position and jerk everything (search bar
+            included) as the browser clamps the scroll. Holding a screenful of
+            height here keeps the document from collapsing so it stays put. */}
+        <div style={{ minHeight: q || storeFilter ? "100vh" : undefined }}>
           {visibleKeys.map(({ key, name }) => {
             const cfg = normalizeCfg(data.config[key]);
             const open = openItem === key;
             const renaming = editItem && editItem.key === key;
             // Aisle set at the item's default store, shown as a collapsed-row hint.
             const homeAisle = cfg.store !== UNASSIGNED ? cfg.aisles[cfg.store] : undefined;
+            const listed = listEntry(key);
+            const onListQty = listed ? Number(listed.qty) || 0 : 0;
+            const onListUnit = listed ? (listed.unit || "").trim() : "";
+            const recipesUsing = data.recipes.filter((r) => r.ingredients.some((i) => norm(i.name) === key)).map((r) => r.name);
             return (
               <div key={key} style={{ padding: "10px 2px", borderBottom: `1px dashed ${C.line}` }}>
                 {renaming ? (
@@ -266,9 +344,9 @@ export function PantryTab({ data, catalog, update }) {
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <button
                         onClick={() => setOpenItem(open ? null : key)}
-                        aria-label={`Edit store and aisles for ${name}`}
+                        aria-label={`Edit store and aisles for ${name}, and see where it's used`}
                         aria-expanded={open}
-                        title="Edit default store and aisles"
+                        title="Edit default store and aisles, and see where it's used"
                         style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", background: "transparent", border: "none", padding: "2px 0", cursor: "pointer", color: C.ink, fontFamily: "inherit" }}
                       >
                         <span style={{ fontSize: 16, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{name}</span>
@@ -278,6 +356,57 @@ export function PantryTab({ data, catalog, update }) {
                         </span>
                         <span aria-hidden style={{ marginLeft: "auto", paddingLeft: 8, color: open ? C.green : C.faint, fontSize: 15, flexShrink: 0, lineHeight: 1 }}>⚙</span>
                       </button>
+                      {editList && editList.key === key ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                          <input
+                            value={editList.qty}
+                            onChange={(e) => setEditList({ ...editList, qty: e.target.value })}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") commitListEdit(name);
+                              else if (e.key === "Escape") setEditList(null);
+                            }}
+                            inputMode="decimal"
+                            autoFocus
+                            aria-label={`Amount of ${name} on the shopping list`}
+                            style={{ ...inputStyle, width: 54, padding: "5px 6px", fontVariantNumeric: "tabular-nums" }}
+                          />
+                          <input
+                            value={editList.unit}
+                            onChange={(e) => setEditList({ ...editList, unit: e.target.value })}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") commitListEdit(name);
+                              else if (e.key === "Escape") setEditList(null);
+                            }}
+                            list="pantry-unit-suggestions"
+                            placeholder="unit"
+                            aria-label={`Unit for ${name}`}
+                            style={{ ...inputStyle, width: 64, padding: "5px 6px" }}
+                          />
+                          <Btn kind="primary" small onClick={() => commitListEdit(name)} title="Save amount" aria-label={`Save amount of ${name}`}>✓</Btn>
+                          <Btn small onClick={() => setEditList(null)} title="Cancel" aria-label="Cancel">✕</Btn>
+                        </span>
+                      ) : onListQty > 0 ? (
+                        <span style={pillWrap} title={`${onListUnit ? `${r2(onListQty)} ${onListUnit}` : `${r2(onListQty)}`} on the shopping list`}>
+                          {onListQty > 1 ? (
+                            <button style={pillBtn} onClick={() => setListQty(key, name, onListQty - 1)} title="One fewer on the list" aria-label={`One fewer ${name} on the shopping list`}>−</button>
+                          ) : (
+                            <button style={pillBtn} onClick={() => setListQty(key, name, 0)} title="Remove from the list" aria-label={`Remove ${name} from the shopping list`}>🗑</button>
+                          )}
+                          <button
+                            onClick={() => setEditList({ key, qty: String(r2(onListQty)), unit: onListUnit })}
+                            title="Type an exact amount"
+                            aria-label={`Set exact amount of ${name}`}
+                            style={{ ...pillCount, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit" }}
+                          >
+                            {onListUnit ? `${r2(onListQty)} ${onListUnit}` : `×${r2(onListQty)}`}
+                          </button>
+                          <button style={pillBtn} onClick={() => setListQty(key, name, onListQty + 1)} title="Add one more" aria-label={`Add another ${name} to the shopping list`}>+</button>
+                        </span>
+                      ) : (
+                        <Btn small onClick={() => setListQty(key, name, 1)} title="Add to the shopping list" aria-label={`Add ${name} to the shopping list`}>
+                          + List
+                        </Btn>
+                      )}
                       <button onClick={() => removeItem(key, name)} aria-label={`Remove ${name}`} title="Remove this item" style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 15, padding: 2, lineHeight: 1 }}>
                         ✕
                       </button>
@@ -314,6 +443,18 @@ export function PantryTab({ data, catalog, update }) {
                             ))}
                           </div>
                         )}
+                        <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px dashed ${C.line}`, fontSize: 12, color: C.faint }}>
+                          {recipesUsing.length > 0 ? (
+                            <>
+                              Used in <b style={{ color: C.ink }}>{recipesUsing.join(", ")}</b>
+                              {onListQty > 0 ? " · also hand-added to today's shopping list" : ""}.
+                            </>
+                          ) : onListQty > 0 ? (
+                            <>Hand-added to today's shopping list — not used by any recipe.</>
+                          ) : (
+                            <>Added directly here — not used by any recipe.</>
+                          )}
+                        </div>
                       </div>
                     )}
                   </>

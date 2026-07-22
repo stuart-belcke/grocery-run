@@ -257,6 +257,19 @@ export function unpublishedCount(local, catalog) {
   );
 }
 
+// Every ingredient name the household knows about: configured defaults,
+// names used in recipes, and hand-added list entries — the same identity
+// (case-insensitive, by `key`) used throughout the app. Shared by the
+// Ingredients tab's list and the List tab's add-item suggestions so both
+// draw from one definition of "known ingredient".
+export function ingredientNames(data) {
+  const set = new Map();
+  for (const k of Object.keys(data.config)) set.set(k, cap(k));
+  for (const r of data.recipes) for (const i of r.ingredients) set.set(norm(i.name), cap(i.name.trim()));
+  for (const e of data.list.extras) set.set(norm(e.name), cap(e.name.trim()));
+  return [...set.entries()].map(([key, name]) => ({ key, name })).sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /* =========================== aggregation =========================== */
 
 export function servingsByRecipe(data) {

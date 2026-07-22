@@ -24,6 +24,7 @@ export function MealsTab({ data, catalog, update }) {
   const [query, setQuery] = useState("");
   const [detailOpen, setDetailOpen] = useState(null);
   const [planPick, setPlanPick] = useState(null); // { id, day, type } while choosing a week-plan slot
+  const [editServings, setEditServings] = useState(null); // { id, value } while typing an exact batch count
 
   const isCatalogId = (id) => catalog.recipes.some((r) => r.id === id);
 
@@ -33,6 +34,15 @@ export function MealsTab({ data, catalog, update }) {
       else d.list.selections[id] = servings;
       return d;
     });
+
+  // Commit the inline editor: the typed value is a servings count, stored
+  // directly. Allows an exact amount that isn't a whole number of batches.
+  const commitServingsEdit = (r) => {
+    if (!editServings) return;
+    const sv = Number(editServings.value);
+    setServings(r.id, sv > 0 ? sv : 0);
+    setEditServings(null);
+  };
 
   // Week-plan slot helpers. Assigning uses the recipe's base servings times the
   // batch multiplier; the +/− on a plan pill step whole batches, and the trash
@@ -190,16 +200,42 @@ export function MealsTab({ data, catalog, update }) {
           {/* Unplanned meals = the shopping list: batches you want but haven't
               scheduled to a day. Whole-batch pill editing (🗑 / ± / count). */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            {servings > 0 ? (
-              <span style={pillWrap} title={`${r2(servings / base)} unplanned — ${servings} servings on the shopping list`}>
+            {editServings && editServings.id === r.id ? (
+              <span style={pillWrap}>
+                <span style={pillLabel}>Unplanned</span>
+                <input
+                  value={editServings.value}
+                  onChange={(e) => setEditServings({ ...editServings, value: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitServingsEdit(r);
+                    else if (e.key === "Escape") setEditServings(null);
+                  }}
+                  inputMode="decimal"
+                  autoFocus
+                  aria-label={`Servings of ${r.name} on the shopping list`}
+                  style={{ ...inputStyle, width: 48, padding: "4px 6px", fontVariantNumeric: "tabular-nums" }}
+                />
+                <span aria-hidden style={{ fontSize: 12, color: C.faint, padding: "0 1px" }}>sv</span>
+                <button style={{ ...pillBtn, color: C.green }} onClick={() => commitServingsEdit(r)} title="Save amount" aria-label={`Save servings of ${r.name}`}>✓</button>
+                <button style={{ ...pillBtn, color: C.faint }} onClick={() => setEditServings(null)} title="Cancel" aria-label="Cancel">✕</button>
+              </span>
+            ) : servings > 0 ? (
+              <span style={pillWrap} title={`${r2(servings)} servings — ${r2(servings / base)}× the recipe (makes ${base}) on the shopping list`}>
                 <span style={pillLabel}>Unplanned</span>
                 {servings > base ? (
-                  <button style={{ ...pillBtn, color: C.ink }} onClick={() => setServings(r.id, servings - base)} title="One fewer" aria-label={`One fewer unplanned ${r.name}`}>−</button>
+                  <button style={{ ...pillBtn, color: C.ink }} onClick={() => setServings(r.id, servings - base)} title="One batch fewer" aria-label={`One batch fewer unplanned ${r.name}`}>−</button>
                 ) : (
                   <button style={{ ...pillBtn, color: C.tomato }} onClick={() => setServings(r.id, 0)} title="Remove the unplanned meal" aria-label={`Remove unplanned ${r.name}`}>🗑</button>
                 )}
-                <span style={pillCount}>×{r2(servings / base)}</span>
-                <button style={{ ...pillBtn, color: C.ink }} onClick={() => setServings(r.id, servings + base)} title="Another unplanned meal" aria-label={`Another unplanned ${r.name}`}>+</button>
+                <button
+                  onClick={() => setEditServings({ id: r.id, value: String(r2(servings)) })}
+                  title="Type an exact number of servings"
+                  aria-label={`Set exact servings of ${r.name}`}
+                  style={{ ...pillCount, color: C.ink, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  {r2(servings)} sv
+                </button>
+                <button style={{ ...pillBtn, color: C.ink }} onClick={() => setServings(r.id, servings + base)} title="One batch more" aria-label={`One batch more unplanned ${r.name}`}>+</button>
               </span>
             ) : (
               <Btn small kind="primary" onClick={() => setServings(r.id, base)}>Add unplanned meal</Btn>
