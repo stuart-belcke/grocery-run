@@ -23,6 +23,7 @@ import {
   saveJSON,
   validLocal,
   validCatalog,
+  unpublishedChanges,
 } from "./lib";
 import { ListTab } from "./tabs/ListTab";
 import { MealsTab } from "./tabs/MealsTab";
@@ -73,6 +74,30 @@ export default function App() {
   };
   const update = (fn) => setLocal(fn(structuredClone(localRef.current)));
 
+  // Drop local overrides a catalog now already reflects (e.g. after a publish),
+  // so this device stops reporting them as unpublished and stale local copies
+  // of catalog recipes don't linger. Never touches list/plan, and only writes
+  // when something actually changed.
+  const reconcileToCatalog = (cat) => {
+    const cur = localRef.current;
+    const keep = unpublishedChanges(cur, cat);
+    const unchanged =
+      Object.keys(keep.recipeOverrides).length === Object.keys(cur.recipeOverrides).length &&
+      keep.localRecipes.length === cur.localRecipes.length &&
+      Object.keys(keep.configOverrides).length === Object.keys(cur.configOverrides).length &&
+      keep.extraStores.length === cur.extraStores.length &&
+      keep.removedStores.length === cur.removedStores.length;
+    if (unchanged) return;
+    update((d) => {
+      d.recipeOverrides = keep.recipeOverrides;
+      d.localRecipes = keep.localRecipes;
+      d.configOverrides = keep.configOverrides;
+      d.extraStores = keep.extraStores;
+      d.removedStores = keep.removedStores;
+      return d;
+    });
+  };
+
   // fetch the latest catalog from the site on load
   useEffect(() => {
     fetch("./catalog.json", { cache: "no-store" })
@@ -87,6 +112,7 @@ export default function App() {
             }
             return old;
           });
+          reconcileToCatalog(fresh);
         }
       })
       .catch(() => {
@@ -126,12 +152,18 @@ export default function App() {
   /* ------- effective data = catalog + local overrides ------- */
   const data = useMemo(() => {
     const recipes = [];
+    const catIds = new Set(catalog.recipes.map((r) => r.id));
     for (const r of catalog.recipes) {
       const ov = local.recipeOverrides[r.id];
       if (ov === false || ov === null) continue; // hidden (null = legacy marker)
       recipes.push(ov ? { ...ov, id: r.id, fromCatalog: true, edited: true } : { ...r, fromCatalog: true });
     }
-    for (const r of local.localRecipes) recipes.push({ ...r, fromCatalog: false });
+    // Skip any local recipe whose id has since entered the catalog (promoted by
+    // a publish); the catalog copy — plus any override above — represents it.
+    for (const r of local.localRecipes) {
+      if (catIds.has(r.id)) continue;
+      recipes.push({ ...r, fromCatalog: false });
+    }
     const config = { ...catalog.config, ...local.configOverrides };
     const stores = [
       ...catalog.stores.filter((s) => !local.removedStores.includes(s)),
