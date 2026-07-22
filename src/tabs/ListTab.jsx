@@ -296,7 +296,7 @@ export function ListTab({ data, update }) {
     body = (
       <div style={{ textAlign: "center", padding: "48px 16px", color: C.faint }}>
         <div style={{ fontFamily: fontDisplay, fontSize: 20, color: C.ink, marginBottom: 6 }}>Nothing on the list yet</div>
-        Pick meals on the Meals tab, or add an item below.
+        Pick meals on the Meals tab, or add a shopping item above.
       </div>
     );
   } else if (view === "all") {
@@ -350,11 +350,10 @@ export function ListTab({ data, update }) {
         {selectedMealCount} meal{selectedMealCount === 1 ? "" : "s"} selected · {remaining} item{remaining === 1 ? "" : "s"} left to buy
       </div>
 
-      <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: "6px 14px 14px" }}>
-        {body}
-        <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+      <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 14px 6px" }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
           <input
-            placeholder="Add an item (e.g. paper towels)"
+            placeholder="Add shopping item (e.g. paper towels)"
             value={extra.name}
             onChange={(e) => setExtra({ ...extra, name: e.target.value })}
             onKeyDown={(e) => e.key === "Enter" && addExtra()}
@@ -395,6 +394,7 @@ export function ListTab({ data, update }) {
           />
           <Btn kind="primary" onClick={addExtra}>Add</Btn>
         </div>
+        <div style={{ borderTop: `1px dashed ${C.line}`, paddingTop: 6 }}>{body}</div>
       </div>
     </div>
   );
