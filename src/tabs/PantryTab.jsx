@@ -276,6 +276,7 @@ export function PantryTab({ data, catalog, update }) {
             // Aisle set at the item's default store, shown as a collapsed-row hint.
             const homeAisle = cfg.store !== UNASSIGNED ? cfg.aisles[cfg.store] : undefined;
             const onListQty = inListQty(key);
+            const recipesUsing = data.recipes.filter((r) => r.ingredients.some((i) => norm(i.name) === key)).map((r) => r.name);
             return (
               <div key={key} style={{ padding: "10px 2px", borderBottom: `1px dashed ${C.line}` }}>
                 {renaming ? (
@@ -295,9 +296,9 @@ export function PantryTab({ data, catalog, update }) {
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <button
                         onClick={() => setOpenItem(open ? null : key)}
-                        aria-label={`Edit store and aisles for ${name}`}
+                        aria-label={`Edit store and aisles for ${name}, and see where it's used`}
                         aria-expanded={open}
-                        title="Edit default store and aisles"
+                        title="Edit default store and aisles, and see where it's used"
                         style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", background: "transparent", border: "none", padding: "2px 0", cursor: "pointer", color: C.ink, fontFamily: "inherit" }}
                       >
                         <span style={{ fontSize: 16, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{name}</span>
@@ -369,6 +370,18 @@ export function PantryTab({ data, catalog, update }) {
                             ))}
                           </div>
                         )}
+                        <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px dashed ${C.line}`, fontSize: 12, color: C.faint }}>
+                          {recipesUsing.length > 0 ? (
+                            <>
+                              Used in <b style={{ color: C.ink }}>{recipesUsing.join(", ")}</b>
+                              {onListQty > 0 ? " · also hand-added to today's shopping list" : ""}.
+                            </>
+                          ) : onListQty > 0 ? (
+                            <>Hand-added to today's shopping list — not used by any recipe.</>
+                          ) : (
+                            <>Added directly here — not used by any recipe.</>
+                          )}
+                        </div>
                       </div>
                     )}
                   </>
