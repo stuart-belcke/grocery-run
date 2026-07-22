@@ -231,7 +231,7 @@ export function MealsTab({ data, catalog, update }) {
                   onClick={() => setEditServings({ id: r.id, value: String(r2(servings)) })}
                   title="Type an exact number of servings"
                   aria-label={`Set exact servings of ${r.name}`}
-                  style={{ ...pillCount, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit" }}
+                  style={{ ...pillCount, color: C.ink, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit" }}
                 >
                   {r2(servings)} sv
                 </button>
