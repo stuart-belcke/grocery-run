@@ -264,7 +264,11 @@ export function PantryTab({ data, catalog, update }) {
               : <>No ingredients default to {storeFilter}.</>}
           </div>
         )}
-        <div>
+        {/* While a filter is active the visible list shrinks, which would collapse
+            the page under the scroll position and jerk everything (search bar
+            included) as the browser clamps the scroll. Holding a screenful of
+            height here keeps the document from collapsing so it stays put. */}
+        <div style={{ minHeight: q || storeFilter ? "100vh" : undefined }}>
           {visibleKeys.map(({ key, name }) => {
             const cfg = normalizeCfg(data.config[key]);
             const open = openItem === key;
