@@ -14,10 +14,29 @@ export function ListTab({ data, update }) {
   const [extra, setExtra] = useState({ name: "", qty: "1", unit: "", store: "", aisle: "" });
   const [inspectKey, setInspectKey] = useState(null);
   const [editExtra, setEditExtra] = useState(null); // { key, name, qty, unit } while editing a hand-added entry
+  const [showSug, setShowSug] = useState(false); // add-item name field: is the suggestion list open
+  const [sugIdx, setSugIdx] = useState(-1); // keyboard-highlighted suggestion, -1 = none
 
   const items = useMemo(() => aggregateItems(data), [data]);
   const units = useMemo(() => unitSuggestions(data), [data]);
   const knownItems = useMemo(() => ingredientNames(data), [data]);
+
+  // Live-filtered ingredient matches for the "add shopping item" field. A custom
+  // dropdown (rather than a native <datalist>, which renders unreliably) so it
+  // always shows as you type and matches the Ingredients tab's search feel.
+  const nameQuery = norm(extra.name);
+  const suggestions = useMemo(() => {
+    if (!nameQuery) return [];
+    const m = knownItems.filter((k) => k.key.includes(nameQuery));
+    if (m.length === 1 && m[0].key === nameQuery) return []; // already fully typed — nothing to suggest
+    return m.slice(0, 8);
+  }, [knownItems, nameQuery]);
+  const sugOpen = showSug && suggestions.length > 0;
+  const pickSuggestion = (k) => {
+    setExtra({ ...extra, name: k.name });
+    setShowSug(false);
+    setSugIdx(-1);
+  };
   const storeOf = (key) => data.list.overrides[key] ?? data.config[key]?.store ?? UNASSIGNED;
   const aisleOf = (key, store) => {
     const a = aisleFor(data.config[key], store);
@@ -352,19 +371,98 @@ export function ListTab({ data, update }) {
 
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 14px 6px" }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-          <input
-            placeholder="Add shopping item (e.g. paper towels)"
-            value={extra.name}
-            onChange={(e) => setExtra({ ...extra, name: e.target.value })}
-            onKeyDown={(e) => e.key === "Enter" && addExtra()}
-            list="item-suggestions"
-            style={{ ...inputStyle, flex: "2 1 170px" }}
-          />
-          <datalist id="item-suggestions">
-            {knownItems.map((k) => (
-              <option key={k.key} value={k.name} />
-            ))}
-          </datalist>
+          <div style={{ position: "relative", flex: "2 1 170px", minWidth: 0 }}>
+            <input
+              placeholder="Add shopping item (e.g. paper towels)"
+              value={extra.name}
+              onChange={(e) => {
+                setExtra({ ...extra, name: e.target.value });
+                setShowSug(true);
+                setSugIdx(-1);
+              }}
+              onFocus={() => setShowSug(true)}
+              onBlur={() => setShowSug(false)}
+              onKeyDown={(e) => {
+                if (sugOpen && e.key === "ArrowDown") {
+                  e.preventDefault();
+                  setSugIdx((i) => Math.min(i + 1, suggestions.length - 1));
+                } else if (sugOpen && e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setSugIdx((i) => Math.max(i - 1, -1));
+                } else if (e.key === "Enter") {
+                  if (sugOpen && sugIdx >= 0) {
+                    e.preventDefault();
+                    pickSuggestion(suggestions[sugIdx]);
+                  } else {
+                    addExtra();
+                  }
+                } else if (e.key === "Escape") {
+                  setShowSug(false);
+                  setSugIdx(-1);
+                }
+              }}
+              role="combobox"
+              aria-expanded={sugOpen}
+              aria-autocomplete="list"
+              aria-controls="item-suggestion-list"
+              style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
+            />
+            {sugOpen && (
+              <ul
+                id="item-suggestion-list"
+                role="listbox"
+                style={{
+                  position: "absolute",
+                  zIndex: 20,
+                  top: "calc(100% + 4px)",
+                  left: 0,
+                  right: 0,
+                  listStyle: "none",
+                  margin: 0,
+                  padding: 4,
+                  background: C.card,
+                  border: `1px solid ${C.line}`,
+                  borderRadius: 8,
+                  boxShadow: "0 6px 20px rgba(0,0,0,0.12)",
+                  maxHeight: 260,
+                  overflowY: "auto",
+                }}
+              >
+                {suggestions.map((k, i) => {
+                  const store = normalizeCfg(data.config[k.key]).store;
+                  const active = i === sugIdx;
+                  return (
+                    <li key={k.key} role="option" aria-selected={active}>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onMouseEnter={() => setSugIdx(i)}
+                        onClick={() => pickSuggestion(k)}
+                        style={{
+                          display: "flex",
+                          alignItems: "baseline",
+                          gap: 8,
+                          width: "100%",
+                          textAlign: "left",
+                          padding: "8px 10px",
+                          borderRadius: 6,
+                          border: "none",
+                          cursor: "pointer",
+                          background: active ? C.greenSoft : "transparent",
+                          color: C.ink,
+                          fontFamily: "inherit",
+                          fontSize: 14,
+                        }}
+                      >
+                        <span style={{ fontWeight: 500 }}>{k.name}</span>
+                        {store !== UNASSIGNED && <span style={{ marginLeft: "auto", fontSize: 12, color: C.faint }}>{store}</span>}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
           <input placeholder="Qty" value={extra.qty} onChange={(e) => setExtra({ ...extra, qty: e.target.value })} style={{ ...inputStyle, width: 60 }} />
           <input placeholder="Unit" list="unit-suggestions" value={extra.unit} onChange={(e) => setExtra({ ...extra, unit: e.target.value })} style={{ ...inputStyle, width: 80 }} />
           <datalist id="unit-suggestions">
