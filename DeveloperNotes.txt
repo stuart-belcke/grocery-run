@@ -21,18 +21,16 @@ Tier 1 — small, high-value, low-risk
    page into a dedicated Settings tab (or a hamburger menu at the top). Do
    this before adding search/filter to the Ingredients tab so it isn't
    cluttered.
-5. Checked-off items: gray only the name, not the details. Checking an item
-   dims the whole List row via opacity, so expanding a checked item leaves its
-   "On the list for" breakdown grayed out and hard to read. Keep the
-   strikethrough / dim on the item name only, and render the expanded detail
-   panel at full opacity so it stays legible.
-6. Week-plan meal picker. Each day/meal slot currently uses a native <select>
-   scrolling dropdown that lists every recipe (grouped "{type} meals" / "Other
-   meals"). It clashes with the app's card/search feel and won't scale as the
-   recipe list grows — a long scroll with no search. Replace it with a
-   searchable picker (a sheet/modal keyed to the slot) that mirrors the Meals
-   tab's search and meal-type grouping, so you filter by name and tap to assign
-   instead of scrolling a raw list.
+5. [DONE] Checked-off items: gray only the name, not the details. The whole
+   List row no longer dims on check — only the item name gets the
+   strikethrough + dim, so expanding a checked item keeps its "On the list
+   for" breakdown at full opacity and legible.
+6. [DONE] Week-plan meal picker. Each day/meal slot is now a tap-to-open
+   button (showing the assigned meal, or "＋ Choose a meal") that opens a
+   searchable modal mirroring the Meals tab — a search box plus recipes
+   grouped "{type} meals" / "Other meals", each showing servings + tags, with
+   the current pick checked and a "Remove meal from this slot" option. Replaces
+   the native <select> that didn't fit the app's feel or scale with the list.
 
 
 Tier 2 — Ingredients-tab cluster (shared refactor, then features)
@@ -71,13 +69,13 @@ Tier 3 — data-model / sorting
     existing { store, aisles } config schema; nothing existing breaks.
 14. [DONE] Once an item is checked on the List, move it to the bottom of its
     group and keep following the A-Z / store-flow sort the user has selected.
-15. Recipes reference the shared ingredients list to avoid duplicates. Recipe
-    ingredients are currently free-text { name, qty, unit } matched to config
-    only by norm(name), so a spelling variant in one recipe silently becomes a
-    separate ingredient (and its own list line). Have the recipe editor pick
-    from — or add to — the known-ingredients list, like item 11's List-tab
-    suggestions, so recipes point at canonical ingredient identities instead of
-    re-typing names.
+15. [DONE] Recipes reference the shared ingredients list to avoid duplicates.
+    The recipe editor's ingredient-name field now suggests matching known
+    ingredients as you type (name + default-store hint, keyboard-navigable),
+    reusing item 11's List-tab pattern, so you pick an existing item's exact
+    spelling instead of forking a spelling variant into a separate ingredient
+    and shopping-list line. Recipe ingredients still store { name, qty, unit };
+    the suggestions steer them onto canonical norm(name) identities.
 
 
 Tier 4 — multi-device / integrations (highest risk, do last)

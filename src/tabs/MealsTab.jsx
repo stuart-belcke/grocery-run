@@ -6,7 +6,7 @@
 import { useState, useMemo } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, Seg } from "../ui";
-import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, unitSuggestions } from "../lib";
+import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, unitSuggestions, ingredientNames, normalizeCfg } from "../lib";
 import { RecipeDetail } from "../RecipeDetail";
 
 // Rounded "pill" grouping a remove / count / add cluster so the controls read
@@ -25,6 +25,7 @@ export function MealsTab({ data, catalog, update }) {
   const [detailOpen, setDetailOpen] = useState(null);
   const [planPick, setPlanPick] = useState(null); // { id, day, type } while choosing a week-plan slot
   const [editServings, setEditServings] = useState(null); // { id, value } while typing an exact batch count
+  const [ingSug, setIngSug] = useState(null); // { row, idx } — which draft-ingredient row's name suggestions are open
 
   const isCatalogId = (id) => catalog.recipes.some((r) => r.id === id);
 
@@ -126,6 +127,26 @@ export function MealsTab({ data, catalog, update }) {
   };
 
   const units = useMemo(() => unitSuggestions(data), [data]);
+  // Every ingredient the household already knows, so a recipe references an
+  // existing item (matched by norm(name)) instead of a spelling variant that
+  // would fork into a separate ingredient and shopping-list line.
+  const knownItems = useMemo(() => ingredientNames(data), [data]);
+
+  // Matches for the ingredient-name field currently being typed in. Mirrors the
+  // List tab's add-item suggestions: name-substring, hidden once fully typed.
+  const ingMatches = (name) => {
+    const q = norm(name);
+    if (!q) return [];
+    const m = knownItems.filter((k) => k.key.includes(q));
+    if (m.length === 1 && m[0].key === q) return []; // already an exact match — nothing to add
+    return m.slice(0, 8);
+  };
+
+  const setIngName = (i, name) => {
+    const list = [...draft.ingredients];
+    list[i] = { ...list[i], name };
+    setDraft({ ...draft, ingredients: list });
+  };
 
   const renderCard = (r) => {
     const base = r.servings || 4;
@@ -410,18 +431,97 @@ export function MealsTab({ data, catalog, update }) {
               />
             </label>
           </div>
-          {draft.ingredients.map((ing, i) => (
+          {draft.ingredients.map((ing, i) => {
+            const sugOpen = ingSug?.row === i;
+            const matches = sugOpen ? ingMatches(ing.name) : [];
+            const showList = sugOpen && matches.length > 0;
+            const pick = (k) => { setIngName(i, k.name); setIngSug(null); };
+            return (
             <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-              <input
-                placeholder="Ingredient"
-                value={ing.name}
-                onChange={(e) => {
-                  const list = [...draft.ingredients];
-                  list[i] = { ...ing, name: e.target.value };
-                  setDraft({ ...draft, ingredients: list });
-                }}
-                style={{ ...inputStyle, flex: 2, minWidth: 0 }}
-              />
+              <div style={{ position: "relative", flex: 2, minWidth: 0 }}>
+                <input
+                  placeholder="Ingredient"
+                  value={ing.name}
+                  onChange={(e) => {
+                    setIngName(i, e.target.value);
+                    setIngSug({ row: i, idx: -1 });
+                  }}
+                  onFocus={() => setIngSug({ row: i, idx: -1 })}
+                  onBlur={() => setIngSug((s) => (s?.row === i ? null : s))}
+                  onKeyDown={(e) => {
+                    if (showList && e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setIngSug({ row: i, idx: Math.min((ingSug.idx ?? -1) + 1, matches.length - 1) });
+                    } else if (showList && e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setIngSug({ row: i, idx: Math.max((ingSug.idx ?? -1) - 1, -1) });
+                    } else if (e.key === "Enter" && showList && ingSug.idx >= 0) {
+                      e.preventDefault();
+                      pick(matches[ingSug.idx]);
+                    } else if (e.key === "Escape") {
+                      setIngSug(null);
+                    }
+                  }}
+                  role="combobox"
+                  aria-expanded={showList}
+                  aria-autocomplete="list"
+                  style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
+                />
+                {showList && (
+                  <ul
+                    role="listbox"
+                    style={{
+                      position: "absolute",
+                      zIndex: 20,
+                      top: "calc(100% + 4px)",
+                      left: 0,
+                      right: 0,
+                      listStyle: "none",
+                      margin: 0,
+                      padding: 4,
+                      background: C.card,
+                      border: `1px solid ${C.line}`,
+                      borderRadius: 8,
+                      boxShadow: "0 6px 20px rgba(0,0,0,0.12)",
+                      maxHeight: 240,
+                      overflowY: "auto",
+                    }}
+                  >
+                    {matches.map((k, mi) => {
+                      const store = normalizeCfg(data.config[k.key]).store;
+                      const active = mi === ingSug.idx;
+                      return (
+                        <li key={k.key} role="option" aria-selected={active}>
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onMouseEnter={() => setIngSug({ row: i, idx: mi })}
+                            onClick={() => pick(k)}
+                            style={{
+                              display: "flex",
+                              alignItems: "baseline",
+                              gap: 8,
+                              width: "100%",
+                              textAlign: "left",
+                              padding: "8px 10px",
+                              borderRadius: 6,
+                              border: "none",
+                              cursor: "pointer",
+                              background: active ? C.greenSoft : "transparent",
+                              color: C.ink,
+                              fontFamily: fontBody,
+                              fontSize: 14,
+                            }}
+                          >
+                            <span style={{ fontWeight: 500 }}>{k.name}</span>
+                            {store !== UNASSIGNED && <span style={{ marginLeft: "auto", fontSize: 12, color: C.faint }}>{store}</span>}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
               <input
                 placeholder="Qty"
                 value={ing.qty}
@@ -445,7 +545,8 @@ export function MealsTab({ data, catalog, update }) {
               />
               <Btn small onClick={() => setDraft({ ...draft, ingredients: draft.ingredients.filter((_, j) => j !== i) })} title="Remove ingredient">✕</Btn>
             </div>
-          ))}
+            );
+          })}
           <Btn small onClick={() => setDraft({ ...draft, ingredients: [...draft.ingredients, { name: "", qty: "1", unit: "" }] })} style={{ marginBottom: 10 }}>
             + Ingredient
           </Btn>
