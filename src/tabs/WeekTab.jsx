@@ -182,7 +182,10 @@ export function WeekTab({ data, update }) {
           aria-modal="true"
           aria-label={`Choose a meal for ${picker.day} ${picker.type}`}
           onClick={() => setPicker(null)}
-          style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(20,24,16,0.44)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          // Anchored to the top (not vertically centered) so that as the search
+          // narrows the list and the panel shrinks, its top — and the search box
+          // with it — stays put instead of drifting as it re-centers.
+          style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(20,24,16,0.44)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "8vh 16px 16px" }}
         >
           <div
             onClick={(e) => e.stopPropagation()}

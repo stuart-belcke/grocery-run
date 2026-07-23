@@ -581,33 +581,39 @@ export function MealsTab({ data, catalog, update }) {
         </div>
       )}
 
-      {sorted.length > 0 && visible.length === 0 && (
-        <div style={{ textAlign: "center", padding: "32px 16px", color: C.faint, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12 }}>
-          {q
-            ? <>Nothing matches "{query.trim()}"{easyOnly ? " among ⚡ Easy meals" : ""}.</>
-            : "No meals are tagged ⚡ Easy yet — edit a meal to tag it."}
-        </div>
-      )}
+      {/* While a search / Easy filter is active the visible cards shrink, which
+          would collapse the page under the scroll position and jerk everything
+          (the search bar included) as the browser clamps the scroll. Holding a
+          screenful of height keeps the document from collapsing so it stays put. */}
+      <div style={{ minHeight: q || easyOnly ? "100vh" : undefined }}>
+        {sorted.length > 0 && visible.length === 0 && (
+          <div style={{ textAlign: "center", padding: "32px 16px", color: C.faint, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12 }}>
+            {q
+              ? <>Nothing matches "{query.trim()}"{easyOnly ? " among ⚡ Easy meals" : ""}.</>
+              : "No meals are tagged ⚡ Easy yet — edit a meal to tag it."}
+          </div>
+        )}
 
-      {mealView === "az"
-        ? visible.map(renderCard)
-        : [...MEAL_TYPES, "Untagged"]
-            .map((t) => ({
-              label: t,
-              recipes: visible.filter((r) => (t === "Untagged" ? !(r.mealTypes || []).length : (r.mealTypes || []).includes(t))),
-            }))
-            .filter((g) => g.recipes.length > 0)
-            .map((g) => (
-              <section key={g.label} style={{ marginBottom: 18 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "10px 0 8px" }}>
-                  <h3 style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 700, margin: 0 }}>{g.label}</h3>
-                  <div style={{ flex: 1 }}>
-                    <Stripe />
+        {mealView === "az"
+          ? visible.map(renderCard)
+          : [...MEAL_TYPES, "Untagged"]
+              .map((t) => ({
+                label: t,
+                recipes: visible.filter((r) => (t === "Untagged" ? !(r.mealTypes || []).length : (r.mealTypes || []).includes(t))),
+              }))
+              .filter((g) => g.recipes.length > 0)
+              .map((g) => (
+                <section key={g.label} style={{ marginBottom: 18 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "10px 0 8px" }}>
+                    <h3 style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 700, margin: 0 }}>{g.label}</h3>
+                    <div style={{ flex: 1 }}>
+                      <Stripe />
+                    </div>
                   </div>
-                </div>
-                {g.recipes.map(renderCard)}
-              </section>
-            ))}
+                  {g.recipes.map(renderCard)}
+                </section>
+              ))}
+      </div>
     </div>
   );
 }
