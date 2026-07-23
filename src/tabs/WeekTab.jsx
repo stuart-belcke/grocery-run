@@ -87,45 +87,50 @@ export function WeekTab({ data, update }) {
                 const slot = data.plan?.[day]?.[type];
                 const recipe = slot?.recipeId ? data.recipes.find((r) => r.id === slot.recipeId) : null;
                 return (
-                  <div key={type} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 12, color: C.faint, width: 70, flexShrink: 0 }}>{type}</span>
-                    <button
-                      onClick={() => openPicker(day, type)}
-                      aria-label={recipe ? `${day} ${type}: ${recipe.name} — tap to change` : `Choose a meal for ${day} ${type}`}
-                      title={recipe ? "Tap to change this meal" : "Tap to choose a meal"}
-                      style={{
-                        flex: 1,
-                        minWidth: 140,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                        textAlign: "left",
-                        fontFamily: fontBody,
-                        fontSize: 13,
-                        padding: "7px 10px",
-                        borderRadius: 8,
-                        cursor: "pointer",
-                        border: `1px solid ${recipe ? C.green : C.line}`,
-                        background: recipe ? C.greenSoft : "#fff",
-                        color: recipe ? C.ink : C.faint,
-                      }}
-                    >
-                      {recipe ? (
-                        <>
-                          <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {recipe.easy ? "⚡ " : ""}{recipe.name}
-                          </span>
-                          <span aria-hidden style={{ marginLeft: "auto", color: C.green, fontSize: 12 }}>Change ▾</span>
-                        </>
-                      ) : (
-                        <>
-                          <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>＋</span>
-                          Choose a meal
-                        </>
-                      )}
-                    </button>
+                  <div key={type} style={{ padding: "5px 0" }}>
+                    {/* Meal name gets its own full-width line so long recipe
+                        names stay fully readable; servings + clear sit on a
+                        second, indented line only when a meal is assigned. */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 12, color: C.faint, width: 70, flexShrink: 0 }}>{type}</span>
+                      <button
+                        onClick={() => openPicker(day, type)}
+                        aria-label={recipe ? `${day} ${type}: ${recipe.name} — tap to change` : `Choose a meal for ${day} ${type}`}
+                        title={recipe ? "Tap to change this meal" : "Tap to choose a meal"}
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          textAlign: "left",
+                          fontFamily: fontBody,
+                          fontSize: 13,
+                          padding: "7px 10px",
+                          borderRadius: 8,
+                          cursor: "pointer",
+                          border: `1px solid ${recipe ? C.green : C.line}`,
+                          background: recipe ? C.greenSoft : "#fff",
+                          color: recipe ? C.ink : C.faint,
+                        }}
+                      >
+                        {recipe ? (
+                          <>
+                            <span style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>
+                              {recipe.easy ? "⚡ " : ""}{recipe.name}
+                            </span>
+                            <span aria-hidden style={{ flexShrink: 0, color: C.green, fontSize: 12, whiteSpace: "nowrap" }}>Change ▾</span>
+                          </>
+                        ) : (
+                          <>
+                            <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>＋</span>
+                            Choose a meal
+                          </>
+                        )}
+                      </button>
+                    </div>
                     {recipe && (
-                      <>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, marginLeft: 78 }}>
                         <label style={{ fontSize: 12, color: C.faint, display: "flex", alignItems: "center", gap: 5 }}>
                           <input
                             type="number"
@@ -141,11 +146,11 @@ export function WeekTab({ data, update }) {
                           onClick={() => setSlot(day, type, null)}
                           aria-label={`Clear ${recipe.name} from ${day} ${type}`}
                           title="Clear this slot"
-                          style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 15, padding: 2, lineHeight: 1, flexShrink: 0 }}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 4, border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 12, padding: 2, lineHeight: 1, flexShrink: 0 }}
                         >
-                          ✕
+                          ✕ Clear
                         </button>
-                      </>
+                      </div>
                     )}
                   </div>
                 );
