@@ -12,7 +12,7 @@ export function WeekTab({ data, update }) {
   const recipesSorted = useMemo(() => [...data.recipes].sort((a, b) => a.name.localeCompare(b.name)), [data.recipes]);
   const [picker, setPicker] = useState(null); // { day, type } while choosing a recipe for a slot
   const [pickQuery, setPickQuery] = useState("");
-  const [servEdit, setServEdit] = useState(null); // `${day}::${type}` of the slot whose servings are unlocked for editing
+  const [editSlot, setEditSlot] = useState(null); // `${day}::${type}` of the slot unlocked for editing (meal + servings)
 
   const setSlot = (day, type, patch) =>
     update((d) => {
@@ -36,19 +36,19 @@ export function WeekTab({ data, update }) {
   };
 
   const assignFromPicker = (r) => {
-    // A freshly picked meal starts at its own default servings, shown read-only
-    // until the user explicitly chooses to change it.
+    // A freshly picked meal starts at its own default servings. The slot's edit
+    // mode (if the picker was opened from "Change") is left untouched, so the
+    // servings stay unlocked for adjustment right after swapping the meal.
     setSlot(picker.day, picker.type, { recipeId: r.id, servings: r.servings || 4 });
-    setServEdit(null);
     setPicker(null);
   };
 
-  // Leave servings-edit mode, snapping an empty / non-positive value back to the
-  // recipe's default so a slot never ends up with a blank amount.
-  const closeServEdit = (day, type, base) => {
+  // Leave a slot's edit mode, snapping an empty / non-positive servings value
+  // back to the recipe's default so a slot never ends up with a blank amount.
+  const commitEdit = (day, type, base) => {
     const cur = Number(data.plan?.[day]?.[type]?.servings);
     if (!(cur > 0)) setSlot(day, type, { servings: base });
-    setServEdit(null);
+    setEditSlot(null);
   };
 
   const plannedCount = DAYS.reduce((n, day) => n + MEAL_TYPES.filter((t) => data.plan?.[day]?.[t]?.recipeId).length, 0);
@@ -99,51 +99,39 @@ export function WeekTab({ data, update }) {
                 const slot = data.plan?.[day]?.[type];
                 const recipe = slot?.recipeId ? data.recipes.find((r) => r.id === slot.recipeId) : null;
                 const base = recipe ? recipe.servings || 4 : 4;
-                const editingServ = servEdit === `${day}::${type}`;
+                const key = `${day}::${type}`;
+                const editing = editSlot === key;
+                // Shared box styling so the read-only display and the editable
+                // meal button occupy the same shape on the line.
+                const slotBox = { flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", fontFamily: fontBody, fontSize: 13, padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.green}`, background: C.greenSoft, color: C.ink };
                 return (
                   <div key={type} style={{ padding: "5px 0" }}>
                     {/* Line 1: the meal name (its own width so long names stay
-                        readable) with the servings shown read-only to its right.
-                        Line 2 carries the change/clear controls. */}
+                        readable) with the servings to its right. Line 2 carries a
+                        single "Change" that unlocks BOTH the meal and servings. */}
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 12, color: C.faint, width: 70, flexShrink: 0 }}>{type}</span>
-                      <button
-                        onClick={() => openPicker(day, type)}
-                        aria-label={recipe ? `${day} ${type}: ${recipe.name} — tap to change` : `Choose a meal for ${day} ${type}`}
-                        title={recipe ? "Tap to change this meal" : "Tap to choose a meal"}
-                        style={{
-                          flex: 1,
-                          minWidth: 0,
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          textAlign: "left",
-                          fontFamily: fontBody,
-                          fontSize: 13,
-                          padding: "7px 10px",
-                          borderRadius: 8,
-                          cursor: "pointer",
-                          border: `1px solid ${recipe ? C.green : C.line}`,
-                          background: recipe ? C.greenSoft : "#fff",
-                          color: recipe ? C.ink : C.faint,
-                        }}
-                      >
-                        {recipe ? (
-                          <>
-                            <span style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>
-                              {recipe.easy ? "⚡ " : ""}{recipe.name}
-                            </span>
-                            <span aria-hidden style={{ flexShrink: 0, color: C.green, fontSize: 12, whiteSpace: "nowrap" }}>▾</span>
-                          </>
-                        ) : (
-                          <>
-                            <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>＋</span>
-                            Choose a meal
-                          </>
-                        )}
-                      </button>
-                      {recipe && (
-                        editingServ ? (
+                      {!recipe ? (
+                        <button
+                          onClick={() => openPicker(day, type)}
+                          aria-label={`Choose a meal for ${day} ${type}`}
+                          title="Tap to choose a meal"
+                          style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", fontFamily: fontBody, fontSize: 13, padding: "7px 10px", borderRadius: 8, cursor: "pointer", border: `1px solid ${C.line}`, background: "#fff", color: C.faint }}
+                        >
+                          <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>＋</span>
+                          Choose a meal
+                        </button>
+                      ) : editing ? (
+                        <>
+                          <button
+                            onClick={() => openPicker(day, type)}
+                            aria-label={`${day} ${type}: ${recipe.name} — tap to pick a different meal`}
+                            title="Tap to pick a different meal"
+                            style={{ ...slotBox, cursor: "pointer" }}
+                          >
+                            <span style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>{recipe.easy ? "⚡ " : ""}{recipe.name}</span>
+                            <span aria-hidden style={{ flexShrink: 0, color: C.green, fontSize: 12 }}>▾</span>
+                          </button>
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
                             <input
                               type="number"
@@ -151,31 +139,36 @@ export function WeekTab({ data, update }) {
                               value={slot.servings}
                               autoFocus
                               onChange={(e) => setSlot(day, type, { servings: e.target.value === "" ? "" : Number(e.target.value) })}
-                              onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") closeServEdit(day, type, base); }}
+                              onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") commitEdit(day, type, base); }}
                               aria-label={`Servings for ${day} ${type}`}
                               style={{ ...inputStyle, width: 54, padding: "5px 8px", fontVariantNumeric: "tabular-nums" }}
                             />
                             <span style={{ fontSize: 12, color: C.faint }}>sv</span>
                           </span>
-                        ) : (
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ ...slotBox, cursor: "default" }}>
+                            <span style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>{recipe.easy ? "⚡ " : ""}{recipe.name}</span>
+                          </span>
                           <span style={{ fontSize: 13, color: C.faint, fontVariantNumeric: "tabular-nums", flexShrink: 0, whiteSpace: "nowrap" }}>
                             {Number(slot.servings) || base} sv
                           </span>
-                        )
+                        </>
                       )}
                     </div>
                     {recipe && (
                       <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 6, marginLeft: 78 }}>
                         <button
-                          onClick={() => (editingServ ? closeServEdit(day, type, base) : setServEdit(`${day}::${type}`))}
-                          aria-label={editingServ ? `Done editing servings for ${day} ${type}` : `Change servings for ${day} ${type}`}
-                          title={editingServ ? "Done" : "Change the number of servings"}
+                          onClick={() => (editing ? commitEdit(day, type, base) : setEditSlot(key))}
+                          aria-label={editing ? `Done editing ${day} ${type}` : `Change the meal or servings for ${day} ${type}`}
+                          title={editing ? "Done" : "Change the meal or its servings"}
                           style={{ display: "inline-flex", alignItems: "center", gap: 4, border: "none", background: "transparent", color: C.green, cursor: "pointer", fontSize: 12, fontWeight: 500, padding: 2, lineHeight: 1, flexShrink: 0 }}
                         >
-                          {editingServ ? "✓ Done" : "Change servings"}
+                          {editing ? "✓ Done" : "Change"}
                         </button>
                         <button
-                          onClick={() => { setServEdit(null); setSlot(day, type, null); }}
+                          onClick={() => { setEditSlot(null); setSlot(day, type, null); }}
                           aria-label={`Clear ${recipe.name} from ${day} ${type}`}
                           title="Clear this slot"
                           style={{ display: "inline-flex", alignItems: "center", gap: 4, border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 12, padding: 2, lineHeight: 1, flexShrink: 0 }}
