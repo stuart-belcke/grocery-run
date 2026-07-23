@@ -21,51 +21,68 @@ Tier 1 — small, high-value, low-risk
    page into a dedicated Settings tab (or a hamburger menu at the top). Do
    this before adding search/filter to the Ingredients tab so it isn't
    cluttered.
+5. Checked-off items: gray only the name, not the details. Checking an item
+   dims the whole List row via opacity, so expanding a checked item leaves its
+   "On the list for" breakdown grayed out and hard to read. Keep the
+   strikethrough / dim on the item name only, and render the expanded detail
+   panel at full opacity so it stays legible.
 
 
 Tier 2 — Ingredients-tab cluster (shared refactor, then features)
 -----------------------------------------------------------------
-5. [DONE] Ingredients tab row treatment. Each row now collapses to just the
+6. [DONE] Ingredients tab row treatment. Each row now collapses to just the
    ingredient name (with a subtle default-store · aisle hint), a gear, and an
    X. Tapping the gear or the name expands the row to edit the default store
    and per-store aisle numbers; Rename lives inside that expanded panel.
-6. [DONE] Make the Ingredients tab filterable by store and A-Z, and add
+7. [DONE] Make the Ingredients tab filterable by store and A-Z, and add
    search. A search box (name match, with a clear ✕, mirroring the Meals tab)
    plus a store-filter dropdown ("All stores" / each store / Unassigned) that
    narrows to items with that default store. List stays A-Z sorted.
-7. [DONE — #17] Ingredient rows show which recipes they're used in (inside
+8. [DONE — #17] Ingredient rows show which recipes they're used in (inside
    the expanded gear panel, alongside whether it's also hand-added to the
    list) rather than as a separate info icon.
-8. [DONE — #17] Add ingredients to the shopping list straight from the
+9. [DONE — #17] Add ingredients to the shopping list straight from the
    Ingredients tab. Each row gets a "+ List" button that becomes a
    ± quantity pill (with a tap-to-type-exact-amount) once it's on the list,
    defaulting to whatever unit recipes most commonly measure it in.
-9. [DONE — #17] The List tab's "add an item" field now suggests matching
-   known ingredients as you type (name + default store, keyboard-navigable),
-   so you pick an existing item instead of creating a duplicate.
+10. [DONE — #17] The List tab's "add an item" field now suggests matching
+    known ingredients as you type (name + default store, keyboard-navigable),
+    so you pick an existing item instead of creating a duplicate.
+11. Suggest units as you type when adding a new ingredient. Extend the unit
+    suggestions (item 3) to the ingredient-adding flow — the recipe editor's
+    add-ingredient row and the Ingredients tab — offering the units already in
+    use as you type. Must still let you type a brand-new unit and use it; the
+    suggestions never restrict entry to a fixed set.
 
 
 Tier 3 — data-model / sorting
 -----------------------------
-10. Pantry staples. Model chosen: a staple is a normal ingredient with an added
+12. Pantry staples. Model chosen: a staple is a normal ingredient with an added
     `staple: true` flag. It keeps its real default store (aisles map unchanged),
     so it still routes correctly on the list — the flag only controls grouping /
     labeling and records that it's something we keep stocked. Additive to the
     existing { store, aisles } config schema; nothing existing breaks.
-11. [DONE] Once an item is checked on the List, move it to the bottom of its
+13. [DONE] Once an item is checked on the List, move it to the bottom of its
     group and keep following the A-Z / store-flow sort the user has selected.
+14. Recipes reference the shared ingredients list to avoid duplicates. Recipe
+    ingredients are currently free-text { name, qty, unit } matched to config
+    only by norm(name), so a spelling variant in one recipe silently becomes a
+    separate ingredient (and its own list line). Have the recipe editor pick
+    from — or add to — the known-ingredients list, like item 10's List-tab
+    suggestions, so recipes point at canonical ingredient identities instead of
+    re-typing names.
 
 
 Tier 4 — multi-device / integrations (highest risk, do last)
 ------------------------------------------------------------
-12. Formalize create/join household. Household codes already exist under the
+15. Formalize create/join household. Household codes already exist under the
     hood; this makes creating or joining one a first-class flow.
-13. Delete / log out of households, and clean up orphaned data. Households
+16. Delete / log out of households, and clean up orphaned data. Households
     created by devices we no longer use linger in the RTDB forever; a device
     with uncommitted changes on a separate household keeps it alive. Figure out
     whether deleting requires logging everyone out (or logging specific
     households out) and how to reclaim abandoned nodes.
-14. Export to / link with a Google calendar, keyed off the household.
+17. Export to / link with a Google calendar, keyed off the household.
 
 
 Refactor notes
@@ -81,4 +98,4 @@ Still worth doing: a `usedInRecipes(key)` selector in lib.js. PantryTab.jsx
 currently has three separate inline copies of
 `data.recipes.filter/some((r) => r.ingredients.some((i) => norm(i.name) === key))`
 — the rename-affected-recipes check, the remove-item safety check, and the
-item 7 "used in" display. Centralizing would remove that duplication.
+item 8 "used in" display. Centralizing would remove that duplication.
