@@ -33,13 +33,16 @@ Tier 2 — Ingredients-tab cluster (shared refactor, then features)
    search. A search box (name match, with a clear ✕, mirroring the Meals tab)
    plus a store-filter dropdown ("All stores" / each store / Unassigned) that
    narrows to items with that default store. List stays A-Z sorted.
-7. Add an "info" icon to each ingredient to see which recipes it's used in.
-8. Add ingredients to the shopping list straight from the Ingredients tab —
-   e.g. search "bananas" and add it directly, instead of needing a recipe or
-   hand-typing it into the List tab.
-9. Have the List tab's "add an item" bar look through the Ingredients tab and
-   suggest matches as you type, so you select an existing item rather than
-   creating a duplicate.
+7. [DONE — #17] Ingredient rows show which recipes they're used in (inside
+   the expanded gear panel, alongside whether it's also hand-added to the
+   list) rather than as a separate info icon.
+8. [DONE — #17] Add ingredients to the shopping list straight from the
+   Ingredients tab. Each row gets a "+ List" button that becomes a
+   ± quantity pill (with a tap-to-type-exact-amount) once it's on the list,
+   defaulting to whatever unit recipes most commonly measure it in.
+9. [DONE — #17] The List tab's "add an item" field now suggests matching
+   known ingredients as you type (name + default store, keyboard-navigable),
+   so you pick an existing item instead of creating a duplicate.
 
 
 Tier 3 — data-model / sorting
@@ -67,11 +70,15 @@ Tier 4 — multi-device / integrations (highest risk, do last)
 
 Refactor notes
 --------------
-Before Tiers 1-2, App.jsx (~1800 lines, single file) is being split so that
-each feature edits a small, reviewable surface:
-  - theme + UI primitives (colors, fonts, Btn, Seg, Stripe, inputStyle)
-  - pure helpers (constants, catalog/config normalization, storage, model
-    normalization, list aggregation)
-  - per-tab components (List, Meals, Week, Ingredients) in their own files
-A `usedInRecipes(key)` selector is worth centralizing — it's needed by the
-Ingredients info icon (item 7), the remove-item safety check, and rename logic.
+[DONE] App.jsx was split so each feature edits a small, reviewable surface:
+  - theme.js + ui.jsx: UI primitives (colors, fonts, Btn, Seg, Stripe, inputStyle)
+  - lib.js: pure helpers (constants, catalog/config normalization, storage,
+    model normalization, list aggregation)
+  - src/tabs/*.jsx: per-tab components (List, Meals, Week, Pantry, Settings)
+App.jsx itself is now ~265 lines, just wiring the tabs together.
+
+Still worth doing: a `usedInRecipes(key)` selector in lib.js. PantryTab.jsx
+currently has three separate inline copies of
+`data.recipes.filter/some((r) => r.ingredients.some((i) => norm(i.name) === key))`
+— the rename-affected-recipes check, the remove-item safety check, and the
+item 7 "used in" display. Centralizing would remove that duplication.
