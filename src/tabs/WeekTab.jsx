@@ -147,14 +147,15 @@ export function WeekTab({ data, update }) {
                           </span>
                         </>
                       ) : (
-                        <>
-                          <span style={{ ...slotBox, cursor: "default" }}>
-                            <span style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>{recipe.easy ? "⚡ " : ""}{recipe.name}</span>
-                          </span>
-                          <span style={{ fontSize: 13, color: C.faint, fontVariantNumeric: "tabular-nums", flexShrink: 0, whiteSpace: "nowrap" }}>
+                        // Read-only: title spans the full bubble width, with the
+                        // servings as a subtitle underneath (like the picker cards)
+                        // so long names aren't crowded by a side-by-side count.
+                        <span style={{ ...slotBox, cursor: "default", flexDirection: "column", alignItems: "stretch", gap: 1 }}>
+                          <span style={{ fontWeight: 600 }}>{recipe.easy ? "⚡ " : ""}{recipe.name}</span>
+                          <span style={{ fontSize: 12, color: C.faint, fontVariantNumeric: "tabular-nums" }}>
                             {Number(slot.servings) || base} sv
                           </span>
-                        </>
+                        </span>
                       )}
                     </div>
                     {recipe && (
