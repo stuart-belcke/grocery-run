@@ -62,10 +62,14 @@ domain-agnostic:
 3. **Per-exercise history & progress over time.**
    Every logged set is retained against its exercise, so each exercise has a
    history independent of which workout it appeared in. From that:
-   - **Display progress** — charts / summaries per exercise (e.g. top set,
-     estimated 1RM, total volume) rolled up to **week / month / year** buckets.
+   - **Display progress** — a **plotted line over the data points** for a chosen
+     metric (e.g. top set, estimated 1RM, total volume), where **week / month /
+     year selects the focus window** — i.e. the time span / zoom level the line
+     is drawn over (last week, last month, last year), not just static summary
+     buckets. Each logged session contributes points; the line traces them across
+     the selected window.
    - **Export** — CSV (for spreadsheets) and/or JSON (for backup) of the raw
-     session log or the aggregated rollups.
+     session log or the plotted series.
    grocery-run has no history concept — it's a rolling *current* state — so this
    is entirely additive.
 
@@ -114,8 +118,8 @@ unavailable, multi-device sync can be deferred past the first version.
 - One workout per day, or allow multiple sessions per day?
 - Confirm the **template vs. session** split (recommended) up front — it shapes
   everything downstream.
-- Which progress metric(s) to headline: total volume, estimated 1RM (e.g.
-  Epley), or top set?
-- Rollup buckets: week / month / year — and whether the chart is per-exercise
-  only or also per-muscle-group.
+- Which progress metric(s) to headline on the line: total volume, estimated
+  1RM (e.g. Epley), or top set?
+- Focus windows: week / month / year as the line's time span — and whether the
+  chart is per-exercise only or also per-muscle-group.
 - Export format(s): CSV for spreadsheets, JSON for full backup/restore.
