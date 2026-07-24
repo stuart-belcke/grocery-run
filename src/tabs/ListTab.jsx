@@ -166,7 +166,7 @@ export function ListTab({ data, update }) {
     const aisle = aisleFor(cfg, itemStore);
     const open = inspectKey === item.key;
     return (
-      <li key={item.key} style={{ padding: "10px 2px", borderBottom: `1px dashed ${C.line}`, opacity: checked ? 0.45 : 1 }}>
+      <li key={item.key} style={{ padding: "10px 2px", borderBottom: `1px dashed ${C.line}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <input
             type="checkbox"
@@ -181,7 +181,7 @@ export function ListTab({ data, update }) {
             title="Tap to see which meals this item is for"
             style={{ flex: 1, minWidth: 0, textAlign: "left", background: "transparent", border: "none", padding: 0, cursor: "pointer", color: C.ink, fontFamily: "inherit" }}
           >
-            <span style={{ fontWeight: 500, textDecoration: checked ? "line-through" : "none" }}>
+            <span style={{ fontWeight: 500, textDecoration: checked ? "line-through" : "none", opacity: checked ? 0.45 : 1 }}>
               {item.name}
               {showAisle && aisle !== "" && (
                 <span style={{ marginLeft: 8, fontSize: 11, color: C.faint }}>aisle {aisle}</span>

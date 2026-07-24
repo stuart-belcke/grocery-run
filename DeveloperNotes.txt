@@ -21,57 +21,86 @@ Tier 1 — small, high-value, low-risk
    page into a dedicated Settings tab (or a hamburger menu at the top). Do
    this before adding search/filter to the Ingredients tab so it isn't
    cluttered.
+5. [DONE] Checked-off items: gray only the name, not the details. The whole
+   List row no longer dims on check — only the item name gets the
+   strikethrough + dim, so expanding a checked item keeps its "On the list
+   for" breakdown at full opacity and legible.
+6. [DONE] Week-plan meal picker. Each day/meal slot is now a tap-to-open
+   button (showing the assigned meal, or "＋ Choose a meal") that opens a
+   searchable modal mirroring the Meals tab — a search box plus recipes
+   grouped "{type} meals" / "Other meals", each showing servings + tags, with
+   the current pick checked and a "Remove meal from this slot" option. Replaces
+   the native <select> that didn't fit the app's feel or scale with the list.
 
 
 Tier 2 — Ingredients-tab cluster (shared refactor, then features)
 -----------------------------------------------------------------
-5. [DONE] Ingredients tab row treatment. Each row now collapses to just the
+7. [DONE] Ingredients tab row treatment. Each row now collapses to just the
    ingredient name (with a subtle default-store · aisle hint), a gear, and an
    X. Tapping the gear or the name expands the row to edit the default store
    and per-store aisle numbers; Rename lives inside that expanded panel.
-6. [DONE] Make the Ingredients tab filterable by store and A-Z, and add
+8. [DONE] Make the Ingredients tab filterable by store and A-Z, and add
    search. A search box (name match, with a clear ✕, mirroring the Meals tab)
    plus a store-filter dropdown ("All stores" / each store / Unassigned) that
    narrows to items with that default store. List stays A-Z sorted.
-7. Add an "info" icon to each ingredient to see which recipes it's used in.
-8. Add ingredients to the shopping list straight from the Ingredients tab —
-   e.g. search "bananas" and add it directly, instead of needing a recipe or
-   hand-typing it into the List tab.
-9. Have the List tab's "add an item" bar look through the Ingredients tab and
-   suggest matches as you type, so you select an existing item rather than
-   creating a duplicate.
+9. [DONE — #17] Ingredient rows show which recipes they're used in (inside
+   the expanded gear panel, alongside whether it's also hand-added to the
+   list) rather than as a separate info icon.
+10. [DONE — #17] Add ingredients to the shopping list straight from the
+    Ingredients tab. Each row gets a "+ List" button that becomes a
+    ± quantity pill (with a tap-to-type-exact-amount) once it's on the list,
+    defaulting to whatever unit recipes most commonly measure it in.
+11. [DONE — #17] The List tab's "add an item" field now suggests matching
+    known ingredients as you type (name + default store, keyboard-navigable),
+    so you pick an existing item instead of creating a duplicate.
+12. Suggest units as you type when adding a new ingredient. Extend the unit
+    suggestions (item 3) to the ingredient-adding flow — the recipe editor's
+    add-ingredient row and the Ingredients tab — offering the units already in
+    use as you type. Must still let you type a brand-new unit and use it; the
+    suggestions never restrict entry to a fixed set.
 
 
 Tier 3 — data-model / sorting
 -----------------------------
-10. Pantry staples. Model chosen: a staple is a normal ingredient with an added
+13. Pantry staples. Model chosen: a staple is a normal ingredient with an added
     `staple: true` flag. It keeps its real default store (aisles map unchanged),
     so it still routes correctly on the list — the flag only controls grouping /
     labeling and records that it's something we keep stocked. Additive to the
     existing { store, aisles } config schema; nothing existing breaks.
-11. [DONE] Once an item is checked on the List, move it to the bottom of its
+14. [DONE] Once an item is checked on the List, move it to the bottom of its
     group and keep following the A-Z / store-flow sort the user has selected.
+15. [DONE] Recipes reference the shared ingredients list to avoid duplicates.
+    The recipe editor's ingredient-name field now suggests matching known
+    ingredients as you type (name + default-store hint, keyboard-navigable),
+    reusing item 11's List-tab pattern, so you pick an existing item's exact
+    spelling instead of forking a spelling variant into a separate ingredient
+    and shopping-list line. Recipe ingredients still store { name, qty, unit };
+    the suggestions steer them onto canonical norm(name) identities.
 
 
 Tier 4 — multi-device / integrations (highest risk, do last)
 ------------------------------------------------------------
-12. Formalize create/join household. Household codes already exist under the
+16. Formalize create/join household. Household codes already exist under the
     hood; this makes creating or joining one a first-class flow.
-13. Delete / log out of households, and clean up orphaned data. Households
+17. Delete / log out of households, and clean up orphaned data. Households
     created by devices we no longer use linger in the RTDB forever; a device
     with uncommitted changes on a separate household keeps it alive. Figure out
     whether deleting requires logging everyone out (or logging specific
     households out) and how to reclaim abandoned nodes.
-14. Export to / link with a Google calendar, keyed off the household.
+18. Export to / link with a Google calendar, keyed off the household.
 
 
 Refactor notes
 --------------
-Before Tiers 1-2, App.jsx (~1800 lines, single file) is being split so that
-each feature edits a small, reviewable surface:
-  - theme + UI primitives (colors, fonts, Btn, Seg, Stripe, inputStyle)
-  - pure helpers (constants, catalog/config normalization, storage, model
-    normalization, list aggregation)
-  - per-tab components (List, Meals, Week, Ingredients) in their own files
-A `usedInRecipes(key)` selector is worth centralizing — it's needed by the
-Ingredients info icon (item 7), the remove-item safety check, and rename logic.
+[DONE] App.jsx was split so each feature edits a small, reviewable surface:
+  - theme.js + ui.jsx: UI primitives (colors, fonts, Btn, Seg, Stripe, inputStyle)
+  - lib.js: pure helpers (constants, catalog/config normalization, storage,
+    model normalization, list aggregation)
+  - src/tabs/*.jsx: per-tab components (List, Meals, Week, Pantry, Settings)
+App.jsx itself is now ~265 lines, just wiring the tabs together.
+
+Still worth doing: a `usedInRecipes(key)` selector in lib.js. PantryTab.jsx
+currently has three separate inline copies of
+`data.recipes.filter/some((r) => r.ingredients.some((i) => norm(i.name) === key))`
+— the rename-affected-recipes check, the remove-item safety check, and the
+item 9 "used in" display. Centralizing would remove that duplication.

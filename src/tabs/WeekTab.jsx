@@ -3,13 +3,16 @@
     every slot feeds the shopping list.  */
 /* ------------------------------------------------------------------ */
 
-import { useMemo } from "react";
-import { C, fontDisplay, inputStyle } from "../theme";
+import { useMemo, useState } from "react";
+import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn } from "../ui";
-import { DAYS, MEAL_TYPES } from "../lib";
+import { DAYS, MEAL_TYPES, norm } from "../lib";
 
 export function WeekTab({ data, update }) {
   const recipesSorted = useMemo(() => [...data.recipes].sort((a, b) => a.name.localeCompare(b.name)), [data.recipes]);
+  const [picker, setPicker] = useState(null); // { day, type } while choosing a recipe for a slot
+  const [pickQuery, setPickQuery] = useState("");
+  const [editing, setEditing] = useState(false); // whole-plan edit mode: reveals per-slot change + clear
 
   const setSlot = (day, type, patch) =>
     update((d) => {
@@ -27,7 +30,42 @@ export function WeekTab({ data, update }) {
     });
   };
 
+  const openPicker = (day, type) => {
+    setPickQuery("");
+    setPicker({ day, type });
+  };
+
+  const assignFromPicker = (r) => {
+    // A freshly picked meal starts at its own default servings.
+    setSlot(picker.day, picker.type, { recipeId: r.id, servings: r.servings || 4 });
+    setPicker(null);
+  };
+
+  // Snap an empty / non-positive servings value back to the recipe's default so
+  // a slot never ends up with a blank amount (called when the input loses focus).
+  const normalizeServings = (day, type, base) => {
+    const cur = Number(data.plan?.[day]?.[type]?.servings);
+    if (!(cur > 0)) setSlot(day, type, { servings: base });
+  };
+
   const plannedCount = DAYS.reduce((n, day) => n + MEAL_TYPES.filter((t) => data.plan?.[day]?.[t]?.recipeId).length, 0);
+
+  // Recipes offered in the open picker: tagged for that slot's meal type first,
+  // then everything else, each narrowed by the search box (name or ingredient).
+  const pickGroups = useMemo(() => {
+    if (!picker) return [];
+    const q = norm(pickQuery);
+    const match = (r) => !q || norm(r.name).includes(q) || r.ingredients.some((i) => norm(i.name).includes(q));
+    const hits = recipesSorted.filter(match);
+    const tagged = hits.filter((r) => (r.mealTypes || []).includes(picker.type));
+    const other = hits.filter((r) => !(r.mealTypes || []).includes(picker.type));
+    return [
+      { label: `${picker.type} meals`, recipes: tagged },
+      { label: "Other meals", recipes: other },
+    ].filter((g) => g.recipes.length > 0);
+  }, [picker, pickQuery, recipesSorted]);
+
+  const activeSlotRecipeId = picker ? data.plan?.[picker.day]?.[picker.type]?.recipeId : null;
 
   return (
     <div>
@@ -36,6 +74,11 @@ export function WeekTab({ data, update }) {
           Plan the week — every planned meal feeds the shopping list automatically.
           {plannedCount > 0 && ` ${plannedCount} meal${plannedCount === 1 ? "" : "s"} planned.`}
         </p>
+        {(plannedCount > 0 || editing) && (
+          <Btn kind={editing ? "primary" : "ghost"} onClick={() => setEditing((v) => !v)}>
+            {editing ? "✓ Done" : "Edit week plan"}
+          </Btn>
+        )}
         <Btn kind="danger" onClick={clearWeek}>Clear week</Btn>
       </div>
 
@@ -57,54 +100,73 @@ export function WeekTab({ data, update }) {
               {MEAL_TYPES.map((type) => {
                 const slot = data.plan?.[day]?.[type];
                 const recipe = slot?.recipeId ? data.recipes.find((r) => r.id === slot.recipeId) : null;
-                const tagged = recipesSorted.filter((r) => (r.mealTypes || []).includes(type));
-                const other = recipesSorted.filter((r) => !(r.mealTypes || []).includes(type));
+                const base = recipe ? recipe.servings || 4 : 4;
+                // Shared box styling so the read-only display and the editable
+                // meal button occupy the same shape on the line.
+                const slotBox = { flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", fontFamily: fontBody, fontSize: 13, padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.green}`, background: C.greenSoft, color: C.ink };
                 return (
-                  <div key={type} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 12, color: C.faint, width: 70, flexShrink: 0 }}>{type}</span>
-                    <select
-                      value={slot?.recipeId || ""}
-                      onChange={(e) => {
-                        const id = e.target.value;
-                        if (!id) return setSlot(day, type, null);
-                        const r = data.recipes.find((x) => x.id === id);
-                        setSlot(day, type, { recipeId: id, servings: r?.servings || 4 });
-                      }}
-                      aria-label={`${day} ${type}`}
-                      style={{ flex: 1, minWidth: 140, fontSize: 13, padding: "6px 8px", borderRadius: 6, border: `1px solid ${C.line}`, background: recipe ? C.greenSoft : "#fff" }}
-                    >
-                      <option value="">—</option>
-                      {tagged.length > 0 && (
-                        <optgroup label={`${type} meals`}>
-                          {tagged.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.easy ? "⚡ " : ""}{r.name}
-                            </option>
-                          ))}
-                        </optgroup>
+                  <div key={type} style={{ padding: "5px 0" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 12, color: C.faint, width: 70, flexShrink: 0 }}>{type}</span>
+                      {!recipe ? (
+                        // Empty slot — addable in either mode.
+                        <button
+                          onClick={() => openPicker(day, type)}
+                          aria-label={`Choose a meal for ${day} ${type}`}
+                          title="Tap to choose a meal"
+                          style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", fontFamily: fontBody, fontSize: 13, padding: "7px 10px", borderRadius: 8, cursor: "pointer", border: `1px solid ${C.line}`, background: "#fff", color: C.faint }}
+                        >
+                          <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>＋</span>
+                          Choose a meal
+                        </button>
+                      ) : editing ? (
+                        // Edit mode — tap the meal to re-pick it, and an ✕ to clear
+                        // the slot. Servings drop to their own line just below.
+                        <>
+                          <button
+                            onClick={() => openPicker(day, type)}
+                            aria-label={`${day} ${type}: ${recipe.name} — tap to pick a different meal`}
+                            title="Tap to pick a different meal"
+                            style={{ ...slotBox, cursor: "pointer" }}
+                          >
+                            <span style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>{recipe.easy ? "⚡ " : ""}{recipe.name}</span>
+                            <span aria-hidden style={{ flexShrink: 0, color: C.green, fontSize: 12 }}>▾</span>
+                          </button>
+                          <button
+                            onClick={() => setSlot(day, type, null)}
+                            aria-label={`Clear ${recipe.name} from ${day} ${type}`}
+                            title="Clear this slot"
+                            style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 16, padding: 2, lineHeight: 1, flexShrink: 0 }}
+                          >
+                            ✕
+                          </button>
+                        </>
+                      ) : (
+                        // Read-only: title spans the full bubble width, with the
+                        // servings as a subtitle underneath (like the picker cards)
+                        // so long names aren't crowded by a side-by-side count.
+                        <span style={{ ...slotBox, cursor: "default", flexDirection: "column", alignItems: "stretch", gap: 1 }}>
+                          <span style={{ fontWeight: 600 }}>{recipe.easy ? "⚡ " : ""}{recipe.name}</span>
+                          <span style={{ fontSize: 12, color: C.faint, fontVariantNumeric: "tabular-nums" }}>
+                            {Number(slot.servings) || base} sv
+                          </span>
+                        </span>
                       )}
-                      {other.length > 0 && (
-                        <optgroup label="Other meals">
-                          {other.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.easy ? "⚡ " : ""}{r.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      )}
-                    </select>
-                    {recipe && (
-                      <label style={{ fontSize: 12, color: C.faint, display: "flex", alignItems: "center", gap: 5 }}>
+                    </div>
+                    {recipe && editing && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 6, marginLeft: 78, fontSize: 12, color: C.faint }}>
                         <input
                           type="number"
                           min="1"
                           value={slot.servings}
                           onChange={(e) => setSlot(day, type, { servings: e.target.value === "" ? "" : Number(e.target.value) })}
+                          onBlur={() => normalizeServings(day, type, base)}
+                          onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
                           aria-label={`Servings for ${day} ${type}`}
                           style={{ ...inputStyle, width: 54, padding: "5px 8px", fontVariantNumeric: "tabular-nums" }}
                         />
-                        sv
-                      </label>
+                        servings
+                      </div>
                     )}
                   </div>
                 );
@@ -112,6 +174,122 @@ export function WeekTab({ data, update }) {
             </div>
           );
         })
+      )}
+
+      {picker && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Choose a meal for ${picker.day} ${picker.type}`}
+          onClick={() => setPicker(null)}
+          // Anchored to the top (not vertically centered) so that as the search
+          // narrows the list and the panel shrinks, its top — and the search box
+          // with it — stays put instead of drifting as it re-centers.
+          style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(20,24,16,0.44)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "8vh 16px 16px" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: C.card, borderRadius: 14, width: "100%", maxWidth: 460, maxHeight: "82vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 12px 40px rgba(0,0,0,0.28)" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px 10px" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 700, color: C.ink }}>{picker.day} · {picker.type}</div>
+                <div style={{ fontSize: 12, color: C.faint }}>Pick a meal for this slot</div>
+              </div>
+              <button
+                onClick={() => setPicker(null)}
+                aria-label="Close"
+                title="Close"
+                style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 20, lineHeight: 1, padding: 4 }}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ padding: "0 16px 10px", position: "relative" }}>
+              <input
+                autoFocus
+                placeholder="Search meals or ingredients"
+                value={pickQuery}
+                onChange={(e) => setPickQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    if (pickQuery) setPickQuery("");
+                    else setPicker(null);
+                  }
+                }}
+                aria-label="Search meals"
+                style={{ ...inputStyle, width: "100%", boxSizing: "border-box", paddingRight: 28 }}
+              />
+              {pickQuery && (
+                <button
+                  onClick={() => setPickQuery("")}
+                  title="Clear search"
+                  aria-label="Clear search"
+                  style={{ position: "absolute", right: 20, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 4 }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <div style={{ overflowY: "auto", padding: "0 8px 8px" }}>
+              {activeSlotRecipeId && (
+                <button
+                  onClick={() => { setSlot(picker.day, picker.type, null); setPicker(null); }}
+                  style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "10px 12px", margin: "2px 4px", borderRadius: 8, border: `1px solid ${C.line}`, background: "#fff", cursor: "pointer", fontFamily: fontBody, fontSize: 13, color: C.tomato }}
+                >
+                  ✕ Remove meal from this slot
+                </button>
+              )}
+              {pickGroups.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "28px 16px", color: C.faint, fontSize: 13 }}>
+                  {pickQuery ? <>Nothing matches "{pickQuery.trim()}".</> : "No meals to show."}
+                </div>
+              ) : (
+                pickGroups.map((g) => (
+                  <div key={g.label} style={{ marginBottom: 6 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, padding: "8px 12px 4px" }}>
+                      {g.label}
+                    </div>
+                    {g.recipes.map((r) => {
+                      const chosen = r.id === activeSlotRecipeId;
+                      return (
+                        <button
+                          key={r.id}
+                          onClick={() => assignFromPicker(r)}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            width: "calc(100% - 8px)",
+                            textAlign: "left",
+                            padding: "9px 12px",
+                            margin: "2px 4px",
+                            borderRadius: 8,
+                            border: `1px solid ${chosen ? C.green : "transparent"}`,
+                            background: chosen ? C.greenSoft : "transparent",
+                            cursor: "pointer",
+                            fontFamily: fontBody,
+                          }}
+                        >
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {r.easy ? "⚡ " : ""}{r.name}
+                            </div>
+                            <div style={{ fontSize: 12, color: C.faint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              Serves {r.servings || 4}
+                              {(r.mealTypes || []).length ? ` · ${r.mealTypes.join(", ")}` : ""}
+                            </div>
+                          </div>
+                          {chosen && <span aria-hidden style={{ color: C.green, fontSize: 14, flexShrink: 0 }}>✓</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
