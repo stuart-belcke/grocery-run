@@ -99,8 +99,7 @@ Refactor notes
   - src/tabs/*.jsx: per-tab components (List, Meals, Week, Pantry, Settings)
 App.jsx itself is now ~265 lines, just wiring the tabs together.
 
-Still worth doing: a `usedInRecipes(key)` selector in lib.js. PantryTab.jsx
-currently has three separate inline copies of
-`data.recipes.filter/some((r) => r.ingredients.some((i) => norm(i.name) === key))`
-— the rename-affected-recipes check, the remove-item safety check, and the
-item 9 "used in" display. Centralizing would remove that duplication.
+[DONE] `usedInRecipes(data, key)` centralized in lib.js. PantryTab.jsx's three
+inline copies of `data.recipes.filter/some((r) => r.ingredients.some((i) =>
+norm(i.name) === key))` — the rename-affected-recipes check, the remove-item
+safety check, and the item 9 "used in" display — all call it now.

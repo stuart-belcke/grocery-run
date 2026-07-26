@@ -270,6 +270,13 @@ export function ingredientNames(data) {
   return [...set.entries()].map(([key, name]) => ({ key, name })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
+// Every recipe that references the given ingredient key (case-insensitive).
+// Shared by the rename-affected-recipes check, the remove-item safety check,
+// and the Ingredients tab's "used in" display.
+export function usedInRecipes(data, key) {
+  return data.recipes.filter((r) => r.ingredients.some((i) => norm(i.name) === key));
+}
+
 /* =========================== aggregation =========================== */
 
 export function servingsByRecipe(data) {

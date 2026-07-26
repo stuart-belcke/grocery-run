@@ -7,7 +7,7 @@
 import { useState, useMemo } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Btn } from "../ui";
-import { UNASSIGNED, norm, cap, r2, normalizeCfg, ingredientNames, unitSuggestions } from "../lib";
+import { UNASSIGNED, norm, cap, r2, normalizeCfg, ingredientNames, unitSuggestions, usedInRecipes } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
 // "how many of this on the list" reads the same everywhere in the app.
@@ -166,7 +166,7 @@ export function PantryTab({ data, catalog, update }) {
     const oldKey = editItem.key;
     const newKey = norm(newName);
     if (!newName || newKey === oldKey) return setEditItem(null);
-    const affected = data.recipes.filter((r) => r.ingredients.some((i) => norm(i.name) === oldKey));
+    const affected = usedInRecipes(data, oldKey);
     let asNew = false;
     if (affected.length > 0) {
       const names = affected.map((r) => r.name).join('", "');
@@ -214,8 +214,7 @@ export function PantryTab({ data, catalog, update }) {
   };
 
   const removeItem = (key, name) => {
-    const used =
-      data.recipes.some((r) => r.ingredients.some((i) => norm(i.name) === key)) || data.list.extras.some((e) => norm(e.name) === key);
+    const used = usedInRecipes(data, key).length > 0 || data.list.extras.some((e) => norm(e.name) === key);
     if (used) {
       window.alert(`"${name}" is used by a meal or the current list, so it can't be removed here — its defaults were reset instead.`);
       update((d) => {
@@ -324,7 +323,7 @@ export function PantryTab({ data, catalog, update }) {
             const listed = listEntry(key);
             const onListQty = listed ? Number(listed.qty) || 0 : 0;
             const onListUnit = listed ? (listed.unit || "").trim() : "";
-            const recipesUsing = data.recipes.filter((r) => r.ingredients.some((i) => norm(i.name) === key)).map((r) => r.name);
+            const recipesUsing = usedInRecipes(data, key).map((r) => r.name);
             return (
               <div key={key} style={{ padding: "10px 2px", borderBottom: `1px dashed ${C.line}` }}>
                 {renaming ? (
