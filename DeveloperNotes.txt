@@ -62,11 +62,94 @@ Tier 2 — Ingredients-tab cluster (shared refactor, then features)
 
 Tier 3 — data-model / sorting
 -----------------------------
-13. Pantry staples. Model chosen: a staple is a normal ingredient with an added
-    `staple: true` flag. It keeps its real default store (aisles map unchanged),
-    so it still routes correctly on the list — the flag only controls grouping /
-    labeling and records that it's something we keep stocked. Additive to the
-    existing { store, aisles } config schema; nothing existing breaks.
+13. Pantry staples. Full spec below — the shape is settled, not yet built.
+
+    THE PROBLEM
+    Recipes call for olive oil, garlic, flour, salt. Every week those land on
+    the shopping list even though you already have them, so the list is padded
+    with things you don't need to buy.
+
+    THE MODEL: persistent have/need, not a weekly quiz
+    A staple carries a persistent state that only changes when reality changes:
+      - "have"  (default) — invisible, stays off the shopping list
+      - "need"  — appears on the shopping list
+    You flip it to "need" the moment you notice you're out (Tuesday night, when
+    you pour the last of the oil), not by trying to recall it on Sunday. Most
+    weeks you touch nothing and the review is empty.
+
+    Two consequences worth noting:
+      - It decouples staples from meal planning. "We need olive oil" is true
+        because you ran out, not because a recipe wants a tablespoon. Paper
+        towels and coffee behave identically to recipe ingredients — one
+        mechanism, no special case for non-recipe items.
+      - Anything you didn't manage to buy stays "need" and carries forward to
+        the next list automatically. No re-entry.
+
+    NO PARALLEL DATA STRUCTURE
+    A staple is an ordinary catalog ingredient with a `staple: true` flag on its
+    existing config entry. Same { store, aisles }, same identity, same
+    everything. "The staples list" is only ever a VIEW — a filter over the
+    ingredients that already exist. Nothing to migrate, nothing to keep in sync.
+
+    DATA MODEL — two halves, two sync routes (this split is the important part)
+      config[key].staple = true
+        Durable designation. Lives in ingredient config, rides configOverrides
+        to RTDB, AND publishes to catalog.json. A shared fact about the kitchen.
+      stapleNeeds = { key: true }
+        Volatile "we're out" state. New TOP-LEVEL key in local, sibling to
+        `list` and `plan`. Syncs to RTDB (writeHousehold writes the whole local
+        object, so this is free) but is NEVER published — otherwise every "out
+        of garlic" would be a git diff in catalog.json.
+      Store only the "need" keys; absence means "have". Firebase strips empty
+      objects, so once all are back to "have" the key vanishes from RTDB and
+      asObject() rebuilds it as {} on the way in. Self-healing.
+      Requires: `stapleNeeds: {}` in emptyLocal(), and
+      `stapleNeeds: asObject(d.stapleNeeds)` in normalizeLocal().
+
+    TWO GOTCHAS IN EXISTING CODE (quiet bugs if missed)
+      - normalizeCfg() (lib.js) returns only { store, aisles }, so it would
+        SILENTLY STRIP the staple flag. The publish path (SettingsTab) runs
+        every config through it, so staples would vanish on publish.
+      - cfgShape() (lib.js) hashes only { store, aisles }, so toggling a staple
+        wouldn't register as an unpublished change and the "N not yet
+        published" badge would be wrong.
+
+    WHY NOT PER-TRIP STATE
+    An earlier design put the have/need answer in `list` and wiped it each
+    trip, prompting a full review every week. Rejected: it forces recall
+    instead of capture, and the review burden grows with the recipe
+    collection. Persistence is the whole point — hence the top-level key,
+    deliberately outside `list` and `plan`, which newList() clears.
+
+    UI
+      - Designating a staple: a checkbox in the Ingredients row's expanded gear
+        panel ("Kitchen staple"). Set-once and rare, so it stays off the
+        collapsed row.
+      - Toggling have/need: on a staple row the "+ List" button is REPLACED by
+        a Have/Need toggle — on a staple the two would mean the same thing to
+        the user, so only one control shows. Non-staple rows keep "+ List".
+      - Managing / reviewing: a "Staples only" filter on the Ingredients tab,
+        reusing the existing search + store-filter machinery. Near-zero new UI.
+      - On the shopping list: a "need" staple sorts into its NORMAL store/aisle
+        group (it keeps its real store), shown inline with a small "staple"
+        tag — not a separate section, so you walk past it in the right aisle.
+        No quantity: it means "get more", not "get 2 lb".
+
+    CLEARING THE LOOP
+    Rename "New shopping list" -> "Done shopping" (it marks the end of a trip).
+    On that action, any staple that was CHECKED resets to "have"; unchecked
+    ones stay "need" and carry to the next list — you didn't get it, maybe the
+    store didn't have it, so it stays pending. Don't clear on the checkbox
+    itself: the item would vanish from the list mid-aisle. Note the button also
+    wipes the week plan and selections, so its confirm text needs rewording to
+    mention staples.
+
+    DECIDED AGAINST (for v1)
+      - A third "low" state. Binary can't express "have half a cup, recipe
+        wants three" — accepted. The whole value is low friction and a third
+        state doubles the decisions; the pre-shop glance catches it.
+      - A "anything else run out?" scan over have-it staples. Re-introduces the
+        weekly chore the persistent model exists to remove.
 14. [DONE] Once an item is checked on the List, move it to the bottom of its
     group and keep following the A-Z / store-flow sort the user has selected.
 15. [DONE] Recipes reference the shared ingredients list to avoid duplicates.
