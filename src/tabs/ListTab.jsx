@@ -49,6 +49,7 @@ export function ListTab({ data, update }) {
   const totals = servingsByRecipe(data);
   const selectedMealCount = Object.values(totals).filter((s) => s > 0).length;
   const remaining = items.filter((i) => !data.list.checked[i.key]).length;
+  const boughtCount = Object.keys(data.list.bought || {}).length;
 
   const setOverride = (key, store) =>
     update((d) => {
@@ -78,11 +79,16 @@ export function ListTab({ data, update }) {
       }
       // Same for hand-added items: bought ones go, the rest stay pending.
       const extras = d.list.extras.filter((e) => !d.list.checked[norm(e.name)]);
+      // Recipe-driven items can't be deleted — they're computed from the plan,
+      // which we're keeping. Bank them as bought so they drop off the list;
+      // you own them now, and the recipe card is where ingredients belong.
+      const bought = { ...d.list.bought };
+      for (const key of Object.keys(d.list.checked)) if (d.list.checked[key]) bought[key] = true;
       // A store reroute is only meaningful while its item is still listed.
       const surviving = new Set([...extras.map((e) => norm(e.name)), ...Object.keys(d.stapleNeeds || {})]);
       const overrides = {};
       for (const [k, v] of Object.entries(d.list.overrides)) if (surviving.has(k)) overrides[k] = v;
-      d.list = { selections: {}, overrides, checked: {}, extras };
+      d.list = { selections: {}, overrides, checked: {}, extras, bought };
       return d;
     });
     setConfirmDone(false);
@@ -402,6 +408,9 @@ export function ListTab({ data, update }) {
 
       <div style={{ fontSize: 13, color: C.faint, marginBottom: 8 }}>
         {selectedMealCount} meal{selectedMealCount === 1 ? "" : "s"} selected · {remaining} item{remaining === 1 ? "" : "s"} left to buy
+        {/* Bought items are hidden, so say so rather than leaving the list
+            mysteriously short. */}
+        {boughtCount > 0 && <> · {boughtCount} already bought this week</>}
       </div>
 
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 14px 6px" }}>
@@ -538,11 +547,12 @@ export function ListTab({ data, update }) {
         onCancel={() => setConfirmDone(false)}
       >
         <p style={{ margin: "0 0 8px" }}>
-          Anything you <b style={{ color: C.ink }}>checked off</b> is done with: hand-added items are removed, and home staples go back to{" "}
-          <b style={{ color: C.ink }}>Have</b>. Whatever you didn't get stays on the list for next time.
+          Everything you <b style={{ color: C.ink }}>checked off</b> comes off the list — you have it now, whether it came from a recipe, a home staple, or
+          your own additions. Whatever you didn't get stays on the list for next time.
         </p>
         <p style={{ margin: 0 }}>
-          Meals picked on the Meals tab are unselected. Your <b style={{ color: C.ink }}>week plan is kept</b> — use Clear week on the Week plan tab for that.
+          Meals picked on the Meals tab are unselected, and your <b style={{ color: C.ink }}>week plan is kept</b>. Clear week on the Week plan tab starts a
+          fresh buying cycle.
         </p>
       </ConfirmDialog>
 

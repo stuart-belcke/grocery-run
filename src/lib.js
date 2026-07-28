@@ -124,7 +124,10 @@ export const emptyLocal = () => ({
   configOverrides: {}, // ingredient key -> { store, aisles: { storeName: number } }
   extraStores: [],
   removedStores: [],
-  list: { selections: {}, overrides: {}, checked: {}, extras: [] },
+  // `bought`: ingredient keys acquired on an earlier trip this week. Recipe-
+  // driven items are computed from the plan, so they can't be deleted — this
+  // records that you already have them so they drop off the list.
+  list: { selections: {}, overrides: {}, checked: {}, extras: [], bought: {} },
   plan: {},
   // Home staples we've run out of: { ingredientKey: true }. Only "need"
   // entries are stored — an absent key means we have it. Deliberately a
@@ -159,6 +162,7 @@ export function normalizeLocal(raw) {
       overrides: asObject(d.list && d.list.overrides),
       checked: asObject(d.list && d.list.checked),
       extras: asArray(d.list && d.list.extras),
+      bought: asObject(d.list && d.list.bought),
     },
     plan: asObject(d.plan),
     stapleNeeds: asObject(d.stapleNeeds),
@@ -346,6 +350,15 @@ export function aggregateItems(data) {
   // wants it, and carries no quantity: it means "get more", not "get 2 lb".
   // Adding one by hand is an explicit request, so it wins over suppression and
   // keeps its quantity.
+  // Already bought on an earlier trip this week. A recipe still calls for it,
+  // but you have it in the cupboard, so it drops off the shopping list — what
+  // a recipe contains is the recipe card's job, not the list's. Cleared when
+  // the week is cleared. Adding it by hand is an explicit "buy this again".
+  const bought = asObject(data.list.bought);
+  for (const [key, item] of [...map.entries()]) {
+    if (bought[key] && !item.sources.includes("Added by hand")) map.delete(key);
+  }
+
   const needs = asObject(data.stapleNeeds);
   for (const [key, item] of [...map.entries()]) {
     if (!normalizeCfg(data.config[key]).staple) continue;

@@ -23,9 +23,12 @@ export function WeekTab({ data, update }) {
       return d;
     });
 
+  // Clearing the week also ends the buying cycle: items banked as "bought" by
+  // Done shopping are forgotten, so next week's meals start from a full list.
   const clearWeek = () => {
     update((d) => {
       d.plan = {};
+      d.list.bought = {};
       return d;
     });
     setConfirmClear(false);
@@ -300,7 +303,7 @@ export function WeekTab({ data, update }) {
         onConfirm={clearWeek}
         onCancel={() => setConfirmClear(false)}
       >
-        Removes every meal from all seven days. Meals you added straight to the shopping list aren't affected.
+        Removes every meal from all seven days, and starts a fresh buying cycle — anything you already bought this week stops being remembered, so next week's meals list their ingredients again. Meals you added straight to the shopping list aren't affected.
       </ConfirmDialog>
     </div>
   );

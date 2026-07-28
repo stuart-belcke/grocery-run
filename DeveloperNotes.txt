@@ -146,14 +146,23 @@ Tier 3 — data-model / sorting
     "Done shopping" was later narrowed, because one button was resetting six
     things at once. The rule now: what you CHECKED OFF is done with, what you
     didn't get carries forward.
-      - checked hand-added items are removed; unchecked ones stay listed
+      - EVERYTHING checked comes off the list — you own it now. Hand-added
+        items are deleted outright. Recipe-driven items can't be (they're
+        computed from the plan we're keeping), so their keys are banked in
+        `list.bought`, which aggregateItems suppresses. The List tab is a
+        shopping list, not a recipe viewer — what a recipe contains belongs
+        on the recipe card.
+      - unchecked items of every kind stay listed
       - checked staples go back to "have"; unchecked stay "need"
       - check marks and meal selections clear
       - store reroutes survive only for items still on the list
       - the WEEK PLAN is untouched. "Clear week" on the Week plan tab owns it;
         wiping a week's planning from the shopping list was a far bigger reset
-        than finishing a trip implies. So plan-derived items stay on the list
-        until the week itself is cleared.
+        than finishing a trip implies.
+    "Clear week" also empties `list.bought`, ending the buying cycle, so the
+    next week's meals list their ingredients again from scratch. A count of
+    suppressed items shows on the List tab ("N already bought this week") so
+    the list is never mysteriously short.
 
     DECIDED AGAINST (for v1)
       - A third "low" state. Binary can't express "have half a cup, recipe
