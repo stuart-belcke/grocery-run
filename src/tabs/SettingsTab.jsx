@@ -6,7 +6,7 @@
 
 import { useState, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
-import { Btn } from "../ui";
+import { Btn, ConfirmDialog, AlertDialog } from "../ui";
 import { formatCatalog, normalizeCfg, normalizeLocal, validLocal, unpublishedCount } from "../lib";
 import { syncEnabled, cleanCode } from "../sync";
 
@@ -16,6 +16,10 @@ export function SettingsTab({ data, catalog, local, update, setLocal, code, setC
   const [msg, setMsg] = useState("");
   const [codeInput, setCodeInput] = useState(code);
   const [codeMsg, setCodeMsg] = useState("");
+  const [askJoin, setAskJoin] = useState(null);       // household code pending confirmation
+  const [askImport, setAskImport] = useState(null);   // parsed backup pending confirmation
+  const [askReset, setAskReset] = useState(false);    // reset-to-catalog confirmation
+  const [copyFallback, setCopyFallback] = useState(null); // text to copy when the clipboard is blocked
 
   useEffect(() => setCodeInput(code), [code]);
 
@@ -29,9 +33,13 @@ export function SettingsTab({ data, catalog, local, update, setLocal, code, setC
       setCodeMsg("Already using that code.");
       return;
     }
-    if (!window.confirm(`Switch this phone to household "${c}"? It will start showing that household's synced list and settings.`)) return;
+    setAskJoin(c);
+  };
+
+  const commitJoin = (c) => {
     setCode(c);
     setCodeMsg("Joined — this phone now syncs with that household.");
+    setAskJoin(null);
   };
 
   /* ---------- backup / catalog export ---------- */
@@ -52,7 +60,7 @@ export function SettingsTab({ data, catalog, local, update, setLocal, code, setC
       await navigator.clipboard.writeText(text);
       setMsg(okMsg);
     } catch (e) {
-      window.prompt("Copy this:", text);
+      setCopyFallback(text);
     }
   };
 
@@ -93,11 +101,15 @@ export function SettingsTab({ data, catalog, local, update, setLocal, code, setC
       setMsg("That doesn't look like a Grocery Run backup (wrong format).");
       return;
     }
-    if (!window.confirm("Import this backup? It replaces this device's meals edits, settings, week plan, and current list.")) return;
+    setAskImport(incoming);
+  };
+
+  const commitImport = (incoming) => {
     setLocal(normalizeLocal(incoming));
     setImportOpen(false);
     setImportText("");
     setMsg("Imported.");
+    setAskImport(null);
   };
 
   const onImportFile = (e) => {
@@ -113,7 +125,6 @@ export function SettingsTab({ data, catalog, local, update, setLocal, code, setC
   const overrideCount = unpublishedCount(local, catalog);
 
   const clearOverrides = () => {
-    if (!window.confirm("Reset this device to match the shared catalog exactly? Local recipe edits/additions and setting changes will be removed. (Do this AFTER exporting them into catalog.json, or they're gone.)")) return;
     update((d) => {
       d.recipeOverrides = {};
       d.localRecipes = [];
@@ -123,6 +134,7 @@ export function SettingsTab({ data, catalog, local, update, setLocal, code, setC
       return d;
     });
     setMsg("Local changes cleared — now matching the catalog.");
+    setAskReset(false);
   };
 
   return (
@@ -184,7 +196,7 @@ export function SettingsTab({ data, catalog, local, update, setLocal, code, setC
             Publish changes (copy)
           </Btn>
           <Btn onClick={() => download("catalog.json", catalogJson())}>Publish changes (file)</Btn>
-          {overrideCount > 0 && <Btn kind="danger" onClick={clearOverrides}>Reset to catalog</Btn>}
+          {overrideCount > 0 && <Btn kind="danger" onClick={() => setAskReset(true)}>Reset to catalog</Btn>}
         </div>
         <p style={{ fontSize: 12, color: C.faint, margin: "0 0 16px" }}>
           After committing on GitHub, "Reset to catalog" clears the local copies so this device is cleanly in sync.
@@ -226,6 +238,55 @@ export function SettingsTab({ data, catalog, local, update, setLocal, code, setC
       <p style={{ fontSize: 11, color: C.faint, textAlign: "center", margin: "14px 0 4px", fontFamily: "ui-monospace, Menlo, monospace" }}>
         Build {__BUILD__}
       </p>
+
+      <ConfirmDialog
+        open={!!askJoin}
+        title="Switch household?"
+        confirmLabel="Join household"
+        confirmKind="primary"
+        onConfirm={() => commitJoin(askJoin)}
+        onCancel={() => setAskJoin(null)}
+      >
+        This phone will start showing household <b style={{ color: C.ink }}>{askJoin}</b>'s synced list, meals and settings instead of the current one.
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={!!askImport}
+        title="Import this backup?"
+        confirmLabel="Import"
+        onConfirm={() => commitImport(askImport)}
+        onCancel={() => setAskImport(null)}
+      >
+        Replaces this device's meal edits, settings, week plan and current list with the contents of the backup. There's no undo.
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={askReset}
+        title="Reset to catalog?"
+        confirmLabel="Reset device"
+        onConfirm={clearOverrides}
+        onCancel={() => setAskReset(false)}
+      >
+        <p style={{ margin: "0 0 8px" }}>
+          Removes this device's local recipe edits, added meals, and store/ingredient changes so it matches the shared catalog exactly.
+        </p>
+        <p style={{ margin: 0 }}>
+          Do this <b style={{ color: C.ink }}>after</b> publishing them into catalog.json, or they're gone.
+        </p>
+      </ConfirmDialog>
+
+      {/* Clipboard access can be blocked (no HTTPS, or permission denied), so
+          fall back to showing the text for manual copy. */}
+      <AlertDialog open={!!copyFallback} title="Copy this" okLabel="Done" onClose={() => setCopyFallback(null)}>
+        <p style={{ margin: "0 0 8px" }}>Your browser blocked the clipboard, so select and copy it here.</p>
+        <textarea
+          readOnly
+          value={copyFallback || ""}
+          onFocus={(e) => e.target.select()}
+          rows={8}
+          style={{ ...inputStyle, width: "100%", boxSizing: "border-box", fontFamily: "ui-monospace, Menlo, monospace", fontSize: 11 }}
+        />
+      </AlertDialog>
     </div>
   );
 }

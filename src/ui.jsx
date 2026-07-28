@@ -3,7 +3,8 @@
     Stripe, the Btn (primary / ghost / danger), and the Seg toggle.     */
 /* ------------------------------------------------------------------ */
 
-import { C, fontBody } from "./theme";
+import { useEffect, useRef } from "react";
+import { C, fontBody, fontDisplay } from "./theme";
 
 export function Stripe() {
   return (
@@ -63,5 +64,87 @@ export function Seg({ options, value, onChange }) {
         </button>
       ))}
     </div>
+  );
+}
+
+/* ----------------------- modal dialogs ----------------------- */
+/* In-app replacements for window.confirm / .alert / .prompt, in the app's own
+   visual language (the overlay + card treatment of the Week-plan meal picker).
+   Escape or a tap outside dismisses; the dismiss button takes focus so a stray
+   Enter can't fire a destructive action. */
+
+const dismissBtn = { fontFamily: fontBody, fontWeight: 500, fontSize: 14, padding: "8px 14px", borderRadius: 8, cursor: "pointer", background: "transparent", color: C.ink, border: `1px solid ${C.line}` };
+
+function DialogShell({ open, title, children, onDismiss, dismissLabel, actions, focusRef }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") onDismiss();
+    };
+    window.addEventListener("keydown", onKey);
+    focusRef.current?.focus();
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onDismiss, focusRef]);
+
+  if (!open) return null;
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={typeof title === "string" ? title : undefined}
+      onClick={onDismiss}
+      style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(20,24,16,0.44)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "12vh 16px 16px", overflowY: "auto" }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: C.card, borderRadius: 14, width: "100%", maxWidth: 420, padding: "18px 20px 16px", boxShadow: "0 12px 40px rgba(0,0,0,0.28)" }}
+      >
+        <div style={{ fontFamily: fontDisplay, fontSize: 19, fontWeight: 700, color: C.ink, marginBottom: 8 }}>{title}</div>
+        <div style={{ fontSize: 13, color: C.faint, lineHeight: 1.5 }}>{children}</div>
+        {/* Actions stack on narrow screens so a three-way choice stays readable. */}
+        <div style={{ display: "flex", gap: 8, marginTop: 18, justifyContent: "flex-end", flexWrap: "wrap" }}>
+          <button ref={focusRef} onClick={onDismiss} style={dismissBtn}>
+            {dismissLabel}
+          </button>
+          {actions.map((a) => (
+            <Btn key={a.label} kind={a.kind || "primary"} onClick={a.onClick}>
+              {a.label}
+            </Btn>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Cancel + one action. Replaces `if (!window.confirm(...)) return;`.
+export function ConfirmDialog({ open, title, children, confirmLabel = "Confirm", confirmKind = "danger", cancelLabel = "Cancel", onConfirm, onCancel }) {
+  const focusRef = useRef(null);
+  return (
+    <DialogShell open={open} title={title} onDismiss={onCancel} dismissLabel={cancelLabel} focusRef={focusRef} actions={[{ label: confirmLabel, kind: confirmKind, onClick: onConfirm }]}>
+      {children}
+    </DialogShell>
+  );
+}
+
+// Cancel + several named actions. For the places a native confirm had to
+// smuggle a second action into "Cancel" ("OK — rename everywhere / Cancel —
+// save as new"), which read as if cancelling did nothing.
+export function ChoiceDialog({ open, title, children, choices = [], cancelLabel = "Cancel", onCancel }) {
+  const focusRef = useRef(null);
+  return (
+    <DialogShell open={open} title={title} onDismiss={onCancel} dismissLabel={cancelLabel} focusRef={focusRef} actions={choices}>
+      {children}
+    </DialogShell>
+  );
+}
+
+// A single acknowledge button. Replaces window.alert.
+export function AlertDialog({ open, title, children, okLabel = "OK", onClose }) {
+  const focusRef = useRef(null);
+  return (
+    <DialogShell open={open} title={title} onDismiss={onClose} dismissLabel={okLabel} focusRef={focusRef} actions={[]}>
+      {children}
+    </DialogShell>
   );
 }

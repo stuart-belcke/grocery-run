@@ -5,7 +5,7 @@
 
 import { useMemo, useState } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
-import { Stripe, Btn } from "../ui";
+import { Stripe, Btn, ConfirmDialog } from "../ui";
 import { DAYS, MEAL_TYPES, norm } from "../lib";
 
 export function WeekTab({ data, update }) {
@@ -13,6 +13,7 @@ export function WeekTab({ data, update }) {
   const [picker, setPicker] = useState(null); // { day, type } while choosing a recipe for a slot
   const [pickQuery, setPickQuery] = useState("");
   const [editing, setEditing] = useState(false); // whole-plan edit mode: reveals per-slot change + clear
+  const [confirmClear, setConfirmClear] = useState(false);
 
   const setSlot = (day, type, patch) =>
     update((d) => {
@@ -23,11 +24,11 @@ export function WeekTab({ data, update }) {
     });
 
   const clearWeek = () => {
-    if (!window.confirm("Clear the whole week plan?")) return;
     update((d) => {
       d.plan = {};
       return d;
     });
+    setConfirmClear(false);
   };
 
   const openPicker = (day, type) => {
@@ -79,7 +80,7 @@ export function WeekTab({ data, update }) {
             {editing ? "✓ Done" : "Edit week plan"}
           </Btn>
         )}
-        <Btn kind="danger" onClick={clearWeek}>Clear week</Btn>
+        <Btn kind="danger" onClick={() => setConfirmClear(true)}>Clear week</Btn>
       </div>
 
       {recipesSorted.length === 0 ? (
@@ -291,6 +292,16 @@ export function WeekTab({ data, update }) {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmClear}
+        title="Clear the week plan?"
+        confirmLabel="Clear week"
+        onConfirm={clearWeek}
+        onCancel={() => setConfirmClear(false)}
+      >
+        Removes every meal from all seven days. Meals you added straight to the shopping list aren't affected.
+      </ConfirmDialog>
     </div>
   );
 }
