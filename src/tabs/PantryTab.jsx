@@ -14,6 +14,10 @@ import { UNASSIGNED, norm, cap, r2, normalizeCfg, ingredientNames, unitSuggestio
 const pillWrap = { display: "inline-flex", alignItems: "center", gap: 2, background: C.greenSoft, border: `1px solid ${C.green}`, borderRadius: 999, padding: "2px 3px", flexShrink: 0 };
 const pillBtn = { minWidth: 24, height: 24, padding: "0 3px", borderRadius: 999, border: "none", background: "transparent", cursor: "pointer", fontSize: 13, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", color: C.green };
 const pillCount = { minWidth: 22, textAlign: "center", fontWeight: 700, fontVariantNumeric: "tabular-nums", fontSize: 13, color: C.green, padding: "0 2px" };
+// Have/Need segment shown on staple rows in place of "+ List" — on a staple the
+// two would mean the same thing, so only one control is offered.
+const segWrap = { display: "inline-flex", border: `1px solid ${C.line}`, borderRadius: 999, overflow: "hidden", flexShrink: 0 };
+const segBtn = { padding: "4px 10px", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, lineHeight: 1.6 };
 
 export function PantryTab({ data, catalog, update }) {
   const [newStore, setNewStore] = useState("");
@@ -22,6 +26,7 @@ export function PantryTab({ data, catalog, update }) {
   const [openItem, setOpenItem] = useState(null); // key of the row expanded for store/aisle editing
   const [query, setQuery] = useState("");
   const [storeFilter, setStoreFilter] = useState(""); // "" = all stores
+  const [staplesOnly, setStaplesOnly] = useState(false); // narrow to kitchen staples
   const [editList, setEditList] = useState(null); // { key, qty, unit } while typing an exact list amount
 
   const keys = useMemo(() => ingredientNames(data), [data]);
@@ -35,10 +40,23 @@ export function PantryTab({ data, catalog, update }) {
       keys.filter(
         ({ key, name }) =>
           (!q || norm(name).includes(q)) &&
-          (!storeFilter || normalizeCfg(data.config[key]).store === storeFilter)
+          (!storeFilter || normalizeCfg(data.config[key]).store === storeFilter) &&
+          (!staplesOnly || normalizeCfg(data.config[key]).staple)
       ),
-    [keys, q, storeFilter, data.config]
+    [keys, q, storeFilter, staplesOnly, data.config]
   );
+
+  // "We're out of this" state for a staple. Only "need" entries are stored, so
+  // going back to "have" deletes the key (Firebase drops empty objects, and
+  // normalizeLocal rebuilds them — so an all-clear state tidies itself up).
+  const needsMore = (key) => !!data.stapleNeeds?.[key];
+  const setNeedsMore = (key, need) =>
+    update((d) => {
+      if (!d.stapleNeeds) d.stapleNeeds = {};
+      if (need) d.stapleNeeds[key] = true;
+      else delete d.stapleNeeds[key];
+      return d;
+    });
 
   const setCfg = (key, patch) =>
     update((d) => {
@@ -294,14 +312,35 @@ export function PantryTab({ data, catalog, update }) {
                 </option>
               ))}
             </select>
+            <button
+              onClick={() => setStaplesOnly((v) => !v)}
+              aria-pressed={staplesOnly}
+              title="Show only kitchen staples"
+              style={{
+                fontFamily: "inherit",
+                fontSize: 13,
+                fontWeight: 500,
+                padding: "5px 12px",
+                borderRadius: 999,
+                cursor: "pointer",
+                border: `1px solid ${staplesOnly ? C.gold : C.line}`,
+                background: staplesOnly ? C.goldSoft : "#fff",
+                color: staplesOnly ? C.gold : C.ink,
+                whiteSpace: "nowrap",
+              }}
+            >
+              🥫 Staples
+            </button>
           </div>
         )}
         {keys.length === 0 && <div style={{ color: C.faint, fontSize: 14 }}>Ingredients appear here as you add meals.</div>}
         {keys.length > 0 && visibleKeys.length === 0 && (
           <div style={{ color: C.faint, fontSize: 14, padding: "8px 2px" }}>
             {query.trim()
-              ? <>No ingredients match "{query.trim()}"{storeFilter ? ` at ${storeFilter}` : ""}.</>
-              : <>No ingredients default to {storeFilter}.</>}
+              ? <>No {staplesOnly ? "staples" : "ingredients"} match "{query.trim()}"{storeFilter ? ` at ${storeFilter}` : ""}.</>
+              : staplesOnly
+                ? <>No kitchen staples{storeFilter ? ` default to ${storeFilter}` : " yet — mark one with the ⚙ on any ingredient"}.</>
+                : <>No ingredients default to {storeFilter}.</>}
           </div>
         )}
         <datalist id="pantry-unit-suggestions">
@@ -355,6 +394,26 @@ export function PantryTab({ data, catalog, update }) {
                         </span>
                         <span aria-hidden style={{ marginLeft: "auto", paddingLeft: 8, color: open ? C.green : C.faint, fontSize: 15, flexShrink: 0, lineHeight: 1 }}>⚙</span>
                       </button>
+                      {cfg.staple && (
+                        <span style={segWrap} title={needsMore(key) ? `We're out of ${name} — it's on the shopping list` : `We have ${name} — it stays off the list`}>
+                          <button
+                            onClick={() => setNeedsMore(key, false)}
+                            aria-pressed={!needsMore(key)}
+                            aria-label={`We have ${name}`}
+                            style={{ ...segBtn, background: !needsMore(key) ? C.green : "transparent", color: !needsMore(key) ? "#fff" : C.faint }}
+                          >
+                            Have
+                          </button>
+                          <button
+                            onClick={() => setNeedsMore(key, true)}
+                            aria-pressed={needsMore(key)}
+                            aria-label={`We need more ${name}`}
+                            style={{ ...segBtn, background: needsMore(key) ? C.gold : "transparent", color: needsMore(key) ? "#fff" : C.faint }}
+                          >
+                            Need
+                          </button>
+                        </span>
+                      )}
                       {editList && editList.key === key ? (
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
                           <input
@@ -401,7 +460,7 @@ export function PantryTab({ data, catalog, update }) {
                           </button>
                           <button style={pillBtn} onClick={() => setListQty(key, name, onListQty + 1)} title="Add one more" aria-label={`Add another ${name} to the shopping list`}>+</button>
                         </span>
-                      ) : (
+                      ) : cfg.staple ? null : (
                         <Btn small onClick={() => setListQty(key, name, 1)} title="Add to the shopping list" aria-label={`Add ${name} to the shopping list`}>
                           + List
                         </Btn>
@@ -424,6 +483,24 @@ export function PantryTab({ data, catalog, update }) {
                           <span style={{ flex: 1 }} />
                           <Btn small onClick={() => setEditItem({ key, name })}>Rename</Btn>
                         </div>
+                        {/* Staple designation lives here rather than on the collapsed
+                            row: it's a set-once property, unlike the have/need state. */}
+                        <label style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 10, fontSize: 12, color: C.ink, cursor: "pointer" }}>
+                          <input
+                            type="checkbox"
+                            checked={cfg.staple}
+                            onChange={(e) => {
+                              const on = e.target.checked;
+                              setCfg(key, { staple: on });
+                              if (!on) setNeedsMore(key, false); // no orphaned "need" on a non-staple
+                            }}
+                            style={{ width: 16, height: 16, accentColor: C.gold, flexShrink: 0 }}
+                          />
+                          <span>
+                            🥫 Kitchen staple
+                            <span style={{ color: C.faint }}> — keep it off the list until we run out</span>
+                          </span>
+                        </label>
                         {data.stores.length > 0 && (
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginTop: 10 }}>
                             <span style={{ fontSize: 11, color: C.faint }}>Aisle:</span>

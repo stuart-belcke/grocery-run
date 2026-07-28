@@ -169,7 +169,7 @@ export default function App() {
       ...catalog.stores.filter((s) => !local.removedStores.includes(s)),
       ...local.extraStores.filter((s) => !catalog.stores.some((c) => norm(c) === norm(s))),
     ];
-    return { recipes, config, stores, list: local.list, plan: local.plan };
+    return { recipes, config, stores, list: local.list, plan: local.plan, stapleNeeds: local.stapleNeeds };
   }, [catalog, local]);
 
   return (

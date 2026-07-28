@@ -62,7 +62,8 @@ Tier 2 — Ingredients-tab cluster (shared refactor, then features)
 
 Tier 3 — data-model / sorting
 -----------------------------
-13. Pantry staples. Full spec below — the shape is settled, not yet built.
+13. [DONE] Pantry staples. Built as specified below; the spec is kept as the
+    record of what was decided and why.
 
     THE PROBLEM
     Recipes call for olive oil, garlic, flour, salt. Every week those land on
