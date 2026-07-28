@@ -7,7 +7,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Btn, ConfirmDialog, ChoiceDialog, AlertDialog } from "../ui";
-import { UNASSIGNED, norm, cap, r2, normalizeCfg, ingredientNames, unitSuggestions, usedInRecipes } from "../lib";
+import { UNASSIGNED, norm, cap, r2, normalizeCfg, compactCfg, ingredientNames, unitSuggestions, usedInRecipes } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
 // "how many of this on the list" reads the same everywhere in the app.
@@ -78,7 +78,7 @@ export function PantryTab({ data, catalog, update }) {
   const setCfg = (key, patch) =>
     update((d) => {
       const base = normalizeCfg(d.configOverrides[key] || data.config[key]);
-      d.configOverrides[key] = { ...base, ...patch };
+      d.configOverrides[key] = compactCfg({ ...base, ...patch });
       return d;
     });
 
@@ -88,7 +88,7 @@ export function PantryTab({ data, catalog, update }) {
       const aisles = { ...base.aisles };
       if (value === "") delete aisles[store];
       else aisles[store] = Number(value);
-      d.configOverrides[key] = { ...base, aisles };
+      d.configOverrides[key] = compactCfg({ ...base, aisles });
       return d;
     });
 
@@ -622,7 +622,7 @@ export function PantryTab({ data, catalog, update }) {
                               // the same stale base and clobber the first.
                               update((d) => {
                                 const base = normalizeCfg(d.configOverrides[key] || data.config[key]);
-                                d.configOverrides[key] = { ...base, staple: on };
+                                d.configOverrides[key] = compactCfg({ ...base, staple: on });
                                 if (!on && d.stapleNeeds) delete d.stapleNeeds[key]; // no orphaned "need"
                                 return d;
                               });
