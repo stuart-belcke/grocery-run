@@ -5,7 +5,7 @@
 
 import { useState, useMemo } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
-import { Stripe, Btn, Seg, ConfirmDialog } from "../ui";
+import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog } from "../ui";
 import { UNASSIGNED, norm, r2, normalizeCfg, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions, ingredientNames } from "../lib";
 
 export function ListTab({ data, update }) {
@@ -17,6 +17,8 @@ export function ListTab({ data, update }) {
   const [showSug, setShowSug] = useState(false); // add-item name field: is the suggestion list open
   const [sugIdx, setSugIdx] = useState(-1); // keyboard-highlighted suggestion, -1 = none
   const [confirmDone, setConfirmDone] = useState(false); // "Done shopping" confirmation
+  const [askSave, setAskSave] = useState(null); // name of a new item, pending remember-or-not
+  const [confirmRemove, setConfirmRemove] = useState(null); // hand-added item pending removal
 
   const items = useMemo(() => aggregateItems(data), [data]);
   const units = useMemo(() => unitSuggestions(data), [data]);
@@ -77,20 +79,22 @@ export function ListTab({ data, update }) {
     setConfirmDone(false);
   };
 
+  // An unknown item first asks whether to remember it (see askSave); a known
+  // one commits straight away.
   const addExtra = () => {
+    const name = extra.name.trim();
+    if (!name) return;
+    if (!data.config[norm(name)]) return setAskSave(name);
+    commitExtra(false);
+  };
+
+  const commitExtra = (saveToIngredients) => {
     const name = extra.name.trim();
     if (!name) return;
     const key = norm(name);
     const store = extra.store;
     const aisle = extra.aisle.trim() !== "" && !isNaN(Number(extra.aisle)) ? Number(extra.aisle) : "";
     const known = !!data.config[key];
-    // Unknown items can be saved as an Ingredient so the store/aisle picked
-    // for them outlives this list; otherwise they're a one-time buy.
-    const saveToIngredients =
-      !known &&
-      window.confirm(
-        `"${name}" isn't in your Ingredients yet.\n\nOK — save it to Ingredients so it keeps its store and aisle for future lists.\nCancel — one-time buy, just for this list.`
-      );
     update((d) => {
       d.list.extras.push({ name, qty: Number(extra.qty) || 1, unit: extra.unit.trim() });
       if (saveToIngredients) {
@@ -118,13 +122,13 @@ export function ListTab({ data, update }) {
       return d;
     });
     setExtra({ name: "", qty: "1", unit: "", store: "", aisle: "" });
+    setAskSave(null);
   };
 
   // Remove an item's hand-added entries from the current list. Recipe
   // contributions (if any) stay; bookkeeping is dropped only when the
   // hand-added entry was the item's sole source.
   const removeExtra = (item) => {
-    if (!window.confirm(`Remove hand-added "${item.name}" from this list?`)) return;
     update((d) => {
       d.list.extras = d.list.extras.filter((e) => norm(e.name) !== item.key);
       if (item.sources.length === 1) {
@@ -134,6 +138,7 @@ export function ListTab({ data, update }) {
       return d;
     });
     setInspectKey(null);
+    setConfirmRemove(null);
   };
 
   const startExtraEdit = (item) => {
@@ -318,7 +323,7 @@ export function ListTab({ data, update }) {
                 ) : (
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     <Btn small onClick={() => startExtraEdit(item)}>Edit hand-added entry</Btn>
-                    <Btn kind="danger" small onClick={() => removeExtra(item)}>
+                    <Btn kind="danger" small onClick={() => setConfirmRemove(item)}>
                       Remove hand-added entry
                     </Btn>
                   </div>
@@ -529,6 +534,30 @@ export function ListTab({ data, update }) {
         <p style={{ margin: 0 }}>
           Kitchen staples you checked off go back to <b style={{ color: C.ink }}>Have</b>; any you didn't get stay on the list.
         </p>
+      </ConfirmDialog>
+
+      {/* Two real options, so both get a button — the native confirm had to
+          hide "one-time buy" behind Cancel, which read as doing nothing. */}
+      <ChoiceDialog
+        open={!!askSave}
+        title="Remember this item?"
+        onCancel={() => setAskSave(null)}
+        choices={[
+          { label: "Just this list", kind: "ghost", onClick: () => commitExtra(false) },
+          { label: "Save to Ingredients", kind: "primary", onClick: () => commitExtra(true) },
+        ]}
+      >
+        <b style={{ color: C.ink }}>{askSave}</b> isn't in your Ingredients yet. Saving it keeps the store and aisle you picked for future lists; otherwise it's a one-time buy.
+      </ChoiceDialog>
+
+      <ConfirmDialog
+        open={!!confirmRemove}
+        title="Remove from this list?"
+        confirmLabel="Remove"
+        onConfirm={() => removeExtra(confirmRemove)}
+        onCancel={() => setConfirmRemove(null)}
+      >
+        Removes the hand-added <b style={{ color: C.ink }}>{confirmRemove?.name}</b> from this list. Any amount a meal calls for stays.
       </ConfirmDialog>
     </div>
   );

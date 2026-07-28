@@ -6,7 +6,7 @@
 
 import { useState, useMemo } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
-import { Btn } from "../ui";
+import { Btn, ConfirmDialog, ChoiceDialog, AlertDialog } from "../ui";
 import { UNASSIGNED, norm, cap, r2, normalizeCfg, ingredientNames, unitSuggestions, usedInRecipes } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
@@ -27,6 +27,10 @@ export function PantryTab({ data, catalog, update }) {
   const [query, setQuery] = useState("");
   const [storeFilter, setStoreFilter] = useState(""); // "" = all stores
   const [staplesOnly, setStaplesOnly] = useState(false); // narrow to kitchen staples
+  const [askRename, setAskRename] = useState(null);       // rename touching recipes: how to apply it
+  const [confirmStore, setConfirmStore] = useState(null); // store pending removal
+  const [confirmItem, setConfirmItem] = useState(null);   // { key, name } pending removal
+  const [inUseNote, setInUseNote] = useState(null);       // name of an item that couldn't be removed
   const [editList, setEditList] = useState(null); // { key, qty, unit } while typing an exact list amount
 
   const keys = useMemo(() => ingredientNames(data), [data]);
@@ -87,7 +91,6 @@ export function PantryTab({ data, catalog, update }) {
   };
 
   const removeStore = (s) => {
-    if (!window.confirm(`Remove "${s}"? Ingredients that default to it will become Unassigned.`)) return;
     update((d) => {
       d.extraStores = d.extraStores.filter((x) => x !== s);
       if (catalog.stores.includes(s) && !d.removedStores.includes(s)) d.removedStores.push(s);
@@ -98,6 +101,7 @@ export function PantryTab({ data, catalog, update }) {
       for (const k of Object.keys(d.list.overrides)) if (d.list.overrides[k] === s) delete d.list.overrides[k];
       return d;
     });
+    setConfirmStore(null);
   };
 
   const addItem = () => {
@@ -185,14 +189,13 @@ export function PantryTab({ data, catalog, update }) {
     const newKey = norm(newName);
     if (!newName || newKey === oldKey) return setEditItem(null);
     const affected = usedInRecipes(data, oldKey);
-    let asNew = false;
-    if (affected.length > 0) {
-      const names = affected.map((r) => r.name).join('", "');
-      if (!window.confirm(`Renaming "${cap(oldKey)}" to "${newName}" will affect: "${names}".\n\nContinue?`)) return;
-      asNew = !window.confirm(
-        `Apply the new name inside ${affected.length === 1 ? "that recipe" : "those recipes"} too?\n\nOK — rename it everywhere.\nCancel — leave the recipes alone and save "${newName}" as a new item.`
-      );
-    }
+    // Recipes use this name, so the choice ("rename everywhere" vs "save as a
+    // separate item") goes to a dialog and comes back through commitRename.
+    if (affected.length > 0) return setAskRename({ oldKey, newName, newKey, affected });
+    commitRename({ oldKey, newName, newKey, affected }, false);
+  };
+
+  const commitRename = ({ oldKey, newName, newKey, affected }, asNew) => {
     const isCatalogId = (id) => catalog.recipes.some((r) => r.id === id);
     update((d) => {
       const cfg = normalizeCfg(d.configOverrides[oldKey] || data.config[oldKey]);
@@ -229,25 +232,31 @@ export function PantryTab({ data, catalog, update }) {
       return d;
     });
     setEditItem(null);
+    setAskRename(null);
   };
 
   const removeItem = (key, name) => {
     const used = usedInRecipes(data, key).length > 0 || data.list.extras.some((e) => norm(e.name) === key);
     if (used) {
-      window.alert(`"${name}" is used by a meal or the current list, so it can't be removed here — its defaults were reset instead.`);
+      setInUseNote(name);
       update((d) => {
         d.configOverrides[key] = { store: UNASSIGNED, aisles: {} };
         return d;
       });
-    } else if (window.confirm(`Remove "${name}" from ingredient settings?`)) {
-      update((d) => {
-        delete d.configOverrides[key];
-        delete d.list.overrides[key];
-        // if it exists in the catalog config, shadow it as removed-by-reset
-        if (catalog.config[key]) d.configOverrides[key] = { store: UNASSIGNED, aisles: {} };
-        return d;
-      });
+    } else {
+      setConfirmItem({ key, name });
     }
+  };
+
+  const commitRemoveItem = ({ key }) => {
+    update((d) => {
+      delete d.configOverrides[key];
+      delete d.list.overrides[key];
+      // if it exists in the catalog config, shadow it as removed-by-reset
+      if (catalog.config[key]) d.configOverrides[key] = { store: UNASSIGNED, aisles: {} };
+      return d;
+    });
+    setConfirmItem(null);
   };
 
   return (
@@ -258,7 +267,7 @@ export function PantryTab({ data, catalog, update }) {
           {data.stores.map((s) => (
             <span key={s} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: C.greenSoft, color: C.green, fontWeight: 500, fontSize: 13, padding: "5px 10px", borderRadius: 999 }}>
               {s}
-              <button onClick={() => removeStore(s)} aria-label={`Remove ${s}`} style={{ border: "none", background: "transparent", color: C.green, cursor: "pointer", fontSize: 13, padding: 0 }}>✕</button>
+              <button onClick={() => setConfirmStore(s)} aria-label={`Remove ${s}`} style={{ border: "none", background: "transparent", color: C.green, cursor: "pointer", fontSize: 13, padding: 0 }}>✕</button>
             </span>
           ))}
         </div>
@@ -547,6 +556,55 @@ export function PantryTab({ data, catalog, update }) {
           })}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={!!confirmStore}
+        title={`Remove ${confirmStore}?`}
+        confirmLabel="Remove store"
+        onConfirm={() => removeStore(confirmStore)}
+        onCancel={() => setConfirmStore(null)}
+      >
+        Ingredients that default to <b style={{ color: C.ink }}>{confirmStore}</b> become Unassigned, and this list's reroutes to it are cleared. Aisle numbers you set for other stores are kept.
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={!!confirmItem}
+        title="Remove this ingredient?"
+        confirmLabel="Remove"
+        onConfirm={() => commitRemoveItem(confirmItem)}
+        onCancel={() => setConfirmItem(null)}
+      >
+        Drops the store and aisle settings for <b style={{ color: C.ink }}>{confirmItem?.name}</b>. It'll come back with no defaults if a meal uses it again.
+      </ConfirmDialog>
+
+      <AlertDialog open={!!inUseNote} title="Still in use" onClose={() => setInUseNote(null)}>
+        <b style={{ color: C.ink }}>{inUseNote}</b> is used by a meal or the current list, so it can't be removed here. Its store and aisle defaults were reset instead.
+      </AlertDialog>
+
+      {/* One dialog for what used to be two chained confirms, where the second
+          hid "save as a separate item" behind Cancel. */}
+      <ChoiceDialog
+        open={!!askRename}
+        title="Rename inside recipes too?"
+        onCancel={() => setAskRename(null)}
+        choices={[
+          { label: "Keep as separate item", kind: "ghost", onClick: () => commitRename(askRename, true) },
+          { label: "Rename everywhere", kind: "primary", onClick: () => commitRename(askRename, false) },
+        ]}
+      >
+        {askRename && (
+          <>
+            <p style={{ margin: "0 0 8px" }}>
+              <b style={{ color: C.ink }}>{cap(askRename.oldKey)}</b> → <b style={{ color: C.ink }}>{askRename.newName}</b>, used by{" "}
+              <b style={{ color: C.ink }}>{askRename.affected.map((r) => r.name).join(", ")}</b>.
+            </p>
+            <p style={{ margin: 0 }}>
+              Rename everywhere updates {askRename.affected.length === 1 ? "that recipe" : "those recipes"} too. Keeping it separate leaves them alone and saves{" "}
+              <b style={{ color: C.ink }}>{askRename.newName}</b> as its own ingredient.
+            </p>
+          </>
+        )}
+      </ChoiceDialog>
     </div>
   );
 }

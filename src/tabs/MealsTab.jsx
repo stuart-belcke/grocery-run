@@ -5,7 +5,7 @@
 
 import { useState, useMemo } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
-import { Stripe, Btn, Seg } from "../ui";
+import { Stripe, Btn, Seg, ConfirmDialog } from "../ui";
 import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, unitSuggestions, ingredientNames, normalizeCfg } from "../lib";
 import { RecipeDetail } from "../RecipeDetail";
 
@@ -25,6 +25,7 @@ export function MealsTab({ data, catalog, update }) {
   const [detailOpen, setDetailOpen] = useState(null);
   const [planPick, setPlanPick] = useState(null); // { id, day, type } while choosing a week-plan slot
   const [editServings, setEditServings] = useState(null); // { id, value } while typing an exact batch count
+  const [confirmDelete, setConfirmDelete] = useState(null); // recipe pending deletion
   const [ingSug, setIngSug] = useState(null); // { row, idx } — which draft-ingredient row's name suggestions are open
 
   const isCatalogId = (id) => catalog.recipes.some((r) => r.id === id);
@@ -109,10 +110,6 @@ export function MealsTab({ data, catalog, update }) {
 
   const deleteRecipe = (r) => {
     const catalogRecipe = isCatalogId(r.id);
-    const msg = catalogRecipe
-      ? "Hide this catalog meal on this device? (To remove it everywhere, also delete it from catalog.json on GitHub — Settings tab → Publish changes makes that easy.)"
-      : "Delete this meal?";
-    if (!window.confirm(msg)) return;
     update((d) => {
       if (catalogRecipe) d.recipeOverrides[r.id] = false; // false, not null: Firebase drops nulls
       else d.localRecipes = d.localRecipes.filter((x) => x.id !== r.id);
@@ -124,6 +121,7 @@ export function MealsTab({ data, catalog, update }) {
       }
       return d;
     });
+    setConfirmDelete(null);
   };
 
   const units = useMemo(() => unitSuggestions(data), [data]);
@@ -172,7 +170,7 @@ export function MealsTab({ data, catalog, update }) {
         }}
       >
         <button
-          onClick={() => deleteRecipe(r)}
+          onClick={() => setConfirmDelete(r)}
           aria-label={`Delete ${r.name}`}
           title="Delete this meal"
           style={{ position: "absolute", top: 8, right: 10, border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 4 }}
@@ -614,6 +612,27 @@ export function MealsTab({ data, catalog, update }) {
                 </section>
               ))}
       </div>
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title={confirmDelete && isCatalogId(confirmDelete.id) ? "Hide this catalog meal?" : "Delete this meal?"}
+        confirmLabel={confirmDelete && isCatalogId(confirmDelete.id) ? "Hide it" : "Delete"}
+        onConfirm={() => deleteRecipe(confirmDelete)}
+        onCancel={() => setConfirmDelete(null)}
+      >
+        {confirmDelete && (
+          <>
+            <p style={{ margin: "0 0 8px" }}>
+              <b style={{ color: C.ink }}>{confirmDelete.name}</b> will be removed from your meals, the shopping list, and any week-plan slot it fills.
+            </p>
+            {isCatalogId(confirmDelete.id) && (
+              <p style={{ margin: 0 }}>
+                This hides it on this device only. To remove it everywhere, also delete it from catalog.json — Settings → Publish changes makes that easy.
+              </p>
+            )}
+          </>
+        )}
+      </ConfirmDialog>
     </div>
   );
 }
