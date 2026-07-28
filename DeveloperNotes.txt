@@ -62,7 +62,8 @@ Tier 2 — Ingredients-tab cluster (shared refactor, then features)
 
 Tier 3 — data-model / sorting
 -----------------------------
-13. Pantry staples. Full spec below — the shape is settled, not yet built.
+13. [DONE] Pantry staples. Built as specified below; the spec is kept as the
+    record of what was decided and why.
 
     THE PROBLEM
     Recipes call for olive oil, garlic, flour, salt. Every week those land on
@@ -186,3 +187,25 @@ App.jsx itself is now ~265 lines, just wiring the tabs together.
 inline copies of `data.recipes.filter/some((r) => r.ingredients.some((i) =>
 norm(i.name) === key))` — the rename-affected-recipes check, the remove-item
 safety check, and the item 9 "used in" display — all call it now.
+
+TODO — UI density, starting with the Ingredients row. Collapsing most of it
+behind the ⚙ was the right call and still holds, but the panel has become a
+flat pile of unrelated concerns and keeps absorbing each new feature:
+  - default store select
+  - Rename
+  - Kitchen staple checkbox        (added with item 13)
+  - an aisle number input PER STORE
+  - a "Used in <recipes>" footer
+and the collapsed row itself carries name + ⚙, then a Have/Need segment or
+"+ List" or a three-button quantity pill, then a remove ✕.
+
+The aisle grid is the part that actually scales badly: it renders an input for
+every store (5 today) whether or not the item is sold there, so adding a store
+widens every ingredient's panel. Worth trying: show only the default store's
+aisle by default with the rest behind a "more stores" reveal, and group the
+panel into "where it lives" (store + aisles) vs "what it is" (staple, rename)
+instead of one flat stack.
+
+Same pressure exists on the List row (checkbox, name, tag, qty, store select,
+info) — revisit together rather than tab by tab, since the fix is a shared
+pattern for "row with a few primary bits and a details panel", not a one-off.

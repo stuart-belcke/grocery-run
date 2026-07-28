@@ -84,13 +84,13 @@ export function formatCatalog(out) {
 // Older data used a single { store, aisle }; normalizeCfg upgrades it so the
 // legacy aisle becomes that store's entry in the aisles map.
 export function normalizeCfg(cfg) {
-  if (!cfg) return { store: UNASSIGNED, aisles: {} };
-  if (cfg.aisles) return { store: cfg.store || UNASSIGNED, aisles: { ...cfg.aisles } };
+  if (!cfg) return { store: UNASSIGNED, aisles: {}, staple: false };
+  if (cfg.aisles) return { store: cfg.store || UNASSIGNED, aisles: { ...cfg.aisles }, staple: !!cfg.staple };
   const aisles = {};
   if (cfg.aisle !== undefined && cfg.aisle !== null && cfg.aisle !== "" && cfg.store) {
     aisles[cfg.store] = Number(cfg.aisle);
   }
-  return { store: cfg.store || UNASSIGNED, aisles };
+  return { store: cfg.store || UNASSIGNED, aisles, staple: !!cfg.staple };
 }
 
 // Aisle for a specific store, or "" if none set.
@@ -126,6 +126,11 @@ export const emptyLocal = () => ({
   removedStores: [],
   list: { selections: {}, overrides: {}, checked: {}, extras: [] },
   plan: {},
+  // Kitchen staples we've run out of: { ingredientKey: true }. Only "need"
+  // entries are stored — an absent key means we have it. Deliberately a
+  // top-level sibling of `list`/`plan` (which "Done shopping" clears) so the
+  // state persists across trips, and never published to catalog.json.
+  stapleNeeds: {},
 });
 
 // Firebase strips empty objects/arrays (and nulls) when saving and can
@@ -156,6 +161,7 @@ export function normalizeLocal(raw) {
       extras: asArray(d.list && d.list.extras),
     },
     plan: asObject(d.plan),
+    stapleNeeds: asObject(d.stapleNeeds),
   };
 }
 
@@ -201,7 +207,9 @@ const cfgShape = (c) => {
   const n = normalizeCfg(c);
   const aisles = {};
   for (const k of Object.keys(n.aisles).sort()) aisles[k] = Number(n.aisles[k]);
-  return JSON.stringify({ store: n.store, aisles });
+  // `staple` is part of the shape: without it, flagging an ingredient as a
+  // kitchen staple wouldn't register as an unpublished change.
+  return JSON.stringify({ store: n.store, aisles, staple: n.staple });
 };
 
 // The subset of a device's local overrides that still genuinely differ from the
@@ -331,6 +339,28 @@ export function aggregateItems(data) {
     }
   }
   for (const ex of data.list.extras) addPart(ex.name, Number(ex.qty) || 0, ex.unit, "Added by hand", "Added by hand on the shopping list");
+
+  // Kitchen staples. A staple you have is dropped even when a recipe calls for
+  // it — that's the whole point: you already own the olive oil, so it shouldn't
+  // pad the list. A staple you're out of appears whether or not any recipe
+  // wants it, and carries no quantity: it means "get more", not "get 2 lb".
+  // Adding one by hand is an explicit request, so it wins over suppression and
+  // keeps its quantity.
+  const needs = asObject(data.stapleNeeds);
+  for (const [key, item] of [...map.entries()]) {
+    if (!normalizeCfg(data.config[key]).staple) continue;
+    if (item.sources.includes("Added by hand")) continue;
+    if (!needs[key]) {
+      map.delete(key);
+      continue;
+    }
+    item.staple = true;
+    item.parts = {};
+  }
+  for (const key of Object.keys(needs)) {
+    if (!needs[key] || !normalizeCfg(data.config[key]).staple) continue;
+    if (!map.has(key)) map.set(key, { key, name: cap(key), parts: {}, sources: [], contribs: [], staple: true });
+  }
   return [...map.values()];
 }
 

@@ -72,6 +72,10 @@ export default function App() {
     saveCache(code, next);
     if (syncEnabled) writeHousehold(code, next);
   };
+  // Call this at most ONCE per event handler. It snapshots localRef.current,
+  // which only refreshes on the next render, so a second call in the same
+  // handler would rebuild from the same stale base and discard the first
+  // update's changes. Make several edits in one fn instead.
   const update = (fn) => setLocal(fn(structuredClone(localRef.current)));
 
   // Drop local overrides a catalog now already reflects (e.g. after a publish),
@@ -169,7 +173,7 @@ export default function App() {
       ...catalog.stores.filter((s) => !local.removedStores.includes(s)),
       ...local.extraStores.filter((s) => !catalog.stores.some((c) => norm(c) === norm(s))),
     ];
-    return { recipes, config, stores, list: local.list, plan: local.plan };
+    return { recipes, config, stores, list: local.list, plan: local.plan, stapleNeeds: local.stapleNeeds };
   }, [catalog, local]);
 
   return (

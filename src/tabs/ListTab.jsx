@@ -61,9 +61,20 @@ export function ListTab({ data, update }) {
       return d;
     });
 
-  const newList = () => {
-    if (!window.confirm("Start a new shopping list? This clears selected meals, the week plan, checked-off items, hand-added items, and resets every item to its default store.")) return;
+  // End of trip. Staples you checked off are back in the cupboard, so they go
+  // to "have"; anything you didn't get stays "need" and carries to the next
+  // list — the store may not have had it, and you still need it.
+  const doneShopping = () => {
+    if (
+      !window.confirm(
+        "Done shopping? This clears selected meals, the week plan, checked-off items, hand-added items, and resets every item to its default store.\n\nKitchen staples you checked off go back to \"have\"; any you didn't get stay on the list."
+      )
+    )
+      return;
     update((d) => {
+      for (const key of Object.keys(d.stapleNeeds || {})) {
+        if (d.list.checked[key]) delete d.stapleNeeds[key];
+      }
       d.list = { selections: {}, overrides: {}, checked: {}, extras: [] };
       d.plan = {};
       return d;
@@ -183,13 +194,22 @@ export function ListTab({ data, update }) {
           >
             <span style={{ fontWeight: 500, textDecoration: checked ? "line-through" : "none", opacity: checked ? 0.45 : 1 }}>
               {item.name}
+              {item.staple && (
+                <span
+                  title="A kitchen staple you marked as needing more"
+                  style={{ marginLeft: 6, fontSize: 10, fontWeight: 600, background: C.goldSoft, color: C.gold, padding: "1px 6px", borderRadius: 999, whiteSpace: "nowrap" }}
+                >
+                  🥫 staple
+                </span>
+              )}
               {showAisle && aisle !== "" && (
                 <span style={{ marginLeft: 8, fontSize: 11, color: C.faint }}>aisle {aisle}</span>
               )}
             </span>
           </button>
           <span style={{ fontVariantNumeric: "tabular-nums", fontSize: 14, fontWeight: 700, whiteSpace: "nowrap" }}>
-            {qtyLabel(item.parts) || "—"}
+            {/* A "need" staple carries no quantity — it means "get more". */}
+            {qtyLabel(item.parts) || (item.staple ? "" : "—")}
           </span>
           <select
             value={storeOf(item.key)}
@@ -239,6 +259,11 @@ export function ListTab({ data, update }) {
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 4 }}>
                 On the list for
               </div>
+              {item.staple && (
+                <div style={{ padding: "2px 0", color: C.faint }}>
+                  A kitchen staple you marked <b style={{ color: C.gold }}>Need</b> — it stays on the list until you check it off and finish shopping.
+                </div>
+              )}
               {item.contribs.map((c, i) => (
                 <div key={i} style={{ display: "flex", gap: 8, padding: "2px 0" }}>
                   <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 700, minWidth: 56, textAlign: "right" }}>
@@ -362,7 +387,7 @@ export function ListTab({ data, update }) {
         <Seg options={[{ value: "all", label: "All items A–Z" }, { value: "store", label: "By store" }]} value={view} onChange={setView} />
         {view === "store" && <Seg options={[{ value: "az", label: "A–Z" }, { value: "flow", label: "Store flow" }]} value={storeSort} onChange={setStoreSort} />}
         <div style={{ flex: 1 }} />
-        <Btn kind="danger" onClick={newList}>New shopping list</Btn>
+        <Btn kind="danger" onClick={doneShopping}>Done shopping</Btn>
       </div>
 
       <div style={{ fontSize: 13, color: C.faint, marginBottom: 8 }}>
