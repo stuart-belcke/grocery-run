@@ -141,9 +141,19 @@ Tier 3 — data-model / sorting
     On that action, any staple that was CHECKED resets to "have"; unchecked
     ones stay "need" and carry to the next list — you didn't get it, maybe the
     store didn't have it, so it stays pending. Don't clear on the checkbox
-    itself: the item would vanish from the list mid-aisle. Note the button also
-    wipes the week plan and selections, so its confirm text needs rewording to
-    mention staples.
+    itself: the item would vanish from the list mid-aisle.
+
+    "Done shopping" was later narrowed, because one button was resetting six
+    things at once. The rule now: what you CHECKED OFF is done with, what you
+    didn't get carries forward.
+      - checked hand-added items are removed; unchecked ones stay listed
+      - checked staples go back to "have"; unchecked stay "need"
+      - check marks and meal selections clear
+      - store reroutes survive only for items still on the list
+      - the WEEK PLAN is untouched. "Clear week" on the Week plan tab owns it;
+        wiping a week's planning from the shopping list was a far bigger reset
+        than finishing a trip implies. So plan-derived items stay on the list
+        until the week itself is cleared.
 
     DECIDED AGAINST (for v1)
       - A third "low" state. Binary can't express "have half a cup, recipe

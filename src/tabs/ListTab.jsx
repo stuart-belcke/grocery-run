@@ -64,16 +64,25 @@ export function ListTab({ data, update }) {
       return d;
     });
 
-  // End of trip. Staples you checked off are back in the cupboard, so they go
-  // to "have"; anything you didn't get stays "need" and carries to the next
-  // list — the store may not have had it, and you still need it.
+  // End of trip. The rule throughout: what you CHECKED OFF is done with, and
+  // what you didn't get carries to the next list rather than being wiped.
+  // Deliberately does not touch d.plan — "Clear week" on the Week plan tab
+  // owns that, and clearing a week's planning from the shopping list is a
+  // bigger reset than finishing a trip implies.
   const doneShopping = () => {
     update((d) => {
+      // Staples you bought are back in the cupboard; ones you couldn't find
+      // stay "need" and reappear on the next list.
       for (const key of Object.keys(d.stapleNeeds || {})) {
         if (d.list.checked[key]) delete d.stapleNeeds[key];
       }
-      d.list = { selections: {}, overrides: {}, checked: {}, extras: [] };
-      d.plan = {};
+      // Same for hand-added items: bought ones go, the rest stay pending.
+      const extras = d.list.extras.filter((e) => !d.list.checked[norm(e.name)]);
+      // A store reroute is only meaningful while its item is still listed.
+      const surviving = new Set([...extras.map((e) => norm(e.name)), ...Object.keys(d.stapleNeeds || {})]);
+      const overrides = {};
+      for (const [k, v] of Object.entries(d.list.overrides)) if (surviving.has(k)) overrides[k] = v;
+      d.list = { selections: {}, overrides, checked: {}, extras };
       return d;
     });
     setConfirmDone(false);
@@ -529,10 +538,11 @@ export function ListTab({ data, update }) {
         onCancel={() => setConfirmDone(false)}
       >
         <p style={{ margin: "0 0 8px" }}>
-          Clears selected meals, the week plan, checked-off items and hand-added items, and resets every item to its default store.
+          Anything you <b style={{ color: C.ink }}>checked off</b> is done with: hand-added items are removed, and house staples go back to{" "}
+          <b style={{ color: C.ink }}>Have</b>. Whatever you didn't get stays on the list for next time.
         </p>
         <p style={{ margin: 0 }}>
-          House staples you checked off go back to <b style={{ color: C.ink }}>Have</b>; any you didn't get stay on the list.
+          Meals picked on the Meals tab are unselected. Your <b style={{ color: C.ink }}>week plan is kept</b> — use Clear week on the Week plan tab for that.
         </p>
       </ConfirmDialog>
 
