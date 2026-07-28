@@ -126,7 +126,7 @@ export const emptyLocal = () => ({
   removedStores: [],
   list: { selections: {}, overrides: {}, checked: {}, extras: [] },
   plan: {},
-  // House staples we've run out of: { ingredientKey: true }. Only "need"
+  // Home staples we've run out of: { ingredientKey: true }. Only "need"
   // entries are stored — an absent key means we have it. Deliberately a
   // top-level sibling of `list`/`plan` (which "Done shopping" clears) so the
   // state persists across trips, and never published to catalog.json.
@@ -208,7 +208,7 @@ const cfgShape = (c) => {
   const aisles = {};
   for (const k of Object.keys(n.aisles).sort()) aisles[k] = Number(n.aisles[k]);
   // `staple` is part of the shape: without it, flagging an ingredient as a
-  // house staple wouldn't register as an unpublished change.
+  // home staple wouldn't register as an unpublished change.
   return JSON.stringify({ store: n.store, aisles, staple: n.staple });
 };
 
@@ -340,7 +340,7 @@ export function aggregateItems(data) {
   }
   for (const ex of data.list.extras) addPart(ex.name, Number(ex.qty) || 0, ex.unit, "Added by hand", "Added by hand on the shopping list");
 
-  // House staples. A staple you have is dropped even when a recipe calls for
+  // Home staples. A staple you have is dropped even when a recipe calls for
   // it — that's the whole point: you already own the olive oil, so it shouldn't
   // pad the list. A staple you're out of appears whether or not any recipe
   // wants it, and carries no quantity: it means "get more", not "get 2 lb".

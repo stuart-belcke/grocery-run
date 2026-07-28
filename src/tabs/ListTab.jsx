@@ -206,7 +206,7 @@ export function ListTab({ data, update }) {
               {item.name}
               {item.staple && (
                 <span
-                  title="A house staple you marked as needing more"
+                  title="A home staple you marked as needing more"
                   style={{ marginLeft: 6, fontSize: 10, fontWeight: 600, background: C.goldSoft, color: C.gold, padding: "1px 6px", borderRadius: 999, whiteSpace: "nowrap" }}
                 >
                   🏠 staple
@@ -271,7 +271,7 @@ export function ListTab({ data, update }) {
               </div>
               {item.staple && (
                 <div style={{ padding: "2px 0", color: C.faint }}>
-                  A house staple you marked <b style={{ color: C.gold }}>Need</b> — it stays on the list until you check it off and finish shopping.
+                  A home staple you marked <b style={{ color: C.gold }}>Need</b> — it stays on the list until you check it off and finish shopping.
                 </div>
               )}
               {item.contribs.map((c, i) => (
@@ -538,7 +538,7 @@ export function ListTab({ data, update }) {
         onCancel={() => setConfirmDone(false)}
       >
         <p style={{ margin: "0 0 8px" }}>
-          Anything you <b style={{ color: C.ink }}>checked off</b> is done with: hand-added items are removed, and house staples go back to{" "}
+          Anything you <b style={{ color: C.ink }}>checked off</b> is done with: hand-added items are removed, and home staples go back to{" "}
           <b style={{ color: C.ink }}>Have</b>. Whatever you didn't get stays on the list for next time.
         </p>
         <p style={{ margin: 0 }}>

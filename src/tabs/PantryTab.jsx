@@ -28,7 +28,7 @@ export function PantryTab({ data, catalog, update }) {
   const [openItem, setOpenItem] = useState(null); // key of the row expanded for store/aisle editing
   const [query, setQuery] = useState("");
   const [storeFilter, setStoreFilter] = useState(""); // "" = all stores
-  const [staplesOnly, setStaplesOnly] = useState(false); // narrow to house staples
+  const [staplesOnly, setStaplesOnly] = useState(false); // narrow to home staples
   const [filterOpen, setFilterOpen] = useState(false); // filter popover open
   const [showAisles, setShowAisles] = useState(false); // reveal aisles for non-default stores
   const [askRename, setAskRename] = useState(null);       // rename touching recipes: how to apply it
@@ -293,7 +293,7 @@ export function PantryTab({ data, catalog, update }) {
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
         <h3 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 2px" }}>Your ingredients</h3>
         <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
-          Everything you buy. Tap ⚙ on a row to set where it lives, its aisle (lower = earlier in your walk), and whether it's a house staple.
+          Everything you buy. Tap ⚙ on a row to set where it lives, its aisle (lower = earlier in your walk), and whether it's a home staple.
         </p>
         {/* Adding a new ingredient and searching the existing ones are different
             jobs that both start with typing into a box, so they're kept in
@@ -389,7 +389,7 @@ export function PantryTab({ data, catalog, update }) {
                           onChange={(e) => setStaplesOnly(e.target.checked)}
                           style={{ width: 16, height: 16, accentColor: C.gold, flexShrink: 0 }}
                         />
-                        🏠 House staples only
+                        🏠 Home staples only
                       </label>
                       {activeFilters > 0 && (
                         <button
@@ -415,7 +415,7 @@ export function PantryTab({ data, catalog, update }) {
             {query.trim()
               ? <>No {staplesOnly ? "staples" : "ingredients"} match "{query.trim()}"{storeFilter ? ` at ${storeFilter}` : ""}.</>
               : staplesOnly
-                ? <>No house staples{storeFilter ? ` default to ${storeFilter}` : " yet — mark one with the ⚙ on any ingredient"}.</>
+                ? <>No home staples{storeFilter ? ` default to ${storeFilter}` : " yet — mark one with the ⚙ on any ingredient"}.</>
                 : <>No ingredients default to {storeFilter}.</>}
           </div>
         )}
@@ -630,7 +630,7 @@ export function PantryTab({ data, catalog, update }) {
                             style={{ width: 16, height: 16, accentColor: C.gold, flexShrink: 0 }}
                           />
                           <span>
-                            🏠 House staple
+                            🏠 Home staple
                             <span style={{ color: C.faint }}> — listed only when we run out</span>
                           </span>
                         </label>

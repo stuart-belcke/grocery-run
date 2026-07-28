@@ -124,7 +124,7 @@ Tier 3 — data-model / sorting
 
     UI
       - Designating a staple: a checkbox in the Ingredients row's expanded gear
-        panel ("Kitchen staple"). Set-once and rare, so it stays off the
+        panel ("Home staple", 🏠). Set-once and rare, so it stays off the
         collapsed row.
       - Toggling have/need: on a staple row the "+ List" button is REPLACED by
         a Have/Need toggle — on a staple the two would mean the same thing to
