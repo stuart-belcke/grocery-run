@@ -491,8 +491,15 @@ export function PantryTab({ data, catalog, update }) {
                             checked={cfg.staple}
                             onChange={(e) => {
                               const on = e.target.checked;
-                              setCfg(key, { staple: on });
-                              if (!on) setNeedsMore(key, false); // no orphaned "need" on a non-staple
+                              // Both edits in ONE update(): it snapshots the current
+                              // state up front, so a second call would rebuild from
+                              // the same stale base and clobber the first.
+                              update((d) => {
+                                const base = normalizeCfg(d.configOverrides[key] || data.config[key]);
+                                d.configOverrides[key] = { ...base, staple: on };
+                                if (!on && d.stapleNeeds) delete d.stapleNeeds[key]; // no orphaned "need"
+                                return d;
+                              });
                             }}
                             style={{ width: 16, height: 16, accentColor: C.gold, flexShrink: 0 }}
                           />
