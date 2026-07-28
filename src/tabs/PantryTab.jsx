@@ -6,7 +6,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
-import { Btn, ConfirmDialog, ChoiceDialog, AlertDialog } from "../ui";
+import { Btn, ConfirmDialog, ChoiceDialog } from "../ui";
 import { UNASSIGNED, norm, cap, r2, normalizeCfg, compactCfg, ingredientNames, unitSuggestions, usedInRecipes } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
@@ -248,17 +248,26 @@ export function PantryTab({ data, catalog, update }) {
     setAskRename(null);
   };
 
+  // An ingredient a recipe still uses can't be removed. It used to wipe the
+  // store and aisle anyway and only then say so — destroying settings for an
+  // action that couldn't succeed, with no confirmation and no undo. Now it
+  // asks, and resetting is an explicit choice.
   const removeItem = (key, name) => {
-    const used = usedInRecipes(data, key).length > 0 || data.list.extras.some((e) => norm(e.name) === key);
-    if (used) {
-      setInUseNote(name);
-      update((d) => {
-        d.configOverrides[key] = { store: UNASSIGNED, aisles: {} };
-        return d;
-      });
-    } else {
-      setConfirmItem({ key, name });
-    }
+    const usedBy = usedInRecipes(data, key).map((r) => r.name);
+    const onList = data.list.extras.some((e) => norm(e.name) === key);
+    if (usedBy.length || onList) setInUseNote({ key, name, usedBy, onList });
+    else setConfirmItem({ key, name });
+  };
+
+  const resetItemDefaults = ({ key }) => {
+    update((d) => {
+      // Writing the entry replaces it wholesale, so carry the staple flag over —
+      // "reset store & aisle" shouldn't quietly stop it being a home staple.
+      const staple = normalizeCfg(d.configOverrides[key] || data.config[key]).staple;
+      d.configOverrides[key] = compactCfg({ store: UNASSIGNED, aisles: {}, staple });
+      return d;
+    });
+    setInUseNote(null);
   };
 
   const commitRemoveItem = ({ key }) => {
@@ -543,9 +552,6 @@ export function PantryTab({ data, catalog, update }) {
                           + List
                         </Btn>
                       )}
-                      <button onClick={() => removeItem(key, name)} aria-label={`Remove ${name}`} title="Remove this item" style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 15, padding: 2, lineHeight: 1 }}>
-                        ✕
-                      </button>
                     </div>
                     {open && (
                       <div style={{ margin: "8px 0 4px", padding: "10px 12px", background: C.paper, border: `1px solid ${C.line}`, borderRadius: 8 }}>
@@ -649,7 +655,11 @@ export function PantryTab({ data, catalog, update }) {
                               <>Added directly here — not used by any recipe.</>
                             )}
                           </div>
+                          {/* Remove lives here, not on the collapsed row: it used to
+                              sit 9px from the Have/Need buttons with a 17px tap
+                              target, so a near-miss destroyed the item's settings. */}
                           <Btn small onClick={() => setEditItem({ key, name })} style={{ flexShrink: 0 }}>Rename</Btn>
+                          <Btn small kind="danger" onClick={() => removeItem(key, name)} style={{ flexShrink: 0 }}>Remove</Btn>
                         </div>
                       </div>
                     )}
@@ -681,9 +691,29 @@ export function PantryTab({ data, catalog, update }) {
         Drops the store and aisle settings for <b style={{ color: C.ink }}>{confirmItem?.name}</b>. It'll come back with no defaults if a meal uses it again.
       </ConfirmDialog>
 
-      <AlertDialog open={!!inUseNote} title="Still in use" onClose={() => setInUseNote(null)}>
-        <b style={{ color: C.ink }}>{inUseNote}</b> is used by a meal or the current list, so it can't be removed here. Its store and aisle defaults were reset instead.
-      </AlertDialog>
+      {/* Nothing has been changed at this point — resetting is opt-in. */}
+      <ChoiceDialog
+        open={!!inUseNote}
+        title="Still in use"
+        onCancel={() => setInUseNote(null)}
+        cancelLabel="Leave it alone"
+        choices={[{ label: "Reset store & aisle", kind: "danger", onClick: () => resetItemDefaults(inUseNote) }]}
+      >
+        {inUseNote && (
+          <>
+            <p style={{ margin: "0 0 8px" }}>
+              <b style={{ color: C.ink }}>{inUseNote.name}</b> can't be removed —{" "}
+              {inUseNote.usedBy.length > 0 ? (
+                <>it's used by <b style={{ color: C.ink }}>{inUseNote.usedBy.join(", ")}</b></>
+              ) : (
+                <>it's on the current shopping list</>
+              )}
+              {inUseNote.usedBy.length > 0 && inUseNote.onList ? ", and it's on the current shopping list" : ""}.
+            </p>
+            <p style={{ margin: 0 }}>You can clear its store and aisle instead, but nothing has changed yet.</p>
+          </>
+        )}
+      </ChoiceDialog>
 
       {/* One dialog for what used to be two chained confirms, where the second
           hid "save as a separate item" behind Cancel. */}
