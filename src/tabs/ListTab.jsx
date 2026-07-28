@@ -71,6 +71,11 @@ export function ListTab({ data, update }) {
   // owns that, and clearing a week's planning from the shopping list is a
   // bigger reset than finishing a trip implies.
   const doneShopping = () => {
+    // Capture the amounts being banked before the update: `items` is the
+    // aggregated view, so these parts already have earlier purchases deducted
+    // and represent exactly what this trip added to the cupboard.
+    const banked = {};
+    for (const it of items) if (data.list.checked[it.key]) banked[it.key] = { ...it.parts };
     update((d) => {
       // Staples you bought are back in the cupboard; ones you couldn't find
       // stay "need" and reappear on the next list.
@@ -80,10 +85,14 @@ export function ListTab({ data, update }) {
       // Same for hand-added items: bought ones go, the rest stay pending.
       const extras = d.list.extras.filter((e) => !d.list.checked[norm(e.name)]);
       // Recipe-driven items can't be deleted — they're computed from the plan,
-      // which we're keeping. Bank them as bought so they drop off the list;
-      // you own them now, and the recipe card is where ingredients belong.
+      // which we're keeping. Bank the quantity bought instead, so it offsets
+      // future demand rather than hiding the ingredient outright.
       const bought = { ...d.list.bought };
-      for (const key of Object.keys(d.list.checked)) if (d.list.checked[key]) bought[key] = true;
+      for (const [key, parts] of Object.entries(banked)) {
+        const merged = { ...(typeof bought[key] === "object" ? bought[key] : {}) };
+        for (const [u, q] of Object.entries(parts)) merged[u] = r2((merged[u] || 0) + q);
+        if (Object.keys(merged).length) bought[key] = merged;
+      }
       // A store reroute is only meaningful while its item is still listed.
       const surviving = new Set([...extras.map((e) => norm(e.name)), ...Object.keys(d.stapleNeeds || {})]);
       const overrides = {};

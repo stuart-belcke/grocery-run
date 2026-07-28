@@ -308,10 +308,13 @@ export function aggregateItems(data) {
   const addPart = (name, qty, unit, sourceName, detail) => {
     const key = norm(name);
     if (!key) return;
-    if (!map.has(key)) map.set(key, { key, name: cap(name.trim()), parts: {}, sources: [], contribs: [] });
+    if (!map.has(key)) map.set(key, { key, name: cap(name.trim()), parts: {}, handParts: {}, sources: [], contribs: [] });
     const item = map.get(key);
     const u = (unit || "").trim();
     item.parts[u] = (item.parts[u] || 0) + qty;
+    // Tracked separately so an already-bought amount can't cancel out an
+    // explicit "buy this" typed onto the list.
+    if (sourceName === "Added by hand") item.handParts[u] = (item.handParts[u] || 0) + qty;
     if (sourceName && !item.sources.includes(sourceName)) item.sources.push(sourceName);
     item.contribs.push({ label: detail, qty, unit: u });
   };
@@ -350,13 +353,29 @@ export function aggregateItems(data) {
   // wants it, and carries no quantity: it means "get more", not "get 2 lb".
   // Adding one by hand is an explicit request, so it wins over suppression and
   // keeps its quantity.
-  // Already bought on an earlier trip this week. A recipe still calls for it,
-  // but you have it in the cupboard, so it drops off the shopping list — what
-  // a recipe contains is the recipe card's job, not the list's. Cleared when
-  // the week is cleared. Adding it by hand is an explicit "buy this again".
+  // Already bought on an earlier trip this week, recorded per unit: what's in
+  // the cupboard is SUBTRACTED from what the plan now needs, rather than
+  // hiding the item outright. So buying 1 lb of beef for one meal and then
+  // planning a second that wants 2 lb leaves 1 lb still to buy. Fully covered
+  // items drop off the list — what a recipe contains is the recipe card's job.
+  // Cleared when the week is cleared.
   const bought = asObject(data.list.bought);
   for (const [key, item] of [...map.entries()]) {
-    if (bought[key] && !item.sources.includes("Added by hand")) map.delete(key);
+    const have = bought[key];
+    if (!have || typeof have !== "object") continue;
+    if (normalizeCfg(data.config[key]).staple) continue; // staples run on have/need, not amounts
+    for (const [unit, q] of Object.entries(have)) {
+      const total = item.parts[unit];
+      if (total == null) continue;
+      // Only the recipe-driven share can be covered by the cupboard.
+      const coverable = total - (item.handParts[unit] || 0);
+      const reduce = Math.min(coverable, Number(q) || 0);
+      if (reduce <= 0) continue;
+      const left = r2(total - reduce);
+      if (left > 0) item.parts[unit] = left;
+      else delete item.parts[unit];
+    }
+    if (Object.keys(item.parts).length === 0) map.delete(key);
   }
 
   const needs = asObject(data.stapleNeeds);

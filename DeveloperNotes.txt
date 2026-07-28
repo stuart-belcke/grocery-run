@@ -148,10 +148,19 @@ Tier 3 — data-model / sorting
     didn't get carries forward.
       - EVERYTHING checked comes off the list — you own it now. Hand-added
         items are deleted outright. Recipe-driven items can't be (they're
-        computed from the plan we're keeping), so their keys are banked in
-        `list.bought`, which aggregateItems suppresses. The List tab is a
-        shopping list, not a recipe viewer — what a recipe contains belongs
-        on the recipe card.
+        computed from the plan we're keeping), so the AMOUNT bought is banked
+        in `list.bought` as { key: { unit: qty } }. The List tab is a shopping
+        list, not a recipe viewer — what a recipe contains belongs on the
+        recipe card.
+        `bought` records quantities, not a boolean, and aggregateItems
+        SUBTRACTS it from current demand rather than hiding the item: buy 1 lb
+        of beef for one meal, then plan a second wanting 2 lb, and 1 lb is
+        still listed. Only fully-covered items drop off. A boolean here was a
+        real bug — the second meal would have been silently under-bought.
+        Hand-added amounts are tracked separately (item.handParts) and are
+        never cancelled by the cupboard, since typing something onto the list
+        is an explicit "buy this". Staples are skipped entirely: they run on
+        have/need, not amounts.
       - unchecked items of every kind stay listed
       - checked staples go back to "have"; unchecked stay "need"
       - check marks and meal selections clear
