@@ -197,10 +197,10 @@ export function ListTab({ data, update }) {
               {item.name}
               {item.staple && (
                 <span
-                  title="A kitchen staple you marked as needing more"
+                  title="A house staple you marked as needing more"
                   style={{ marginLeft: 6, fontSize: 10, fontWeight: 600, background: C.goldSoft, color: C.gold, padding: "1px 6px", borderRadius: 999, whiteSpace: "nowrap" }}
                 >
-                  🥫 staple
+                  🏠 staple
                 </span>
               )}
               {showAisle && aisle !== "" && (
@@ -262,7 +262,7 @@ export function ListTab({ data, update }) {
               </div>
               {item.staple && (
                 <div style={{ padding: "2px 0", color: C.faint }}>
-                  A kitchen staple you marked <b style={{ color: C.gold }}>Need</b> — it stays on the list until you check it off and finish shopping.
+                  A house staple you marked <b style={{ color: C.gold }}>Need</b> — it stays on the list until you check it off and finish shopping.
                 </div>
               )}
               {item.contribs.map((c, i) => (
@@ -532,7 +532,7 @@ export function ListTab({ data, update }) {
           Clears selected meals, the week plan, checked-off items and hand-added items, and resets every item to its default store.
         </p>
         <p style={{ margin: 0 }}>
-          Kitchen staples you checked off go back to <b style={{ color: C.ink }}>Have</b>; any you didn't get stay on the list.
+          House staples you checked off go back to <b style={{ color: C.ink }}>Have</b>; any you didn't get stay on the list.
         </p>
       </ConfirmDialog>
 
