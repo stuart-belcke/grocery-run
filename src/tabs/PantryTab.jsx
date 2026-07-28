@@ -4,7 +4,7 @@
     tab.                                                                */
 /* ------------------------------------------------------------------ */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Btn, ConfirmDialog, ChoiceDialog, AlertDialog } from "../ui";
 import { UNASSIGNED, norm, cap, r2, normalizeCfg, ingredientNames, unitSuggestions, usedInRecipes } from "../lib";
@@ -18,6 +18,8 @@ const pillCount = { minWidth: 22, textAlign: "center", fontWeight: 700, fontVari
 // two would mean the same thing, so only one control is offered.
 const segWrap = { display: "inline-flex", border: `1px solid ${C.line}`, borderRadius: 999, overflow: "hidden", flexShrink: 0 };
 const segBtn = { padding: "4px 10px", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, lineHeight: 1.6 };
+// Section heading inside the expanded row panel.
+const groupLabel = { fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: C.faint, marginBottom: 6 };
 
 export function PantryTab({ data, catalog, update }) {
   const [newStore, setNewStore] = useState("");
@@ -26,7 +28,9 @@ export function PantryTab({ data, catalog, update }) {
   const [openItem, setOpenItem] = useState(null); // key of the row expanded for store/aisle editing
   const [query, setQuery] = useState("");
   const [storeFilter, setStoreFilter] = useState(""); // "" = all stores
-  const [staplesOnly, setStaplesOnly] = useState(false); // narrow to kitchen staples
+  const [staplesOnly, setStaplesOnly] = useState(false); // narrow to home staples
+  const [filterOpen, setFilterOpen] = useState(false); // filter popover open
+  const [showAisles, setShowAisles] = useState(false); // reveal aisles for non-default stores
   const [askRename, setAskRename] = useState(null);       // rename touching recipes: how to apply it
   const [confirmStore, setConfirmStore] = useState(null); // store pending removal
   const [confirmItem, setConfirmItem] = useState(null);   // { key, name } pending removal
@@ -49,6 +53,15 @@ export function PantryTab({ data, catalog, update }) {
       ),
     [keys, q, storeFilter, staplesOnly, data.config]
   );
+
+  const activeFilters = (storeFilter ? 1 : 0) + (staplesOnly ? 1 : 0);
+
+  useEffect(() => {
+    if (!filterOpen) return;
+    const onKey = (e) => e.key === "Escape" && setFilterOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [filterOpen]);
 
   // "We're out of this" state for a staple. Only "need" entries are stored, so
   // going back to "have" deletes the key (Firebase drops empty objects, and
@@ -278,69 +291,123 @@ export function PantryTab({ data, catalog, update }) {
       </div>
 
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
-        <h3 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 2px" }}>Ingredient defaults</h3>
+        <h3 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 2px" }}>Your ingredients</h3>
         <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
-          Set where you normally buy each item, and its aisle at each store (lower = earlier in your walk). Each store has its own layout, so aisle numbers are per store.
+          Everything you buy. Tap ⚙ on a row to set where it lives, its aisle (lower = earlier in your walk), and whether it's a home staple.
         </p>
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          <input placeholder="Add an item (e.g. coffee, paper towels)" value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addItem()} style={{ ...inputStyle, flex: 1 }} />
+        {/* Adding a new ingredient and searching the existing ones are different
+            jobs that both start with typing into a box, so they're kept in
+            separate bands with a rule between them. */}
+        <div style={{ display: "flex", gap: 8, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 10, padding: 10 }}>
+          <input placeholder="Add an item (e.g. coffee, paper towels)" value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addItem()} style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
           <Btn kind="primary" onClick={addItem}>Add item</Btn>
         </div>
         {keys.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 12 }}>
-            <div style={{ position: "relative", flex: "1 1 170px", minWidth: 140 }}>
-              <input
-                placeholder="Search ingredients"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => e.key === "Escape" && setQuery("")}
-                aria-label="Search ingredients"
-                style={{ ...inputStyle, width: "100%", boxSizing: "border-box", paddingRight: 28 }}
-              />
-              {query && (
+          <>
+            <div style={{ borderTop: `1px dashed ${C.line}`, margin: "20px 0 14px" }} />
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
+              <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
+                <input
+                  placeholder="Search ingredients"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Escape" && setQuery("")}
+                  aria-label="Search ingredients"
+                  style={{ ...inputStyle, width: "100%", boxSizing: "border-box", paddingRight: 28 }}
+                />
+                {query && (
+                  <button
+                    onClick={() => setQuery("")}
+                    title="Clear search"
+                    aria-label="Clear search"
+                    style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 4 }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Store + staples live behind one Filter button, with a count of
+                  what's active so it's obvious the list is narrowed. */}
+              <div style={{ position: "relative", flexShrink: 0 }}>
                 <button
-                  onClick={() => setQuery("")}
-                  title="Clear search"
-                  aria-label="Clear search"
-                  style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 4 }}
+                  onClick={() => setFilterOpen((v) => !v)}
+                  aria-expanded={filterOpen}
+                  aria-label="Filter ingredients"
+                  title="Filter by store or staples"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontFamily: "inherit",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    padding: "8px 12px",
+                    borderRadius: 8,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                    border: `1px solid ${activeFilters ? C.green : C.line}`,
+                    background: activeFilters ? C.greenSoft : "#fff",
+                    color: activeFilters ? C.green : C.ink,
+                  }}
                 >
-                  ✕
+                  <span aria-hidden>⌕</span> Filter
+                  {activeFilters > 0 && (
+                    <span style={{ background: C.green, color: "#fff", borderRadius: 999, fontSize: 11, fontWeight: 700, minWidth: 16, textAlign: "center", padding: "1px 5px" }}>
+                      {activeFilters}
+                    </span>
+                  )}
                 </button>
-              )}
+                {filterOpen && (
+                  <>
+                    <div onClick={() => setFilterOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 19 }} />
+                    <div
+                      role="group"
+                      aria-label="Filters"
+                      style={{ position: "absolute", zIndex: 20, top: "calc(100% + 6px)", right: 0, width: 220, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.14)", padding: 12 }}
+                    >
+                      <label style={{ display: "block", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 5 }}>
+                        Store
+                      </label>
+                      <select
+                        value={storeFilter}
+                        onChange={(e) => setStoreFilter(e.target.value)}
+                        aria-label="Filter by store"
+                        style={{ ...inputStyle, width: "100%", boxSizing: "border-box", background: storeFilter ? C.greenSoft : "#fff" }}
+                      >
+                        <option value="">All stores</option>
+                        {[...data.stores, UNASSIGNED].map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontSize: 13, color: C.ink, cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={staplesOnly}
+                          onChange={(e) => setStaplesOnly(e.target.checked)}
+                          style={{ width: 16, height: 16, accentColor: C.gold, flexShrink: 0 }}
+                        />
+                        🏠 Home staples only
+                      </label>
+                      {activeFilters > 0 && (
+                        <button
+                          onClick={() => {
+                            setStoreFilter("");
+                            setStaplesOnly(false);
+                          }}
+                          style={{ marginTop: 12, width: "100%", fontFamily: "inherit", fontSize: 12, padding: "6px 8px", borderRadius: 6, cursor: "pointer", border: `1px solid ${C.line}`, background: "transparent", color: C.faint }}
+                        >
+                          Clear filters
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
-            <select
-              value={storeFilter}
-              onChange={(e) => setStoreFilter(e.target.value)}
-              aria-label="Filter by store"
-              style={{ ...inputStyle, width: 150, background: storeFilter ? C.greenSoft : "#fff" }}
-            >
-              <option value="">All stores</option>
-              {[...data.stores, UNASSIGNED].map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={() => setStaplesOnly((v) => !v)}
-              aria-pressed={staplesOnly}
-              title="Show only kitchen staples"
-              style={{
-                fontFamily: "inherit",
-                fontSize: 13,
-                fontWeight: 500,
-                padding: "5px 12px",
-                borderRadius: 999,
-                cursor: "pointer",
-                border: `1px solid ${staplesOnly ? C.gold : C.line}`,
-                background: staplesOnly ? C.goldSoft : "#fff",
-                color: staplesOnly ? C.gold : C.ink,
-                whiteSpace: "nowrap",
-              }}
-            >
-              🥫 Staples
-            </button>
-          </div>
+          </>
         )}
         {keys.length === 0 && <div style={{ color: C.faint, fontSize: 14 }}>Ingredients appear here as you add meals.</div>}
         {keys.length > 0 && visibleKeys.length === 0 && (
@@ -348,7 +415,7 @@ export function PantryTab({ data, catalog, update }) {
             {query.trim()
               ? <>No {staplesOnly ? "staples" : "ingredients"} match "{query.trim()}"{storeFilter ? ` at ${storeFilter}` : ""}.</>
               : staplesOnly
-                ? <>No kitchen staples{storeFilter ? ` default to ${storeFilter}` : " yet — mark one with the ⚙ on any ingredient"}.</>
+                ? <>No home staples{storeFilter ? ` default to ${storeFilter}` : " yet — mark one with the ⚙ on any ingredient"}.</>
                 : <>No ingredients default to {storeFilter}.</>}
           </div>
         )}
@@ -368,6 +435,8 @@ export function PantryTab({ data, catalog, update }) {
             const renaming = editItem && editItem.key === key;
             // Aisle set at the item's default store, shown as a collapsed-row hint.
             const homeAisle = cfg.store !== UNASSIGNED ? cfg.aisles[cfg.store] : undefined;
+            // Every store except this item's default — those aisles hide behind a reveal.
+            const otherStores = data.stores.filter((s) => s !== cfg.store);
             const listed = listEntry(key);
             const onListQty = listed ? Number(listed.qty) || 0 : 0;
             const onListUnit = listed ? (listed.unit || "").trim() : "";
@@ -390,7 +459,7 @@ export function PantryTab({ data, catalog, update }) {
                   <>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <button
-                        onClick={() => setOpenItem(open ? null : key)}
+                        onClick={() => { setShowAisles(false); setOpenItem(open ? null : key); }}
                         aria-label={`Edit store and aisles for ${name}, and see where it's used`}
                         aria-expanded={open}
                         title="Edit default store and aisles, and see where it's used"
@@ -480,6 +549,10 @@ export function PantryTab({ data, catalog, update }) {
                     </div>
                     {open && (
                       <div style={{ margin: "8px 0 4px", padding: "10px 12px", background: C.paper, border: `1px solid ${C.line}`, borderRadius: 8 }}>
+                        {/* Grouped rather than one flat stack: where the item lives
+                            (store + aisles) is a different question from what it is
+                            (staple, name). */}
+                        <div style={groupLabel}>Where it lives</div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                           <label style={{ fontSize: 11, color: C.faint }}>Usually at</label>
                           <select value={cfg.store || UNASSIGNED} onChange={(e) => setCfg(key, { store: e.target.value })} aria-label={`Default store for ${name}`} style={{ fontSize: 13, padding: "6px 6px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", maxWidth: 160 }}>
@@ -489,12 +562,56 @@ export function PantryTab({ data, catalog, update }) {
                               </option>
                             ))}
                           </select>
-                          <span style={{ flex: 1 }} />
-                          <Btn small onClick={() => setEditItem({ key, name })}>Rename</Btn>
+                          {/* Only the default store's aisle is shown up front — it's
+                              the one you actually walk. The rest hide behind a reveal
+                              so the panel doesn't grow with every store you add. */}
+                          {cfg.store !== UNASSIGNED && (
+                            <label style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: C.ink }}>
+                              aisle
+                              <input
+                                type="number"
+                                min="0"
+                                value={cfg.aisles[cfg.store] ?? ""}
+                                onChange={(e) => setAisle(key, cfg.store, e.target.value === "" ? "" : Number(e.target.value))}
+                                aria-label={`Aisle for ${name} at ${cfg.store}`}
+                                style={{ width: 52, fontSize: 13, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: C.greenSoft }}
+                              />
+                            </label>
+                          )}
                         </div>
+                        {otherStores.length > 0 && (
+                          <div style={{ marginTop: 8 }}>
+                            <button
+                              onClick={() => setShowAisles((v) => !v)}
+                              aria-expanded={showAisles}
+                              style={{ border: "none", background: "transparent", color: C.green, cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 500, padding: 0 }}
+                            >
+                              {showAisles ? "Hide" : "Aisles at"} {otherStores.length} other store{otherStores.length === 1 ? "" : "s"} {showAisles ? "▲" : "▾"}
+                            </button>
+                            {showAisles && (
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginTop: 8 }}>
+                                {otherStores.map((s) => (
+                                  <label key={s} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: C.faint }}>
+                                    {s}
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={cfg.aisles[s] ?? ""}
+                                      onChange={(e) => setAisle(key, s, e.target.value === "" ? "" : Number(e.target.value))}
+                                      aria-label={`Aisle for ${name} at ${s}`}
+                                      style={{ width: 52, fontSize: 13, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: "#fff" }}
+                                    />
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div style={{ ...groupLabel, marginTop: 14 }}>On the shopping list</div>
                         {/* Staple designation lives here rather than on the collapsed
                             row: it's a set-once property, unlike the have/need state. */}
-                        <label style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 10, fontSize: 12, color: C.ink, cursor: "pointer" }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: C.ink, cursor: "pointer" }}>
                           <input
                             type="checkbox"
                             checked={cfg.staple}
@@ -513,39 +630,26 @@ export function PantryTab({ data, catalog, update }) {
                             style={{ width: 16, height: 16, accentColor: C.gold, flexShrink: 0 }}
                           />
                           <span>
-                            🥫 Kitchen staple
-                            <span style={{ color: C.faint }}> — keep it off the list until we run out</span>
+                            🏠 Home staple
+                            <span style={{ color: C.faint }}> — listed only when we run out</span>
                           </span>
                         </label>
-                        {data.stores.length > 0 && (
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginTop: 10 }}>
-                            <span style={{ fontSize: 11, color: C.faint }}>Aisle:</span>
-                            {data.stores.map((s) => (
-                              <label key={s} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: cfg.store === s ? C.ink : C.faint }}>
-                                <span style={{ fontWeight: cfg.store === s ? 500 : 400 }}>{s}</span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={cfg.aisles[s] ?? ""}
-                                  onChange={(e) => setAisle(key, s, e.target.value === "" ? "" : Number(e.target.value))}
-                                  aria-label={`Aisle for ${name} at ${s}`}
-                                  style={{ width: 52, fontSize: 13, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: cfg.store === s ? C.greenSoft : "#fff" }}
-                                />
-                              </label>
-                            ))}
+                        {/* Not part of a group — usage context plus the rename
+                            action, kept as a footer under a rule. */}
+                        <div style={{ display: "flex", alignItems: "flex-end", gap: 8, marginTop: 12, paddingTop: 10, borderTop: `1px dashed ${C.line}` }}>
+                          <div style={{ flex: 1, minWidth: 0, fontSize: 12, color: C.faint }}>
+                            {recipesUsing.length > 0 ? (
+                              <>
+                                Used in <b style={{ color: C.ink }}>{recipesUsing.join(", ")}</b>
+                                {onListQty > 0 ? " · also hand-added to today's shopping list" : ""}.
+                              </>
+                            ) : onListQty > 0 ? (
+                              <>Hand-added to today's shopping list — not used by any recipe.</>
+                            ) : (
+                              <>Added directly here — not used by any recipe.</>
+                            )}
                           </div>
-                        )}
-                        <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px dashed ${C.line}`, fontSize: 12, color: C.faint }}>
-                          {recipesUsing.length > 0 ? (
-                            <>
-                              Used in <b style={{ color: C.ink }}>{recipesUsing.join(", ")}</b>
-                              {onListQty > 0 ? " · also hand-added to today's shopping list" : ""}.
-                            </>
-                          ) : onListQty > 0 ? (
-                            <>Hand-added to today's shopping list — not used by any recipe.</>
-                          ) : (
-                            <>Added directly here — not used by any recipe.</>
-                          )}
+                          <Btn small onClick={() => setEditItem({ key, name })} style={{ flexShrink: 0 }}>Rename</Btn>
                         </div>
                       </div>
                     )}

@@ -124,9 +124,12 @@ export const emptyLocal = () => ({
   configOverrides: {}, // ingredient key -> { store, aisles: { storeName: number } }
   extraStores: [],
   removedStores: [],
-  list: { selections: {}, overrides: {}, checked: {}, extras: [] },
+  // `bought`: ingredient keys acquired on an earlier trip this week. Recipe-
+  // driven items are computed from the plan, so they can't be deleted — this
+  // records that you already have them so they drop off the list.
+  list: { selections: {}, overrides: {}, checked: {}, extras: [], bought: {} },
   plan: {},
-  // Kitchen staples we've run out of: { ingredientKey: true }. Only "need"
+  // Home staples we've run out of: { ingredientKey: true }. Only "need"
   // entries are stored — an absent key means we have it. Deliberately a
   // top-level sibling of `list`/`plan` (which "Done shopping" clears) so the
   // state persists across trips, and never published to catalog.json.
@@ -159,6 +162,7 @@ export function normalizeLocal(raw) {
       overrides: asObject(d.list && d.list.overrides),
       checked: asObject(d.list && d.list.checked),
       extras: asArray(d.list && d.list.extras),
+      bought: asObject(d.list && d.list.bought),
     },
     plan: asObject(d.plan),
     stapleNeeds: asObject(d.stapleNeeds),
@@ -208,7 +212,7 @@ const cfgShape = (c) => {
   const aisles = {};
   for (const k of Object.keys(n.aisles).sort()) aisles[k] = Number(n.aisles[k]);
   // `staple` is part of the shape: without it, flagging an ingredient as a
-  // kitchen staple wouldn't register as an unpublished change.
+  // home staple wouldn't register as an unpublished change.
   return JSON.stringify({ store: n.store, aisles, staple: n.staple });
 };
 
@@ -304,10 +308,13 @@ export function aggregateItems(data) {
   const addPart = (name, qty, unit, sourceName, detail) => {
     const key = norm(name);
     if (!key) return;
-    if (!map.has(key)) map.set(key, { key, name: cap(name.trim()), parts: {}, sources: [], contribs: [] });
+    if (!map.has(key)) map.set(key, { key, name: cap(name.trim()), parts: {}, handParts: {}, sources: [], contribs: [] });
     const item = map.get(key);
     const u = (unit || "").trim();
     item.parts[u] = (item.parts[u] || 0) + qty;
+    // Tracked separately so an already-bought amount can't cancel out an
+    // explicit "buy this" typed onto the list.
+    if (sourceName === "Added by hand") item.handParts[u] = (item.handParts[u] || 0) + qty;
     if (sourceName && !item.sources.includes(sourceName)) item.sources.push(sourceName);
     item.contribs.push({ label: detail, qty, unit: u });
   };
@@ -340,12 +347,37 @@ export function aggregateItems(data) {
   }
   for (const ex of data.list.extras) addPart(ex.name, Number(ex.qty) || 0, ex.unit, "Added by hand", "Added by hand on the shopping list");
 
-  // Kitchen staples. A staple you have is dropped even when a recipe calls for
+  // Home staples. A staple you have is dropped even when a recipe calls for
   // it — that's the whole point: you already own the olive oil, so it shouldn't
   // pad the list. A staple you're out of appears whether or not any recipe
   // wants it, and carries no quantity: it means "get more", not "get 2 lb".
   // Adding one by hand is an explicit request, so it wins over suppression and
   // keeps its quantity.
+  // Already bought on an earlier trip this week, recorded per unit: what's in
+  // the cupboard is SUBTRACTED from what the plan now needs, rather than
+  // hiding the item outright. So buying 1 lb of beef for one meal and then
+  // planning a second that wants 2 lb leaves 1 lb still to buy. Fully covered
+  // items drop off the list — what a recipe contains is the recipe card's job.
+  // Cleared when the week is cleared.
+  const bought = asObject(data.list.bought);
+  for (const [key, item] of [...map.entries()]) {
+    const have = bought[key];
+    if (!have || typeof have !== "object") continue;
+    if (normalizeCfg(data.config[key]).staple) continue; // staples run on have/need, not amounts
+    for (const [unit, q] of Object.entries(have)) {
+      const total = item.parts[unit];
+      if (total == null) continue;
+      // Only the recipe-driven share can be covered by the cupboard.
+      const coverable = total - (item.handParts[unit] || 0);
+      const reduce = Math.min(coverable, Number(q) || 0);
+      if (reduce <= 0) continue;
+      const left = r2(total - reduce);
+      if (left > 0) item.parts[unit] = left;
+      else delete item.parts[unit];
+    }
+    if (Object.keys(item.parts).length === 0) map.delete(key);
+  }
+
   const needs = asObject(data.stapleNeeds);
   for (const [key, item] of [...map.entries()]) {
     if (!normalizeCfg(data.config[key]).staple) continue;

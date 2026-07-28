@@ -3,7 +3,7 @@
     of them to the shopping list.  */
 /* ------------------------------------------------------------------ */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog } from "../ui";
 import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, unitSuggestions, ingredientNames, normalizeCfg } from "../lib";
@@ -26,6 +26,7 @@ export function MealsTab({ data, catalog, update }) {
   const [planPick, setPlanPick] = useState(null); // { id, day, type } while choosing a week-plan slot
   const [editServings, setEditServings] = useState(null); // { id, value } while typing an exact batch count
   const [confirmDelete, setConfirmDelete] = useState(null); // recipe pending deletion
+  const [filterOpen, setFilterOpen] = useState(false); // sort/filter popover
   const [ingSug, setIngSug] = useState(null); // { row, idx } — which draft-ingredient row's name suggestions are open
 
   const isCatalogId = (id) => catalog.recipes.some((r) => r.id === id);
@@ -123,6 +124,16 @@ export function MealsTab({ data, catalog, update }) {
     });
     setConfirmDelete(null);
   };
+
+  // Non-default view options, surfaced as a count on the Filter button.
+  const activeViews = (mealView !== "az" ? 1 : 0) + (easyOnly ? 1 : 0);
+
+  useEffect(() => {
+    if (!filterOpen) return;
+    const onKey = (e) => e.key === "Escape" && setFilterOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [filterOpen]);
 
   const units = useMemo(() => unitSuggestions(data), [data]);
   // Every ingredient the household already knows, so a recipe references an
@@ -320,27 +331,11 @@ export function MealsTab({ data, catalog, update }) {
 
   return (
     <div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 10 }}>
-        <Seg options={[{ value: "az", label: "A–Z" }, { value: "type", label: "By meal type" }]} value={mealView} onChange={setMealView} />
-        <button
-          onClick={() => setEasyOnly(!easyOnly)}
-          aria-pressed={easyOnly}
-          title="Show only quick, low-effort meals"
-          style={{
-            fontFamily: fontBody,
-            fontSize: 13,
-            fontWeight: 500,
-            padding: "5px 12px",
-            borderRadius: 999,
-            cursor: "pointer",
-            border: `1px solid ${easyOnly ? C.gold : C.line}`,
-            background: easyOnly ? C.goldSoft : "#fff",
-            color: easyOnly ? C.gold : C.ink,
-          }}
-        >
-          ⚡ Easy only
-        </button>
-        <div style={{ position: "relative", flex: "1 1 170px", minWidth: 140 }}>
+      {/* Search + one Filter button + the primary action, matching the
+          Ingredients tab. Sort and the Easy filter live inside the popover so
+          the row stays on a single line at phone widths. */}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
+        <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
           <input
             placeholder="Search meals or ingredients"
             value={query}
@@ -360,7 +355,70 @@ export function MealsTab({ data, catalog, update }) {
             </button>
           )}
         </div>
-        <Btn kind="primary" onClick={startNew}>Add meal</Btn>
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          <button
+            onClick={() => setFilterOpen((v) => !v)}
+            aria-expanded={filterOpen}
+            aria-label="Sort and filter meals"
+            title="Sort and filter"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              fontFamily: fontBody,
+              fontSize: 13,
+              fontWeight: 500,
+              padding: "8px 12px",
+              borderRadius: 8,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              border: `1px solid ${activeViews ? C.green : C.line}`,
+              background: activeViews ? C.greenSoft : "#fff",
+              color: activeViews ? C.green : C.ink,
+            }}
+          >
+            <span aria-hidden>⌕</span> Filter
+            {activeViews > 0 && (
+              <span style={{ background: C.green, color: "#fff", borderRadius: 999, fontSize: 11, fontWeight: 700, minWidth: 16, textAlign: "center", padding: "1px 5px" }}>
+                {activeViews}
+              </span>
+            )}
+          </button>
+          {filterOpen && (
+            <>
+              <div onClick={() => setFilterOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 19 }} />
+              <div
+                role="group"
+                aria-label="Sort and filter"
+                style={{ position: "absolute", zIndex: 20, top: "calc(100% + 6px)", right: 0, width: 220, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.14)", padding: 12 }}
+              >
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 6 }}>Group by</div>
+                <Seg options={[{ value: "az", label: "A–Z" }, { value: "type", label: "Meal type" }]} value={mealView} onChange={setMealView} />
+                <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontSize: 13, color: C.ink, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={easyOnly}
+                    onChange={(e) => setEasyOnly(e.target.checked)}
+                    style={{ width: 16, height: 16, accentColor: C.gold, flexShrink: 0 }}
+                  />
+                  ⚡ Easy meals only
+                </label>
+                {activeViews > 0 && (
+                  <button
+                    onClick={() => {
+                      setMealView("az");
+                      setEasyOnly(false);
+                    }}
+                    style={{ marginTop: 12, width: "100%", fontFamily: fontBody, fontSize: 12, padding: "6px 8px", borderRadius: 6, cursor: "pointer", border: `1px solid ${C.line}`, background: "transparent", color: C.faint }}
+                  >
+                    Reset to A–Z, all meals
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+        <Btn kind="primary" onClick={startNew} style={{ flexShrink: 0 }}>Add</Btn>
       </div>
       <p style={{ margin: "0 0 12px", fontSize: 13, color: C.faint }}>
         Choose meals — the shopping list totals every ingredient automatically.

@@ -59,6 +59,39 @@ Tier 2 — Ingredients-tab cluster (shared refactor, then features)
     use as you type. Must still let you type a brand-new unit and use it; the
     suggestions never restrict entry to a fixed set.
 
+    UNIT CONVERSION — do this as part of the same "take units seriously" pass.
+    Nothing converts today. aggregateItems keys an item's `parts` by the raw
+    unit string, so equivalent amounts never combine:
+      - a recipe wanting 1 lb and another wanting 8 oz list as "1 lb, 8 oz"
+        instead of 1.5 lb
+      - `list.bought` subtracts per unit, so buying 1 lb does NOT offset a
+        recipe asking for 16 oz — it stays on the list looking unbought
+      - unitForKey (the staple quick-add default) just picks the most common
+        unit, with no notion that others are the same thing
+    So it bites in three places, and the shopping-list one is the costly one:
+    it can make you buy something you already have.
+
+    What a conversion layer needs:
+      - units grouped by DIMENSION (weight / volume / count) with a factor to
+        a base unit per dimension — lb→oz ×16, kg→g ×1000, l→ml ×1000,
+        cup→tbsp ×16, tbsp→tsp ×3
+      - conversion only WITHIN a dimension. oz (weight) and fl oz (volume) are
+        different things, and "can" / "bunch" / "head" convert to nothing
+      - unknown and free-text units must keep working untouched, just
+        unconvertible — the app deliberately lets you invent a unit, and that
+        can't regress (see the rule above)
+      - display picks the most readable unit for the total (1500 g → 1.5 kg)
+        rather than always normalizing to the base
+    Deliberately out of scope: weight <-> volume. That needs per-ingredient
+    density (a cup of flour and a cup of water differ), which is a much bigger
+    data problem than a factor table.
+
+    Where it lives: a table in lib.js beside COMMON_UNITS, which is already the
+    unit vocabulary. Additive — existing data keeps working because anything
+    not in the table simply doesn't convert. If it should be editable per
+    household rather than hardcoded, it could ride in catalog.json like stores
+    and ingredient config, but start hardcoded; these factors don't vary.
+
 
 Tier 3 — data-model / sorting
 -----------------------------
@@ -124,7 +157,7 @@ Tier 3 — data-model / sorting
 
     UI
       - Designating a staple: a checkbox in the Ingredients row's expanded gear
-        panel ("Kitchen staple"). Set-once and rare, so it stays off the
+        panel ("Home staple", 🏠). Set-once and rare, so it stays off the
         collapsed row.
       - Toggling have/need: on a staple row the "+ List" button is REPLACED by
         a Have/Need toggle — on a staple the two would mean the same thing to
@@ -141,9 +174,37 @@ Tier 3 — data-model / sorting
     On that action, any staple that was CHECKED resets to "have"; unchecked
     ones stay "need" and carry to the next list — you didn't get it, maybe the
     store didn't have it, so it stays pending. Don't clear on the checkbox
-    itself: the item would vanish from the list mid-aisle. Note the button also
-    wipes the week plan and selections, so its confirm text needs rewording to
-    mention staples.
+    itself: the item would vanish from the list mid-aisle.
+
+    "Done shopping" was later narrowed, because one button was resetting six
+    things at once. The rule now: what you CHECKED OFF is done with, what you
+    didn't get carries forward.
+      - EVERYTHING checked comes off the list — you own it now. Hand-added
+        items are deleted outright. Recipe-driven items can't be (they're
+        computed from the plan we're keeping), so the AMOUNT bought is banked
+        in `list.bought` as { key: { unit: qty } }. The List tab is a shopping
+        list, not a recipe viewer — what a recipe contains belongs on the
+        recipe card.
+        `bought` records quantities, not a boolean, and aggregateItems
+        SUBTRACTS it from current demand rather than hiding the item: buy 1 lb
+        of beef for one meal, then plan a second wanting 2 lb, and 1 lb is
+        still listed. Only fully-covered items drop off. A boolean here was a
+        real bug — the second meal would have been silently under-bought.
+        Hand-added amounts are tracked separately (item.handParts) and are
+        never cancelled by the cupboard, since typing something onto the list
+        is an explicit "buy this". Staples are skipped entirely: they run on
+        have/need, not amounts.
+      - unchecked items of every kind stay listed
+      - checked staples go back to "have"; unchecked stay "need"
+      - check marks and meal selections clear
+      - store reroutes survive only for items still on the list
+      - the WEEK PLAN is untouched. "Clear week" on the Week plan tab owns it;
+        wiping a week's planning from the shopping list was a far bigger reset
+        than finishing a trip implies.
+    "Clear week" also empties `list.bought`, ending the buying cycle, so the
+    next week's meals list their ingredients again from scratch. A count of
+    suppressed items shows on the List tab ("N already bought this week") so
+    the list is never mysteriously short.
 
     DECIDED AGAINST (for v1)
       - A third "low" state. Binary can't express "have half a cup, recipe
@@ -188,24 +249,19 @@ inline copies of `data.recipes.filter/some((r) => r.ingredients.some((i) =>
 norm(i.name) === key))` — the rename-affected-recipes check, the remove-item
 safety check, and the item 9 "used in" display — all call it now.
 
-TODO — UI density, starting with the Ingredients row. Collapsing most of it
-behind the ⚙ was the right call and still holds, but the panel has become a
-flat pile of unrelated concerns and keeps absorbing each new feature:
-  - default store select
-  - Rename
-  - Kitchen staple checkbox        (added with item 13)
-  - an aisle number input PER STORE
-  - a "Used in <recipes>" footer
-and the collapsed row itself carries name + ⚙, then a Have/Need segment or
-"+ List" or a three-button quantity pill, then a remove ✕.
+UI density — Ingredients row [DONE], List row still open.
+The Ingredients gear panel had become a flat pile of unrelated concerns, and
+its aisle grid rendered one input per store (5, shown even where the item
+isn't sold), so adding a store widened every ingredient's panel. Fixed by:
+  - showing only the default store's aisle, with the rest behind an
+    "Aisles at N other stores" reveal — the panel no longer grows with the
+    store list
+  - grouping the panel into "Where it lives" (store + aisles) and "What it
+    is" (staple, used-in, rename) instead of one flat stack
+The Meals and Ingredients control rows also collapsed to search + a single
+Filter button + the primary action, which fits one line on a phone.
 
-The aisle grid is the part that actually scales badly: it renders an input for
-every store (5 today) whether or not the item is sold there, so adding a store
-widens every ingredient's panel. Worth trying: show only the default store's
-aisle by default with the rest behind a "more stores" reveal, and group the
-panel into "where it lives" (store + aisles) vs "what it is" (staple, rename)
-instead of one flat stack.
-
-Same pressure exists on the List row (checkbox, name, tag, qty, store select,
-info) — revisit together rather than tab by tab, since the fix is a shared
-pattern for "row with a few primary bits and a details panel", not a one-off.
+Still open: the List row (checkbox, name, staple tag, qty, store select,
+info) carries the same pressure. The fix there is the same shared pattern —
+"a row with a few primary bits and a details panel" — so it's worth doing as
+one pass rather than a one-off.
