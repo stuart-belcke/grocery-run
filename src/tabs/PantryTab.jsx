@@ -352,7 +352,7 @@ export function PantryTab({ data, catalog, update }) {
             the page under the scroll position and jerk everything (search bar
             included) as the browser clamps the scroll. Holding a screenful of
             height here keeps the document from collapsing so it stays put. */}
-        <div style={{ minHeight: q || storeFilter ? "100vh" : undefined }}>
+        <div style={{ minHeight: q || storeFilter || staplesOnly ? "100vh" : undefined }}>
           {visibleKeys.map(({ key, name }) => {
             const cfg = normalizeCfg(data.config[key]);
             const open = openItem === key;
