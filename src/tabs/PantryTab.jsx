@@ -291,9 +291,9 @@ export function PantryTab({ data, catalog, update }) {
       </div>
 
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
-        <h3 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 2px" }}>Ingredient defaults</h3>
+        <h3 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 2px" }}>Your ingredients</h3>
         <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
-          Set where you normally buy each item, and its aisle at each store (lower = earlier in your walk). Each store has its own layout, so aisle numbers are per store.
+          Everything you buy. Tap ⚙ on a row to set where it lives, its aisle (lower = earlier in your walk), and whether it's a kitchen staple.
         </p>
         {/* Adding a new ingredient and searching the existing ones are different
             jobs that both start with typing into a box, so they're kept in
@@ -608,7 +608,7 @@ export function PantryTab({ data, catalog, update }) {
                           </div>
                         )}
 
-                        <div style={{ ...groupLabel, marginTop: 14 }}>What it is</div>
+                        <div style={{ ...groupLabel, marginTop: 14 }}>On the shopping list</div>
                         {/* Staple designation lives here rather than on the collapsed
                             row: it's a set-once property, unlike the have/need state. */}
                         <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: C.ink, cursor: "pointer" }}>
@@ -634,7 +634,9 @@ export function PantryTab({ data, catalog, update }) {
                             <span style={{ color: C.faint }}> — listed only when we run out</span>
                           </span>
                         </label>
-                        <div style={{ display: "flex", alignItems: "flex-end", gap: 8, marginTop: 10 }}>
+                        {/* Not part of a group — usage context plus the rename
+                            action, kept as a footer under a rule. */}
+                        <div style={{ display: "flex", alignItems: "flex-end", gap: 8, marginTop: 12, paddingTop: 10, borderTop: `1px dashed ${C.line}` }}>
                           <div style={{ flex: 1, minWidth: 0, fontSize: 12, color: C.faint }}>
                             {recipesUsing.length > 0 ? (
                               <>
