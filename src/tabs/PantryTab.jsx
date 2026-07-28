@@ -474,12 +474,21 @@ export function PantryTab({ data, catalog, update }) {
                         title="Edit default store and aisles, and see where it's used"
                         style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", background: "transparent", border: "none", padding: "2px 0", cursor: "pointer", color: C.ink, fontFamily: "inherit" }}
                       >
-                        <span style={{ fontSize: 16, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{name}</span>
-                        <span style={{ fontSize: 12, color: C.faint, whiteSpace: "nowrap", flexShrink: 0 }}>
-                          {cfg.store === UNASSIGNED ? "no store set" : cfg.store}
-                          {homeAisle != null && homeAisle !== "" ? ` · aisle ${homeAisle}` : ""}
+                        {/* The name is what you scan for, so it takes the space and
+                            the store hint yields. The hint used to be flexShrink:0,
+                            which pinned it at ~132px and clipped names to "Dij…". */}
+                        {/* Name over hint rather than side by side. Sharing one line
+                            with the Have/Need toggle left roughly 209px for both, so
+                            the name — the thing you're actually scanning for — was
+                            being clipped to "Dij…". Stacked, it gets the full width. */}
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ display: "block", fontSize: 16, fontWeight: 600, lineHeight: 1.25, overflowWrap: "break-word" }}>{name}</span>
+                          <span style={{ display: "block", fontSize: 12, color: C.faint, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {cfg.store === UNASSIGNED ? "no store set" : cfg.store}
+                            {homeAisle != null && homeAisle !== "" ? ` · aisle ${homeAisle}` : ""}
+                          </span>
                         </span>
-                        <span aria-hidden style={{ marginLeft: "auto", paddingLeft: 8, color: open ? C.green : C.faint, fontSize: 15, flexShrink: 0, lineHeight: 1 }}>⚙</span>
+                        <span aria-hidden style={{ paddingLeft: 6, color: open ? C.green : C.faint, fontSize: 15, flexShrink: 0, lineHeight: 1 }}>⚙</span>
                       </button>
                       {cfg.staple && (
                         <span style={segWrap} title={needsMore(key) ? `We're out of ${name} — it's on the shopping list` : `We have ${name} — it stays off the list`}>
