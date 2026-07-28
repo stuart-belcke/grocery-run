@@ -343,7 +343,7 @@
     "cashew cream": { "store": "Grocery store", "aisles": { "Grocery store": 7 }, "staple": false },
     "spinach": { "store": "Aldi", "aisles": { "Grocery store": 1 }, "staple": false },
     "'1' candle": { "store": "Grocery store", "aisles": { "Grocery store": 9 }, "staple": false },
-    "all-purpose flour": { "store": "Aldi", "aisles": { "Grocery store": 9 }, "staple": true },
+    "all-purpose flour": { "store": "Aldi", "aisles": { "Grocery store": 9 }, "staple": false },
     "baking powder": { "store": "Grocery store", "aisles": { "Grocery store": 9 }, "staple": false },
     "granulated sugar": { "store": "Grocery store", "aisles": { "Grocery store": 9 }, "staple": false },
     "powdered sugar": { "store": "Grocery store", "aisles": { "Grocery store": 9 }, "staple": false },
