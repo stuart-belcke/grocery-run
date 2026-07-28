@@ -3,7 +3,8 @@
     Stripe, the Btn (primary / ghost / danger), and the Seg toggle.     */
 /* ------------------------------------------------------------------ */
 
-import { C, fontBody } from "./theme";
+import { useEffect, useRef } from "react";
+import { C, fontBody, fontDisplay } from "./theme";
 
 export function Stripe() {
   return (
@@ -62,6 +63,49 @@ export function Seg({ options, value, onChange }) {
           {o.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+// In-app replacement for window.confirm, in the app's own visual language
+// (same overlay/card treatment as the Week-plan meal picker). Escape or a tap
+// outside cancels; Cancel takes focus so a stray Enter can't fire a
+// destructive action.
+export function ConfirmDialog({ open, title, children, confirmLabel = "Confirm", confirmKind = "danger", onConfirm, onCancel }) {
+  const cancelRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", onKey);
+    cancelRef.current?.focus();
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onCancel]);
+
+  if (!open) return null;
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      onClick={onCancel}
+      style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(20,24,16,0.44)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "12vh 16px 16px" }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: C.card, borderRadius: 14, width: "100%", maxWidth: 420, padding: "18px 20px 16px", boxShadow: "0 12px 40px rgba(0,0,0,0.28)" }}
+      >
+        <div style={{ fontFamily: fontDisplay, fontSize: 19, fontWeight: 700, color: C.ink, marginBottom: 8 }}>{title}</div>
+        <div style={{ fontSize: 13, color: C.faint, lineHeight: 1.5 }}>{children}</div>
+        <div style={{ display: "flex", gap: 8, marginTop: 18, justifyContent: "flex-end" }}>
+          <button ref={cancelRef} onClick={onCancel} style={{ fontFamily: fontBody, fontWeight: 500, fontSize: 14, padding: "8px 14px", borderRadius: 8, cursor: "pointer", background: "transparent", color: C.ink, border: `1px solid ${C.line}` }}>
+            Cancel
+          </button>
+          <Btn kind={confirmKind} onClick={onConfirm}>{confirmLabel}</Btn>
+        </div>
+      </div>
     </div>
   );
 }

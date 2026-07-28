@@ -5,7 +5,7 @@
 
 import { useState, useMemo } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
-import { Stripe, Btn, Seg } from "../ui";
+import { Stripe, Btn, Seg, ConfirmDialog } from "../ui";
 import { UNASSIGNED, norm, r2, normalizeCfg, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions, ingredientNames } from "../lib";
 
 export function ListTab({ data, update }) {
@@ -16,6 +16,7 @@ export function ListTab({ data, update }) {
   const [editExtra, setEditExtra] = useState(null); // { key, name, qty, unit } while editing a hand-added entry
   const [showSug, setShowSug] = useState(false); // add-item name field: is the suggestion list open
   const [sugIdx, setSugIdx] = useState(-1); // keyboard-highlighted suggestion, -1 = none
+  const [confirmDone, setConfirmDone] = useState(false); // "Done shopping" confirmation
 
   const items = useMemo(() => aggregateItems(data), [data]);
   const units = useMemo(() => unitSuggestions(data), [data]);
@@ -65,12 +66,6 @@ export function ListTab({ data, update }) {
   // to "have"; anything you didn't get stays "need" and carries to the next
   // list — the store may not have had it, and you still need it.
   const doneShopping = () => {
-    if (
-      !window.confirm(
-        "Done shopping? This clears selected meals, the week plan, checked-off items, hand-added items, and resets every item to its default store.\n\nKitchen staples you checked off go back to \"have\"; any you didn't get stay on the list."
-      )
-    )
-      return;
     update((d) => {
       for (const key of Object.keys(d.stapleNeeds || {})) {
         if (d.list.checked[key]) delete d.stapleNeeds[key];
@@ -79,6 +74,7 @@ export function ListTab({ data, update }) {
       d.plan = {};
       return d;
     });
+    setConfirmDone(false);
   };
 
   const addExtra = () => {
@@ -387,7 +383,7 @@ export function ListTab({ data, update }) {
         <Seg options={[{ value: "all", label: "All items A–Z" }, { value: "store", label: "By store" }]} value={view} onChange={setView} />
         {view === "store" && <Seg options={[{ value: "az", label: "A–Z" }, { value: "flow", label: "Store flow" }]} value={storeSort} onChange={setStoreSort} />}
         <div style={{ flex: 1 }} />
-        <Btn kind="danger" onClick={doneShopping}>Done shopping</Btn>
+        <Btn kind="danger" onClick={() => setConfirmDone(true)}>Done shopping</Btn>
       </div>
 
       <div style={{ fontSize: 13, color: C.faint, marginBottom: 8 }}>
@@ -519,6 +515,21 @@ export function ListTab({ data, update }) {
         </div>
         <div style={{ borderTop: `1px dashed ${C.line}`, paddingTop: 6 }}>{body}</div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDone}
+        title="Done shopping?"
+        confirmLabel="Done shopping"
+        onConfirm={doneShopping}
+        onCancel={() => setConfirmDone(false)}
+      >
+        <p style={{ margin: "0 0 8px" }}>
+          Clears selected meals, the week plan, checked-off items and hand-added items, and resets every item to its default store.
+        </p>
+        <p style={{ margin: 0 }}>
+          Kitchen staples you checked off go back to <b style={{ color: C.ink }}>Have</b>; any you didn't get stay on the list.
+        </p>
+      </ConfirmDialog>
     </div>
   );
 }
