@@ -132,22 +132,33 @@ export function watchConnection(cb) {
 
 // Debounced whole-state write. Rapid edits coalesce into one push.
 let writeTimer = null;
-let pending = null;
+let pending = null; // { code, state }
 export function writeHousehold(code, state) {
   if (!syncEnabled) return;
-  pending = state;
+  pending = { code, state };
   clearTimeout(writeTimer);
-  writeTimer = setTimeout(async () => {
-    const db = await getDb();
-    if (!db) return;
-    const { ref, set } = await import("firebase/database");
-    try {
-      await set(ref(db, `households/${code}/state`), pending);
-    } catch (e) {
-      // Offline never rejects (the SDK queues and flushes on reconnect);
-      // reaching here means the server refused the write — usually the
-      // security rules. Data is NOT syncing, so make it visible.
-      console.error("Grocery Run: sync write rejected", e);
-    }
-  }, 250);
+  writeTimer = setTimeout(flushHousehold, 250);
+}
+
+// Push any pending write straight away. Call this when the app is being
+// backgrounded or closed: the debounce timer dies with the page, so an edit
+// made in the last 250ms would otherwise never reach the database, and the
+// next launch would load the older remote state over the top of it.
+export async function flushHousehold() {
+  if (!syncEnabled || !pending) return;
+  clearTimeout(writeTimer);
+  writeTimer = null;
+  const { code, state } = pending;
+  pending = null;
+  const db = await getDb();
+  if (!db) return;
+  const { ref, set } = await import("firebase/database");
+  try {
+    await set(ref(db, `households/${code}/state`), state);
+  } catch (e) {
+    // Offline never rejects (the SDK queues and flushes on reconnect);
+    // reaching here means the server refused the write — usually the
+    // security rules. Data is NOT syncing, so make it visible.
+    console.error("Grocery Run: sync write rejected", e);
+  }
 }

@@ -8,6 +8,7 @@ import {
   subscribeHousehold,
   watchConnection,
   writeHousehold,
+  flushHousehold,
 } from "./sync";
 import { C, fontDisplay, fontBody } from "./theme";
 import { Stripe } from "./ui";
@@ -24,6 +25,7 @@ import {
   validLocal,
   validCatalog,
   unpublishedChanges,
+  pickState,
 } from "./lib";
 import { ListTab } from "./tabs/ListTab";
 import { MealsTab } from "./tabs/MealsTab";
@@ -68,6 +70,8 @@ export default function App() {
 
   // Persist + (if enabled) push to Firebase. Used for all user edits.
   const setLocal = (next) => {
+    // Stamped so a lost push can't let an older remote copy win on next launch.
+    next.updatedAt = Date.now();
     setLocalState(next);
     saveCache(code, next);
     if (syncEnabled) writeHousehold(code, next);
@@ -101,6 +105,22 @@ export default function App() {
       return d;
     });
   };
+
+  // The debounced push dies with the page, so force it out when the app is
+  // backgrounded or closed — otherwise the last edit before you swipe away is
+  // never sent, and the next launch reads the older state back.
+  useEffect(() => {
+    if (!syncEnabled) return;
+    const onHide = () => {
+      if (document.visibilityState === "hidden") flushHousehold();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", flushHousehold);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", flushHousehold);
+    };
+  }, []);
 
   // fetch the latest catalog from the site on load
   useEffect(() => {
@@ -136,12 +156,15 @@ export default function App() {
     }
     setSyncStatus("connecting");
     const unsub = subscribeHousehold(code, (remote) => {
-      if (remote) {
-        // remote is the source of truth; adopt it (don't re-push — avoids loops)
+      const { use, push } = pickState(localRef.current, remote);
+      if (use === "remote") {
+        // Shared state is ahead of us (or level): adopt it, and don't re-push,
+        // which would bounce the same value back and forth between phones.
         setLocalState(normalizeLocal(remote));
         saveCache(code, remote);
-      } else {
-        // brand-new household: seed it with whatever this device has
+      } else if (push) {
+        // Either a brand-new household, or this device holds work the database
+        // never received — seed/repair it rather than losing the local copy.
         writeHousehold(code, localRef.current);
       }
     });

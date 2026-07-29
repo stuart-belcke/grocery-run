@@ -181,6 +181,21 @@ export function normalizeLocal(raw) {
   };
 }
 
+// Which copy wins when the app opens and the database hands back its state.
+// Remote is normally the source of truth, but a push can be lost — the write
+// is debounced, so closing the app right after an edit kills it — and adopting
+// a stale remote silently undoes work that was already saved on the device.
+// Compare stamps: remote wins ties (it's shared), local only wins when it is
+// provably newer, and then it's pushed so the database catches up.
+// Legacy state carries no stamp and reads as 0, so it defers to remote exactly
+// as before; the first edit after this ships stamps it and takes over.
+export function pickState(localState, remoteState) {
+  if (!remoteState) return { use: "local", push: true };
+  const l = Number(localState && localState.updatedAt) || 0;
+  const r = Number(remoteState && remoteState.updatedAt) || 0;
+  return r >= l ? { use: "remote", push: false } : { use: "local", push: true };
+}
+
 export function loadJSON(key) {
   if (!storageOk) return null;
   try {
