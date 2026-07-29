@@ -1,5 +1,5 @@
 {
-  "catalogVersion": 7,
+  "catalogVersion": 8,
   "stores": ["Grocery store", "Costco", "Aldi", "Sams", "Schnucks"],
   "recipes": [
     {
@@ -405,8 +405,6 @@
     "green beans (canned, salt-free)": { "store": "Schnucks", "aisles": {} },
     "cheerios (plain)": { "store": "Aldi", "aisles": {} },
     "cheerios (honey-nut)": { "store": "Aldi", "aisles": {} },
-    "something": { "store": "Unassigned", "aisles": {} },
-    "something2": { "store": "Unassigned", "aisles": {} },
     "craisins": { "store": "Sams", "aisles": {}, "staple": true }
   }
 }
