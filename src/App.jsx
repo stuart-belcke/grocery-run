@@ -168,7 +168,14 @@ export default function App() {
       if (catIds.has(r.id)) continue;
       recipes.push({ ...r, fromCatalog: false });
     }
-    const config = { ...catalog.config, ...local.configOverrides };
+    // An override of `false` means the ingredient was removed on this device —
+    // same marker catalog recipes use above. Dropping the key here is what
+    // actually takes it out of the Ingredients tab and off the list.
+    const config = {};
+    for (const [k, v] of Object.entries({ ...catalog.config, ...local.configOverrides })) {
+      if (v === false || v === null) continue;
+      config[k] = v;
+    }
     const stores = [
       ...catalog.stores.filter((s) => !local.removedStores.includes(s)),
       ...local.extraStores.filter((s) => !catalog.stores.some((c) => norm(c) === norm(s))),

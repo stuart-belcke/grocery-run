@@ -259,6 +259,13 @@ export function unpublishedChanges(local, catalog) {
   const configOverrides = {};
   for (const [k, cfg] of Object.entries(asObject(local.configOverrides))) {
     const catCfg = cat.config[k];
+    // `false` = removed on this device. That's a real unpublished change while
+    // the catalog still lists the ingredient; once a publish drops it, the
+    // marker has nothing left to hide and is pruned.
+    if (cfg === false || cfg === null) {
+      if (catCfg !== undefined) configOverrides[k] = false;
+      continue;
+    }
     if (catCfg === undefined || cfgShape(catCfg) !== cfgShape(cfg)) configOverrides[k] = cfg;
   }
 

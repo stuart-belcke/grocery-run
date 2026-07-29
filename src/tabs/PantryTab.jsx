@@ -274,8 +274,13 @@ export function PantryTab({ data, catalog, update }) {
     update((d) => {
       delete d.configOverrides[key];
       delete d.list.overrides[key];
-      // if it exists in the catalog config, shadow it as removed-by-reset
-      if (catalog.config[key]) d.configOverrides[key] = { store: UNASSIGNED, aisles: {} };
+      if (d.stapleNeeds) delete d.stapleNeeds[key];
+      // A catalog ingredient can't just be deleted — data.config spreads the
+      // catalog, so the key would come straight back. Mark it hidden the way a
+      // catalog recipe is (false, not null: Firebase drops nulls). It used to
+      // write an Unassigned config here, which reset the item but left it in
+      // the list, so catalog ingredients could never actually be removed.
+      if (catalog.config[key]) d.configOverrides[key] = false;
       return d;
     });
     setConfirmItem(null);
