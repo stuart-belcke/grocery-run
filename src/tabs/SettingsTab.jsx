@@ -7,7 +7,7 @@
 import { useState, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Btn, ConfirmDialog, AlertDialog } from "../ui";
-import { formatCatalog, normalizeCfg, normalizeLocal, validLocal, unpublishedCount } from "../lib";
+import { formatCatalog, compactCfg, normalizeLocal, validLocal, unpublishedCount } from "../lib";
 import { syncEnabled, cleanCode } from "../sync";
 
 export function SettingsTab({ data, catalog, local, update, setLocal, code, setCode, syncStatus }) {
@@ -78,7 +78,7 @@ export function SettingsTab({ data, catalog, local, update, setLocal, code, setC
       ingredients: r.ingredients,
     }));
     const config = {};
-    for (const [k, cfg] of Object.entries(data.config)) config[k] = normalizeCfg(cfg);
+    for (const [k, cfg] of Object.entries(data.config)) config[k] = compactCfg(cfg);
     const out = {
       catalogVersion: (Number(catalog.catalogVersion) || 0) + 1,
       stores: data.stores,

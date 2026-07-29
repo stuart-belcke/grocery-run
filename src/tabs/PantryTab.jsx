@@ -6,8 +6,8 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
-import { Btn, ConfirmDialog, ChoiceDialog, AlertDialog } from "../ui";
-import { UNASSIGNED, norm, cap, r2, normalizeCfg, ingredientNames, unitSuggestions, usedInRecipes } from "../lib";
+import { Btn, ConfirmDialog, ChoiceDialog } from "../ui";
+import { UNASSIGNED, norm, cap, r2, normalizeCfg, compactCfg, ingredientNames, unitSuggestions, usedInRecipes } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
 // "how many of this on the list" reads the same everywhere in the app.
@@ -78,7 +78,7 @@ export function PantryTab({ data, catalog, update }) {
   const setCfg = (key, patch) =>
     update((d) => {
       const base = normalizeCfg(d.configOverrides[key] || data.config[key]);
-      d.configOverrides[key] = { ...base, ...patch };
+      d.configOverrides[key] = compactCfg({ ...base, ...patch });
       return d;
     });
 
@@ -88,7 +88,7 @@ export function PantryTab({ data, catalog, update }) {
       const aisles = { ...base.aisles };
       if (value === "") delete aisles[store];
       else aisles[store] = Number(value);
-      d.configOverrides[key] = { ...base, aisles };
+      d.configOverrides[key] = compactCfg({ ...base, aisles });
       return d;
     });
 
@@ -248,17 +248,26 @@ export function PantryTab({ data, catalog, update }) {
     setAskRename(null);
   };
 
+  // An ingredient a recipe still uses can't be removed. It used to wipe the
+  // store and aisle anyway and only then say so — destroying settings for an
+  // action that couldn't succeed, with no confirmation and no undo. Now it
+  // asks, and resetting is an explicit choice.
   const removeItem = (key, name) => {
-    const used = usedInRecipes(data, key).length > 0 || data.list.extras.some((e) => norm(e.name) === key);
-    if (used) {
-      setInUseNote(name);
-      update((d) => {
-        d.configOverrides[key] = { store: UNASSIGNED, aisles: {} };
-        return d;
-      });
-    } else {
-      setConfirmItem({ key, name });
-    }
+    const usedBy = usedInRecipes(data, key).map((r) => r.name);
+    const onList = data.list.extras.some((e) => norm(e.name) === key);
+    if (usedBy.length || onList) setInUseNote({ key, name, usedBy, onList });
+    else setConfirmItem({ key, name });
+  };
+
+  const resetItemDefaults = ({ key }) => {
+    update((d) => {
+      // Writing the entry replaces it wholesale, so carry the staple flag over —
+      // "reset store & aisle" shouldn't quietly stop it being a home staple.
+      const staple = normalizeCfg(d.configOverrides[key] || data.config[key]).staple;
+      d.configOverrides[key] = compactCfg({ store: UNASSIGNED, aisles: {}, staple });
+      return d;
+    });
+    setInUseNote(null);
   };
 
   const commitRemoveItem = ({ key }) => {
@@ -465,12 +474,21 @@ export function PantryTab({ data, catalog, update }) {
                         title="Edit default store and aisles, and see where it's used"
                         style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", background: "transparent", border: "none", padding: "2px 0", cursor: "pointer", color: C.ink, fontFamily: "inherit" }}
                       >
-                        <span style={{ fontSize: 16, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{name}</span>
-                        <span style={{ fontSize: 12, color: C.faint, whiteSpace: "nowrap", flexShrink: 0 }}>
-                          {cfg.store === UNASSIGNED ? "no store set" : cfg.store}
-                          {homeAisle != null && homeAisle !== "" ? ` · aisle ${homeAisle}` : ""}
+                        {/* The name is what you scan for, so it takes the space and
+                            the store hint yields. The hint used to be flexShrink:0,
+                            which pinned it at ~132px and clipped names to "Dij…". */}
+                        {/* Name over hint rather than side by side. Sharing one line
+                            with the Have/Need toggle left roughly 209px for both, so
+                            the name — the thing you're actually scanning for — was
+                            being clipped to "Dij…". Stacked, it gets the full width. */}
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ display: "block", fontSize: 16, fontWeight: 600, lineHeight: 1.25, overflowWrap: "break-word" }}>{name}</span>
+                          <span style={{ display: "block", fontSize: 12, color: C.faint, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {cfg.store === UNASSIGNED ? "no store set" : cfg.store}
+                            {homeAisle != null && homeAisle !== "" ? ` · aisle ${homeAisle}` : ""}
+                          </span>
                         </span>
-                        <span aria-hidden style={{ marginLeft: "auto", paddingLeft: 8, color: open ? C.green : C.faint, fontSize: 15, flexShrink: 0, lineHeight: 1 }}>⚙</span>
+                        <span aria-hidden style={{ paddingLeft: 6, color: open ? C.green : C.faint, fontSize: 15, flexShrink: 0, lineHeight: 1 }}>⚙</span>
                       </button>
                       {cfg.staple && (
                         <span style={segWrap} title={needsMore(key) ? `We're out of ${name} — it's on the shopping list` : `We have ${name} — it stays off the list`}>
@@ -543,9 +561,6 @@ export function PantryTab({ data, catalog, update }) {
                           + List
                         </Btn>
                       )}
-                      <button onClick={() => removeItem(key, name)} aria-label={`Remove ${name}`} title="Remove this item" style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 15, padding: 2, lineHeight: 1 }}>
-                        ✕
-                      </button>
                     </div>
                     {open && (
                       <div style={{ margin: "8px 0 4px", padding: "10px 12px", background: C.paper, border: `1px solid ${C.line}`, borderRadius: 8 }}>
@@ -622,7 +637,7 @@ export function PantryTab({ data, catalog, update }) {
                               // the same stale base and clobber the first.
                               update((d) => {
                                 const base = normalizeCfg(d.configOverrides[key] || data.config[key]);
-                                d.configOverrides[key] = { ...base, staple: on };
+                                d.configOverrides[key] = compactCfg({ ...base, staple: on });
                                 if (!on && d.stapleNeeds) delete d.stapleNeeds[key]; // no orphaned "need"
                                 return d;
                               });
@@ -649,7 +664,11 @@ export function PantryTab({ data, catalog, update }) {
                               <>Added directly here — not used by any recipe.</>
                             )}
                           </div>
+                          {/* Remove lives here, not on the collapsed row: it used to
+                              sit 9px from the Have/Need buttons with a 17px tap
+                              target, so a near-miss destroyed the item's settings. */}
                           <Btn small onClick={() => setEditItem({ key, name })} style={{ flexShrink: 0 }}>Rename</Btn>
+                          <Btn small kind="danger" onClick={() => removeItem(key, name)} style={{ flexShrink: 0 }}>Remove</Btn>
                         </div>
                       </div>
                     )}
@@ -681,9 +700,29 @@ export function PantryTab({ data, catalog, update }) {
         Drops the store and aisle settings for <b style={{ color: C.ink }}>{confirmItem?.name}</b>. It'll come back with no defaults if a meal uses it again.
       </ConfirmDialog>
 
-      <AlertDialog open={!!inUseNote} title="Still in use" onClose={() => setInUseNote(null)}>
-        <b style={{ color: C.ink }}>{inUseNote}</b> is used by a meal or the current list, so it can't be removed here. Its store and aisle defaults were reset instead.
-      </AlertDialog>
+      {/* Nothing has been changed at this point — resetting is opt-in. */}
+      <ChoiceDialog
+        open={!!inUseNote}
+        title="Still in use"
+        onCancel={() => setInUseNote(null)}
+        cancelLabel="Leave it alone"
+        choices={[{ label: "Reset store & aisle", kind: "danger", onClick: () => resetItemDefaults(inUseNote) }]}
+      >
+        {inUseNote && (
+          <>
+            <p style={{ margin: "0 0 8px" }}>
+              <b style={{ color: C.ink }}>{inUseNote.name}</b> can't be removed —{" "}
+              {inUseNote.usedBy.length > 0 ? (
+                <>it's used by <b style={{ color: C.ink }}>{inUseNote.usedBy.join(", ")}</b></>
+              ) : (
+                <>it's on the current shopping list</>
+              )}
+              {inUseNote.usedBy.length > 0 && inUseNote.onList ? ", and it's on the current shopping list" : ""}.
+            </p>
+            <p style={{ margin: 0 }}>You can clear its store and aisle instead, but nothing has changed yet.</p>
+          </>
+        )}
+      </ChoiceDialog>
 
       {/* One dialog for what used to be two chained confirms, where the second
           hid "save as a separate item" behind Cancel. */}

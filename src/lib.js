@@ -93,6 +93,18 @@ export function normalizeCfg(cfg) {
   return { store: cfg.store || UNASSIGNED, aisles, staple: !!cfg.staple };
 }
 
+// Storage shape for an ingredient config: like normalizeCfg, but `staple` is
+// omitted unless it's actually set. normalizeCfg always reports the flag so
+// callers can read it without a guard, which would otherwise stamp
+// "staple": false onto every non-staple ingredient in published catalog.json
+// and in synced overrides. An absent flag already means "not a staple", and an
+// override replaces its catalog entry wholesale, so dropping it still shadows
+// a catalog `staple: true` correctly.
+export function compactCfg(cfg) {
+  const n = normalizeCfg(cfg);
+  return n.staple ? { store: n.store, aisles: n.aisles, staple: true } : { store: n.store, aisles: n.aisles };
+}
+
 // Aisle for a specific store, or "" if none set.
 export function aisleFor(cfg, store) {
   const n = normalizeCfg(cfg);
