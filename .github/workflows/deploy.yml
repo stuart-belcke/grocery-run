@@ -15,9 +15,19 @@ permissions:
   contents: write
   pull-requests: write
 
-# One in-flight run per branch / PR. Don't cancel, so a preview teardown
-# on a closed PR is never interrupted midway.
-concurrency: pages-${{ github.ref }}
+# Never cancel: a preview teardown on a closed PR must not be interrupted, and
+# a production deploy must not be dropped.
+#
+# Production shares ONE group so pushes queue and run in order. Keying this on
+# github.ref put every push to main in the same group as well, but GitHub only
+# holds one pending run per group — so merging two PRs a few seconds apart made
+# the second supersede the first and BOTH were cancelled before dispatching a
+# job. The site then silently kept serving the previous build.
+#
+# PR runs stay keyed on the ref, so each PR still serialises against itself.
+concurrency:
+  group: pages-${{ github.event_name == 'pull_request' && github.ref || 'production' }}
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -53,3 +63,23 @@ jobs:
         uses: rossjrw/pr-preview-action@v1
         with:
           source-dir: dist
+
+      # A green deploy step only proves gh-pages was written — it doesn't prove
+      # the site is serving it. Poll the live catalog until its version matches
+      # the one we just deployed, so a stale site is a red check here instead of
+      # a phone that mysteriously won't update.
+      - name: Verify the live site serves this build
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: |
+          want=$(grep -o '"catalogVersion":[[:space:]]*[0-9]*' public/catalog.json | grep -o '[0-9]*$')
+          url="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/catalog.json"
+          echo "expecting catalogVersion $want at $url"
+          for i in $(seq 1 20); do
+            got=$(curl -fsS --max-time 20 "$url" 2>/dev/null \
+                  | grep -o '"catalogVersion":[[:space:]]*[0-9]*' | grep -o '[0-9]*$' || true)
+            echo "  attempt $i: serving ${got:-unreachable}"
+            if [ "$got" = "$want" ]; then echo "live site is up to date"; exit 0; fi
+            sleep 15
+          done
+          echo "::error::Live site still serving catalogVersion ${got:-unknown}, expected $want. The deploy did not reach the site."
+          exit 1
