@@ -1,5 +1,5 @@
 {
-  "catalogVersion": 6,
+  "catalogVersion": 7,
   "stores": ["Grocery store", "Costco", "Aldi", "Sams", "Schnucks"],
   "recipes": [
     {
@@ -342,7 +342,7 @@
     "vegetable broth": { "store": "Grocery store", "aisles": { "Grocery store": 7 } },
     "cashew cream": { "store": "Grocery store", "aisles": { "Grocery store": 7 } },
     "spinach": { "store": "Aldi", "aisles": { "Grocery store": 1 } },
-    "'1' candle": { "store": "Grocery store", "aisles": { "Grocery store": 9 } },
+    "'1' candle": { "store": "Schnucks", "aisles": { "Grocery store": 9, "Schnucks": 1 } },
     "all-purpose flour": { "store": "Aldi", "aisles": { "Grocery store": 9 }, "staple": true },
     "baking powder": { "store": "Grocery store", "aisles": { "Grocery store": 9 }, "staple": true },
     "granulated sugar": { "store": "Grocery store", "aisles": { "Grocery store": 9 }, "staple": true },
@@ -406,6 +406,7 @@
     "cheerios (plain)": { "store": "Aldi", "aisles": {} },
     "cheerios (honey-nut)": { "store": "Aldi", "aisles": {} },
     "something": { "store": "Unassigned", "aisles": {} },
-    "something2": { "store": "Unassigned", "aisles": {} }
+    "something2": { "store": "Unassigned", "aisles": {} },
+    "craisins": { "store": "Sams", "aisles": {}, "staple": true }
   }
 }
