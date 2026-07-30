@@ -234,6 +234,12 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     households out) and how to reclaim abandoned nodes.
 18. Export to / link with a Google calendar, keyed off the household.
 
+    Note: 16 and 17 are both patches on top of a catalog that can't be written
+    at runtime. Moving the catalog into the database per account replaces them
+    instead of extending them, and deletes the whole override layer with it.
+    That's written up as a platform phase in FutureProjects.md ("Per-user
+    catalog") — worth reading before starting either item.
+
 
 Refactor notes
 --------------
