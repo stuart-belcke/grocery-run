@@ -5,7 +5,8 @@ A single, prioritized backlog combining the earlier scattered notes with the
 newer batch of ideas. Duplicates and closely-related items have been merged.
 Tiers are ordered: cheap high-impact UX wins first, then the Ingredients-tab
 cluster (which shares a refactor), then data-model changes, then the riskier
-multi-device / integration work last.
+multi-device / integration work last. A Hygiene section after Tier 4 collects
+the work that isn't a feature — tests, shared logic, and the database seam.
 
 
 Tier 1 — small, high-value, low-risk
@@ -239,6 +240,72 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     instead of extending them, and deletes the whole override layer with it.
     That's written up as a platform phase in FutureProjects.md ("Per-user
     catalog") — worth reading before starting either item.
+
+
+Hygiene — not features, and not sequenced
+------------------------------------------
+None of these ship anything on their own. They're what keeps the app cheap to
+change: a test layer, one place for shared logic, and a database seam narrow
+enough to swap what sits behind it. Do them alongside whatever feature is next
+rather than saving them for a cleanup that never gets scheduled.
+
+19. Tests on the pure layer. There is no test framework at all — every fix so
+    far was verified by driving a headless browser by hand, which doesn't
+    scale and doesn't survive working in a hurry. lib.js is the cheap win:
+    pure functions, no DOM, no Firebase, and it is where the subtle bugs have
+    actually lived. Start with aggregateItems (bought subtraction, hand-added
+    parts, staple suppression), pickState, normalizeCfg / compactCfg, and
+    unpublishedChanges. Every one of those has already shipped a real bug.
+
+20. Make a failed write visible. writeHousehold logs a rejection to the
+    console (sync.js:162) and nothing else. The header dot reports CONNECTION
+    state, not whether data landed, so a rules rejection looks identical to a
+    healthy app while edits quietly disappear. Surface it in the UI the way
+    the offline state already is.
+
+21. Keep the database seam narrow. Every database call lives in sync.js, and
+    App.jsx is the only component that touches sync at all (SettingsTab
+    imports syncEnabled and cleanCode — a boolean and a string helper). That
+    property, not any clever abstraction, is why RTDB could be swapped for
+    Firestore in days rather than weeks. Defend it deliberately as usage
+    grows and the right database stops being obvious:
+      - no `firebase/*` import outside sync.js. Add an ESLint
+        no-restricted-imports rule so it can't regress silently.
+      - the seam should say WHAT CHANGED, not hand over everything.
+        toggleChecked(key, on), not writeHousehold(entireState). RTDB
+        implements that as a write at one path; Firestore as a document
+        update. Neither is forced into the other's shape.
+      - this also retires the update() footgun. Two update() calls in one
+        handler discard the first, because both rebuild from the same stale
+        snapshot — that is what broke the staple checkbox, and a comment on
+        the function is not enforcement. Narrow writes remove the constraint
+        instead of documenting it.
+      - do NOT abstract queries or offline storage. Those genuinely differ
+        between the two databases and a wrapper inherits the weaknesses of
+        both. Keep filtering in JavaScript, and keep loadCache/saveCache as
+        thin as they are — a Firestore migration deletes them outright rather
+        than porting them.
+    Background in FutureProjects.md ("Per-user catalog").
+
+22. Move list-building logic out of the tabs and into lib.js. PantryTab is 758
+    lines, MealsTab 696, ListTab 593 — all past the point where a diff is
+    reviewable, and all mixing data logic with rendering. Extracting the logic
+    shrinks the file AND makes it testable under 19, so it pays twice. The
+    usedInRecipes extraction in Refactor notes is the pattern to copy.
+
+23. Give ingredients a stable id. The key is norm(name), so renaming an
+    ingredient orphans every reference to it — recipes, list.checked,
+    list.bought, stapleNeeds, configOverrides. Item 15 shipped the suggestion
+    layer that steers recipes onto canonical norm(name) identities; a real id
+    is what would make that structural instead of a convention the UI has to
+    keep enforcing. Gets more expensive with every ingredient added.
+
+24. Key concurrently-edited collections by id instead of using arrays.
+    localRecipes, list.extras, extraStores and removedStores are arrays
+    (lib.js:134-142). An array index is not a stable identity, so two phones
+    appending at once collide, and neither database can address one element
+    without rewriting the whole list. Keyed objects map straight onto RTDB
+    paths and Firestore documents; arrays don't.
 
 
 Refactor notes
