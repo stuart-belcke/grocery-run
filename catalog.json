@@ -1,5 +1,5 @@
 {
-  "catalogVersion": 8,
+  "catalogVersion": 9,
   "stores": ["Grocery store", "Costco", "Aldi", "Sams", "Schnucks"],
   "recipes": [
     {
@@ -290,6 +290,78 @@
         { "name": "Salt", "qty": 4, "unit": "tsp (can omit)" },
         { "name": "Black pepper", "qty": 0.125, "unit": "cup" }
       ]
+    },
+    {
+      "id": "chicken-spaghetti-with-burrata",
+      "name": "Chicken Spaghetti with Burrata",
+      "mealTypes": ["Dinner"],
+      "easy": false,
+      "servings": 4,
+      "notes": "Preheat oven to 400F. Toss halved cherry tomatoes with 2 tbsp olive oil, minced garlic, salt, and pepper; spread on a parchment-lined sheet and roast about 20 min. Slice each chicken breast in half horizontally and season with salt, smoked paprika, and Italian seasoning. Heat 2 tbsp olive oil in a large skillet over medium and cook chicken about 5 min per side until cooked through; remove and slice thinly. In the same skillet, add lemon slices, garlic, and butter; cook a couple minutes over low-medium heat to release the lemon juice and soften the garlic, then remove the lemon slices. Cook spaghetti per package instructions, drain, and toss with the lemon-butter-garlic skillet. Top the pasta with sliced chicken and roasted tomatoes; divide burrata among plates and finish with chopped basil and toasted pine nuts.\n\nSource: https://juliasalbum.com/chicken-spaghetti-with-burrata/",
+      "ingredients": [
+        { "name": "Cherry tomatoes", "qty": 10, "unit": "oz" },
+        { "name": "Olive oil", "qty": 4, "unit": "tbsp" },
+        { "name": "Garlic", "qty": 7, "unit": "cloves" },
+        { "name": "Salt", "qty": 0.25, "unit": "tsp (plus to taste)" },
+        { "name": "Black pepper", "qty": 1, "unit": "pinch (to taste)" },
+        { "name": "Chicken breast", "qty": 1.5, "unit": "lb" },
+        { "name": "Smoked paprika", "qty": 2, "unit": "tsp" },
+        { "name": "Italian seasoning", "qty": 1, "unit": "tsp" },
+        { "name": "Lemon", "qty": 0.5, "unit": "" },
+        { "name": "Butter", "qty": 4, "unit": "tbsp" },
+        { "name": "Spaghetti", "qty": 8, "unit": "oz" },
+        { "name": "Burrata cheese", "qty": 8, "unit": "oz" },
+        { "name": "Fresh basil", "qty": 0.5, "unit": "cup" },
+        { "name": "Pine nuts", "qty": 0.33, "unit": "cup" }
+      ]
+    },
+    {
+      "id": "mediterranean-chicken-sun-dried-tomatoes-artichokes",
+      "name": "Mediterranean Chicken with Sun-Dried Tomatoes & Artichokes",
+      "mealTypes": ["Dinner"],
+      "easy": true,
+      "servings": 4,
+      "notes": "Season chicken with salt and pepper, then dredge in flour. Heat 2 tbsp olive oil in a large skillet over medium-high and brown the chicken about 4 min per side; remove to a plate. Add artichokes, sun-dried tomatoes, capers, and lemon juice to the same skillet and stir over medium heat; reduce heat to medium-low and stir in the remaining 2-3 tbsp olive oil. Push the vegetables to the sides, return the chicken to the skillet, cover, and cook over low-medium heat 5-10 more min until the chicken is cooked through. Serve immediately, spooning the olive oil and vegetables over the chicken.\n\nSource: https://juliasalbum.com/mediterranean-chicken-sun-dried-tomatoes-artichokes/",
+      "ingredients": [
+        { "name": "Chicken breast", "qty": 1.5, "unit": "lb" },
+        { "name": "Salt", "qty": 0.5, "unit": "tsp" },
+        { "name": "Black pepper", "qty": 0.25, "unit": "tsp" },
+        { "name": "All-purpose flour", "qty": 0.25, "unit": "cup" },
+        { "name": "Olive oil", "qty": 5, "unit": "tbsp" },
+        { "name": "Artichoke hearts", "qty": 8, "unit": "oz" },
+        { "name": "Sun-dried tomatoes", "qty": 6, "unit": "oz" },
+        { "name": "Capers", "qty": 3, "unit": "tbsp" },
+        { "name": "Lemon juice", "qty": 2, "unit": "tbsp" }
+      ]
+    },
+    {
+      "id": "mediterranean-baked-crispy-chicken-pasta",
+      "name": "Mediterranean Baked Crispy Chicken and Pasta",
+      "mealTypes": ["Dinner"],
+      "easy": false,
+      "servings": 4,
+      "notes": "Stir together salt, pepper, chili powder, and smoked paprika. Score the skin side of the chicken thighs, rub with the spice mix, cover, and refrigerate at least 2 hours (up to overnight); let sit out 20-30 min before cooking. Preheat oven to 350F. Sear chicken skin-side down in 1-2 tbsp olive oil over medium-high heat about 3 min without disturbing it, then remove and set aside. Add more olive oil and saute the onion, red pepper, and optional serrano about 3 min; add garlic and saute 1 min. Stir in lemon zest, lemon juice, cumin, thyme, and white wine. Return the chicken to the skillet, sprinkle in the feta, cherry tomatoes, and olives, and bake about 20 min until the chicken reaches 175F. Meanwhile, boil the pasta 2 min short of package directions, reserving some pasta water. Remove the chicken from the skillet, mash the remaining sauce ingredients together, and thin with pasta water as needed. Toss in the cooked pasta, return the chicken to the skillet, and bake 5 more min until warmed through. Season to taste and garnish with fresh herbs before serving.\n\nSource: https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/",
+      "ingredients": [
+        { "name": "Salt", "qty": 1, "unit": "tsp" },
+        { "name": "Black pepper", "qty": 1, "unit": "tsp" },
+        { "name": "Chili powder", "qty": 1, "unit": "tsp" },
+        { "name": "Smoked paprika", "qty": 1, "unit": "tsp" },
+        { "name": "Chicken thighs", "qty": 4, "unit": "skin-on, bone-in" },
+        { "name": "Olive oil", "qty": 5, "unit": "tbsp" },
+        { "name": "Yellow onion", "qty": 0.5, "unit": "cup, diced" },
+        { "name": "Red bell pepper", "qty": 0.5, "unit": "medium" },
+        { "name": "Serrano chile pepper", "qty": 1, "unit": "(optional)" },
+        { "name": "Garlic", "qty": 4, "unit": "cloves" },
+        { "name": "Lemon", "qty": 1, "unit": "" },
+        { "name": "Ground cumin", "qty": 1, "unit": "tsp" },
+        { "name": "Dried thyme", "qty": 0.5, "unit": "tsp" },
+        { "name": "Chicken broth", "qty": 0.5, "unit": "cup" },
+        { "name": "Dry white wine", "qty": 0.5, "unit": "cup" },
+        { "name": "Feta", "qty": 8, "unit": "oz" },
+        { "name": "Cherry tomatoes", "qty": 0.75, "unit": "cup" },
+        { "name": "Kalamata olives", "qty": 0.5, "unit": "cup" },
+        { "name": "Bowtie pasta", "qty": 8, "unit": "oz" }
+      ]
     }
   ],
   "config": {
@@ -405,6 +477,19 @@
     "green beans (canned, salt-free)": { "store": "Schnucks", "aisles": {} },
     "cheerios (plain)": { "store": "Aldi", "aisles": {} },
     "cheerios (honey-nut)": { "store": "Aldi", "aisles": {} },
-    "craisins": { "store": "Sams", "aisles": {}, "staple": true }
+    "craisins": { "store": "Sams", "aisles": {}, "staple": true },
+    "cherry tomatoes": { "store": "Aldi", "aisles": { "Grocery store": 1 } },
+    "italian seasoning": { "store": "Sams", "aisles": { "Grocery store": 8 }, "staple": true },
+    "burrata cheese": { "store": "Schnucks", "aisles": { "Grocery store": 11 } },
+    "pine nuts": { "store": "Schnucks", "aisles": { "Grocery store": 9 } },
+    "artichoke hearts": { "store": "Schnucks", "aisles": { "Grocery store": 7 } },
+    "capers": { "store": "Aldi", "aisles": { "Grocery store": 8 }, "staple": true },
+    "chicken thighs": { "store": "Aldi", "aisles": { "Grocery store": 13 } },
+    "red bell pepper": { "store": "Aldi", "aisles": { "Grocery store": 1 } },
+    "serrano chile pepper": { "store": "Schnucks", "aisles": { "Grocery store": 1 } },
+    "dried thyme": { "store": "Sams", "aisles": { "Grocery store": 8 }, "staple": true },
+    "dry white wine": { "store": "Aldi", "aisles": {} },
+    "kalamata olives": { "store": "Aldi", "aisles": { "Grocery store": 7 } },
+    "bowtie pasta": { "store": "Aldi", "aisles": { "Grocery store": 5 } }
   }
 }
