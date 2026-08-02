@@ -479,7 +479,7 @@
     "cheerios (honey-nut)": { "store": "Aldi", "aisles": {} },
     "craisins": { "store": "Sams", "aisles": {}, "staple": true },
     "cherry tomatoes": { "store": "Aldi", "aisles": { "Grocery store": 1 } },
-    "italian seasoning": { "store": "Aldi", "aisles": { "Grocery store": 8 }, "staple": true },
+    "italian seasoning": { "store": "Sams", "aisles": { "Grocery store": 8 }, "staple": true },
     "burrata cheese": { "store": "Schnucks", "aisles": { "Grocery store": 11 } },
     "pine nuts": { "store": "Schnucks", "aisles": { "Grocery store": 9 } },
     "artichoke hearts": { "store": "Schnucks", "aisles": { "Grocery store": 7 } },
@@ -487,7 +487,7 @@
     "chicken thighs": { "store": "Aldi", "aisles": { "Grocery store": 13 } },
     "red bell pepper": { "store": "Aldi", "aisles": { "Grocery store": 1 } },
     "serrano chile pepper": { "store": "Schnucks", "aisles": { "Grocery store": 1 } },
-    "dried thyme": { "store": "Aldi", "aisles": { "Grocery store": 8 }, "staple": true },
+    "dried thyme": { "store": "Sams", "aisles": { "Grocery store": 8 }, "staple": true },
     "dry white wine": { "store": "Aldi", "aisles": {} },
     "kalamata olives": { "store": "Aldi", "aisles": { "Grocery store": 7 } },
     "bowtie pasta": { "store": "Aldi", "aisles": { "Grocery store": 5 } }
