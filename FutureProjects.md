@@ -191,17 +191,31 @@ households/{hid}
   trips/{tripId}                  → { list, checked, bought, extras }
 ```
 
-Why Firestore over the current Realtime Database:
+**Correction worth stating plainly: narrow writes are not a reason to leave
+RTDB.** An earlier draft of this file claimed per-document writes were what
+Firestore bought us. They aren't. RTDB writes at any path —
+`set(ref(db, 'households/x/list/checked/milk'), true)` — and `update()` takes
+several paths atomically. The whole-blob write in `sync.js:157` is a choice in
+our code, not a limit of the database, and the clobber it causes is fixable
+without changing databases at all. That fix is Phase 0 below.
 
-- **Per-document writes.** The app currently pushes the *entire* household state
-  on a debounce, which is what made last-write-wins clobbering possible — the
-  bug we patched with `updatedAt` + `pickState()` + `flushHousehold()`. Writing
-  one recipe document instead of the whole blob removes that failure mode
-  structurally rather than papering over it.
-- **Real offline persistence**, rather than our hand-rolled localStorage cache.
+What Firestore actually buys, once narrow writes are off the table:
+
+- **Real offline persistence.** IndexedDB-backed, with a pending-write queue
+  that survives closing the tab. RTDB's web SDK queues in memory only, which is
+  why `loadCache`/`saveCache`/`pickState`/`flushHousehold` exist. Firestore
+  deletes all four.
+- **Queries.** RTDB allows one sort field and range filters on that same field,
+  and nothing else — "store = Kroger AND staple = true" is not expressible
+  without storing a hand-made composite key. Firestore does compound `where()`
+  and cursors. We don't need this today (everything is filtered in JavaScript
+  over ~120 ingredients) but it is the ceiling we'd hit first.
 - **Membership-scoped security rules** — `request.auth.uid` must appear in
   `households/{hid}/members`. There is no way to express that today; the current
   rules can only guard a guessable household code.
+- **Unbounded collections.** Storage is ~$0.18/GiB against RTDB's $5/GB, and
+  paginating a growing collection is a first-class operation rather than a
+  client-side slice. This is the one that matters for history.
 
 **Postgres would be the more durable choice** if this ever becomes a product:
 a `recipe_ingredients` join table makes roadmap item 15 (recipes referencing
@@ -229,6 +243,17 @@ household management instead of an export console.
 
 ### Sequencing (this order matters)
 
+0. **Narrow the writes, staying on RTDB.** Replace the whole-`state` `set()`
+   with writes at the path that actually changed, and narrow the listeners to
+   match (an `onValue` on a parent still delivers the whole subtree no matter
+   how deep you wrote, so half the change gets you correctness without the
+   bandwidth win). This fixes the live clobber that `updatedAt`/`pickState`
+   only papers over, needs no login screen and no migration, and is what makes
+   step 2 safe — putting the catalog in the database multiplies the blob by
+   about 5× if writes stay wide. It also forces `writeHousehold(state)` to
+   become intent-shaped operations (`toggleChecked(key, on)`), which is exactly
+   the seam a later Firestore swap needs. Portability falls out of this work
+   rather than costing extra. **~2 days.**
 1. **Auth.** Sign-in, `users/{uid}`, and a migration that adopts the current
    device's household state into a household owned by the first account. Nothing
    user-visible changes except a login screen.
@@ -239,7 +264,12 @@ household management instead of an export console.
    ordinary product work once 1 and 2 are done.
 
 Doing 3 before 2 means building it twice. Doing 2 before 1 means migrating data
-with no identity to migrate it *to*.
+with no identity to migrate it *to*. Step 0 stands alone and is worth doing
+whether or not any of the rest happens.
+
+Firestore is not a step here. It becomes worth adopting when one of its four
+advantages above actually binds — most likely offline persistence, or history
+outgrowing what a client-side slice can page through.
 
 ### Effort, roughly
 
@@ -274,14 +304,18 @@ change:
 
 Two things are worth calling out:
 
-- **The workout app cannot use the current architecture at all.** Its
-  per-exercise history is an append-only time series that grows without bound.
-  The present design serializes the *entire* household state on every edit and
-  pushes it as one blob — that works for a rolling shopping list, and it falls
-  over the moment the state includes a year of sessions. Per-document writes
-  aren't an improvement there, they're a precondition. If the workout app gets
-  built on the RTDB blob model, this same migration has to happen to it later,
-  under more data.
+- **The workout app cannot use the current *write pattern* at all** — note the
+  pattern, not the database. Its per-exercise history is an append-only time
+  series that grows without bound, and serializing the entire state on every
+  edit works for a rolling shopping list but falls over the moment that state
+  includes a year of sessions. Narrow writes are a precondition there rather
+  than an improvement, so Phase 0 is not optional for the fork; it's the
+  starting point.
+- **History is where RTDB genuinely runs out.** Narrow writes solve the write
+  side, but reading "this exercise over the last year" means a range query over
+  a growing collection, and RTDB gives one sort field, no compound filters, and
+  $5/GB storage. That is the concrete trigger for Firestore in the workout app,
+  and it arrives much earlier there than it does in groceries.
 - **Sessions want the same split as trips.** `trips/{tripId}` and
   `sessions/{sessionId}` are the same idea: a dated, immutable-ish instance
   generated from a template. Getting that split right in grocery-run first means
