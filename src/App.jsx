@@ -27,6 +27,7 @@ import {
   validCatalog,
   unpublishedChanges,
   pickState,
+  needsKeyMigration,
 } from "./lib";
 import { ListTab } from "./tabs/ListTab";
 import { MealsTab } from "./tabs/MealsTab";
@@ -92,7 +93,7 @@ export default function App() {
     const keep = unpublishedChanges(cur, cat);
     const unchanged =
       Object.keys(keep.recipeOverrides).length === Object.keys(cur.recipeOverrides).length &&
-      keep.localRecipes.length === cur.localRecipes.length &&
+      Object.keys(keep.localRecipes).length === Object.keys(cur.localRecipes).length &&
       Object.keys(keep.configOverrides).length === Object.keys(cur.configOverrides).length &&
       keep.extraStores.length === cur.extraStores.length &&
       keep.removedStores.length === cur.removedStores.length;
@@ -163,12 +164,18 @@ export default function App() {
         // which would bounce the same value back and forth between phones.
         const adopted = normalizeLocal(remote);
         setLocalState(adopted);
-        saveCache(code, remote);
+        saveCache(code, adopted);
         // Baseline for the next narrow write. It has to be the NORMALIZED copy,
         // because that's what local state now is — diffing a later edit against
         // the raw remote would re-send a path for every field normalizeLocal
         // fills back in (Firebase drops empty objects on the way out).
-        markSynced(code, adopted);
+        //
+        // Unless the remote still holds a collection in its old array form. Then
+        // the database and this baseline disagree about where things live, and a
+        // narrow diff would write to paths that don't exist there. Leaving the
+        // baseline unset makes the next write a full set() that replaces the old
+        // shape outright — one wide write per device, then narrow forever after.
+        markSynced(code, needsKeyMigration(remote) ? null : adopted);
       } else if (push) {
         // Either a brand-new household, or this device holds work the database
         // never received — seed/repair it rather than losing the local copy.
@@ -194,7 +201,7 @@ export default function App() {
     }
     // Skip any local recipe whose id has since entered the catalog (promoted by
     // a publish); the catalog copy — plus any override above — represents it.
-    for (const r of local.localRecipes) {
+    for (const r of Object.values(local.localRecipes)) {
       if (catIds.has(r.id)) continue;
       recipes.push({ ...r, fromCatalog: false });
     }

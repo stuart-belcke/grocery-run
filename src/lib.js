@@ -26,7 +26,7 @@ export function unitSuggestions(data) {
     if (t && !seen.some((x) => x.toLowerCase() === t.toLowerCase())) seen.push(t);
   };
   for (const r of data.recipes) for (const i of r.ingredients) add(i.unit);
-  for (const e of data.list.extras) add(e.unit);
+  for (const e of Object.values(data.list.extras)) add(e.unit);
   for (const u of COMMON_UNITS) add(u);
   return seen;
 }
@@ -131,7 +131,8 @@ export const FALLBACK_CATALOG = {
 
 export const emptyLocal = () => ({
   version: 1,
-  localRecipes: [],
+  // Keyed by recipe id, not an array — see asKeyed above.
+  localRecipes: {},
   recipeOverrides: {}, // catalogId -> edited recipe, or null = hidden
   configOverrides: {}, // ingredient key -> { store, aisles: { storeName: number } }
   extraStores: [],
@@ -139,7 +140,8 @@ export const emptyLocal = () => ({
   // `bought`: ingredient keys acquired on an earlier trip this week. Recipe-
   // driven items are computed from the plan, so they can't be deleted — this
   // records that you already have them so they drop off the list.
-  list: { selections: {}, overrides: {}, checked: {}, extras: [], bought: {} },
+  // `extras` is keyed by norm(name), the identity every lookup already used.
+  list: { selections: {}, overrides: {}, checked: {}, extras: {}, bought: {} },
   plan: {},
   // Home staples we've run out of: { ingredientKey: true }. Only "need"
   // entries are stored — an absent key means we have it. Deliberately a
@@ -155,6 +157,61 @@ export const emptyLocal = () => ({
 // full shape before rendering ever touches it.
 export const asArray = (v) => (Array.isArray(v) ? v : v && typeof v === "object" ? Object.values(v) : []);
 export const asObject = (v) => (v && typeof v === "object" && !Array.isArray(v) ? v : {});
+
+// Read a collection that is keyed by something meaningful — an ingredient key,
+// a recipe id — accepting the legacy ARRAY shape as well.
+//
+// Why these stopped being arrays: every single access was already a lookup by
+// identity (`extras.find((e) => norm(e.name) === key)`, `localRecipes
+// .findIndex((r) => r.id === id)`), so the array was a keyed collection wearing
+// the wrong container. Two costs came with that. An array index is not a stable
+// identity, so two phones adding items at once collide; and narrow writes treat
+// an array as ATOMIC, so adding one item rewrote the whole list and clobbered
+// the other phone's addition anyway — the exact bug narrow writes exist to fix.
+//
+// Both legacy shapes arrive here: a real array from an older device, and the
+// index-keyed object Firebase turns arrays into on the way back out.
+export const mapValues = (o, fn) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, fn(v)]));
+
+// Does this raw state still hold a keyed collection in its old ARRAY form?
+//
+// This matters because of how narrow writes work. Adopting a remote copy
+// normalizes it, and that normalized copy becomes the baseline future diffs
+// are computed against — but the DATABASE is still holding the old shape. The
+// diff would then describe paths that don't exist there: deleting a legacy
+// hand-added item writes null at `list/extras/milk` while the server has it
+// under `list/extras/0`, so the delete lands nowhere and the item returns on
+// the next read.
+//
+// When this returns true the caller must NOT set a baseline, which makes the
+// next write a full set() that replaces the legacy shape wholesale. One wide
+// write per device, then narrow writes forever after.
+const looksLegacyCollection = (v) =>
+  Array.isArray(v) || (!!v && typeof v === "object" && Object.keys(v).some((k) => /^\d+$/.test(k)));
+
+export function needsKeyMigration(raw) {
+  if (!raw || typeof raw !== "object") return false;
+  return looksLegacyCollection(raw.localRecipes) || looksLegacyCollection(raw.list && raw.list.extras);
+}
+
+export function asKeyed(v, keyOf) {
+  const out = {};
+  if (Array.isArray(v)) {
+    for (const item of v) {
+      const k = item && keyOf(item);
+      if (k) out[k] = item;
+    }
+    return out;
+  }
+  if (!v || typeof v !== "object") return {};
+  for (const [k, item] of Object.entries(v)) {
+    if (!item || typeof item !== "object") continue;
+    // Prefer the item's own identity; fall back to the stored key for
+    // index-keyed data whose item can't produce one.
+    out[keyOf(item) || k] = item;
+  }
+  return out;
+}
 export const normalizeRecipe = (r) => ({ ...r, mealTypes: asArray(r.mealTypes), ingredients: asArray(r.ingredients) });
 export function normalizeLocal(raw) {
   const d = raw && typeof raw === "object" ? raw : {};
@@ -164,7 +221,7 @@ export function normalizeLocal(raw) {
   return {
     ...emptyLocal(),
     ...d,
-    localRecipes: asArray(d.localRecipes).map(normalizeRecipe),
+    localRecipes: mapValues(asKeyed(d.localRecipes, (r) => r.id), normalizeRecipe),
     recipeOverrides,
     configOverrides: asObject(d.configOverrides),
     extraStores: asArray(d.extraStores),
@@ -181,7 +238,7 @@ export function normalizeLocal(raw) {
       selections: asObject(d.list && d.list.selections),
       overrides: asObject(d.list && d.list.overrides),
       checked: asObject(d.list && d.list.checked),
-      extras: asArray(d.list && d.list.extras),
+      extras: asKeyed(d.list && d.list.extras, (e) => norm(e.name)),
       bought: asObject(d.list && d.list.bought),
     },
     plan: asObject(d.plan),
@@ -278,7 +335,9 @@ export function saveJSON(key, value) {
 }
 
 export function validLocal(d) {
-  return d && typeof d === "object" && d.list && Array.isArray(d.localRecipes);
+  // localRecipes accepts either shape: an object now, an array from a save
+  // made before keyed collections shipped.
+  return d && typeof d === "object" && !!d.list && !!d.localRecipes && typeof d.localRecipes === "object";
 }
 export function validCatalog(d) {
   return d && typeof d === "object" && Array.isArray(d.recipes) && Array.isArray(d.stores) && typeof d.config === "object";
@@ -325,10 +384,10 @@ export function unpublishedChanges(local, catalog) {
     }
   }
 
-  const localRecipes = [];
-  for (const r of asArray(local.localRecipes)) {
+  const localRecipes = {};
+  for (const r of Object.values(asKeyed(local.localRecipes, (x) => x.id))) {
     const catR = catById.get(r.id);
-    if (!catR) localRecipes.push(r); // still purely local
+    if (!catR) localRecipes[r.id] = r; // still purely local
     else if (recipeShape(catR) !== recipeShape(r)) recipeOverrides[r.id] = r; // promoted but edited since
     // identical to the catalog copy → drop it
   }
@@ -358,7 +417,7 @@ export function unpublishedCount(local, catalog) {
   const u = unpublishedChanges(local, catalog);
   return (
     Object.keys(u.recipeOverrides).length +
-    u.localRecipes.length +
+    Object.keys(u.localRecipes).length +
     Object.keys(u.configOverrides).length +
     u.extraStores.length +
     u.removedStores.length
@@ -374,7 +433,7 @@ export function ingredientNames(data) {
   const set = new Map();
   for (const k of Object.keys(data.config)) set.set(k, cap(k));
   for (const r of data.recipes) for (const i of r.ingredients) set.set(norm(i.name), cap(i.name.trim()));
-  for (const e of data.list.extras) set.set(norm(e.name), cap(e.name.trim()));
+  for (const e of Object.values(data.list.extras)) set.set(norm(e.name), cap(e.name.trim()));
   return [...set.entries()].map(([key, name]) => ({ key, name })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -441,7 +500,7 @@ export function aggregateItems(data) {
       }
     }
   }
-  for (const ex of data.list.extras) addPart(ex.name, Number(ex.qty) || 0, ex.unit, "Added by hand", "Added by hand on the shopping list");
+  for (const ex of Object.values(data.list.extras)) addPart(ex.name, Number(ex.qty) || 0, ex.unit, "Added by hand", "Added by hand on the shopping list");
 
   // Home staples. A staple you have is dropped even when a recipe calls for
   // it — that's the whole point: you already own the olive oil, so it shouldn't

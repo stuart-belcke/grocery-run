@@ -4,7 +4,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeLocal, emptyLocal, diffPaths, planWrite } from "./lib.js";
+import { normalizeLocal, emptyLocal, diffPaths, planWrite, asKeyed, needsKeyMigration } from "./lib.js";
 
 /* ---------------- forward compatibility ----------------
    Every device writes the WHOLE state back on any edit, so a build that
@@ -20,7 +20,7 @@ const sharedState = () => ({
     selections: { r1: 1 },
     overrides: { milk: "Kroger" },
     checked: { milk: true },
-    extras: [{ name: "milk", qty: 1, unit: "gal" }],
+    extras: { milk: { name: "milk", qty: 1, unit: "gal" } },
     bought: { "chicken thighs": { lb: 2 } },
     // Stands in for whatever gets added next. A field the CURRENT code knows
     // nothing about is the only way to test this — one it knows would pass
@@ -60,7 +60,8 @@ test("missing fields are rebuilt as empty, not left undefined", () => {
   const d = normalizeLocal({});
   assert.deepEqual(d.list.checked, {});
   assert.deepEqual(d.list.bought, {});
-  assert.ok(Array.isArray(d.list.extras));
+  assert.deepEqual(d.list.extras, {});
+  assert.deepEqual(d.localRecipes, {});
   assert.deepEqual(d.stapleNeeds, {});
   assert.deepEqual(d.plan, {});
 });
@@ -68,16 +69,56 @@ test("missing fields are rebuilt as empty, not left undefined", () => {
 test("garbage input still yields a usable shape", () => {
   const d = normalizeLocal({ list: "not an object", plan: 42, stapleNeeds: null });
   assert.deepEqual(d.list.checked, {});
-  assert.ok(Array.isArray(d.list.extras));
+  assert.deepEqual(d.list.extras, {});
   assert.deepEqual(d.plan, {});
   // A string must not spread into index keys ("0", "1", …).
   assert.equal(d.list["0"], undefined);
 });
 
-test("index-keyed objects are read back as arrays", () => {
+/* ---------------- keyed collections ----------------
+   extras and localRecipes used to be arrays. Devices and the database still
+   hold that shape, and Firebase hands arrays back as index-keyed objects, so
+   normalizeLocal has to accept all three and produce one.                  */
+
+test("a legacy extras ARRAY migrates to keys", () => {
+  const d = normalizeLocal({ list: { extras: [{ name: "Milk", qty: 1, unit: "gal" }, { name: "Eggs", qty: 12, unit: "" }] } });
+  assert.deepEqual(Object.keys(d.list.extras).sort(), ["eggs", "milk"]);
+  assert.equal(d.list.extras.milk.name, "Milk"); // display name preserved
+});
+
+test("an index-keyed extras object from Firebase migrates to keys", () => {
   const d = normalizeLocal({ list: { extras: { 0: { name: "milk" }, 1: { name: "eggs" } } } });
-  assert.ok(Array.isArray(d.list.extras));
-  assert.equal(d.list.extras.length, 2);
+  assert.deepEqual(Object.keys(d.list.extras).sort(), ["eggs", "milk"]);
+});
+
+test("already-keyed extras pass through unchanged", () => {
+  const extras = { milk: { name: "milk", qty: 2, unit: "gal" } };
+  const d = normalizeLocal({ list: { extras } });
+  assert.deepEqual(d.list.extras, extras);
+});
+
+test("a legacy localRecipes ARRAY migrates to keys by id", () => {
+  const d = normalizeLocal({ localRecipes: [{ id: "r1", name: "Chili" }, { id: "r2", name: "Tacos" }] });
+  assert.deepEqual(Object.keys(d.localRecipes).sort(), ["r1", "r2"]);
+  assert.equal(d.localRecipes.r1.name, "Chili");
+  assert.ok(Array.isArray(d.localRecipes.r1.ingredients)); // still normalized
+});
+
+test("asKeyed drops entries that can't produce a key", () => {
+  assert.deepEqual(asKeyed([{ name: "" }, null, { name: "Milk" }], (e) => e.name.toLowerCase()), {
+    milk: { name: "Milk" },
+  });
+});
+
+test("two hand-added items now occupy separate paths", () => {
+  // The point of the change: adding an item used to rewrite the whole array,
+  // so two phones adding at once clobbered each other even with narrow writes.
+  const before = { list: { extras: {} } };
+  const phoneA = diffPaths(before, { list: { extras: { milk: { name: "milk", qty: 1 } } } });
+  const phoneB = diffPaths(before, { list: { extras: { eggs: { name: "eggs", qty: 1 } } } });
+  assert.deepEqual(Object.keys(phoneA), ["list/extras/milk"]);
+  assert.deepEqual(Object.keys(phoneB), ["list/extras/eggs"]);
+  assert.deepEqual(Object.keys(phoneA).filter((p) => p in phoneB), []);
 });
 
 test("normalizeLocal does not mutate its input", () => {
@@ -121,17 +162,19 @@ test("a removed key becomes null so RTDB deletes it", () => {
 });
 
 test("arrays are written whole, never by index", () => {
-  const prev = { list: { extras: [{ name: "milk" }] } };
-  const next = { list: { extras: [{ name: "eggs" }, { name: "milk" }] } };
+  // extraStores is still an array — deliberately, it's a rarely-touched set of
+  // plain strings — so it exercises the atomic-array rule.
+  const prev = { extraStores: ["Kroger"] };
+  const next = { extraStores: ["Aldi", "Kroger"] };
   const paths = diffPaths(prev, next);
-  assert.deepEqual(Object.keys(paths), ["list/extras"]);
-  assert.deepEqual(paths["list/extras"], next.list.extras);
+  assert.deepEqual(Object.keys(paths), ["extraStores"]);
+  assert.deepEqual(paths.extraStores, next.extraStores);
 });
 
 test("an unchanged array is not rewritten", () => {
-  const extras = [{ name: "milk", qty: 1 }];
-  const prev = { list: { extras, checked: {} } };
-  const next = { list: { extras: JSON.parse(JSON.stringify(extras)), checked: { milk: true } } };
+  const stores = ["Kroger", "Aldi"];
+  const prev = { extraStores: stores, list: { checked: {} } };
+  const next = { extraStores: JSON.parse(JSON.stringify(stores)), list: { checked: { milk: true } } };
   assert.deepEqual(diffPaths(prev, next), { "list/checked/milk": true });
 });
 
@@ -202,4 +245,36 @@ test("diffPaths does not mutate either input", () => {
   diffPaths(prev, next);
   assert.deepEqual(prev, pSnap);
   assert.deepEqual(next, nSnap);
+});
+
+/* ---------------- legacy-shape detection ----------------
+   The database can still hold extras/localRecipes as arrays. Adopting that and
+   using the NORMALIZED copy as a diff baseline would describe paths the server
+   doesn't have — a delete would write null at `list/extras/milk` while the
+   server holds it at `list/extras/0`, so the item would come back. Detecting
+   it forces one full set() instead.                                        */
+
+test("a legacy array collection is detected", () => {
+  assert.equal(needsKeyMigration({ list: { extras: [{ name: "milk" }] } }), true);
+  assert.equal(needsKeyMigration({ localRecipes: [{ id: "r1" }] }), true);
+});
+
+test("an index-keyed collection from Firebase is detected", () => {
+  assert.equal(needsKeyMigration({ list: { extras: { 0: { name: "milk" } } } }), true);
+});
+
+test("properly keyed state needs no migration", () => {
+  assert.equal(
+    needsKeyMigration({ list: { extras: { milk: { name: "milk" } } }, localRecipes: { r1: { id: "r1" } } }),
+    false
+  );
+  assert.equal(needsKeyMigration({ list: { extras: {} }, localRecipes: {} }), false);
+  assert.equal(needsKeyMigration(null), false);
+});
+
+test("a cleared baseline forces a full set, not a diff", () => {
+  // markSynced(code, null) clears it; planWrite must then seed the whole node
+  // rather than emitting paths against a shape the server doesn't have.
+  const state = { list: { extras: { milk: { name: "milk" } } } };
+  assert.deepEqual(planWrite(null, "home-abc", state), { kind: "set", state });
 });
