@@ -173,6 +173,27 @@ export const asObject = (v) => (v && typeof v === "object" && !Array.isArray(v) 
 // index-keyed object Firebase turns arrays into on the way back out.
 export const mapValues = (o, fn) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, fn(v)]));
 
+// Does this raw state still hold a keyed collection in its old ARRAY form?
+//
+// This matters because of how narrow writes work. Adopting a remote copy
+// normalizes it, and that normalized copy becomes the baseline future diffs
+// are computed against — but the DATABASE is still holding the old shape. The
+// diff would then describe paths that don't exist there: deleting a legacy
+// hand-added item writes null at `list/extras/milk` while the server has it
+// under `list/extras/0`, so the delete lands nowhere and the item returns on
+// the next read.
+//
+// When this returns true the caller must NOT set a baseline, which makes the
+// next write a full set() that replaces the legacy shape wholesale. One wide
+// write per device, then narrow writes forever after.
+const looksLegacyCollection = (v) =>
+  Array.isArray(v) || (!!v && typeof v === "object" && Object.keys(v).some((k) => /^\d+$/.test(k)));
+
+export function needsKeyMigration(raw) {
+  if (!raw || typeof raw !== "object") return false;
+  return looksLegacyCollection(raw.localRecipes) || looksLegacyCollection(raw.list && raw.list.extras);
+}
+
 export function asKeyed(v, keyOf) {
   const out = {};
   if (Array.isArray(v)) {

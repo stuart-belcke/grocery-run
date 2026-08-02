@@ -154,8 +154,12 @@ export function writeHousehold(code, state) {
 // edit is diffed against the right baseline. Called when the app adopts a
 // remote update — without it we'd diff against our own older copy and re-send
 // paths the database already has.
+// Pass a null state to CLEAR the baseline — that forces the next flush to send
+// a full set() instead of a diff. Needed when the database is known to hold a
+// shape this build no longer writes, where a narrow diff would target paths
+// that don't exist there.
 export function markSynced(code, state) {
-  lastWritten = { code, state };
+  lastWritten = state ? { code, state } : null;
 }
 
 // Push any pending write straight away. Call this when the app is being

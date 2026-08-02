@@ -27,6 +27,7 @@ import {
   validCatalog,
   unpublishedChanges,
   pickState,
+  needsKeyMigration,
 } from "./lib";
 import { ListTab } from "./tabs/ListTab";
 import { MealsTab } from "./tabs/MealsTab";
@@ -163,12 +164,18 @@ export default function App() {
         // which would bounce the same value back and forth between phones.
         const adopted = normalizeLocal(remote);
         setLocalState(adopted);
-        saveCache(code, remote);
+        saveCache(code, adopted);
         // Baseline for the next narrow write. It has to be the NORMALIZED copy,
         // because that's what local state now is — diffing a later edit against
         // the raw remote would re-send a path for every field normalizeLocal
         // fills back in (Firebase drops empty objects on the way out).
-        markSynced(code, adopted);
+        //
+        // Unless the remote still holds a collection in its old array form. Then
+        // the database and this baseline disagree about where things live, and a
+        // narrow diff would write to paths that don't exist there. Leaving the
+        // baseline unset makes the next write a full set() that replaces the old
+        // shape outright — one wide write per device, then narrow forever after.
+        markSynced(code, needsKeyMigration(remote) ? null : adopted);
       } else if (push) {
         // Either a brand-new household, or this device holds work the database
         // never received — seed/repair it rather than losing the local copy.

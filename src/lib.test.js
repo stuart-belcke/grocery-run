@@ -4,7 +4,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeLocal, emptyLocal, diffPaths, planWrite, asKeyed } from "./lib.js";
+import { normalizeLocal, emptyLocal, diffPaths, planWrite, asKeyed, needsKeyMigration } from "./lib.js";
 
 /* ---------------- forward compatibility ----------------
    Every device writes the WHOLE state back on any edit, so a build that
@@ -245,4 +245,36 @@ test("diffPaths does not mutate either input", () => {
   diffPaths(prev, next);
   assert.deepEqual(prev, pSnap);
   assert.deepEqual(next, nSnap);
+});
+
+/* ---------------- legacy-shape detection ----------------
+   The database can still hold extras/localRecipes as arrays. Adopting that and
+   using the NORMALIZED copy as a diff baseline would describe paths the server
+   doesn't have — a delete would write null at `list/extras/milk` while the
+   server holds it at `list/extras/0`, so the item would come back. Detecting
+   it forces one full set() instead.                                        */
+
+test("a legacy array collection is detected", () => {
+  assert.equal(needsKeyMigration({ list: { extras: [{ name: "milk" }] } }), true);
+  assert.equal(needsKeyMigration({ localRecipes: [{ id: "r1" }] }), true);
+});
+
+test("an index-keyed collection from Firebase is detected", () => {
+  assert.equal(needsKeyMigration({ list: { extras: { 0: { name: "milk" } } } }), true);
+});
+
+test("properly keyed state needs no migration", () => {
+  assert.equal(
+    needsKeyMigration({ list: { extras: { milk: { name: "milk" } } }, localRecipes: { r1: { id: "r1" } } }),
+    false
+  );
+  assert.equal(needsKeyMigration({ list: { extras: {} }, localRecipes: {} }), false);
+  assert.equal(needsKeyMigration(null), false);
+});
+
+test("a cleared baseline forces a full set, not a diff", () => {
+  // markSynced(code, null) clears it; planWrite must then seed the whole node
+  // rather than emitting paths against a shape the server doesn't have.
+  const state = { list: { extras: { milk: { name: "milk" } } } };
+  assert.deepEqual(planWrite(null, "home-abc", state), { kind: "set", state });
 });
