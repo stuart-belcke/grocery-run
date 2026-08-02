@@ -227,11 +227,27 @@ one if there are paying users.
 
 ### What happens to `catalog.json`
 
-It stops being live data and becomes a **seed template**: on first sign-in, copy
-it into the new household's `recipes` / `ingredients` / `stores` collections.
-New users get a sensible starting pantry; from then on their edits are just
-writes. The file stays in the repo, versioned, as the definition of "what a new
-household starts with" — which is a much more honest job than the one it has now.
+It stops being live data and takes on two jobs, both one-directional.
+
+**A seed template.** On first sign-in, copy it into the new household's
+`recipes` / `ingredients` / `stores` collections. New users get a sensible
+starting pantry; from then on their edits are just writes. The file stays in
+the repo, versioned, as the definition of "what a new household starts with" —
+a much more honest job than the one it has now.
+
+**An export target, kept indefinitely.** Being able to dump a household back
+out to `catalog.json` at any time is worth keeping: it's a restorable backup,
+it makes the data portable, and it preserves the one thing catalog-in-git is
+genuinely good at — a diffable, reviewable history of how the data changed.
+Most of `formatCatalog`/`inlineJson` survives for this even though the rest of
+the publish flow goes.
+
+**The rule that keeps this safe: export only. The app must never read the file
+back at runtime.** The moment a runtime read merges file data with database
+data there are two sources of truth again, and the override layer regrows —
+`configOverrides`, `reconcileToCatalog`, `false`-as-hidden, all of it. If a
+restore is ever wanted it has to be an explicit, deliberate action that
+REPLACES a household's collections, never one that merges into them.
 
 ### What gets deleted
 
