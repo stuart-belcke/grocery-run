@@ -39,12 +39,22 @@ jobs:
         with:
           node-version: 24
 
-      # Nothing to build when we're only tearing down a closed PR's preview.
+      # Nothing to install, test or build when we're only tearing down a closed
+      # PR's preview.
+      - name: Install
+        if: github.event.action != 'closed'
+        run: npm install
+
+      # Runs BEFORE the build so a failure stops the deploy rather than
+      # annotating one that already shipped. A suite that only runs when
+      # someone remembers to run it isn't protecting anything.
+      - name: Test
+        if: github.event.action != 'closed'
+        run: npm test
+
       - name: Build
         if: github.event.action != 'closed'
-        run: |
-          npm install
-          npm run build
+        run: npm run build
 
       # Production: publish dist to the root of gh-pages. clean-exclude keeps
       # the pr-preview/ folder so open PRs' previews aren't wiped on a deploy.
