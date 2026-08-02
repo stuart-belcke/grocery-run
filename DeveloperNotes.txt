@@ -286,15 +286,19 @@ rather than saving them for a cleanup that never gets scheduled.
         thin as they are — a Firestore migration deletes them outright rather
         than porting them.
 
-    THE READ HALF IS STILL OPEN. Narrow writes shipped; narrow listeners did
-    not. One onValue at `state` delivers the WHOLE subtree however deep the
-    write was, so every remote change still re-normalizes the entire structure
-    and re-renders everything. Worth doing on its own merits — the cost grows
-    with the data, and the per-user catalog phase moves all recipes into that
-    node — but it is efficiency, not correctness, so it queues behind item 24,
-    which is correctness. Do it AFTER 24: the subscription shape should follow
-    the data shape, and turning extras/localRecipes into keyed collections
-    changes what the branches are. Otherwise it gets built twice.
+    THE READ HALF IS STILL OPEN, AND IS DELIBERATELY DEFERRED. Narrow writes
+    shipped; narrow listeners did not. One onValue at `state` delivers the
+    WHOLE subtree however deep the write was, so every remote change
+    re-normalizes the entire structure and re-renders everything.
+    DO NOT DO THIS YET. Item 25's measurement killed the case for doing it now:
+    the whole synced node is 954 BYTES. The catalog isn't in it — recipes and
+    ingredient config come from catalog.json over HTTPS — so the widest
+    possible listener delivers under a kilobyte, and re-normalizing that plus a
+    re-render is not worth a refactor that breaks four things (below).
+    THE TRIGGER IS THE CATALOG MOVE. Once recipes and ingredient config live in
+    the household node it is ~30 KB rather than ~1 KB, every remote change
+    re-normalizes all of it, and the four costs finally buy something. Do it
+    immediately after that move, not before.
     What it costs, so it isn't a surprise:
       - the atomic snapshot. Branches start arriving independently and out of
         order instead of as one coherent state.
@@ -328,25 +332,37 @@ rather than saving them for a cleanup that never gets scheduled.
     without rewriting the whole list. Keyed objects map straight onto RTDB
     paths and Firestore documents; arrays don't.
 
-25. Measure the wire before narrowing the listeners. We have been quoting
-    "one checkbox tick costs the other phone ~30 KB". That figure is solid for
-    the UPLOAD — set() at `state` genuinely serializes the whole household —
-    but the DOWNLOAD has never been measured. RTDB's protocol sends an update
-    as a path plus a value and the SDK rebuilds the node from its local cache,
-    so the bytes actually crossing the network may be a delta far smaller than
-    the object onValue hands the callback. Ten-minute check: open the live site
-    with Chrome DevTools → Network → WS, tick one item on a second device, and
-    read the frames.
-    NOT A GATE. An earlier version of this item said the listener work was
-    "only worth its complexity if the frames show the whole node going over
-    the wire". That was wrong, and acting on it would have deferred work worth
-    doing anyway. Even if the wire turns out to be thin, every remote change
-    still runs normalizeLocal over the ENTIRE structure and re-renders
-    everything — a cost that has nothing to do with bandwidth and grows with
-    the data. And the per-user catalog phase moves all recipes into the
-    database, at which point wide listeners stop being merely wasteful.
-    So this is a "how much did that buy us" measurement, not a decision.
-    It blocks nothing; run it whenever two phones are to hand.
+25. [DONE] Measure the wire. Two browser windows (one normal, one incognito,
+    same household code in Settings), DevTools → Network → WS → Messages on
+    the observing one. No phones needed; that was a wrong assumption that made
+    this look harder than it is.
+
+    MEASURED, against a99cdb8 (narrow writes) and 9678af6 (keyed collections):
+
+      whole household state, one frame ........... 954 B
+      check off an item .......................... 126-136 B
+      add an item, BEFORE keyed collections ...... grew ~35 B per item, unbounded
+      add an item, AFTER keyed collections ....... 126-183 B, flat
+      keepalive (a bare "0", every ~45-90 s) ..... 1 B
+
+    Frame shape, for next time:
+      {"t":"d","d":{"a":"m","b":{"p":"households/<code>/state",
+                                 "d":{"list/checked/milk":true,"updatedAt":...}}}}
+      "a":"m" = merge (narrow multi-path update); "a":"d" = set at a path.
+      {"s":"ok","d":""} is the server ACKing a write, not data.
+
+    WHAT IT SETTLED
+      - The ~30 KB figure quoted all over these notes was wrong by ~30x. The
+        catalog is NOT in the synced node — it comes from catalog.json over
+        HTTPS — so the household blob is about a kilobyte. Every bandwidth
+        argument built on 30 KB was inflated by the same factor.
+      - Narrow writes and keyed collections were still right, but for
+        CORRECTNESS (two phones overwriting each other), not for bytes.
+      - The listener work is NOT worth doing at 954 bytes. See item 21: the
+        trigger is the catalog move, which makes the node ~30x bigger.
+      - Arrays vs keyed collections showed up directly on the wire: adds grew
+        without bound before, flat after. Worth re-running after any change to
+        how a collection is stored.
 
 
 Refactor notes
