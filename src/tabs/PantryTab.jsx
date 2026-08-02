@@ -7,7 +7,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Btn, ConfirmDialog, ChoiceDialog } from "../ui";
-import { UNASSIGNED, norm, cap, r2, normalizeCfg, compactCfg, ingredientNames, unitSuggestions, usedInRecipes } from "../lib";
+import { UNASSIGNED, norm, cap, r2, normalizeCfg, compactCfg, ingredientNames, unitSuggestions, usedInRecipes, filterIngredients, commonUnitFor } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
 // "how many of this on the list" reads the same everywhere in the app.
@@ -44,14 +44,8 @@ export function PantryTab({ data, catalog, update }) {
   // from `keys`; these only hide non-matching rows.
   const q = norm(query);
   const visibleKeys = useMemo(
-    () =>
-      keys.filter(
-        ({ key, name }) =>
-          (!q || norm(name).includes(q)) &&
-          (!storeFilter || normalizeCfg(data.config[key]).store === storeFilter) &&
-          (!staplesOnly || normalizeCfg(data.config[key]).staple)
-      ),
-    [keys, q, storeFilter, staplesOnly, data.config]
+    () => filterIngredients(data, keys, { query, store: storeFilter, staplesOnly }),
+    [data, keys, query, storeFilter, staplesOnly]
   );
 
   const activeFilters = (storeFilter ? 1 : 0) + (staplesOnly ? 1 : 0);
@@ -137,19 +131,7 @@ export function PantryTab({ data, catalog, update }) {
   // this ingredient (e.g. garlic → "cloves"), so a hand-add reads and totals
   // with those recipes instead of as a bare, unitless count. Count-y items no
   // recipe measures (eggs, paper towels) stay unitless.
-  const unitForKey = (key) => {
-    const counts = {};
-    for (const r of data.recipes)
-      for (const i of r.ingredients) {
-        if (norm(i.name) !== key) continue;
-        const u = (i.unit || "").trim();
-        if (u) counts[u] = (counts[u] || 0) + 1;
-      }
-    let best = "";
-    let bestN = 0;
-    for (const [u, n] of Object.entries(counts)) if (n > bestN) [best, bestN] = [u, n];
-    return best;
-  };
+  const unitForKey = (key) => commonUnitFor(data, key);
 
   // Set the hand-added quantity for a known ingredient on the shopping list, at
   // its usual store — no need to hop to the List tab and retype it. A brand-new

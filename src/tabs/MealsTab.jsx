@@ -6,7 +6,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog } from "../ui";
-import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, unitSuggestions, ingredientNames, normalizeCfg } from "../lib";
+import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, unitSuggestions, ingredientNames, normalizeCfg, ingredientMatches } from "../lib";
 import { RecipeDetail } from "../RecipeDetail";
 
 // Rounded "pill" grouping a remove / count / add cluster so the controls read
@@ -141,13 +141,7 @@ export function MealsTab({ data, catalog, update }) {
 
   // Matches for the ingredient-name field currently being typed in. Mirrors the
   // List tab's add-item suggestions: name-substring, hidden once fully typed.
-  const ingMatches = (name) => {
-    const q = norm(name);
-    if (!q) return [];
-    const m = knownItems.filter((k) => k.key.includes(q));
-    if (m.length === 1 && m[0].key === q) return []; // already an exact match — nothing to add
-    return m.slice(0, 8);
-  };
+  const ingMatches = (name) => ingredientMatches(knownItems, name);
 
   const setIngName = (i, name) => {
     const list = [...draft.ingredients];

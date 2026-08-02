@@ -444,6 +444,98 @@ export function usedInRecipes(data, key) {
   return data.recipes.filter((r) => r.ingredients.some((i) => norm(i.name) === key));
 }
 
+// Type-ahead matches over ingredientNames(). Hidden once the text is already an
+// exact match, since there'd be nothing left to pick.
+//
+// This lived twice, identically: the List tab's add-item field and the recipe
+// editor's ingredient rows. Both steer you onto an existing ingredient rather
+// than forking a spelling variant into its own row, so they have to agree about
+// what counts as a match — which is exactly the argument for one copy.
+export function ingredientMatches(known, text, limit = 8) {
+  const q = norm(text);
+  if (!q) return [];
+  const m = known.filter((k) => k.key.includes(q));
+  if (m.length === 1 && m[0].key === q) return [];
+  return m.slice(0, limit);
+}
+
+// The Ingredients tab's visible rows: search text, one default store, staples
+// only. A-Z order is inherited from `known`; this only hides rows.
+export function filterIngredients(data, known, { query = "", store = "", staplesOnly = false } = {}) {
+  const q = norm(query);
+  return known.filter(({ key, name }) => {
+    if (q && !norm(name).includes(q)) return false;
+    const cfg = normalizeCfg(data.config[key]);
+    if (store && cfg.store !== store) return false;
+    if (staplesOnly && !cfg.staple) return false;
+    return true;
+  });
+}
+
+// The unit an ingredient is most often measured in across the household's
+// recipes (garlic → "clove"), so a hand-add totals with those recipes instead
+// of sitting as a bare count. Items no recipe measures stay unitless.
+export function commonUnitFor(data, key) {
+  const counts = {};
+  for (const r of data.recipes)
+    for (const i of r.ingredients) {
+      if (norm(i.name) !== key) continue;
+      const u = (i.unit || "").trim();
+      if (u) counts[u] = (counts[u] || 0) + 1;
+    }
+  let best = "";
+  let bestN = 0;
+  for (const [u, n] of Object.entries(counts)) if (n > bestN) [best, bestN] = [u, n];
+  return best;
+}
+
+// Which store a list row belongs under: a per-list reroute wins, then the
+// ingredient's default, then Unassigned.
+export function storeFor(data, key) {
+  return data.list.overrides[key] ?? data.config[key]?.store ?? UNASSIGNED;
+}
+
+// Order the shopping list for display. Returns sections so both views share one
+// shape — "all" is a single unnamed section. Checked items sink to the bottom of
+// their own section rather than leaving the list, so you can still see and undo
+// them. "flow" walks the aisle order for that store, with un-numbered aisles
+// last.
+export function listSections(data, items, view, storeSort) {
+  const isChecked = (i) => !!data.list.checked[i.key];
+  const byName = (a, b) => a.name.localeCompare(b.name);
+  // Checked-last wrapper: whatever the section's ordering is, done items sink.
+  const sunk = (cmp) => (a, b) => {
+    const ac = isChecked(a);
+    const bc = isChecked(b);
+    if (ac !== bc) return ac ? 1 : -1;
+    return cmp(a, b);
+  };
+  const remaining = (list) => list.filter((i) => !isChecked(i)).length;
+
+  if (view === "all") {
+    return [{ store: null, items: [...items].sort(sunk(byName)), remaining: remaining(items) }];
+  }
+
+  const groups = new Map();
+  for (const i of items) {
+    const s = storeFor(data, i.key);
+    if (!groups.has(s)) groups.set(s, []);
+    groups.get(s).push(i);
+  }
+  // Store order follows the household's own store list, not discovery order.
+  return [...data.stores, UNASSIGNED]
+    .filter((s) => groups.has(s))
+    .map((store) => {
+      const g = groups.get(store);
+      const aisle = (key) => {
+        const a = aisleFor(data.config[key], store);
+        return a === "" ? Infinity : Number(a);
+      };
+      const cmp = storeSort === "flow" ? (a, b) => aisle(a.key) - aisle(b.key) || byName(a, b) : byName;
+      return { store, items: [...g].sort(sunk(cmp)), remaining: remaining(g) };
+    });
+}
+
 /* =========================== aggregation =========================== */
 
 export function servingsByRecipe(data) {

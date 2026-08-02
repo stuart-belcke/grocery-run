@@ -4,7 +4,20 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeLocal, emptyLocal, diffPaths, planWrite, asKeyed, needsKeyMigration } from "./lib.js";
+import fs from "node:fs";
+import {
+  normalizeLocal,
+  emptyLocal,
+  diffPaths,
+  planWrite,
+  asKeyed,
+  needsKeyMigration,
+  ingredientMatches,
+  filterIngredients,
+  commonUnitFor,
+  storeFor,
+  listSections,
+} from "./lib.js";
 
 /* ---------------- forward compatibility ----------------
    Every device writes the WHOLE state back on any edit, so a build that
@@ -277,4 +290,155 @@ test("a cleared baseline forces a full set, not a diff", () => {
   // rather than emitting paths against a shape the server doesn't have.
   const state = { list: { extras: { milk: { name: "milk" } } } };
   assert.deepEqual(planWrite(null, "home-abc", state), { kind: "set", state });
+});
+
+/* ---------------- extracted tab logic ----------------
+   These were inline in the tabs, which meant they were untestable and, in the
+   suggestion matcher's case, duplicated. Behaviour is unchanged; the point of
+   moving them is that they can now be checked here.                        */
+
+const cfg = (store, aisles = {}, staple = false) => ({ store, aisles, staple });
+const listData = () => ({
+  stores: ["Kroger", "Aldi"],
+  recipes: [],
+  config: {
+    milk: cfg("Kroger", { Kroger: 5 }),
+    eggs: cfg("Kroger", { Kroger: 2 }),
+    bread: cfg("Aldi", { Aldi: 9 }),
+    salt: cfg("Unassigned", {}, true),
+  },
+  list: { selections: {}, overrides: {}, checked: {}, extras: {}, bought: {} },
+  plan: {},
+  stapleNeeds: {},
+});
+const item = (key, name) => ({ key, name, parts: {}, sources: [] });
+
+test("ingredientMatches finds substrings and caps the list", () => {
+  const known = [
+    { key: "milk", name: "Milk" },
+    { key: "buttermilk", name: "Buttermilk" },
+    { key: "eggs", name: "Eggs" },
+  ];
+  assert.deepEqual(ingredientMatches(known, "milk").map((k) => k.key), ["milk", "buttermilk"]);
+  assert.deepEqual(ingredientMatches(known, ""), []);
+  assert.equal(ingredientMatches(known, "m", 1).length, 1);
+});
+
+test("ingredientMatches hides an exact single match", () => {
+  // Nothing left to pick, so the dropdown shouldn't cover the field.
+  assert.deepEqual(ingredientMatches([{ key: "eggs", name: "Eggs" }], "eggs"), []);
+  // But an exact match alongside others still offers the others.
+  const known = [{ key: "milk", name: "Milk" }, { key: "buttermilk", name: "Buttermilk" }];
+  assert.equal(ingredientMatches(known, "milk").length, 2);
+});
+
+test("filterIngredients combines search, store and staples", () => {
+  const d = listData();
+  const known = [
+    { key: "milk", name: "Milk" },
+    { key: "bread", name: "Bread" },
+    { key: "salt", name: "Salt" },
+  ];
+  assert.deepEqual(filterIngredients(d, known, {}).map((k) => k.key), ["milk", "bread", "salt"]);
+  assert.deepEqual(filterIngredients(d, known, { store: "Aldi" }).map((k) => k.key), ["bread"]);
+  assert.deepEqual(filterIngredients(d, known, { staplesOnly: true }).map((k) => k.key), ["salt"]);
+  assert.deepEqual(filterIngredients(d, known, { query: "re" }).map((k) => k.key), ["bread"]);
+  assert.deepEqual(filterIngredients(d, known, { query: "z" }), []);
+});
+
+test("commonUnitFor picks the unit recipes use most", () => {
+  const d = {
+    ...listData(),
+    recipes: [
+      { id: "r1", ingredients: [{ name: "Garlic", qty: 2, unit: "clove" }] },
+      { id: "r2", ingredients: [{ name: "garlic", qty: 1, unit: "clove" }] },
+      { id: "r3", ingredients: [{ name: "GARLIC", qty: 1, unit: "head" }] },
+      { id: "r4", ingredients: [{ name: "Eggs", qty: 2, unit: "" }] },
+    ],
+  };
+  assert.equal(commonUnitFor(d, "garlic"), "clove");
+  assert.equal(commonUnitFor(d, "eggs"), ""); // blank units don't count
+  assert.equal(commonUnitFor(d, "nothing"), "");
+});
+
+test("storeFor prefers a list reroute over the ingredient default", () => {
+  const d = listData();
+  assert.equal(storeFor(d, "milk"), "Kroger");
+  assert.equal(storeFor(d, "unknown"), "Unassigned");
+  d.list.overrides.milk = "Aldi";
+  assert.equal(storeFor(d, "milk"), "Aldi");
+});
+
+test("listSections groups by store in the household's store order", () => {
+  const d = listData();
+  const items = [item("bread", "Bread"), item("milk", "Milk"), item("eggs", "Eggs")];
+  const secs = listSections(d, items, "store", "az");
+  assert.deepEqual(secs.map((s) => s.store), ["Kroger", "Aldi"]);
+  assert.deepEqual(secs[0].items.map((i) => i.key), ["eggs", "milk"]);
+  assert.deepEqual(secs[1].items.map((i) => i.key), ["bread"]);
+});
+
+test("listSections sinks checked items to the bottom of their section", () => {
+  const d = listData();
+  d.list.checked.eggs = true;
+  const items = [item("eggs", "Eggs"), item("milk", "Milk")];
+  const [kroger] = listSections(d, items, "store", "az");
+  assert.deepEqual(kroger.items.map((i) => i.key), ["milk", "eggs"]);
+  assert.equal(kroger.remaining, 1); // the count excludes checked ones
+});
+
+test("listSections 'flow' walks aisle order, un-numbered aisles last", () => {
+  const d = listData();
+  d.config.cheese = cfg("Kroger", {}); // no aisle number for Kroger
+  const items = [item("cheese", "Cheese"), item("milk", "Milk"), item("eggs", "Eggs")];
+  const [kroger] = listSections(d, items, "store", "flow");
+  assert.deepEqual(kroger.items.map((i) => i.key), ["eggs", "milk", "cheese"]);
+});
+
+test("listSections 'all' returns one unnamed section", () => {
+  const d = listData();
+  const items = [item("milk", "Milk"), item("bread", "Bread")];
+  const secs = listSections(d, items, "all", "az");
+  assert.equal(secs.length, 1);
+  assert.equal(secs[0].store, null);
+  assert.deepEqual(secs[0].items.map((i) => i.key), ["bread", "milk"]);
+});
+
+test("listSections does not mutate the items it is given", () => {
+  const d = listData();
+  const items = [item("milk", "Milk"), item("eggs", "Eggs")];
+  const order = items.map((i) => i.key);
+  listSections(d, items, "store", "az");
+  assert.deepEqual(items.map((i) => i.key), order);
+});
+
+/* ---------------- import hygiene ----------------
+   Vite doesn't type-check, so a helper that is USED but not IMPORTED builds
+   perfectly and then throws at runtime — and only on the code path that calls
+   it. Extracting logic into lib.js made that easy to do by accident: dropping
+   `aisleFor` from ListTab's imports while renderItem still called it produced a
+   blank screen the moment a list row rendered, and `npm run build` was happy.
+
+   A heuristic, not a substitute for ESLint's no-undef, but it costs nothing and
+   catches exactly the mistake this refactor invites.                         */
+
+test("every lib helper a component calls is imported there", () => {
+  const libSrc = fs.readFileSync(new URL("./lib.js", import.meta.url), "utf8");
+  const exported = [...libSrc.matchAll(/export (?:const|function|let)\s+(\w+)/g)].map((m) => m[1]);
+
+  const files = ["App.jsx", "tabs/ListTab.jsx", "tabs/MealsTab.jsx", "tabs/PantryTab.jsx", "tabs/WeekTab.jsx", "tabs/SettingsTab.jsx"];
+  const problems = [];
+  for (const rel of files) {
+    const src = fs.readFileSync(new URL("./" + rel, import.meta.url), "utf8");
+    const imp = src.match(/import \{([^}]*)\} from "\.\.?\/lib";/);
+    const imported = imp ? imp[1].split(",").map((x) => x.trim()).filter(Boolean) : [];
+    const body = imp ? src.slice(imp.index + imp[0].length) : src;
+    for (const name of exported) {
+      if (imported.includes(name)) continue;
+      const calledHere = new RegExp(`\\b${name}\\s*\\(`).test(body);
+      const definedHere = new RegExp(`(?:const|function|let)\\s+${name}\\b`).test(body);
+      if (calledHere && !definedHere) problems.push(`${rel} calls ${name}() without importing it`);
+    }
+  }
+  assert.deepEqual(problems, []);
 });
