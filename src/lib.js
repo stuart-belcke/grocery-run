@@ -169,7 +169,15 @@ export function normalizeLocal(raw) {
     configOverrides: asObject(d.configOverrides),
     extraStores: asArray(d.extraStores),
     removedStores: asArray(d.removedStores),
+    // Spread what actually arrived BEFORE overlaying the fields we know how to
+    // normalize. Listing the known subfields alone silently destroys any other
+    // one — and since every device writes the whole state back, a phone running
+    // an older build would strip a newer field out of the SHARED copy for
+    // everyone. That is exactly how `bought` could vanish and already-purchased
+    // items reappear on both phones. Top-level keys never had this problem
+    // (`...d` above carries them through); `list` was the one place that did.
     list: {
+      ...asObject(d.list),
       selections: asObject(d.list && d.list.selections),
       overrides: asObject(d.list && d.list.overrides),
       checked: asObject(d.list && d.list.checked),

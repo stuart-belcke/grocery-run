@@ -97,7 +97,9 @@ export function ListTab({ data, update }) {
       const surviving = new Set([...extras.map((e) => norm(e.name)), ...Object.keys(d.stapleNeeds || {})]);
       const overrides = {};
       for (const [k, v] of Object.entries(d.list.overrides)) if (surviving.has(k)) overrides[k] = v;
-      d.list = { selections: {}, overrides, checked: {}, extras, bought };
+      // Spread first: replacing `list` with just the fields named here would
+      // drop any subfield added later, the same way the old normalizeLocal did.
+      d.list = { ...d.list, selections: {}, overrides, checked: {}, extras, bought };
       return d;
     });
     setConfirmDone(false);
