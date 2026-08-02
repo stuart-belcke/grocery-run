@@ -259,29 +259,34 @@ household management instead of an export console.
 
 ### Sequencing (this order matters)
 
-0. **Narrow the writes, staying on RTDB.** Replace the whole-`state` `set()`
-   with writes at the path that actually changed, and narrow the listeners to
-   match (an `onValue` on a parent still delivers the whole subtree no matter
-   how deep you wrote, so half the change gets you correctness without the
-   bandwidth win). This fixes the live clobber that `updatedAt`/`pickState`
-   only papers over, needs no login screen and no migration, and is what makes
-   step 2 safe — putting the catalog in the database multiplies the blob by
-   about 5× if writes stay wide. It also forces `writeHousehold(state)` to
-   become intent-shaped operations (`toggleChecked(key, on)`), which is exactly
-   the seam a later Firestore swap needs. Portability falls out of this work
-   rather than costing extra. **~2 days.**
-1. **Auth.** Sign-in, `users/{uid}`, and a migration that adopts the current
-   device's household state into a household owned by the first account. Nothing
-   user-visible changes except a login screen.
-2. **Catalog as data.** Seed from `catalog.json`, move every read off
-   `catalog.*` and onto the household collections, delete the override layer.
-   This is the big one and it touches every tab.
-3. **Everything else** — invites, roles, billing, a real landing page — is
-   ordinary product work once 1 and 2 are done.
+0. **[DONE] Narrow the writes, staying on RTDB.** Shipped in #36 (path-scoped
+   writes via `diffPaths`/`planWrite`) and #39 (keyed collections, so adding a
+   hand-added item stops rewriting the whole array). This fixed the live
+   clobber that `updatedAt`/`pickState` only papered over, and needed no login
+   screen and no migration. The listener half was deliberately NOT done — see
+   step 3.
+1. **Catalog as data.** Seed from `catalog.json`, move every read off
+   `catalog.*` and onto the household node, delete the override layer. Touches
+   every tab. **Build the export alongside it, not after** — see above.
+2. **Auth, when it's needed.** Sign-in, `users/{uid}`, and re-parenting the
+   household under a real account.
+3. **Narrow the listeners.** Gated on step 1, not on taste: the synced node is
+   954 bytes today (measured), so wide listeners cost nothing worth a refactor.
+   Step 1 makes it ~30 KB and the calculus flips. Details and the four costs
+   are in `DeveloperNotes.txt` item 21.
+4. **Everything else** — invites, roles, billing, a landing page — is ordinary
+   product work once the above is done.
 
-Doing 3 before 2 means building it twice. Doing 2 before 1 means migrating data
-with no identity to migrate it *to*. Step 0 stands alone and is worth doing
-whether or not any of the rest happens.
+**Auth is NOT a prerequisite for step 1, which an earlier version of this file
+got wrong.** The reasoning was "you can't migrate data without an identity to
+migrate it to" — but the household code already *is* a tenant key. It's a weak
+one, a bearer secret with no recovery, and that's exactly what auth later
+fixes. It is still a working key to hang data off today. So for a single
+household the catalog can move now and be re-parented under an account later,
+and waiting for auth just means building more features on top of the override
+layer first — each of which then has to be migrated too. Item 12 (units) would
+touch ingredient config; item 23 (stable ids) touches ingredient identity.
+Both are cheaper after the move than before it.
 
 Firestore is not a step here. It becomes worth adopting when one of its four
 advantages above actually binds — most likely offline persistence, or history
@@ -289,15 +294,24 @@ outgrowing what a client-side slice can page through.
 
 ### Effort, roughly
 
-- Auth + household adoption/migration: **~2–3 days**.
-- Catalog-as-data + removing the override layer: **1–2 weeks**, and it is a
-  rewrite of the data flow rather than an addition. Every tab reads config or
-  recipes.
-- Security rules + verifying them: **~2 days**, and worth doing properly — this
-  is the part where a mistake exposes other people's data.
+Split by what you're actually buying, because the single-household version is
+much cheaper than the multi-user one:
 
-So **two to three weeks of focused work for the foundation alone**, before any
-of the polish that would make it sellable.
+**Single household (steps 1 and 3) — a few days.**
+- Catalog-as-data + removing the override layer: **~3–4 days**. Still a rewrite
+  of the data flow rather than an addition — every tab reads config or recipes
+  — but with no auth, no tenancy, and no rules work in it.
+- Export alongside it: **half a day**, mostly reusing `formatCatalog`.
+- Narrow listeners: **~2 days**.
+
+**Multi-user, whenever it's wanted — add one to two weeks.**
+- Auth + re-parenting the household under an account: **~2–3 days**.
+- Membership-scoped security rules + verifying them: **~2 days**, worth doing
+  properly since this is where a mistake exposes other people's data.
+- Invites, roles, account management: the rest.
+
+The earlier "two to three weeks for the foundation" figure bundled all of it
+together and made the useful part look far more expensive than it is.
 
 ### Portability to the workout app
 
