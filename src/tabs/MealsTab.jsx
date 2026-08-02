@@ -96,9 +96,7 @@ export function MealsTab({ data, catalog, update }) {
       if (isCatalogId(clean.id)) {
         d.recipeOverrides[clean.id] = clean; // local edit shadowing the catalog copy
       } else {
-        const idx = d.localRecipes.findIndex((r) => r.id === clean.id);
-        if (idx >= 0) d.localRecipes[idx] = clean;
-        else d.localRecipes.push(clean);
+        d.localRecipes[clean.id] = clean;
       }
       for (const ing of clean.ingredients) {
         const k = norm(ing.name);
@@ -113,7 +111,7 @@ export function MealsTab({ data, catalog, update }) {
     const catalogRecipe = isCatalogId(r.id);
     update((d) => {
       if (catalogRecipe) d.recipeOverrides[r.id] = false; // false, not null: Firebase drops nulls
-      else d.localRecipes = d.localRecipes.filter((x) => x.id !== r.id);
+      else delete d.localRecipes[r.id];
       delete d.list.selections[r.id];
       for (const day of Object.keys(d.plan || {})) {
         for (const t of Object.keys(d.plan[day] || {})) {

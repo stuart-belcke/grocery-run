@@ -92,7 +92,7 @@ export default function App() {
     const keep = unpublishedChanges(cur, cat);
     const unchanged =
       Object.keys(keep.recipeOverrides).length === Object.keys(cur.recipeOverrides).length &&
-      keep.localRecipes.length === cur.localRecipes.length &&
+      Object.keys(keep.localRecipes).length === Object.keys(cur.localRecipes).length &&
       Object.keys(keep.configOverrides).length === Object.keys(cur.configOverrides).length &&
       keep.extraStores.length === cur.extraStores.length &&
       keep.removedStores.length === cur.removedStores.length;
@@ -194,7 +194,7 @@ export default function App() {
     }
     // Skip any local recipe whose id has since entered the catalog (promoted by
     // a publish); the catalog copy — plus any override above — represents it.
-    for (const r of local.localRecipes) {
+    for (const r of Object.values(local.localRecipes)) {
       if (catIds.has(r.id)) continue;
       recipes.push({ ...r, fromCatalog: false });
     }

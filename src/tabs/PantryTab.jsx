@@ -131,7 +131,7 @@ export function PantryTab({ data, catalog, update }) {
   // This ingredient's hand-added shopping-list entry (qty + unit), or null.
   // Recipe contributions are counted separately on the list itself; this pill
   // only manages what you add straight from here.
-  const listEntry = (key) => data.list.extras.find((x) => norm(x.name) === key) || null;
+  const listEntry = (key) => data.list.extras[key] || null;
 
   // The unit to measure a quick-add in: whatever recipes most commonly use for
   // this ingredient (e.g. garlic → "cloves"), so a hand-add reads and totals
@@ -157,14 +157,10 @@ export function PantryTab({ data, catalog, update }) {
   // already has. Zero (or less) drops the hand-added entry entirely.
   const setListQty = (key, name, qty) =>
     update((d) => {
-      const idx = d.list.extras.findIndex((e) => norm(e.name) === key);
-      if (qty <= 0) {
-        if (idx >= 0) d.list.extras.splice(idx, 1);
-      } else if (idx >= 0) {
-        d.list.extras[idx] = { ...d.list.extras[idx], qty };
-      } else {
-        d.list.extras.push({ name, qty, unit: unitForKey(key) });
-      }
+      const cur = d.list.extras[key];
+      if (qty <= 0) delete d.list.extras[key];
+      else if (cur) d.list.extras[key] = { ...cur, qty };
+      else d.list.extras[key] = { name, qty, unit: unitForKey(key) };
       return d;
     });
 
@@ -172,16 +168,12 @@ export function PantryTab({ data, catalog, update }) {
   // editor), allowing fractions and a different unit than the quick-step default.
   const setListEntry = (key, name, qty, unit) =>
     update((d) => {
-      const idx = d.list.extras.findIndex((e) => norm(e.name) === key);
+      const cur = d.list.extras[key];
       const q = Number(qty);
       const u = (unit || "").trim();
-      if (!(q > 0)) {
-        if (idx >= 0) d.list.extras.splice(idx, 1);
-      } else if (idx >= 0) {
-        d.list.extras[idx] = { ...d.list.extras[idx], qty: q, unit: u };
-      } else {
-        d.list.extras.push({ name, qty: q, unit: u });
-      }
+      if (!(q > 0)) delete d.list.extras[key];
+      else if (cur) d.list.extras[key] = { ...cur, qty: q, unit: u };
+      else d.list.extras[key] = { name, qty: q, unit: u };
       return d;
     });
 
@@ -226,11 +218,15 @@ export function PantryTab({ data, catalog, update }) {
         };
         if (isCatalogId(r.id)) d.recipeOverrides[r.id] = renamed;
         else {
-          const idx = d.localRecipes.findIndex((x) => x.id === r.id);
-          if (idx >= 0) d.localRecipes[idx] = renamed;
+          if (d.localRecipes[r.id]) d.localRecipes[r.id] = renamed;
         }
       }
-      d.list.extras = d.list.extras.map((e) => (norm(e.name) === oldKey ? { ...e, name: newName } : e));
+      // Renaming moves the hand-added entry to its new key, merging if the
+      // target name already has one.
+      if (d.list.extras[oldKey]) {
+        d.list.extras[newKey] = { ...d.list.extras[oldKey], name: newName };
+        if (newKey !== oldKey) delete d.list.extras[oldKey];
+      }
       if (d.list.overrides[oldKey] != null) {
         if (d.list.overrides[newKey] == null) d.list.overrides[newKey] = d.list.overrides[oldKey];
         delete d.list.overrides[oldKey];
@@ -254,7 +250,7 @@ export function PantryTab({ data, catalog, update }) {
   // asks, and resetting is an explicit choice.
   const removeItem = (key, name) => {
     const usedBy = usedInRecipes(data, key).map((r) => r.name);
-    const onList = data.list.extras.some((e) => norm(e.name) === key);
+    const onList = !!data.list.extras[key];
     if (usedBy.length || onList) setInUseNote({ key, name, usedBy, onList });
     else setConfirmItem({ key, name });
   };

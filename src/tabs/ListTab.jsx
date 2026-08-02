@@ -83,7 +83,8 @@ export function ListTab({ data, update }) {
         if (d.list.checked[key]) delete d.stapleNeeds[key];
       }
       // Same for hand-added items: bought ones go, the rest stay pending.
-      const extras = d.list.extras.filter((e) => !d.list.checked[norm(e.name)]);
+      const extras = {};
+      for (const [k, e] of Object.entries(d.list.extras)) if (!d.list.checked[k]) extras[k] = e;
       // Recipe-driven items can't be deleted — they're computed from the plan,
       // which we're keeping. Bank the quantity bought instead, so it offsets
       // future demand rather than hiding the ingredient outright.
@@ -94,7 +95,7 @@ export function ListTab({ data, update }) {
         if (Object.keys(merged).length) bought[key] = merged;
       }
       // A store reroute is only meaningful while its item is still listed.
-      const surviving = new Set([...extras.map((e) => norm(e.name)), ...Object.keys(d.stapleNeeds || {})]);
+      const surviving = new Set([...Object.keys(extras), ...Object.keys(d.stapleNeeds || {})]);
       const overrides = {};
       for (const [k, v] of Object.entries(d.list.overrides)) if (surviving.has(k)) overrides[k] = v;
       // Spread first: replacing `list` with just the fields named here would
@@ -122,7 +123,7 @@ export function ListTab({ data, update }) {
     const aisle = extra.aisle.trim() !== "" && !isNaN(Number(extra.aisle)) ? Number(extra.aisle) : "";
     const known = !!data.config[key];
     update((d) => {
-      d.list.extras.push({ name, qty: Number(extra.qty) || 1, unit: extra.unit.trim() });
+      d.list.extras[key] = { name, qty: Number(extra.qty) || 1, unit: extra.unit.trim() };
       if (saveToIngredients) {
         d.configOverrides[key] = {
           store: store || UNASSIGNED,
@@ -156,7 +157,7 @@ export function ListTab({ data, update }) {
   // hand-added entry was the item's sole source.
   const removeExtra = (item) => {
     update((d) => {
-      d.list.extras = d.list.extras.filter((e) => norm(e.name) !== item.key);
+      delete d.list.extras[item.key];
       if (item.sources.length === 1) {
         delete d.list.checked[item.key];
         delete d.list.overrides[item.key];
@@ -168,7 +169,7 @@ export function ListTab({ data, update }) {
   };
 
   const startExtraEdit = (item) => {
-    const ex = data.list.extras.find((e) => norm(e.name) === item.key);
+    const ex = data.list.extras[item.key];
     if (!ex) return;
     setEditExtra({ key: item.key, name: ex.name, qty: String(ex.qty), unit: ex.unit });
   };
@@ -181,8 +182,8 @@ export function ListTab({ data, update }) {
     if (!name) return;
     const newKey = norm(name);
     update((d) => {
-      d.list.extras = d.list.extras.filter((e) => norm(e.name) !== item.key);
-      d.list.extras.push({ name, qty: Number(editExtra.qty) || 1, unit: editExtra.unit.trim() });
+      delete d.list.extras[item.key];
+      d.list.extras[newKey] = { name, qty: Number(editExtra.qty) || 1, unit: editExtra.unit.trim() };
       if (newKey !== item.key) {
         if (d.list.overrides[item.key] != null && d.list.overrides[newKey] == null) d.list.overrides[newKey] = d.list.overrides[item.key];
         if (d.list.checked[item.key]) d.list.checked[newKey] = true;

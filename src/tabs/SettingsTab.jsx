@@ -127,7 +127,7 @@ export function SettingsTab({ data, catalog, local, update, setLocal, code, setC
   const clearOverrides = () => {
     update((d) => {
       d.recipeOverrides = {};
-      d.localRecipes = [];
+      d.localRecipes = {};
       d.configOverrides = {};
       d.extraStores = [];
       d.removedStores = [];
