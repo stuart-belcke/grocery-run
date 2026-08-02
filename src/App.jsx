@@ -9,6 +9,7 @@ import {
   watchConnection,
   writeHousehold,
   flushHousehold,
+  markSynced,
 } from "./sync";
 import { C, fontDisplay, fontBody } from "./theme";
 import { Stripe } from "./ui";
@@ -160,8 +161,14 @@ export default function App() {
       if (use === "remote") {
         // Shared state is ahead of us (or level): adopt it, and don't re-push,
         // which would bounce the same value back and forth between phones.
-        setLocalState(normalizeLocal(remote));
+        const adopted = normalizeLocal(remote);
+        setLocalState(adopted);
         saveCache(code, remote);
+        // Baseline for the next narrow write. It has to be the NORMALIZED copy,
+        // because that's what local state now is — diffing a later edit against
+        // the raw remote would re-send a path for every field normalizeLocal
+        // fills back in (Firebase drops empty objects on the way out).
+        markSynced(code, adopted);
       } else if (push) {
         // Either a brand-new household, or this device holds work the database
         // never received — seed/repair it rather than losing the local copy.

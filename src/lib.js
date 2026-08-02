@@ -204,6 +204,60 @@ export function pickState(localState, remoteState) {
   return r >= l ? { use: "remote", push: false } : { use: "local", push: true };
 }
 
+// Work out the narrowest set of paths that turns `prev` into `next`, as the
+// { "a/b/c": value } shape RTDB's update() takes.
+//
+// Why this exists: the app used to push the ENTIRE household state on every
+// edit, so two phones editing different things both rebuilt the whole world
+// from their own starting point and the later write silently erased the
+// earlier one. Ticking one checkbox wrote ~30 KB to change one boolean.
+// Writing only what changed means edits to different paths stop colliding.
+//
+// Two deliberate rules:
+//   - ARRAYS ARE ATOMIC. Diffing them by index is a trap: an insert shifts
+//     every later element, so index-wise diffing rewrites the tail and two
+//     concurrent inserts still corrupt each other. Write the whole array at
+//     its own path instead — still far narrower than the whole state.
+//   - REMOVED KEYS BECOME null, which is how RTDB deletes. That also means a
+//     key we simply don't understand is never touched: it's absent from both
+//     sides of the diff, so nothing is written for it.
+const isPlainObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+
+// Decide what a flush should actually send. Split out from the sync layer so
+// the baseline rules are testable without a database:
+//   - no usable baseline (first push this session, or the household code just
+//     changed) -> seed the whole node, and diff from there on
+//   - baseline matches and nothing differs -> send nothing at all
+//   - otherwise -> a narrow multi-path update
+export function planWrite(baseline, code, state) {
+  if (!baseline || baseline.code !== code) return { kind: "set", state };
+  const paths = diffPaths(baseline.state, state);
+  if (!Object.keys(paths).length) return { kind: "skip" };
+  return { kind: "update", paths };
+}
+
+export function diffPaths(prev, next, base = "") {
+  const out = {};
+  if (!isPlainObject(prev) || !isPlainObject(next)) {
+    // Not two objects to walk into — replace wholesale at this path.
+    if (JSON.stringify(prev) !== JSON.stringify(next)) out[base] = next === undefined ? null : next;
+    return out;
+  }
+  for (const key of new Set([...Object.keys(prev), ...Object.keys(next)])) {
+    const path = base ? `${base}/${key}` : key;
+    const a = prev[key];
+    const b = next[key];
+    if (!(key in next)) {
+      out[path] = null; // deleted
+    } else if (isPlainObject(a) && isPlainObject(b)) {
+      Object.assign(out, diffPaths(a, b, path));
+    } else if (JSON.stringify(a) !== JSON.stringify(b)) {
+      out[path] = b;
+    }
+  }
+  return out;
+}
+
 export function loadJSON(key) {
   if (!storageOk) return null;
   try {

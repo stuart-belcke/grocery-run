@@ -12,6 +12,7 @@
  * ------------------------------------------------------------------ */
 
 import { firebaseConfig, syncEnabled } from "./firebase-config";
+import { planWrite } from "./lib";
 
 let dbPromise = null;
 
@@ -130,14 +131,31 @@ export function watchConnection(cb) {
   };
 }
 
-// Debounced whole-state write. Rapid edits coalesce into one push.
+// Debounced write. Rapid edits coalesce into one push.
+//
+// The push is NARROW: we keep the state the database is known to hold and send
+// only the paths that differ. Pushing the whole state meant two phones editing
+// different things each rebuilt the entire household from their own starting
+// point, and whichever landed second erased the other's work — ticking one
+// checkbox rewrote everything. Now a checkbox writes one path, and an edit
+// somewhere else in the tree can't collide with it.
 let writeTimer = null;
 let pending = null; // { code, state }
+let lastWritten = null; // { code, state } — what the server is known to hold
+
 export function writeHousehold(code, state) {
   if (!syncEnabled) return;
   pending = { code, state };
   clearTimeout(writeTimer);
   writeTimer = setTimeout(flushHousehold, 250);
+}
+
+// Tell the sync layer the server already holds this exact state, so the next
+// edit is diffed against the right baseline. Called when the app adopts a
+// remote update — without it we'd diff against our own older copy and re-send
+// paths the database already has.
+export function markSynced(code, state) {
+  lastWritten = { code, state };
 }
 
 // Push any pending write straight away. Call this when the app is being
@@ -150,15 +168,26 @@ export async function flushHousehold() {
   writeTimer = null;
   const { code, state } = pending;
   pending = null;
+
+  const plan = planWrite(lastWritten, code, state);
+  if (plan.kind === "skip") return; // nothing actually changed
+
   const db = await getDb();
   if (!db) return;
-  const { ref, set } = await import("firebase/database");
+  const { ref, set, update } = await import("firebase/database");
   try {
-    await set(ref(db, `households/${code}/state`), state);
+    const node = ref(db, `households/${code}/state`);
+    if (plan.kind === "update") await update(node, plan.paths);
+    else await set(node, plan.state);
+    lastWritten = { code, state };
   } catch (e) {
     // Offline never rejects (the SDK queues and flushes on reconnect);
     // reaching here means the server refused the write — usually the
     // security rules. Data is NOT syncing, so make it visible.
+    //
+    // lastWritten deliberately stays put: the next flush then re-diffs from
+    // the last state that actually landed, so a rejected edit is retried
+    // rather than silently dropped from every future diff.
     console.error("Grocery Run: sync write rejected", e);
   }
 }
