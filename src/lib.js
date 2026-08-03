@@ -489,6 +489,33 @@ export function commonUnitFor(data, key) {
   return best;
 }
 
+// Where the week is in its planning cycle. Stored as a top-level `planStage`
+// so older builds carry it through untouched (normalizeLocal spreads `...d`).
+//
+// This exists because `bought` had no lifecycle. It was cleared by exactly one
+// button — "Clear week" — so changing meals without pressing it left last
+// week's purchases subtracting from this week's needs, and fully covered items
+// vanished from the list with no trace. The cycle now has a boundary:
+// entering "planning" starts a fresh one.
+//
+//   empty     nothing planned yet          -> Start planning
+//   planning  putting meals in             -> Finish planning
+//   shopping  planned, buying against it   -> Start a new plan / Edit
+//
+// State saved before this shipped has no stage, so a week with meals in it
+// reads as "shopping" — which is where such a household actually was.
+export function planStageOf(data) {
+  const stage = data && data.planStage;
+  if (stage === "planning" || stage === "shopping") return stage;
+  return plannedMealCount(data) > 0 ? "shopping" : "empty";
+}
+
+export function plannedMealCount(data) {
+  let n = 0;
+  for (const day of DAYS) for (const type of MEAL_TYPES) if (data?.plan?.[day]?.[type]?.recipeId) n++;
+  return n;
+}
+
 // Which store a list row belongs under: a per-list reroute wins, then the
 // ingredient's default, then Unassigned.
 export function storeFor(data, key) {

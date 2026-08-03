@@ -217,7 +217,11 @@ export default function App() {
       ...catalog.stores.filter((s) => !local.removedStores.includes(s)),
       ...local.extraStores.filter((s) => !catalog.stores.some((c) => norm(c) === norm(s))),
     ];
-    return { recipes, config, stores, list: local.list, plan: local.plan, stapleNeeds: local.stapleNeeds };
+    // Spread `local` first so a field added to the household state reaches the
+    // tabs without also having to be named here. Listing them explicitly is how
+    // `planStage` was written to storage but never seen by the UI, which read
+    // as the stage silently refusing to change.
+    return { ...local, recipes, config, stores, list: local.list, plan: local.plan, stapleNeeds: local.stapleNeeds };
   }, [catalog, local]);
 
   return (

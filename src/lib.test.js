@@ -20,6 +20,8 @@ import {
   aggregateItems,
   servingsByRecipe,
   qtyLabel,
+  planStageOf,
+  plannedMealCount,
 } from "./lib.js";
 
 /* ---------------- forward compatibility ----------------
@@ -608,4 +610,42 @@ test("qtyLabel joins units and hides zeroes", () => {
   assert.equal(qtyLabel({ "": 3 }), "3");
   assert.equal(qtyLabel({ lb: 0 }), "");
   assert.equal(qtyLabel({}), "");
+});
+
+/* ---------------- planning stages ----------------
+   `bought` had no lifecycle: it was cleared by one button and nothing else, so
+   changing meals without pressing it left last week's purchases cancelling
+   this week's needs, and fully covered items disappeared from the list. The
+   stage machine gives the cycle a boundary.                                  */
+
+test("an empty week reads as 'empty'", () => {
+  assert.equal(planStageOf({ plan: {} }), "empty");
+  assert.equal(planStageOf({}), "empty");
+});
+
+test("state saved before stages existed reads as 'shopping' if meals are planned", () => {
+  // Such a household really was mid-cycle; sending them to "empty" would offer
+  // "Start planning" over a week they'd already planned.
+  assert.equal(planStageOf({ plan: { Mon: { Dinner: { recipeId: "r1" } } } }), "shopping");
+});
+
+test("an explicit stage always wins over the derived one", () => {
+  assert.equal(planStageOf({ plan: {}, planStage: "planning" }), "planning");
+  assert.equal(planStageOf({ plan: { Mon: { Dinner: { recipeId: "r1" } } }, planStage: "planning" }), "planning");
+  assert.equal(planStageOf({ plan: {}, planStage: "shopping" }), "shopping");
+});
+
+test("an unrecognised stage falls back to derivation", () => {
+  assert.equal(planStageOf({ plan: {}, planStage: "nonsense" }), "empty");
+});
+
+test("plannedMealCount counts every day and meal type", () => {
+  assert.equal(plannedMealCount({ plan: {} }), 0);
+  assert.equal(
+    plannedMealCount({ plan: { Mon: { Dinner: { recipeId: "r1" }, Lunch: { recipeId: "r2" } }, Sat: { Dinner: { recipeId: "r3" } } } }),
+    3
+  );
+  // A slot with servings but no recipe isn't a planned meal.
+  assert.equal(plannedMealCount({ plan: { Mon: { Dinner: { servings: 4 } } } }), 0);
+  assert.equal(plannedMealCount(undefined), 0);
 });
