@@ -6,7 +6,7 @@
 import { useState, useMemo } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog } from "../ui";
-import { UNASSIGNED, norm, r2, normalizeCfg, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions, ingredientNames, ingredientMatches, storeFor, listSections } from "../lib";
+import { UNASSIGNED, norm, r2, normalizeCfg, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions, ingredientNames, ingredientMatches, storeFor, listSections, cap } from "../lib";
 
 export function ListTab({ data, update }) {
   const [view, setView] = useState("store");
@@ -19,6 +19,7 @@ export function ListTab({ data, update }) {
   const [confirmDone, setConfirmDone] = useState(false); // "Done shopping" confirmation
   const [askSave, setAskSave] = useState(null); // name of a new item, pending remember-or-not
   const [confirmRemove, setConfirmRemove] = useState(null); // hand-added item pending removal
+  const [showBought, setShowBought] = useState(false); // "already bought" review panel
 
   const items = useMemo(() => aggregateItems(data), [data]);
   const units = useMemo(() => unitSuggestions(data), [data]);
@@ -52,6 +53,30 @@ export function ListTab({ data, update }) {
   const toggleCheck = (key) =>
     update((d) => {
       d.list.checked[key] = !d.list.checked[key];
+      return d;
+    });
+
+  // What the cupboard is currently covering: items kept OFF the list because an
+  // earlier trip this week already bought them. Suppression used to be invisible
+  // apart from a count, which is how a buying cycle that never ended could
+  // silently empty the list — `bought` only clears on "Clear week", so changing
+  // meals without pressing it left last week's purchases subtracting from this
+  // week's needs.
+  const boughtRows = Object.entries(data.list.bought || {})
+    .filter(([, parts]) => parts && typeof parts === "object" && Object.keys(parts).length)
+    .map(([key, parts]) => ({ key, name: cap(key), label: qtyLabel(parts) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  // Putting something back means "I don't actually have this": it stops
+  // offsetting demand, so the item returns to the list at its full quantity.
+  const unbuy = (key) =>
+    update((d) => {
+      delete d.list.bought[key];
+      return d;
+    });
+  const unbuyAll = () =>
+    update((d) => {
+      d.list.bought = {};
       return d;
     });
 
@@ -394,8 +419,40 @@ export function ListTab({ data, update }) {
         {selectedMealCount} meal{selectedMealCount === 1 ? "" : "s"} selected · {remaining} item{remaining === 1 ? "" : "s"} left to buy
         {/* Bought items are hidden, so say so rather than leaving the list
             mysteriously short. */}
-        {boughtCount > 0 && <> · {boughtCount} already bought this week</>}
+        {boughtCount > 0 && (
+          <>
+            {" · "}
+            <button
+              onClick={() => setShowBought((v) => !v)}
+              aria-expanded={showBought}
+              style={{ font: "inherit", color: C.gold, background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline" }}
+            >
+              {boughtCount} already bought this week
+            </button>
+          </>
+        )}
       </div>
+
+      {showBought && boughtRows.length > 0 && (
+        <div style={{ background: C.goldSoft, border: `1px solid ${C.line}`, borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
+            <strong style={{ fontFamily: fontDisplay, fontSize: 16 }}>Already bought this week</strong>
+            <span style={{ fontSize: 12, color: C.faint, flex: "1 1 140px" }}>Kept off the list because an earlier trip covered them.</span>
+            <Btn small onClick={unbuyAll}>Put all back</Btn>
+          </div>
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {boughtRows.map((r) => (
+              <li key={r.key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", borderTop: `1px solid ${C.line}` }}>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  {r.name}
+                  {r.label && <span style={{ color: C.faint, fontSize: 13 }}> · {r.label}</span>}
+                </span>
+                <Btn small onClick={() => unbuy(r.key)}>Put back</Btn>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 14px 6px" }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
