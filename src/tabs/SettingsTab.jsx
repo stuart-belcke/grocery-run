@@ -7,10 +7,10 @@
 import { useState, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Btn, ConfirmDialog, AlertDialog } from "../ui";
-import { formatCatalog, compactCfg, normalizeLocal, validLocal, unpublishedCount } from "../lib";
+import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog } from "../lib";
 import { syncEnabled, cleanCode } from "../sync";
 
-export function SettingsTab({ data, catalog, local, update, setLocal, code, setCode, syncStatus }) {
+export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, syncStatus }) {
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
   const [msg, setMsg] = useState("");
@@ -67,7 +67,10 @@ export function SettingsTab({ data, catalog, local, update, setLocal, code, setC
   const backupJson = () => JSON.stringify({ kind: "grocery-run-backup", local }, null, 1);
 
   const catalogJson = () => {
-    // effective master: catalog merged with this device's edits — paste into catalog.json on GitHub
+    // A snapshot of this household's catalog in the file's format. It is an
+    // EXPORT only — the app never reads it back — so it stays a git-versioned,
+    // diffable history and a restorable backup without being a second source
+    // of truth to reconcile against.
     const recipes = data.recipes.map((r) => ({
       id: r.id,
       name: r.name,
@@ -120,20 +123,16 @@ export function SettingsTab({ data, catalog, local, update, setLocal, code, setC
     reader.readAsText(f);
   };
 
-  // Only count changes that still differ from the catalog — overrides the
-  // catalog already reflects (e.g. after a publish + reload) don't count.
-  const overrideCount = unpublishedCount(local, catalog);
+  // Your catalog now lives in the database, so there is nothing to be
+  // "unpublished" — the export exists for history and backup, not to make an
+  // edit real. What's worth showing is simply how big it is.
+  const catalogSize = data.recipes.length + Object.keys(data.config).length;
 
-  const clearOverrides = () => {
-    update((d) => {
-      d.recipeOverrides = {};
-      d.localRecipes = {};
-      d.configOverrides = {};
-      d.extraStores = [];
-      d.removedStores = [];
-      return d;
-    });
-    setMsg("Local changes cleared — now matching the catalog.");
+  // The escape hatch: throw away this household's catalog and start again from
+  // the one shipped with the app. Destructive, hence the confirmation.
+  const restoreStarter = () => {
+    updateCatalog(() => seedCatalog(catalog));
+    setMsg("Starter catalog restored.");
     setAskReset(false);
   };
 
@@ -179,10 +178,10 @@ export function SettingsTab({ data, catalog, local, update, setLocal, code, setC
       </div>
 
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16 }}>
-        <h3 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 2px" }}>Publish &amp; recover</h3>
+        <h3 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 2px" }}>Export &amp; recover</h3>
         <p style={{ fontSize: 13, color: C.faint, margin: "0 0 14px" }}>
-          Your recipes and defaults live safely in <b>catalog.json</b> on GitHub. Meals and settings you add or edit in the app start as local changes
-          {overrideCount > 0 ? ` — you currently have ${overrideCount} not yet published.` : " — you're currently all published and in sync."}
+          Your recipes, ingredients and stores live in this household&apos;s own catalog and sync between phones — {catalogSize} entr
+          {catalogSize === 1 ? "y" : "ies"} right now. Edits are saved as you make them; nothing needs publishing.
         </p>
 
         <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 6 }}>
@@ -192,11 +191,9 @@ export function SettingsTab({ data, catalog, local, update, setLocal, code, setC
           Push this device's recipe and setting changes into the shared GitHub catalog so they're permanent for both phones. Copy, then paste over <b>catalog.json</b> on GitHub and commit.
         </p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
-          <Btn kind="primary" onClick={() => copyText(catalogJson(), "Catalog copied — paste it over catalog.json on GitHub and commit.")}>
-            Publish changes (copy)
-          </Btn>
-          <Btn onClick={() => download("catalog.json", catalogJson())}>Publish changes (file)</Btn>
-          {overrideCount > 0 && <Btn kind="danger" onClick={() => setAskReset(true)}>Reset to catalog</Btn>}
+          <Btn kind="primary" onClick={() => copyText(catalogJson(), "Catalog copied.")}>Export catalog (copy)</Btn>
+          <Btn onClick={() => download("catalog.json", catalogJson())}>Export catalog (file)</Btn>
+          <Btn kind="danger" onClick={() => setAskReset(true)}>Restore starter catalog</Btn>
         </div>
         <p style={{ fontSize: 12, color: C.faint, margin: "0 0 16px" }}>
           After committing on GitHub, "Reset to catalog" clears the local copies so this device is cleanly in sync.
@@ -262,17 +259,16 @@ export function SettingsTab({ data, catalog, local, update, setLocal, code, setC
 
       <ConfirmDialog
         open={askReset}
-        title="Reset to catalog?"
-        confirmLabel="Reset device"
-        onConfirm={clearOverrides}
+        title="Restore the starter catalog?"
+        confirmLabel="Restore"
+        onConfirm={restoreStarter}
         onCancel={() => setAskReset(false)}
       >
         <p style={{ margin: "0 0 8px" }}>
-          Removes this device's local recipe edits, added meals, and store/ingredient changes so it matches the shared catalog exactly.
+          Replaces this household&apos;s catalog with the one the app ships with. Every recipe, ingredient and store you have added or
+          edited is discarded, on both phones.
         </p>
-        <p style={{ margin: 0 }}>
-          Do this <b style={{ color: C.ink }}>after</b> publishing them into catalog.json, or they're gone.
-        </p>
+        <p style={{ margin: 0 }}>Export a snapshot first if you might want any of it back.</p>
       </ConfirmDialog>
 
       {/* Clipboard access can be blocked (no HTTPS, or permission denied), so

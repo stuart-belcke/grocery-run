@@ -8,7 +8,7 @@ import { C, fontDisplay, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog } from "../ui";
 import { UNASSIGNED, norm, r2, normalizeCfg, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor } from "../lib";
 
-export function ListTab({ data, update }) {
+export function ListTab({ data, update, updateCatalog }) {
   const [view, setView] = useState("store");
   const [storeSort, setStoreSort] = useState("az");
   const [extra, setExtra] = useState({ name: "", qty: "1", unit: "" });
@@ -61,7 +61,7 @@ export function ListTab({ data, update }) {
 
   const setOverride = (key, store) =>
     update((d) => {
-      const def = d.configOverrides[key]?.store ?? data.config[key]?.store ?? UNASSIGNED;
+      const def = data.config[key]?.store ?? UNASSIGNED;
       if (store === def) delete d.list.overrides[key];
       else d.list.overrides[key] = store;
       return d;
@@ -158,9 +158,16 @@ export function ListTab({ data, update }) {
       // own store dropdown handles a one-off reroute — this used to write the
       // same `store` value to a default, an override, or an aisle map
       // depending on invisible state.
-      if (saveToIngredients && !data.config[key]) d.configOverrides[key] = { store: UNASSIGNED, aisles: {} };
       return d;
     });
+    // "Save to Ingredients" means remember the name so it's suggested next
+    // time; where it lives is the Ingredients tab's job.
+    if (saveToIngredients && !data.config[key]) {
+      updateCatalog((c) => {
+        if (!c.ingredients[key]) c.ingredients[key] = { store: UNASSIGNED, aisles: {} };
+        return c;
+      });
+    }
     setExtra({ name: "", qty: "1", unit: "" });
     setAskSave(null);
   };

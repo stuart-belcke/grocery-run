@@ -10,12 +10,16 @@ import {
   writeHousehold,
   flushHousehold,
   markSynced,
+  subscribeCatalog,
+  writeCatalog,
+  markCatalogSynced,
 } from "./sync";
 import { C, fontDisplay, fontBody } from "./theme";
 import { Stripe } from "./ui";
 import {
   LOCAL_KEY,
   CATALOG_KEY,
+  HOUSEHOLD_CATALOG_KEY,
   norm,
   storageOk,
   FALLBACK_CATALOG,
@@ -25,9 +29,11 @@ import {
   saveJSON,
   validLocal,
   validCatalog,
-  unpublishedChanges,
   pickState,
   needsKeyMigration,
+  seedCatalog,
+  migrateCatalog,
+  normalizeCatalog,
 } from "./lib";
 import { ListTab } from "./tabs/ListTab";
 import { MealsTab } from "./tabs/MealsTab";
@@ -63,12 +69,29 @@ export default function App() {
     const legacy = loadJSON(LOCAL_KEY); // migrate pre-sync saves
     return validLocal(legacy) ? normalizeLocal(legacy) : emptyLocal();
   });
+  // The household's own catalog — recipes, ingredient config, stores — now the
+  // single source for all three. Held here rather than in `local` because it
+  // lives at its own database node, on its own listener.
+  const [hCatalog, setHCatalog] = useState(() => {
+    const cached = loadJSON(HOUSEHOLD_CATALOG_KEY);
+    return cached ? normalizeCatalog(cached) : null;
+  });
+  // Whether the catalog listener has reported once. Until it has we don't know
+  // if this household already HAS a catalog, so a local seed is for rendering
+  // only — pushing it could overwrite a real one with a fresh copy of the file.
+  const [catalogReady, setCatalogReady] = useState(false);
   const [tab, setTab] = useState("list");
   const [syncStatus, setSyncStatus] = useState(syncEnabled ? "connecting" : "local-only");
   const [catalogNote, setCatalogNote] = useState("");
 
   const localRef = useRef(local);
   localRef.current = local;
+  const catalogRef = useRef(catalog);
+  catalogRef.current = catalog;
+  const hCatalogRef = useRef(hCatalog);
+  hCatalogRef.current = hCatalog;
+  const catalogReadyRef = useRef(catalogReady);
+  catalogReadyRef.current = catalogReady;
 
   // Persist + (if enabled) push to Firebase. Used for all user edits.
   const setLocal = (next) => {
@@ -84,29 +107,20 @@ export default function App() {
   // update's changes. Make several edits in one fn instead.
   const update = (fn) => setLocal(fn(structuredClone(localRef.current)));
 
-  // Drop local overrides a catalog now already reflects (e.g. after a publish),
-  // so this device stops reporting them as unpublished and stale local copies
-  // of catalog recipes don't linger. Never touches list/plan, and only writes
-  // when something actually changed.
-  const reconcileToCatalog = (cat) => {
-    const cur = localRef.current;
-    const keep = unpublishedChanges(cur, cat);
-    const unchanged =
-      Object.keys(keep.recipeOverrides).length === Object.keys(cur.recipeOverrides).length &&
-      Object.keys(keep.localRecipes).length === Object.keys(cur.localRecipes).length &&
-      Object.keys(keep.configOverrides).length === Object.keys(cur.configOverrides).length &&
-      keep.extraStores.length === cur.extraStores.length &&
-      keep.removedStores.length === cur.removedStores.length;
-    if (unchanged) return;
-    update((d) => {
-      d.recipeOverrides = keep.recipeOverrides;
-      d.localRecipes = keep.localRecipes;
-      d.configOverrides = keep.configOverrides;
-      d.extraStores = keep.extraStores;
-      d.removedStores = keep.removedStores;
-      return d;
-    });
+  // Edit the household catalog. Same one-call-per-handler rule as update() and
+  // for the same reason, but a separate ref — a handler that changes both a
+  // recipe and the shopping list calls each of these once.
+  const updateCatalog = (fn) => {
+    const base = hCatalogRef.current || seedCatalog(catalogRef.current);
+    const next = fn(structuredClone(base));
+    setHCatalog(next);
+    saveJSON(HOUSEHOLD_CATALOG_KEY, next);
+    // Held back until the listener has reported: writing before we know whether
+    // a catalog already exists risks replacing it with a locally seeded copy.
+    if (catalogReadyRef.current) writeCatalog(code, next);
   };
+
+
 
   // The debounced push dies with the page, so force it out when the app is
   // backgrounded or closed — otherwise the last edit before you swipe away is
@@ -138,7 +152,9 @@ export default function App() {
             }
             return old;
           });
-          reconcileToCatalog(fresh);
+          // Deliberately no longer reconciling: the override fields aren't read
+          // any more, and pruning them would edit the very copy being kept as
+          // the way back if this change is wrong. The next PR deletes them.
         }
       })
       .catch(() => {
@@ -154,6 +170,9 @@ export default function App() {
 
     if (!syncEnabled) {
       setSyncStatus("local-only");
+      // Nothing will ever report, so treat the local copy as authoritative.
+      setCatalogReady(true);
+      catalogReadyRef.current = true;
       return;
     }
     setSyncStatus("connecting");
@@ -182,47 +201,57 @@ export default function App() {
         writeHousehold(code, localRef.current);
       }
     });
+    // The catalog has its own node and its own listener, so a checkbox tick on
+    // the state node never re-reads seventeen recipes.
+    const unsubCat = subscribeCatalog(code, (remote) => {
+      setCatalogReady(true);
+      catalogReadyRef.current = true;
+      if (remote) {
+        const adopted = normalizeCatalog(remote);
+        setHCatalog(adopted);
+        saveJSON(HOUSEHOLD_CATALOG_KEY, adopted);
+        markCatalogSynced(code, adopted);
+        return;
+      }
+      // No catalog for this household yet. Seed it from the shipped file with
+      // this device's un-published edits folded in, so anything that only ever
+      // existed on a phone comes along rather than being dropped.
+      //
+      // If an edit was made before this listener reported, hCatalog already
+      // holds it — seeding from the file again would throw it away, which is
+      // exactly the window between opening the app and the socket connecting.
+      const seeded = hCatalogRef.current || migrateCatalog(catalogRef.current, localRef.current);
+      setHCatalog(seeded);
+      saveJSON(HOUSEHOLD_CATALOG_KEY, seeded);
+      markCatalogSynced(code, null); // no baseline: seed with one full write
+      writeCatalog(code, seeded);
+    });
     const unwatch = watchConnection(setSyncStatus);
     return () => {
       unsub();
+      unsubCat();
       unwatch();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
-  /* ------- effective data = catalog + local overrides ------- */
+  /* ------- effective data -------
+     The household catalog IS the data now: one layer, nothing to reconcile.
+     Until it loads — first launch, still connecting — fall back to the shipped
+     file so the app has something to render. That fallback never accepts edits;
+     updateCatalog seeds from the file and writes to the household copy. */
   const data = useMemo(() => {
-    const recipes = [];
-    const catIds = new Set(catalog.recipes.map((r) => r.id));
-    for (const r of catalog.recipes) {
-      const ov = local.recipeOverrides[r.id];
-      if (ov === false || ov === null) continue; // hidden (null = legacy marker)
-      recipes.push(ov ? { ...ov, id: r.id, fromCatalog: true, edited: true } : { ...r, fromCatalog: true });
-    }
-    // Skip any local recipe whose id has since entered the catalog (promoted by
-    // a publish); the catalog copy — plus any override above — represents it.
-    for (const r of Object.values(local.localRecipes)) {
-      if (catIds.has(r.id)) continue;
-      recipes.push({ ...r, fromCatalog: false });
-    }
-    // An override of `false` means the ingredient was removed on this device —
-    // same marker catalog recipes use above. Dropping the key here is what
-    // actually takes it out of the Ingredients tab and off the list.
-    const config = {};
-    for (const [k, v] of Object.entries({ ...catalog.config, ...local.configOverrides })) {
-      if (v === false || v === null) continue;
-      config[k] = v;
-    }
-    const stores = [
-      ...catalog.stores.filter((s) => !local.removedStores.includes(s)),
-      ...local.extraStores.filter((s) => !catalog.stores.some((c) => norm(c) === norm(s))),
-    ];
-    // Spread `local` first so a field added to the household state reaches the
-    // tabs without also having to be named here. Listing them explicitly is how
-    // `planStage` was written to storage but never seen by the UI, which read
-    // as the stage silently refusing to change.
-    return { ...local, recipes, config, stores, list: local.list, plan: local.plan, stapleNeeds: local.stapleNeeds };
-  }, [catalog, local]);
+    const cat = hCatalog || seedCatalog(catalog);
+    return {
+      ...local,
+      recipes: Object.values(cat.recipes),
+      config: cat.ingredients,
+      stores: cat.stores,
+      list: local.list,
+      plan: local.plan,
+      stapleNeeds: local.stapleNeeds,
+    };
+  }, [catalog, local, hCatalog]);
 
   return (
     <div style={{ minHeight: "100vh", background: C.paper, color: C.ink, fontFamily: fontBody, fontSize: 15 }}>
@@ -295,16 +324,18 @@ export default function App() {
           </nav>
         </header>
 
-        {tab === "list" && <ListTab data={data} update={update} />}
-        {tab === "meals" && <MealsTab data={data} catalog={catalog} update={update} />}
+        {tab === "list" && <ListTab data={data} update={update} updateCatalog={updateCatalog} />}
+        {tab === "meals" && <MealsTab data={data} update={update} updateCatalog={updateCatalog} />}
         {tab === "week" && <WeekTab data={data} update={update} />}
-        {tab === "pantry" && <PantryTab data={data} catalog={catalog} update={update} />}
+        {tab === "pantry" && <PantryTab data={data} update={update} updateCatalog={updateCatalog} />}
         {tab === "settings" && (
           <SettingsTab
             data={data}
             catalog={catalog}
             local={local}
+            hCatalog={hCatalog}
             update={update}
+            updateCatalog={updateCatalog}
             setLocal={setLocal}
             code={code}
             setCode={setCode}
