@@ -12,7 +12,7 @@ export function ListTab({ data, update }) {
   const [view, setView] = useState("store");
   const [storeSort, setStoreSort] = useState("az");
   const [extra, setExtra] = useState({ name: "", qty: "1", unit: "" });
-  const [showUnit, setShowUnit] = useState(false); // reveal the unit field for a blank unit
+  const [editingUnit, setEditingUnit] = useState(false); // unit is a compact chip until tapped
   const [inspectKey, setInspectKey] = useState(null);
   const [editExtra, setEditExtra] = useState(null); // { key, name, qty, unit } while editing a hand-added entry
   const [showSug, setShowSug] = useState(false); // add-item name field: is the suggestion list open
@@ -149,7 +149,7 @@ export function ListTab({ data, update }) {
       return d;
     });
     setExtra({ name: "", qty: "1", unit: "" });
-    setShowUnit(false);
+    setEditingUnit(false);
     setAskSave(null);
   };
 
@@ -337,7 +337,7 @@ export function ListTab({ data, update }) {
                       value={editExtra.qty}
                       onChange={(e) => setEditExtra({ ...editExtra, qty: e.target.value })}
                       aria-label="Quantity"
-                      style={{ ...inputStyle, width: 56 }}
+                      style={{ ...inputStyle, width: 46, padding: "8px 6px", textAlign: "center", boxSizing: "border-box", flexShrink: 0 }}
                     />
                     <input
                       value={editExtra.unit}
@@ -462,8 +462,8 @@ export function ListTab({ data, update }) {
       )}
 
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 14px 6px" }}>
-        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-          <div style={{ position: "relative", flex: "2 1 170px", minWidth: 0 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "nowrap", alignItems: "center" }}>
+          <div style={{ position: "relative", flex: 1, minWidth: 92 }}>
             <input
               placeholder="Add shopping item (e.g. paper towels)"
               value={extra.name}
@@ -561,23 +561,29 @@ export function ListTab({ data, update }) {
             aria-label="Quantity"
             value={extra.qty}
             onChange={(e) => setExtra({ ...extra, qty: e.target.value })}
-            style={{ ...inputStyle, width: 56 }}
+            style={{ ...inputStyle, width: 46, padding: "8px 6px", textAlign: "center", boxSizing: "border-box", flexShrink: 0 }}
           />
-          {/* Unit shows only when it holds something or you ask for it, so the
-              common case is one line on a phone and a filled-in unit is never
-              hidden behind a reveal. Store and aisle used to sit here too: an
-              aisle is silently ignored without a store, and both belong to the
-              ingredient rather than to this one-off entry — the Ingredients tab
-              owns them, and each list row already has its own store dropdown. */}
-          {(showUnit || extra.unit) && (
+          {/* Unit stays a compact chip and only becomes an input while you're
+              editing it. As a permanent input it was a fourth full-width
+              control, which pushed the row onto two lines the moment picking a
+              known ingredient auto-filled it — the state this row is in most of
+              the time. Store and aisle used to sit here too: an aisle is
+              silently ignored without a store, and both belong to the
+              ingredient rather than this one-off entry. */}
+          {editingUnit ? (
             <>
               <input
+                autoFocus
                 placeholder="Unit"
                 aria-label="Unit"
                 list="unit-suggestions"
                 value={extra.unit}
                 onChange={(e) => setExtra({ ...extra, unit: e.target.value })}
-                style={{ ...inputStyle, width: 74 }}
+                onBlur={() => setEditingUnit(false)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === "Escape") setEditingUnit(false);
+                }}
+                style={{ ...inputStyle, width: 60, padding: "8px 4px", boxSizing: "border-box", flexShrink: 0 }}
               />
               <datalist id="unit-suggestions">
                 {units.map((u) => (
@@ -585,17 +591,31 @@ export function ListTab({ data, update }) {
                 ))}
               </datalist>
             </>
+          ) : (
+            <button
+              onClick={() => setEditingUnit(true)}
+              aria-label={extra.unit ? `Unit: ${extra.unit}. Tap to change` : "Add a unit"}
+              title={extra.unit ? "Tap to change the unit" : "Add a unit"}
+              style={{
+                ...inputStyle,
+                width: 60,
+                padding: "8px 4px",
+                boxSizing: "border-box",
+                flexShrink: 0,
+                textAlign: "center",
+                background: "none",
+                cursor: "pointer",
+                color: extra.unit ? C.ink : C.faint,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {extra.unit || "unit"}
+            </button>
           )}
-          <Btn kind="primary" onClick={addExtra}>Add</Btn>
+          <Btn kind="primary" onClick={addExtra} style={{ padding: "8px 12px", flexShrink: 0 }}>Add</Btn>
         </div>
-        {!showUnit && !extra.unit && (
-          <button
-            onClick={() => setShowUnit(true)}
-            style={{ font: "inherit", fontSize: 12, color: C.faint, background: "none", border: "none", padding: "0 0 10px", cursor: "pointer", textDecoration: "underline" }}
-          >
-            Add a unit
-          </button>
-        )}
         <div style={{ borderTop: `1px dashed ${C.line}`, paddingTop: 6 }}>{body}</div>
       </div>
 
