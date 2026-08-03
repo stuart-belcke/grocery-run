@@ -111,14 +111,18 @@ export default function App() {
   // recipe and the shopping list calls each of these once.
   const updateCatalog = (fn) => {
     const base = hCatalogRef.current || seedCatalog(catalogRef.current);
-    const next = fn(structuredClone(base));
+    // Stamped on every edit, and only on an edit. This is what tells the
+    // listener below that an offline change is real work rather than a stale
+    // cache — a seed nobody has touched keeps updatedAt 0 and always loses.
+    const next = { ...fn(structuredClone(base)), updatedAt: Date.now() };
     setHCatalog(next);
+    hCatalogRef.current = next;
     saveJSON(HOUSEHOLD_CATALOG_KEY, next);
     // Held back until the listener has reported: writing before we know whether
     // a catalog already exists risks replacing it with a locally seeded copy.
+    // The write isn't lost — the listener pushes it once it can tell.
     if (catalogReadyRef.current) writeCatalog(code, next);
   };
-
 
 
   // The debounced push dies with the page, so force it out when the app is
@@ -205,25 +209,39 @@ export default function App() {
     const unsubCat = subscribeCatalog(code, (remote) => {
       setCatalogReady(true);
       catalogReadyRef.current = true;
-      if (remote) {
+      // Same adopt-or-push decision the state node makes, through the same
+      // predicate. Both nodes now answer "whose copy wins" one way, so there's
+      // one rule to reason about rather than two that can drift.
+      const { use } = pickState(hCatalogRef.current, remote);
+      if (use === "remote") {
         const adopted = normalizeCatalog(remote);
         setHCatalog(adopted);
+        hCatalogRef.current = adopted;
         saveJSON(HOUSEHOLD_CATALOG_KEY, adopted);
         markCatalogSynced(code, adopted);
         return;
       }
-      // No catalog for this household yet. Seed it from the shipped file with
-      // this device's un-published edits folded in, so anything that only ever
-      // existed on a phone comes along rather than being dropped.
+      // Our copy wins, which means one of two things:
       //
-      // If an edit was made before this listener reported, hCatalog already
-      // holds it — seeding from the file again would throw it away, which is
-      // exactly the window between opening the app and the socket connecting.
-      const seeded = hCatalogRef.current || migrateCatalog(catalogRef.current, localRef.current);
-      setHCatalog(seeded);
-      saveJSON(HOUSEHOLD_CATALOG_KEY, seeded);
-      markCatalogSynced(code, null); // no baseline: seed with one full write
-      writeCatalog(code, seeded);
+      //   - no catalog for this household yet, so seed it from the shipped file
+      //     with this device's un-published edits folded in, and nothing that
+      //     only ever existed on a phone gets dropped; or
+      //   - this device holds catalog edits the database never received. That's
+      //     the offline case: updateCatalog can't write until the listener has
+      //     reported, so the edit sat on disk with a fresh updatedAt. Adopting
+      //     here would silently discard it — the state node has guarded against
+      //     exactly this since it was written, and this is the catalog's copy
+      //     of that guard.
+      //
+      // Wholesale, like the state node: a newer local catalog replaces an older
+      // remote one rather than merging into it. Losing the older edit is the
+      // accepted cost of never losing the newer one.
+      const ours = hCatalogRef.current || migrateCatalog(catalogRef.current, localRef.current);
+      setHCatalog(ours);
+      hCatalogRef.current = ours;
+      saveJSON(HOUSEHOLD_CATALOG_KEY, ours);
+      markCatalogSynced(code, null); // no baseline: send it with one full write
+      writeCatalog(code, ours);
     });
     const unwatch = watchConnection(setSyncStatus);
     return () => {
