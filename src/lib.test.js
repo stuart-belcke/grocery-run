@@ -22,6 +22,9 @@ import {
   qtyLabel,
   planStageOf,
   plannedMealCount,
+  seedCatalog,
+  migrateCatalog,
+  normalizeCatalog,
 } from "./lib.js";
 
 /* ---------------- forward compatibility ----------------
@@ -648,4 +651,104 @@ test("plannedMealCount counts every day and meal type", () => {
   // A slot with servings but no recipe isn't a planned meal.
   assert.equal(plannedMealCount({ plan: { Mon: { Dinner: { servings: 4 } } } }), 0);
   assert.equal(plannedMealCount(undefined), 0);
+});
+
+/* ---------------- household catalog ----------------
+   Moving the catalog into the database per household. The migration runs once
+   per household and there's no undo beyond the override fields it leaves
+   behind, so every branch of it is worth pinning down.                      */
+
+const catalogJson = () => ({
+  catalogVersion: 9,
+  stores: ["Kroger", "Aldi"],
+  recipes: [
+    { id: "chili", name: "Chili", servings: 4, ingredients: [{ name: "Beef", qty: 2, unit: "lb" }], mealTypes: ["Dinner"] },
+    { id: "tacos", name: "Tacos", servings: 4, ingredients: [{ name: "Beef", qty: 1, unit: "lb" }], mealTypes: ["Dinner"] },
+  ],
+  config: {
+    beef: { store: "Kroger", aisles: { Kroger: 3 } },
+    salt: { store: "Aldi", aisles: {}, staple: true },
+  },
+});
+
+test("seedCatalog keys recipes by id and ingredients by key", () => {
+  const c = seedCatalog(catalogJson());
+  assert.deepEqual(Object.keys(c.recipes).sort(), ["chili", "tacos"]);
+  assert.deepEqual(Object.keys(c.ingredients).sort(), ["beef", "salt"]);
+  assert.deepEqual(c.stores, ["Kroger", "Aldi"]); // order is meaningful, stays an array
+  assert.equal(c.ingredients.salt.staple, true);
+  // compactCfg's contract: a non-staple carries no staple key at all.
+  assert.equal("staple" in c.ingredients.beef, false);
+});
+
+test("seedCatalog skips legacy hidden markers", () => {
+  const j = catalogJson();
+  j.config.ghost = false;
+  assert.equal("ghost" in seedCatalog(j).ingredients, false);
+});
+
+test("seedCatalog survives a junk catalog", () => {
+  const c = seedCatalog(null);
+  assert.deepEqual(c.recipes, {});
+  assert.deepEqual(c.ingredients, {});
+  assert.ok(Array.isArray(c.stores));
+});
+
+test("migrateCatalog with no overrides equals the seed", () => {
+  const j = catalogJson();
+  assert.deepEqual(migrateCatalog(j, {}), seedCatalog(j));
+});
+
+test("migrateCatalog folds in an edited catalog recipe", () => {
+  const c = migrateCatalog(catalogJson(), {
+    recipeOverrides: { chili: { id: "chili", name: "Spicy Chili", servings: 6, ingredients: [], mealTypes: [] } },
+  });
+  assert.equal(c.recipes.chili.name, "Spicy Chili");
+  assert.equal(c.recipes.chili.servings, 6);
+});
+
+test("migrateCatalog honours a removed catalog recipe", () => {
+  const c = migrateCatalog(catalogJson(), { recipeOverrides: { tacos: false } });
+  assert.deepEqual(Object.keys(c.recipes), ["chili"]);
+});
+
+test("migrateCatalog keeps recipes that only ever existed on a phone", () => {
+  const c = migrateCatalog(catalogJson(), {
+    localRecipes: { mine: { id: "mine", name: "Mum's stew", servings: 4, ingredients: [] } },
+  });
+  assert.equal(c.recipes.mine.name, "Mum's stew");
+  assert.ok(Array.isArray(c.recipes.mine.ingredients));
+});
+
+test("migrateCatalog folds in ingredient config, including removals", () => {
+  const c = migrateCatalog(catalogJson(), {
+    configOverrides: { beef: { store: "Aldi", aisles: { Aldi: 7 }, staple: true }, salt: false },
+  });
+  assert.deepEqual(c.ingredients.beef, { store: "Aldi", aisles: { Aldi: 7 }, staple: true });
+  assert.equal("salt" in c.ingredients, false);
+});
+
+test("migrateCatalog applies store additions and removals", () => {
+  const c = migrateCatalog(catalogJson(), { extraStores: ["Costco"], removedStores: ["Aldi"] });
+  assert.deepEqual(c.stores, ["Kroger", "Costco"]);
+});
+
+test("migrateCatalog doesn't duplicate a store that differs only by case", () => {
+  const c = migrateCatalog(catalogJson(), { extraStores: ["kroger"] });
+  assert.deepEqual(c.stores, ["Kroger", "Aldi"]);
+});
+
+test("normalizeCatalog rebuilds a full shape from anything", () => {
+  assert.deepEqual(normalizeCatalog(undefined).recipes, {});
+  assert.deepEqual(normalizeCatalog({ recipes: "nope" }).recipes, {});
+  assert.ok(Array.isArray(normalizeCatalog({ stores: null }).stores));
+  // Firebase hands an array of recipes back index-keyed; asKeyed re-keys by id.
+  const c = normalizeCatalog({ recipes: { 0: { id: "chili", name: "Chili" } } });
+  assert.deepEqual(Object.keys(c.recipes), ["chili"]);
+  assert.ok(Array.isArray(c.recipes.chili.ingredients));
+});
+
+test("normalizeCatalog keeps fields it doesn't understand", () => {
+  const c = normalizeCatalog({ recipes: {}, somethingLater: { keep: "me" } });
+  assert.deepEqual(c.somethingLater, { keep: "me" });
 });
