@@ -6,12 +6,13 @@
 import { useState, useMemo } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog } from "../ui";
-import { UNASSIGNED, norm, r2, normalizeCfg, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions, ingredientNames, ingredientMatches, storeFor, listSections, cap } from "../lib";
+import { UNASSIGNED, norm, r2, normalizeCfg, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor } from "../lib";
 
 export function ListTab({ data, update }) {
   const [view, setView] = useState("store");
   const [storeSort, setStoreSort] = useState("az");
-  const [extra, setExtra] = useState({ name: "", qty: "1", unit: "", store: "", aisle: "" });
+  const [extra, setExtra] = useState({ name: "", qty: "1", unit: "" });
+  const [showUnit, setShowUnit] = useState(false); // reveal the unit field for a blank unit
   const [inspectKey, setInspectKey] = useState(null);
   const [editExtra, setEditExtra] = useState(null); // { key, name, qty, unit } while editing a hand-added entry
   const [showSug, setShowSug] = useState(false); // add-item name field: is the suggestion list open
@@ -30,8 +31,12 @@ export function ListTab({ data, update }) {
   // always shows as you type and matches the Ingredients tab's search feel.
   const suggestions = useMemo(() => ingredientMatches(knownItems, extra.name), [knownItems, extra.name]);
   const sugOpen = showSug && suggestions.length > 0;
+  // Picking a known ingredient fills in the unit its recipes usually use
+  // (garlic -> "clove"), so the hand-added amount totals with them instead of
+  // sitting as a bare count. Only on an explicit pick, never while typing —
+  // silently rewriting a field under the cursor is worse than an empty one.
   const pickSuggestion = (k) => {
-    setExtra({ ...extra, name: k.name });
+    setExtra({ ...extra, name: k.name, unit: extra.unit || commonUnitFor(data, k.key) });
     setShowSug(false);
     setSugIdx(-1);
   };
@@ -133,36 +138,18 @@ export function ListTab({ data, update }) {
     const name = extra.name.trim();
     if (!name) return;
     const key = norm(name);
-    const store = extra.store;
-    const aisle = extra.aisle.trim() !== "" && !isNaN(Number(extra.aisle)) ? Number(extra.aisle) : "";
-    const known = !!data.config[key];
     update((d) => {
       d.list.extras[key] = { name, qty: Number(extra.qty) || 1, unit: extra.unit.trim() };
-      if (saveToIngredients) {
-        d.configOverrides[key] = {
-          store: store || UNASSIGNED,
-          aisles: store && aisle !== "" ? { [store]: aisle } : {},
-        };
-      } else if (store) {
-        if (known) {
-          // Same semantics as the store dropdown on a list row: an override
-          // only when it differs from the item's default store.
-          const def = d.configOverrides[key]?.store ?? data.config[key]?.store ?? UNASSIGNED;
-          if (store === def) delete d.list.overrides[key];
-          else d.list.overrides[key] = store;
-          if (aisle !== "") {
-            const cfg = normalizeCfg(d.configOverrides[key] || data.config[key]);
-            cfg.aisles[store] = aisle;
-            d.configOverrides[key] = cfg;
-          }
-        } else {
-          // One-time buy with a store: group it under that store for this list.
-          d.list.overrides[key] = store;
-        }
-      }
+      // "Save to Ingredients" only means "remember this name so it's suggested
+      // next time". Where it lives is the Ingredients tab's job, and a row's
+      // own store dropdown handles a one-off reroute — this used to write the
+      // same `store` value to a default, an override, or an aisle map
+      // depending on invisible state.
+      if (saveToIngredients && !data.config[key]) d.configOverrides[key] = { store: UNASSIGNED, aisles: {} };
       return d;
     });
-    setExtra({ name: "", qty: "1", unit: "", store: "", aisle: "" });
+    setExtra({ name: "", qty: "1", unit: "" });
+    setShowUnit(false);
     setAskSave(null);
   };
 
@@ -568,35 +555,47 @@ export function ListTab({ data, update }) {
               </ul>
             )}
           </div>
-          <input placeholder="Qty" value={extra.qty} onChange={(e) => setExtra({ ...extra, qty: e.target.value })} style={{ ...inputStyle, width: 60 }} />
-          <input placeholder="Unit" list="unit-suggestions" value={extra.unit} onChange={(e) => setExtra({ ...extra, unit: e.target.value })} style={{ ...inputStyle, width: 80 }} />
-          <datalist id="unit-suggestions">
-            {units.map((u) => (
-              <option key={u} value={u} />
-            ))}
-          </datalist>
-          <select
-            value={extra.store}
-            onChange={(e) => setExtra({ ...extra, store: e.target.value })}
-            aria-label="Store for new item"
-            style={{ ...inputStyle, width: 120, background: "#fff" }}
-          >
-            <option value="">Store?</option>
-            {storeOptions.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
           <input
-            placeholder="Aisle"
-            inputMode="numeric"
-            value={extra.aisle}
-            onChange={(e) => setExtra({ ...extra, aisle: e.target.value })}
-            style={{ ...inputStyle, width: 60 }}
+            placeholder="Qty"
+            inputMode="decimal"
+            aria-label="Quantity"
+            value={extra.qty}
+            onChange={(e) => setExtra({ ...extra, qty: e.target.value })}
+            style={{ ...inputStyle, width: 56 }}
           />
+          {/* Unit shows only when it holds something or you ask for it, so the
+              common case is one line on a phone and a filled-in unit is never
+              hidden behind a reveal. Store and aisle used to sit here too: an
+              aisle is silently ignored without a store, and both belong to the
+              ingredient rather than to this one-off entry — the Ingredients tab
+              owns them, and each list row already has its own store dropdown. */}
+          {(showUnit || extra.unit) && (
+            <>
+              <input
+                placeholder="Unit"
+                aria-label="Unit"
+                list="unit-suggestions"
+                value={extra.unit}
+                onChange={(e) => setExtra({ ...extra, unit: e.target.value })}
+                style={{ ...inputStyle, width: 74 }}
+              />
+              <datalist id="unit-suggestions">
+                {units.map((u) => (
+                  <option key={u} value={u} />
+                ))}
+              </datalist>
+            </>
+          )}
           <Btn kind="primary" onClick={addExtra}>Add</Btn>
         </div>
+        {!showUnit && !extra.unit && (
+          <button
+            onClick={() => setShowUnit(true)}
+            style={{ font: "inherit", fontSize: 12, color: C.faint, background: "none", border: "none", padding: "0 0 10px", cursor: "pointer", textDecoration: "underline" }}
+          >
+            Add a unit
+          </button>
+        )}
         <div style={{ borderTop: `1px dashed ${C.line}`, paddingTop: 6 }}>{body}</div>
       </div>
 
@@ -628,7 +627,7 @@ export function ListTab({ data, update }) {
           { label: "Save to Ingredients", kind: "primary", onClick: () => commitExtra(true) },
         ]}
       >
-        <b style={{ color: C.ink }}>{askSave}</b> isn't in your Ingredients yet. Saving it keeps the store and aisle you picked for future lists; otherwise it's a one-time buy.
+        <b style={{ color: C.ink }}>{askSave}</b> isn't in your Ingredients yet. Saving it means it's suggested next time you type — set its store and aisle on the Ingredients tab. Otherwise it's a one-time buy.
       </ChoiceDialog>
 
       <ConfirmDialog
