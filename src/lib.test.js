@@ -17,6 +17,9 @@ import {
   commonUnitFor,
   storeFor,
   listSections,
+  aggregateItems,
+  servingsByRecipe,
+  qtyLabel,
 } from "./lib.js";
 
 /* ---------------- forward compatibility ----------------
@@ -441,4 +444,168 @@ test("every lib helper a component calls is imported there", () => {
     }
   }
   assert.deepEqual(problems, []);
+});
+
+/* ---------------- aggregation ----------------
+   aggregateItems decides what actually appears on the shopping list, and it
+   holds the three rules that have been hardest to get right: the cupboard
+   (`bought`) subtracting from demand rather than hiding items, hand-added
+   amounts never being cancelled by the cupboard, and staples running on
+   have/need instead of quantities. The `bought` bug — a boolean where a
+   quantity was needed, which silently under-bought the second meal — lived
+   here and nothing covered it.                                              */
+
+const recipe = (id, name, servings, ingredients) => ({ id, name, servings, ingredients, mealTypes: [] });
+const aggData = (over = {}) => ({
+  stores: ["Kroger"],
+  recipes: [],
+  config: {},
+  list: { selections: {}, overrides: {}, checked: {}, extras: {}, bought: {} },
+  plan: {},
+  stapleNeeds: {},
+  ...over,
+});
+const byKey = (items, key) => items.find((i) => i.key === key);
+
+test("a recipe scales its ingredients to the servings asked for", () => {
+  const d = aggData({
+    recipes: [recipe("r1", "Chili", 4, [{ name: "Beef", qty: 2, unit: "lb" }])],
+    list: { ...aggData().list, selections: { r1: 2 } },
+  });
+  assert.deepEqual(byKey(aggregateItems(d), "beef").parts, { lb: 1 });
+});
+
+test("the same ingredient from several sources sums", () => {
+  const d = aggData({
+    recipes: [
+      recipe("r1", "Chili", 4, [{ name: "Beef", qty: 2, unit: "lb" }]),
+      recipe("r2", "Tacos", 4, [{ name: "beef", qty: 1, unit: "lb" }]),
+    ],
+    list: { ...aggData().list, selections: { r1: 4, r2: 4 } },
+  });
+  const beef = byKey(aggregateItems(d), "beef");
+  assert.deepEqual(beef.parts, { lb: 3 });
+  assert.deepEqual(beef.sources.sort(), ["Chili", "Tacos"]);
+});
+
+test("the week plan contributes alongside Meals-tab picks", () => {
+  const d = aggData({
+    recipes: [recipe("r1", "Chili", 4, [{ name: "Beef", qty: 2, unit: "lb" }])],
+    list: { ...aggData().list, selections: { r1: 4 } },
+    plan: { Mon: { Dinner: { recipeId: "r1", servings: 4 } } },
+  });
+  assert.deepEqual(byKey(aggregateItems(d), "beef").parts, { lb: 4 });
+  assert.deepEqual(servingsByRecipe(d), { r1: 8 });
+});
+
+test("the cupboard SUBTRACTS from demand instead of hiding the item", () => {
+  // The bug this replaced: a boolean here made the second meal silently
+  // under-bought. Buy 1 lb, then plan a meal wanting 2 lb, and 1 lb is left.
+  const d = aggData({
+    recipes: [recipe("r1", "Chili", 4, [{ name: "Beef", qty: 2, unit: "lb" }])],
+    list: { ...aggData().list, selections: { r1: 4 }, bought: { beef: { lb: 1 } } },
+  });
+  assert.deepEqual(byKey(aggregateItems(d), "beef").parts, { lb: 1 });
+});
+
+test("a fully covered item drops off the list", () => {
+  const d = aggData({
+    recipes: [recipe("r1", "Chili", 4, [{ name: "Beef", qty: 2, unit: "lb" }])],
+    list: { ...aggData().list, selections: { r1: 4 }, bought: { beef: { lb: 2 } } },
+  });
+  assert.equal(byKey(aggregateItems(d), "beef"), undefined);
+});
+
+test("the cupboard only offsets a MATCHING unit", () => {
+  // Documents roadmap item 12: buying 1 lb does not offset a recipe asking for
+  // 16 oz, because nothing converts between units yet.
+  const d = aggData({
+    recipes: [recipe("r1", "Chili", 4, [{ name: "Beef", qty: 16, unit: "oz" }])],
+    list: { ...aggData().list, selections: { r1: 4 }, bought: { beef: { lb: 1 } } },
+  });
+  assert.deepEqual(byKey(aggregateItems(d), "beef").parts, { oz: 16 });
+});
+
+test("a hand-added amount is never cancelled by the cupboard", () => {
+  // Typing something onto the list is an explicit "buy this", so an earlier
+  // purchase must not silently remove it.
+  const d = aggData({
+    list: { ...aggData().list, extras: { beef: { name: "Beef", qty: 1, unit: "lb" } }, bought: { beef: { lb: 5 } } },
+  });
+  assert.deepEqual(byKey(aggregateItems(d), "beef").parts, { lb: 1 });
+});
+
+test("the cupboard covers the recipe share but leaves the hand-added share", () => {
+  const d = aggData({
+    recipes: [recipe("r1", "Chili", 4, [{ name: "Beef", qty: 2, unit: "lb" }])],
+    list: {
+      ...aggData().list,
+      selections: { r1: 4 },
+      extras: { beef: { name: "Beef", qty: 1, unit: "lb" } },
+      bought: { beef: { lb: 10 } },
+    },
+  });
+  assert.deepEqual(byKey(aggregateItems(d), "beef").parts, { lb: 1 });
+});
+
+/* ---- staples: have/need, not quantities ---- */
+
+const stapleCfg = { store: "Kroger", aisles: {}, staple: true };
+
+test("a staple you have is dropped even when a recipe calls for it", () => {
+  const d = aggData({
+    config: { "olive oil": stapleCfg },
+    recipes: [recipe("r1", "Chili", 4, [{ name: "Olive oil", qty: 2, unit: "tbsp" }])],
+    list: { ...aggData().list, selections: { r1: 4 } },
+  });
+  assert.equal(byKey(aggregateItems(d), "olive oil"), undefined);
+});
+
+test("a staple you need appears with no quantity", () => {
+  const d = aggData({
+    config: { "olive oil": stapleCfg },
+    recipes: [recipe("r1", "Chili", 4, [{ name: "Olive oil", qty: 2, unit: "tbsp" }])],
+    list: { ...aggData().list, selections: { r1: 4 } },
+    stapleNeeds: { "olive oil": true },
+  });
+  const oil = byKey(aggregateItems(d), "olive oil");
+  assert.equal(oil.staple, true);
+  assert.deepEqual(oil.parts, {}); // "get more", not "get 2 tbsp"
+  // It keeps WHY it's listed. Rebuilding the entry from scratch instead of
+  // flagging the existing one would silently drop the "On the list for"
+  // breakdown the List tab shows when you expand a row.
+  assert.deepEqual(oil.sources, ["Chili"]);
+  assert.ok(oil.contribs.length > 0);
+});
+
+test("a staple you need appears even with no recipe wanting it", () => {
+  const d = aggData({ config: { "paper towels": stapleCfg }, stapleNeeds: { "paper towels": true } });
+  const item = byKey(aggregateItems(d), "paper towels");
+  assert.equal(item.staple, true);
+  assert.equal(item.name, "Paper towels");
+});
+
+test("adding a staple by hand beats suppression and keeps its quantity", () => {
+  const d = aggData({
+    config: { "olive oil": stapleCfg },
+    list: { ...aggData().list, extras: { "olive oil": { name: "Olive oil", qty: 2, unit: "bottle" } } },
+  });
+  assert.deepEqual(byKey(aggregateItems(d), "olive oil").parts, { bottle: 2 });
+});
+
+test("the cupboard is not applied to staples", () => {
+  // Staples run on have/need. A recorded purchase must not turn into a
+  // quantity subtraction for them.
+  const d = aggData({
+    config: { salt: stapleCfg },
+    list: { ...aggData().list, extras: { salt: { name: "Salt", qty: 1, unit: "box" } }, bought: { salt: { box: 1 } } },
+  });
+  assert.deepEqual(byKey(aggregateItems(d), "salt").parts, { box: 1 });
+});
+
+test("qtyLabel joins units and hides zeroes", () => {
+  assert.equal(qtyLabel({ lb: 1.5, oz: 8 }), "1.5 lb + 8 oz");
+  assert.equal(qtyLabel({ "": 3 }), "3");
+  assert.equal(qtyLabel({ lb: 0 }), "");
+  assert.equal(qtyLabel({}), "");
 });
