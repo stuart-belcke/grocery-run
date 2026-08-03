@@ -22,6 +22,7 @@ import {
   qtyLabel,
   planStageOf,
   plannedMealCount,
+  slotFeedsList,
   seedCatalog,
   migrateCatalog,
   normalizeCatalog,
@@ -501,6 +502,40 @@ test("the week plan contributes alongside Meals-tab picks", () => {
   });
   assert.deepEqual(byKey(aggregateItems(d), "beef").parts, { lb: 4 });
   assert.deepEqual(servingsByRecipe(d), { r1: 8 });
+});
+
+test("a slot marked skipList stays planned but contributes nothing to the list", () => {
+  const d = aggData({
+    recipes: [recipe("r1", "Chili", 4, [{ name: "Beef", qty: 2, unit: "lb" }])],
+    plan: {
+      Mon: { Dinner: { recipeId: "r1", servings: 4 } },
+      Tue: { Dinner: { recipeId: "r1", servings: 4, skipList: true } },
+    },
+  });
+  // Only Monday's four servings reach the list...
+  assert.deepEqual(byKey(aggregateItems(d), "beef").parts, { lb: 2 });
+  assert.deepEqual(servingsByRecipe(d), { r1: 4 });
+  // ...but both meals are still on the plan.
+  assert.equal(plannedMealCount(d), 2);
+  assert.equal(planStageOf(d), "shopping");
+});
+
+test("skipList on the only planned meal leaves the list empty", () => {
+  const d = aggData({
+    recipes: [recipe("r1", "Chili", 4, [{ name: "Beef", qty: 2, unit: "lb" }])],
+    plan: { Mon: { Dinner: { recipeId: "r1", servings: 4, skipList: true } } },
+  });
+  assert.deepEqual(aggregateItems(d), []);
+  assert.equal(plannedMealCount(d), 1);
+});
+
+test("slotFeedsList reads a slot the same way both aggregation walks do", () => {
+  assert.equal(slotFeedsList({ recipeId: "r1" }), true);
+  assert.equal(slotFeedsList({ recipeId: "r1", skipList: false }), true);
+  assert.equal(slotFeedsList({ recipeId: "r1", skipList: true }), false);
+  // An empty slot feeds nothing whatever its flag says.
+  assert.equal(slotFeedsList({ skipList: true }), false);
+  assert.equal(slotFeedsList(undefined), false);
 });
 
 test("the cupboard SUBTRACTS from demand instead of hiding the item", () => {
