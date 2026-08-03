@@ -3,7 +3,7 @@
     store-grouped, checkable list with per-item store overrides.  */
 /* ------------------------------------------------------------------ */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog } from "../ui";
 import { UNASSIGNED, norm, r2, normalizeCfg, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor } from "../lib";
@@ -12,7 +12,11 @@ export function ListTab({ data, update }) {
   const [view, setView] = useState("store");
   const [storeSort, setStoreSort] = useState("az");
   const [extra, setExtra] = useState({ name: "", qty: "1", unit: "" });
-  const [editingUnit, setEditingUnit] = useState(false); // unit is a compact chip until tapped
+  // The amount controls only exist while you're actually entering an item.
+  // Focus anywhere in the add block expands them onto a second line, so the
+  // name field — the one you type into — keeps the full width of the first.
+  const [addFocused, setAddFocused] = useState(false);
+  const nameRef = useRef(null);
   const [inspectKey, setInspectKey] = useState(null);
   const [editExtra, setEditExtra] = useState(null); // { key, name, qty, unit } while editing a hand-added entry
   const [showSug, setShowSug] = useState(false); // add-item name field: is the suggestion list open
@@ -40,6 +44,15 @@ export function ListTab({ data, update }) {
     setShowSug(false);
     setSugIdx(-1);
   };
+  // "Non-default" is the only thing worth showing when collapsed: one of
+  // something, unitless, is what you get by just typing a name.
+  const hasAmount = extra.name.trim() !== "" && (extra.unit.trim() !== "" || (Number(extra.qty) || 1) !== 1);
+  const amountLabel = `${(Number(extra.qty) || 1)}${extra.unit.trim() ? ` ${extra.unit.trim()}` : ""}`;
+
+  // Clearing the name abandons the entry, so the amount goes back to default
+  // with it — otherwise a stray "2 cloves" survives onto whatever you type next.
+  const setName = (name) => setExtra(name.trim() ? { ...extra, name } : { name, qty: "1", unit: "" });
+
   const storeOf = (key) => storeFor(data, key);
   const storeOptions = [...data.stores, UNASSIGNED];
   const totals = servingsByRecipe(data);
@@ -149,7 +162,6 @@ export function ListTab({ data, update }) {
       return d;
     });
     setExtra({ name: "", qty: "1", unit: "" });
-    setEditingUnit(false);
     setAskSave(null);
   };
 
@@ -462,13 +474,24 @@ export function ListTab({ data, update }) {
       )}
 
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 14px 6px" }}>
-        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "nowrap", alignItems: "center" }}>
+        {/* focusin/focusout bubble, so this stays expanded while focus moves
+            between the name, qty and unit fields, and collapses only when it
+            leaves the block entirely. */}
+        <div
+          onFocus={() => setAddFocused(true)}
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget)) setAddFocused(false);
+          }}
+          style={{ marginBottom: 14 }}
+        >
+          <div style={{ display: "flex", gap: 8, flexWrap: "nowrap", alignItems: "center" }}>
           <div style={{ position: "relative", flex: 1, minWidth: 92 }}>
             <input
               placeholder="Add shopping item (e.g. paper towels)"
               value={extra.name}
+              ref={nameRef}
               onChange={(e) => {
-                setExtra({ ...extra, name: e.target.value });
+                setName(e.target.value);
                 setShowSug(true);
                 setSugIdx(-1);
               }}
@@ -555,66 +578,60 @@ export function ListTab({ data, update }) {
               </ul>
             )}
           </div>
-          <input
-            placeholder="Qty"
-            inputMode="decimal"
-            aria-label="Quantity"
-            value={extra.qty}
-            onChange={(e) => setExtra({ ...extra, qty: e.target.value })}
-            style={{ ...inputStyle, width: 46, padding: "8px 6px", textAlign: "center", boxSizing: "border-box", flexShrink: 0 }}
-          />
-          {/* Unit stays a compact chip and only becomes an input while you're
-              editing it. As a permanent input it was a fourth full-width
-              control, which pushed the row onto two lines the moment picking a
-              known ingredient auto-filled it — the state this row is in most of
-              the time. Store and aisle used to sit here too: an aisle is
-              silently ignored without a store, and both belong to the
-              ingredient rather than this one-off entry. */}
-          {editingUnit ? (
-            <>
+          {/* Collapsed, a non-default amount still shows — as a chip, not a
+              pair of inputs — so you never press Add without seeing what you
+              set. At the default of one-with-no-unit there's nothing worth
+              saying, so the line stays clean. */}
+          {!addFocused && hasAmount && (
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => nameRef.current?.focus()}
+              aria-label={`Amount: ${amountLabel}. Tap to change`}
+              title="Tap to change the amount"
+              style={{
+                ...inputStyle,
+                maxWidth: 96,
+                padding: "8px 8px",
+                boxSizing: "border-box",
+                flexShrink: 0,
+                background: "none",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {amountLabel}
+            </button>
+          )}
+            <Btn kind="primary" onClick={addExtra} style={{ padding: "8px 12px", flexShrink: 0 }}>Add</Btn>
+          </div>
+          {addFocused && (
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
+              <span style={{ fontSize: 12, color: C.faint }}>How much?</span>
               <input
-                autoFocus
+                placeholder="Qty"
+                inputMode="decimal"
+                aria-label="Quantity"
+                value={extra.qty}
+                onChange={(e) => setExtra({ ...extra, qty: e.target.value })}
+                style={{ ...inputStyle, width: 56, padding: "8px 6px", textAlign: "center", boxSizing: "border-box" }}
+              />
+              <input
                 placeholder="Unit"
                 aria-label="Unit"
                 list="unit-suggestions"
                 value={extra.unit}
                 onChange={(e) => setExtra({ ...extra, unit: e.target.value })}
-                onBlur={() => setEditingUnit(false)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === "Escape") setEditingUnit(false);
-                }}
-                style={{ ...inputStyle, width: 60, padding: "8px 4px", boxSizing: "border-box", flexShrink: 0 }}
+                style={{ ...inputStyle, width: 96, padding: "8px 8px", boxSizing: "border-box" }}
               />
               <datalist id="unit-suggestions">
                 {units.map((u) => (
                   <option key={u} value={u} />
                 ))}
               </datalist>
-            </>
-          ) : (
-            <button
-              onClick={() => setEditingUnit(true)}
-              aria-label={extra.unit ? `Unit: ${extra.unit}. Tap to change` : "Add a unit"}
-              title={extra.unit ? "Tap to change the unit" : "Add a unit"}
-              style={{
-                ...inputStyle,
-                width: 60,
-                padding: "8px 4px",
-                boxSizing: "border-box",
-                flexShrink: 0,
-                textAlign: "center",
-                background: "none",
-                cursor: "pointer",
-                color: extra.unit ? C.ink : C.faint,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {extra.unit || "unit"}
-            </button>
+            </div>
           )}
-          <Btn kind="primary" onClick={addExtra} style={{ padding: "8px 12px", flexShrink: 0 }}>Add</Btn>
         </div>
         <div style={{ borderTop: `1px dashed ${C.line}`, paddingTop: 6 }}>{body}</div>
       </div>
