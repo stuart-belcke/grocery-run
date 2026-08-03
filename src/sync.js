@@ -131,6 +131,53 @@ export function watchConnection(cb) {
   };
 }
 
+/* ------------------------ household catalog ------------------------ *
+ *  A SIBLING of state, not part of it: households/{code}/catalog holds the
+ *  recipes, ingredient config and stores. Reference data changes rarely and
+ *  list/plan changes constantly, so a separate node means each can get its own
+ *  listener — ticking a checkbox should never re-read thirty recipes.        */
+
+export function subscribeCatalog(code, cb) {
+  if (!syncEnabled) return () => {};
+  let live = true;
+  let off = () => {};
+  getDb().then(async (db) => {
+    if (!db || !live) return;
+    const { ref, onValue } = await import("firebase/database");
+    off = onValue(ref(db, `households/${code}/catalog`), (snap) => cb(snap.val()));
+  });
+  return () => {
+    live = false;
+    off();
+  };
+}
+
+// Narrow, like the state writes: send the paths that differ, so editing one
+// recipe doesn't rewrite the other sixteen and collide with the other phone.
+let lastCatalog = null; // { code, catalog } — what the server is known to hold
+
+export async function writeCatalog(code, catalog) {
+  if (!syncEnabled) return;
+  const plan = planWrite(lastCatalog && { code: lastCatalog.code, state: lastCatalog.catalog }, code, catalog);
+  if (plan.kind === "skip") return;
+  const db = await getDb();
+  if (!db) return;
+  const { ref, set, update } = await import("firebase/database");
+  try {
+    const node = ref(db, `households/${code}/catalog`);
+    if (plan.kind === "update") await update(node, plan.paths);
+    else await set(node, plan.state);
+    lastCatalog = { code, catalog };
+  } catch (e) {
+    console.error("Grocery Run: catalog write rejected", e);
+  }
+}
+
+// The server already holds this; make it the baseline for the next diff.
+export function markCatalogSynced(code, catalog) {
+  lastCatalog = catalog ? { code, catalog } : null;
+}
+
 // Debounced write. Rapid edits coalesce into one push.
 //
 // The push is NARROW: we keep the state the database is known to hold and send

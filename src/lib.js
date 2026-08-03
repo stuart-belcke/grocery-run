@@ -6,6 +6,9 @@
 
 export const LOCAL_KEY = "grocery-run-local-v1";
 export const CATALOG_KEY = "grocery-run-catalog-cache-v1";
+// The household's own catalog, cached so the app opens offline before the
+// database listener has said anything.
+export const HOUSEHOLD_CATALOG_KEY = "grocery-run-household-catalog-v1";
 export const UNASSIGNED = "Unassigned";
 export const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 export const MEAL_TYPES = ["Breakfast", "Lunch", "Dinner", "Dessert"];
@@ -341,6 +344,89 @@ export function validLocal(d) {
 }
 export function validCatalog(d) {
   return d && typeof d === "object" && Array.isArray(d.recipes) && Array.isArray(d.stores) && typeof d.config === "object";
+}
+
+/* ===================== household catalog ==========================
+   The catalog is moving out of public/catalog.json and into the database,
+   per household, at households/{code}/catalog — a SIBLING of state, not part
+   of it. Reference data changes rarely and list/plan changes constantly, so
+   keeping them apart lets each get its own listener later: ticking a checkbox
+   should never re-read thirty recipes.
+
+   The file doesn't go away. It becomes two one-directional things: the seed a
+   brand-new household starts from, and an export target you can seed a git
+   history from at any time. What it stops being is something the app READS at
+   runtime and reconciles against — that read is the whole reason
+   configOverrides / recipeOverrides / localRecipes / reconcileToCatalog exist,
+   and it's where most of this app's bugs have lived.
+
+   Shape, keyed by identity for the reasons item 24 covers:
+     catalog/
+       version:     1
+       recipes:     { [id]: recipe }
+       ingredients: { [key]: { store, aisles, staple? } }
+       stores:      ["Kroger", "Aldi"]        <- small, ordered, rarely edited
+   Stores stay an array deliberately: order is meaningful (it drives store-flow
+   grouping) and they're touched about never, the same call made for
+   extraStores/removedStores.                                                */
+
+export const CATALOG_SHAPE_VERSION = 1;
+
+// The starting catalog for a household that doesn't have one yet, built from
+// the shipped catalog.json.
+export function seedCatalog(catalogJson) {
+  const cat = validCatalog(catalogJson) ? catalogJson : FALLBACK_CATALOG;
+  const recipes = {};
+  for (const r of cat.recipes) if (r && r.id) recipes[r.id] = normalizeRecipe(r);
+  const ingredients = {};
+  for (const [key, cfg] of Object.entries(cat.config || {})) {
+    if (cfg === false || cfg === null) continue; // legacy hidden marker
+    ingredients[key] = compactCfg(cfg);
+  }
+  return { version: CATALOG_SHAPE_VERSION, recipes, ingredients, stores: asArray(cat.stores) };
+}
+
+// The catalog a household should END UP with when it moves off the file:
+// the seed with this device's un-published edits folded in, so nothing that
+// only ever existed on a phone is lost on the way.
+//
+// After this runs the override fields are dead — the result already contains
+// what they were expressing. They're kept in the state for one release rather
+// than deleted here, so a mistake is recoverable by reading them again.
+export function migrateCatalog(catalogJson, local) {
+  const out = seedCatalog(catalogJson);
+  const l = local && typeof local === "object" ? local : {};
+
+  for (const [id, ov] of Object.entries(asObject(l.recipeOverrides))) {
+    if (ov === false || ov === null) delete out.recipes[id]; // removed on this device
+    else if (ov && typeof ov === "object") out.recipes[id] = normalizeRecipe({ ...ov, id });
+  }
+  for (const [id, r] of Object.entries(asKeyed(l.localRecipes, (x) => x.id))) {
+    if (!out.recipes[id]) out.recipes[id] = normalizeRecipe(r);
+  }
+  for (const [key, cfg] of Object.entries(asObject(l.configOverrides))) {
+    if (cfg === false || cfg === null) delete out.ingredients[key];
+    else out.ingredients[key] = compactCfg(cfg);
+  }
+  const removed = new Set(asArray(l.removedStores));
+  out.stores = out.stores.filter((s) => !removed.has(s));
+  for (const s of asArray(l.extraStores)) {
+    if (!out.stores.some((x) => norm(x) === norm(s))) out.stores.push(s);
+  }
+  return out;
+}
+
+// Rebuild the full shape from whatever the database hands back, same contract
+// as normalizeLocal: an absent field means empty, never undefined.
+export function normalizeCatalog(raw) {
+  const d = raw && typeof raw === "object" ? raw : {};
+  return {
+    ...d,
+    version: Number(d.version) || CATALOG_SHAPE_VERSION,
+    recipes: mapValues(asKeyed(d.recipes, (r) => r.id), normalizeRecipe),
+    ingredients: asObject(d.ingredients),
+    stores: asArray(d.stores),
+  };
 }
 
 /* --------------------- catalog reconciliation --------------------- */
