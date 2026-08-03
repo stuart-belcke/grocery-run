@@ -6,7 +6,7 @@
 import { useState, useMemo } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog } from "../ui";
-import { UNASSIGNED, norm, r2, normalizeCfg, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions, ingredientNames } from "../lib";
+import { UNASSIGNED, norm, r2, normalizeCfg, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions, ingredientNames, ingredientMatches, storeFor, listSections } from "../lib";
 
 export function ListTab({ data, update }) {
   const [view, setView] = useState("store");
@@ -27,24 +27,14 @@ export function ListTab({ data, update }) {
   // Live-filtered ingredient matches for the "add shopping item" field. A custom
   // dropdown (rather than a native <datalist>, which renders unreliably) so it
   // always shows as you type and matches the Ingredients tab's search feel.
-  const nameQuery = norm(extra.name);
-  const suggestions = useMemo(() => {
-    if (!nameQuery) return [];
-    const m = knownItems.filter((k) => k.key.includes(nameQuery));
-    if (m.length === 1 && m[0].key === nameQuery) return []; // already fully typed — nothing to suggest
-    return m.slice(0, 8);
-  }, [knownItems, nameQuery]);
+  const suggestions = useMemo(() => ingredientMatches(knownItems, extra.name), [knownItems, extra.name]);
   const sugOpen = showSug && suggestions.length > 0;
   const pickSuggestion = (k) => {
     setExtra({ ...extra, name: k.name });
     setShowSug(false);
     setSugIdx(-1);
   };
-  const storeOf = (key) => data.list.overrides[key] ?? data.config[key]?.store ?? UNASSIGNED;
-  const aisleOf = (key, store) => {
-    const a = aisleFor(data.config[key], store);
-    return a === "" ? Infinity : Number(a);
-  };
+  const storeOf = (key) => storeFor(data, key);
   const storeOptions = [...data.stores, UNASSIGNED];
   const totals = servingsByRecipe(data);
   const selectedMealCount = Object.values(totals).filter((s) => s > 0).length;
@@ -372,28 +362,10 @@ export function ListTab({ data, update }) {
       </div>
     );
   } else if (view === "all") {
-    const sorted = [...items].sort((a, b) => {
-      const ac = !!data.list.checked[a.key], bc = !!data.list.checked[b.key];
-      if (ac !== bc) return ac ? 1 : -1;
-      return a.name.localeCompare(b.name);
-    });
-    body = <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>{sorted.map((i) => renderItem(i, true))}</ul>;
+    const [section] = listSections(data, items, "all", storeSort);
+    body = <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>{section.items.map((i) => renderItem(i, true))}</ul>;
   } else {
-    const groups = new Map();
-    for (const i of items) {
-      const s = storeOf(i.key);
-      if (!groups.has(s)) groups.set(s, []);
-      groups.get(s).push(i);
-    }
-    const order = [...data.stores, UNASSIGNED].filter((s) => groups.has(s));
-    body = order.map((store) => {
-      const g = groups.get(store);
-      const sorted = [...g].sort((a, b) => {
-        const ac = !!data.list.checked[a.key], bc = !!data.list.checked[b.key];
-        if (ac !== bc) return ac ? 1 : -1;
-        return storeSort === "flow" ? aisleOf(a.key, store) - aisleOf(b.key, store) || a.name.localeCompare(b.name) : a.name.localeCompare(b.name);
-      });
-      const left = g.filter((i) => !data.list.checked[i.key]).length;
+    body = listSections(data, items, "store", storeSort).map(({ store, items: sorted, remaining: left }) => {
       return (
         <section key={store} style={{ marginBottom: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0 4px" }}>
