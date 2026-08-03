@@ -20,7 +20,6 @@ import {
   LOCAL_KEY,
   CATALOG_KEY,
   HOUSEHOLD_CATALOG_KEY,
-  norm,
   storageOk,
   FALLBACK_CATALOG,
   emptyLocal,
@@ -232,7 +231,6 @@ export default function App() {
       unsubCat();
       unwatch();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
   /* ------- effective data -------

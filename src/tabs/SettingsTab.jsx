@@ -185,10 +185,10 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         </p>
 
         <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 6 }}>
-          Publish to catalog
+          Snapshot the catalog
         </div>
         <p style={{ fontSize: 12, color: C.faint, margin: "0 0 8px" }}>
-          Push this device's recipe and setting changes into the shared GitHub catalog so they're permanent for both phones. Copy, then paste over <b>catalog.json</b> on GitHub and commit.
+          Take a copy of this household's catalog in <b>catalog.json</b> format. Commit it on GitHub to keep a dated, diffable history — and to update the starter catalog a brand-new household begins from.
         </p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
           <Btn kind="primary" onClick={() => copyText(catalogJson(), "Catalog copied.")}>Export catalog (copy)</Btn>
@@ -196,7 +196,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
           <Btn kind="danger" onClick={() => setAskReset(true)}>Restore starter catalog</Btn>
         </div>
         <p style={{ fontSize: 12, color: C.faint, margin: "0 0 16px" }}>
-          After committing on GitHub, "Reset to catalog" clears the local copies so this device is cleanly in sync.
+          Exporting changes nothing — your edits are already saved and shared. "Restore starter catalog" is the way back if this household's catalog ever gets into a state you don't want.
         </p>
 
         <div style={{ borderTop: `1px dashed ${C.line}`, paddingTop: 14 }}>
