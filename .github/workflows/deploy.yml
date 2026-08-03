@@ -45,6 +45,13 @@ jobs:
         if: github.event.action != 'closed'
         run: npm install
 
+      # Catches what the build can't: a helper used without being imported
+      # compiles fine and throws at runtime, on whichever code path calls it.
+      # Warnings don't fail; only errors do.
+      - name: Lint
+        if: github.event.action != 'closed'
+        run: npm run lint
+
       # Runs BEFORE the build so a failure stops the deploy rather than
       # annotating one that already shipped. A suite that only runs when
       # someone remembers to run it isn't protecting anything.
