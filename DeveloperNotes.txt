@@ -365,6 +365,53 @@ rather than saving them for a cleanup that never gets scheduled.
         how a collection is stored.
 
 
+From a week of actually using it (Aug 2026)
+-------------------------------------------
+Kept together rather than scattered into the tiers above, so the numbering
+doesn't shift; the tier each belongs to is noted.
+
+26. Week starts Sunday, not Monday — and make it a setting rather than a
+    constant. DAYS is hardcoded in lib.js, so this is a small change to the
+    array plus a place to choose. That place doesn't exist: the Settings tab is
+    household sync and the publish flow, with no actual preferences section.
+    Build the section first, then this is its first occupant. TIER 1.
+
+27. Sides on a dinner. A slot is { recipeId, servings } today, so a main plus
+    two sides means several recipes per slot — either an array of them or a
+    main/sides split. Both feed the shopping list the same way through
+    aggregateItems, which already sums the same ingredient from several
+    sources, so the list side needs nothing.
+    DO THIS AFTER THE CATALOG MOVE. It changes the shape of a plan slot, and
+    doing it first means migrating that shape twice. TIER 3.
+
+28. Meals that don't feed the shopping list. "We're having leftovers" or "we
+    already have everything for this" — you want it on the plan for the record
+    without its ingredients padding the list. A `skipList: true` on the slot,
+    honoured in aggregateItems where the plan is walked, plus a tick in the
+    picker. Cheapest of these four and probably the most used. TIER 1.
+
+29. Return to top on the Meals tab, or keep the search + filter row fixed. Fine
+    at 30 recipes, unusable at 300 — you scroll for a while and then have to
+    scroll all the way back to search again. Sticky controls solve it without
+    adding a control. TIER 1.
+
+30. Warn when another device is running an older build. Two phones on the same
+    household diverged this week, and the only signal either gave was "Synced",
+    which means the socket is connected and nothing about whose data won. Stamp
+    each write with the build id already shown in Settings, and let a newer
+    build say "another device is on an older version" when it sees an older
+    stamp. An old build can't warn about itself — but the new one can warn
+    about it, which is enough. TIER 4.
+
+    Context, because it looked worse than it was: neither phone was old enough
+    to do whole-state writes. The likely cause was #39's migration, which makes
+    each device do ONE full set() the first time it writes after updating, to
+    replace the old array shape. Both phones did that at about the same time
+    and one overwrote the other. Known and accepted at merge time, spent once
+    per device, and not recurring — but it took reading build stamps off two
+    phones to establish that, which is what this item is for.
+
+
 Refactor notes
 --------------
 [DONE] App.jsx was split so each feature edits a small, reviewable surface:
