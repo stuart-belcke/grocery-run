@@ -1,6 +1,7 @@
 /* ------------------------------------------------------------------ */
 /*  Week plan tab — assign a recipe + servings to each day/meal slot; every
-    slot feeds the shopping list unless it's ticked "not on the list".  */
+    slot feeds the shopping list unless it's ticked "already have the
+    ingredients".  */
 /* ------------------------------------------------------------------ */
 
 import { useMemo, useState } from "react";
@@ -79,8 +80,8 @@ export function WeekTab({ data, update }) {
 
   const assignFromPicker = (r) => {
     // A freshly picked meal starts at its own default servings, and on the
-    // shopping list: "we're having leftovers" was about the meal that used to
-    // be in this slot, not whatever replaces it.
+    // shopping list: "already have the ingredients" was about the meal that
+    // used to be in this slot, not whatever replaces it.
     setSlot(picker.day, picker.type, { recipeId: r.id, servings: r.servings || 4, skipList: undefined });
     setPicker(null);
   };
@@ -210,7 +211,7 @@ export function WeekTab({ data, update }) {
                         <span style={{ ...slotBox, cursor: "default", flexDirection: "column", alignItems: "stretch", gap: 1 }}>
                           <span style={{ fontWeight: 600 }}>{recipe.easy ? "⚡ " : ""}{recipe.name}</span>
                           <span style={{ fontSize: 12, color: C.faint, fontVariantNumeric: "tabular-nums" }}>
-                            {Number(slot.servings) || base} sv{skipped ? " · not on the shopping list" : ""}
+                            {Number(slot.servings) || base} sv{skipped ? " · already have the ingredients" : ""}
                           </span>
                         </span>
                       )}
@@ -234,10 +235,10 @@ export function WeekTab({ data, update }) {
                             checked={skipped}
                             // Unset rather than store `false` — see setSlot.
                             onChange={(e) => setSlot(day, type, { skipList: e.target.checked || undefined })}
-                            aria-label={`Keep ${recipe.name} off the shopping list on ${day} ${type}`}
+                            aria-label={`Already have the ingredients for ${recipe.name} on ${day} ${type}`}
                             style={{ width: 15, height: 15, accentColor: C.green, cursor: "pointer" }}
                           />
-                          Not on the shopping list
+                          Already have the ingredients
                         </label>
                       </div>
                     )}
