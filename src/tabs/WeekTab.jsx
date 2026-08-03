@@ -6,7 +6,7 @@
 import { useMemo, useState } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, ConfirmDialog } from "../ui";
-import { DAYS, MEAL_TYPES, norm } from "../lib";
+import { DAYS, MEAL_TYPES, norm, planStageOf, plannedMealCount } from "../lib";
 
 export function WeekTab({ data, update }) {
   const recipesSorted = useMemo(() => [...data.recipes].sort((a, b) => a.name.localeCompare(b.name)), [data.recipes]);
@@ -14,6 +14,31 @@ export function WeekTab({ data, update }) {
   const [pickQuery, setPickQuery] = useState("");
   const [editing, setEditing] = useState(false); // whole-plan edit mode: reveals per-slot change + clear
   const [confirmClear, setConfirmClear] = useState(false);
+
+  // Where the week is in its cycle, and what each stage lets you do.
+  const stage = planStageOf(data);
+  // While planning, every slot is editable without a separate toggle — that IS
+  // the activity. Once shopping, editing is deliberate, so it stays behind the
+  // button and a stray tap can't drop a meal you're buying for.
+  const slotsEditable = stage === "planning" || editing;
+
+  // Entering "planning" starts a fresh buying cycle. This is the boundary that
+  // was missing: `bought` used to persist until someone happened to press
+  // "Clear week", so last week's purchases kept cancelling this week's needs.
+  const startPlanning = () =>
+    update((d) => {
+      d.planStage = "planning";
+      d.list.bought = {};
+      return d;
+    });
+
+  const finishPlanning = () => {
+    setEditing(false);
+    update((d) => {
+      d.planStage = "shopping";
+      return d;
+    });
+  };
 
   const setSlot = (day, type, patch) =>
     update((d) => {
@@ -23,12 +48,16 @@ export function WeekTab({ data, update }) {
       return d;
     });
 
-  // Clearing the week also ends the buying cycle: items banked as "bought" by
-  // Done shopping are forgotten, so next week's meals start from a full list.
-  const clearWeek = () => {
+  // Starting over: empty the week AND end the buying cycle, then drop straight
+  // into planning. This replaces the old "Clear week", which did the same two
+  // things but read as a destructive escape hatch rather than the start of the
+  // next cycle — so it went unpressed, which is how the cycle never ended.
+  const startNewPlan = () => {
+    setEditing(false);
     update((d) => {
       d.plan = {};
       d.list.bought = {};
+      d.planStage = "planning";
       return d;
     });
     setConfirmClear(false);
@@ -52,7 +81,7 @@ export function WeekTab({ data, update }) {
     if (!(cur > 0)) setSlot(day, type, { servings: base });
   };
 
-  const plannedCount = DAYS.reduce((n, day) => n + MEAL_TYPES.filter((t) => data.plan?.[day]?.[t]?.recipeId).length, 0);
+  const plannedCount = plannedMealCount(data);
 
   // Recipes offered in the open picker: tagged for that slot's meal type first,
   // then everything else, each narrowed by the search box (name or ingredient).
@@ -75,15 +104,28 @@ export function WeekTab({ data, update }) {
     <div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 8 }}>
         <p style={{ margin: 0, fontSize: 14, color: C.faint, flex: 1, minWidth: 200 }}>
-          Plan the week — every planned meal feeds the shopping list automatically.
-          {plannedCount > 0 && ` ${plannedCount} meal${plannedCount === 1 ? "" : "s"} planned.`}
+          {stage === "empty" && "Plan the week — every planned meal feeds the shopping list automatically."}
+          {stage === "planning" &&
+            `Planning${plannedCount ? ` — ${plannedCount} meal${plannedCount === 1 ? "" : "s"} in so far.` : " — add your meals for the week."}`}
+          {stage === "shopping" &&
+            `${plannedCount} meal${plannedCount === 1 ? "" : "s"} planned. Adjust with Edit; anything you've already bought stays bought.`}
         </p>
-        {(plannedCount > 0 || editing) && (
-          <Btn kind={editing ? "primary" : "ghost"} onClick={() => setEditing((v) => !v)}>
-            {editing ? "✓ Done" : "Edit week plan"}
+        {stage === "empty" && (
+          <Btn kind="primary" onClick={startPlanning}>Start planning</Btn>
+        )}
+        {stage === "planning" && (
+          <Btn kind="primary" onClick={finishPlanning} disabled={plannedCount === 0}>
+            Finish planning
           </Btn>
         )}
-        <Btn kind="danger" onClick={() => setConfirmClear(true)}>Clear week</Btn>
+        {stage === "shopping" && (
+          <>
+            <Btn kind={editing ? "primary" : "ghost"} onClick={() => setEditing((v) => !v)}>
+              {editing ? "✓ Done editing" : "Edit"}
+            </Btn>
+            <Btn kind="danger" onClick={() => setConfirmClear(true)}>Start a new plan</Btn>
+          </>
+        )}
       </div>
 
       {recipesSorted.length === 0 ? (
@@ -123,7 +165,7 @@ export function WeekTab({ data, update }) {
                           <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>＋</span>
                           Choose a meal
                         </button>
-                      ) : editing ? (
+                      ) : slotsEditable ? (
                         // Edit mode — tap the meal to re-pick it, and an ✕ to clear
                         // the slot. Servings drop to their own line just below.
                         <>
@@ -157,7 +199,7 @@ export function WeekTab({ data, update }) {
                         </span>
                       )}
                     </div>
-                    {recipe && editing && (
+                    {recipe && slotsEditable && (
                       <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 6, marginLeft: 78, fontSize: 12, color: C.faint }}>
                         <input
                           type="number"
@@ -298,12 +340,12 @@ export function WeekTab({ data, update }) {
 
       <ConfirmDialog
         open={confirmClear}
-        title="Clear the week plan?"
-        confirmLabel="Clear week"
-        onConfirm={clearWeek}
+        title="Start a new plan?"
+        confirmLabel="Start a new plan"
+        onConfirm={startNewPlan}
         onCancel={() => setConfirmClear(false)}
       >
-        Removes every meal from all seven days, and starts a fresh buying cycle — anything you already bought this week stops being remembered, so next week's meals list their ingredients again. Meals you added straight to the shopping list aren't affected.
+        Empties all seven days and starts a fresh buying cycle: anything you already bought stops being remembered, so the new week's meals list their ingredients in full. Meals you added straight to the shopping list aren't affected.
       </ConfirmDialog>
     </div>
   );
