@@ -40,7 +40,6 @@ export function ListTab({ data, update }) {
   const totals = servingsByRecipe(data);
   const selectedMealCount = Object.values(totals).filter((s) => s > 0).length;
   const remaining = items.filter((i) => !data.list.checked[i.key]).length;
-  const boughtCount = Object.keys(data.list.bought || {}).length;
 
   const setOverride = (key, store) =>
     update((d) => {
@@ -419,38 +418,59 @@ export function ListTab({ data, update }) {
         {selectedMealCount} meal{selectedMealCount === 1 ? "" : "s"} selected · {remaining} item{remaining === 1 ? "" : "s"} left to buy
         {/* Bought items are hidden, so say so rather than leaving the list
             mysteriously short. */}
-        {boughtCount > 0 && (
-          <>
-            {" · "}
-            <button
-              onClick={() => setShowBought((v) => !v)}
-              aria-expanded={showBought}
-              style={{ font: "inherit", color: C.gold, background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline" }}
-            >
-              {boughtCount} already bought this week
-            </button>
-          </>
-        )}
       </div>
 
-      {showBought && boughtRows.length > 0 && (
-        <div style={{ background: C.goldSoft, border: `1px solid ${C.line}`, borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
-            <strong style={{ fontFamily: fontDisplay, fontSize: 16 }}>Already bought this week</strong>
-            <span style={{ fontSize: 12, color: C.faint, flex: "1 1 140px" }}>Kept off the list because an earlier trip covered them.</span>
-            <Btn small onClick={unbuyAll}>Put all back</Btn>
-          </div>
-          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-            {boughtRows.map((r) => (
-              <li key={r.key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", borderTop: `1px solid ${C.line}` }}>
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  {r.name}
-                  {r.label && <span style={{ color: C.faint, fontSize: 13 }}> · {r.label}</span>}
-                </span>
-                <Btn small onClick={() => unbuy(r.key)}>Put back</Btn>
-              </li>
-            ))}
-          </ul>
+      {/* Its own object, not a clause in the status line above. This is the
+          answer to "why is my list short?", so it needs to look like something
+          you can open — a full-width bar with a disclosure caret — rather than
+          a footnote among neutral counts. Gold, not tomato: suppression is
+          correct behaviour most weeks and shouldn't read as an error. */}
+      {boughtRows.length > 0 && (
+        <div style={{ background: C.goldSoft, border: `1px solid ${C.gold}`, borderRadius: 12, marginBottom: 12, overflow: "hidden" }}>
+          <button
+            onClick={() => setShowBought((v) => !v)}
+            aria-expanded={showBought}
+            style={{
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "12px 14px",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              textAlign: "left",
+              font: "inherit",
+              color: C.gold,
+            }}
+          >
+            <span style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 16 }}>
+              {boughtRows.length} item{boughtRows.length === 1 ? "" : "s"} already bought this week
+            </span>
+            <span style={{ flex: 1 }} />
+            <span aria-hidden style={{ fontSize: 13 }}>{showBought ? "▲" : "▾"}</span>
+          </button>
+          {showBought && (
+            <div style={{ padding: "0 14px 12px" }}>
+              <div style={{ fontSize: 12, color: C.faint, marginBottom: 4 }}>
+                Kept off the list because an earlier trip covered them. Put one back if you don't actually have it.
+              </div>
+              <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                {boughtRows.map((r) => (
+                  <li key={r.key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: `1px solid ${C.line}` }}>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      {r.name}
+                      {r.label && <span style={{ color: C.faint, fontSize: 13 }}> · {r.label}</span>}
+                    </span>
+                    <Btn small onClick={() => unbuy(r.key)}>Put back</Btn>
+                  </li>
+                ))}
+              </ul>
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+                <Btn small onClick={unbuyAll}>Put all back</Btn>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
