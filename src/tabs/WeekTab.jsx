@@ -1,6 +1,6 @@
 /* ------------------------------------------------------------------ */
-/*  Week plan tab — assign a recipe + servings to each day/meal slot;
-    every slot feeds the shopping list.  */
+/*  Week plan tab — assign a recipe + servings to each day/meal slot; every
+    slot feeds the shopping list unless it's ticked "not on the list".  */
 /* ------------------------------------------------------------------ */
 
 import { useMemo, useState } from "react";
@@ -43,8 +43,17 @@ export function WeekTab({ data, update }) {
   const setSlot = (day, type, patch) =>
     update((d) => {
       if (!d.plan[day]) d.plan[day] = {};
-      if (patch === null) delete d.plan[day][type];
-      else d.plan[day][type] = { ...(d.plan[day][type] || {}), ...patch };
+      if (patch === null) {
+        delete d.plan[day][type];
+      } else {
+        const next = { ...(d.plan[day][type] || {}), ...patch };
+        // `undefined` in a patch means "unset this". Deleting the key beats
+        // storing a `false`: a slot that doesn't skip the list keeps the exact
+        // shape it has always had, so it neither writes a field nor makes one
+        // up for every other slot on the plan.
+        for (const [k, v] of Object.entries(patch)) if (v === undefined) delete next[k];
+        d.plan[day][type] = next;
+      }
       return d;
     });
 
@@ -69,8 +78,10 @@ export function WeekTab({ data, update }) {
   };
 
   const assignFromPicker = (r) => {
-    // A freshly picked meal starts at its own default servings.
-    setSlot(picker.day, picker.type, { recipeId: r.id, servings: r.servings || 4 });
+    // A freshly picked meal starts at its own default servings, and on the
+    // shopping list: "we're having leftovers" was about the meal that used to
+    // be in this slot, not whatever replaces it.
+    setSlot(picker.day, picker.type, { recipeId: r.id, servings: r.servings || 4, skipList: undefined });
     setPicker(null);
   };
 
@@ -147,9 +158,14 @@ export function WeekTab({ data, update }) {
                 const slot = data.plan?.[day]?.[type];
                 const recipe = slot?.recipeId ? data.recipes.find((r) => r.id === slot.recipeId) : null;
                 const base = recipe ? recipe.servings || 4 : 4;
+                // Leftovers, or a meal you already have everything for: still
+                // on the plan, but its ingredients never reach the list.
+                const skipped = !!slot?.skipList;
                 // Shared box styling so the read-only display and the editable
-                // meal button occupy the same shape on the line.
-                const slotBox = { flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", fontFamily: fontBody, fontSize: 13, padding: "7px 10px", borderRadius: 8, border: `1px solid ${C.green}`, background: C.greenSoft, color: C.ink };
+                // meal button occupy the same shape on the line. A skipped slot
+                // drops the green so the week reads at a glance as which meals
+                // are actually driving the shopping.
+                const slotBox = { flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", fontFamily: fontBody, fontSize: 13, padding: "7px 10px", borderRadius: 8, border: `1px solid ${skipped ? C.line : C.green}`, background: skipped ? "#fff" : C.greenSoft, color: C.ink };
                 return (
                   <div key={type} style={{ padding: "5px 0" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -176,7 +192,7 @@ export function WeekTab({ data, update }) {
                             style={{ ...slotBox, cursor: "pointer" }}
                           >
                             <span style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>{recipe.easy ? "⚡ " : ""}{recipe.name}</span>
-                            <span aria-hidden style={{ flexShrink: 0, color: C.green, fontSize: 12 }}>▾</span>
+                            <span aria-hidden style={{ flexShrink: 0, color: skipped ? C.faint : C.green, fontSize: 12 }}>▾</span>
                           </button>
                           <button
                             onClick={() => setSlot(day, type, null)}
@@ -194,13 +210,13 @@ export function WeekTab({ data, update }) {
                         <span style={{ ...slotBox, cursor: "default", flexDirection: "column", alignItems: "stretch", gap: 1 }}>
                           <span style={{ fontWeight: 600 }}>{recipe.easy ? "⚡ " : ""}{recipe.name}</span>
                           <span style={{ fontSize: 12, color: C.faint, fontVariantNumeric: "tabular-nums" }}>
-                            {Number(slot.servings) || base} sv
+                            {Number(slot.servings) || base} sv{skipped ? " · not on the shopping list" : ""}
                           </span>
                         </span>
                       )}
                     </div>
                     {recipe && slotsEditable && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 6, marginLeft: 78, fontSize: 12, color: C.faint }}>
+                      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 5, marginTop: 6, marginLeft: 78, fontSize: 12, color: C.faint }}>
                         <input
                           type="number"
                           min="1"
@@ -212,6 +228,17 @@ export function WeekTab({ data, update }) {
                           style={{ ...inputStyle, width: 54, padding: "5px 8px", fontVariantNumeric: "tabular-nums" }}
                         />
                         servings
+                        <label style={{ display: "flex", alignItems: "center", gap: 5, marginLeft: 10, cursor: "pointer" }}>
+                          <input
+                            type="checkbox"
+                            checked={skipped}
+                            // Unset rather than store `false` — see setSlot.
+                            onChange={(e) => setSlot(day, type, { skipList: e.target.checked || undefined })}
+                            aria-label={`Keep ${recipe.name} off the shopping list on ${day} ${type}`}
+                            style={{ width: 15, height: 15, accentColor: C.green, cursor: "pointer" }}
+                          />
+                          Not on the shopping list
+                        </label>
                       </div>
                     )}
                   </div>

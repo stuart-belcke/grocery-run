@@ -602,6 +602,15 @@ export function plannedMealCount(data) {
   return n;
 }
 
+// A slot marked `skipList` stays on the plan but stops feeding the shopping
+// list: leftovers, or a meal you already have everything for. It still counts
+// as a planned meal, so plannedMealCount deliberately doesn't use this — only
+// the two list-facing walks below do, and they share this one definition so
+// they can't drift apart.
+export function slotFeedsList(slot) {
+  return !!slot?.recipeId && !slot.skipList;
+}
+
 // Which store a list row belongs under: a per-list reroute wins, then the
 // ingredient's default, then Unassigned.
 export function storeFor(data, key) {
@@ -657,7 +666,7 @@ export function servingsByRecipe(data) {
   for (const day of DAYS) {
     for (const type of MEAL_TYPES) {
       const slot = data.plan?.[day]?.[type];
-      if (slot?.recipeId) totals[slot.recipeId] = (totals[slot.recipeId] || 0) + (Number(slot.servings) || 0);
+      if (slotFeedsList(slot)) totals[slot.recipeId] = (totals[slot.recipeId] || 0) + (Number(slot.servings) || 0);
     }
   }
   return totals;
@@ -699,7 +708,7 @@ export function aggregateItems(data) {
   for (const day of DAYS) {
     for (const type of MEAL_TYPES) {
       const slot = data.plan?.[day]?.[type];
-      if (slot?.recipeId) {
+      if (slotFeedsList(slot)) {
         const r = data.recipes.find((x) => x.id === slot.recipeId);
         if (r) addRecipe(r, Number(slot.servings) || 0, `week plan, ${day} ${type}`);
       }

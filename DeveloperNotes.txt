@@ -384,11 +384,30 @@ doesn't shift; the tier each belongs to is noted.
     DO THIS AFTER THE CATALOG MOVE. It changes the shape of a plan slot, and
     doing it first means migrating that shape twice. TIER 3.
 
-28. Meals that don't feed the shopping list. "We're having leftovers" or "we
-    already have everything for this" — you want it on the plan for the record
-    without its ingredients padding the list. A `skipList: true` on the slot,
-    honoured in aggregateItems where the plan is walked, plus a tick in the
-    picker. Cheapest of these four and probably the most used. TIER 1.
+28. [DONE] Meals that don't feed the shopping list. "We're having leftovers" or
+    "we already have everything for this" — you want it on the plan for the
+    record without its ingredients padding the list. A `skipList: true` on the
+    slot, honoured in aggregateItems where the plan is walked, plus a tick in
+    the picker. Cheapest of these four and probably the most used. TIER 1.
+
+    Built as "Not on the shopping list", a checkbox on the slot's servings row
+    whenever the slot is editable — next to the meal it applies to rather than
+    in the picker, which is about WHICH meal, not how it's treated. The slot
+    keeps its plain (not green) bubble and reads "4 sv · not on the shopping
+    list" when read-only, so the week shows at a glance which meals are driving
+    the shopping.
+
+    Two aggregation walks read the plan — aggregateItems for the items and
+    servingsByRecipe for the List tab's "N meals selected" — and both are
+    list-facing, so both honour the flag through one shared `slotFeedsList`
+    predicate. plannedMealCount deliberately does not: a skipped meal is still
+    a planned meal, so it still counts toward "2 meals planned" and toward
+    whether the week is in the "shopping" stage.
+
+    Unticking DELETES the key rather than storing `skipList: false`, so a plan
+    that never uses the feature keeps exactly the shape it always had and
+    writes nothing extra. Re-picking a meal into the slot clears the flag too —
+    "we're having leftovers" was about the meal being replaced.
 
 29. Return to top on the Meals tab, or keep the search + filter row fixed. Fine
     at 30 recipes, unusable at 300 — you scroll for a while and then have to
