@@ -381,6 +381,78 @@ rather than saving them for a cleanup that never gets scheduled.
     is what would make that structural instead of a convention the UI has to
     keep enforcing. Gets more expensive with every ingredient added.
 
+    [IN PROGRESS — branch claude/ingredient-ids, EXPAND phase.] Read the
+    "ingredient identity" comment block in lib.js first; it carries the
+    reasoning. What follows is the plan and what's left.
+
+    PROVEN DAMAGE, not hypothetical. Renaming "Baby spinach" to "Spinach" on
+    the real build today:
+        catalog ingredient renamed   ok
+        list.extras followed         ok
+        list.bought  LEFT BEHIND     {"baby spinach":{"bag":2}}
+        stapleNeeds  LEFT BEHIND     {"baby spinach":true}
+    commitRename moves extras, overrides and checked. bought and stapleNeeds
+    were added AFTER it was written and nobody went back. Consequences: you
+    re-buy something you already have (the record is unreachable, so the item
+    returns at full quantity), and a staple you're out of silently stops
+    appearing. Ids kill this by construction — renaming touches no keys.
+
+    SHAPE
+      ingredients: { ing_7f3a2b: { name, store, aisles, staple } }
+      recipe.ingredients: [ { ingredientId, qty, unit } ]
+      list.checked / bought / overrides / extras, stapleNeeds -> keyed by id
+
+    DECISION 1 — catalog.json STAYS NAME-KEYED. The file is hand-edited and
+    diffed in git; ids in it would mean inventing one and matching it across
+    two sections just to add a recipe. Ids are minted on the way in
+    (seedCatalog -> withIngredientIds) and resolved back to names on the way
+    out (the Settings export). The file stays the readable artifact.
+
+    DECISION 2 — EXPAND THEN CONTRACT. The catalog and the shopping state are
+    two separately-synced nodes and cannot migrate atomically: if the catalog
+    converted and the state write were lost, everything ticked off would
+    detach. So every resolver accepts BOTH an id and a legacy norm(name) key,
+    writes use ids, and state converts as it is touched. A LATER release drops
+    the legacy path — do not try to do both at once.
+
+    DECISION 3 — BUMP APP_DATA_VERSION TO 2. An older build reading an
+    id-keyed catalog would render "ing_7f3a2b" as an ingredient name. This is
+    the first real use of the gate built in item 32: the other phone gets
+    "update to keep editing" instead of quietly showing nonsense.
+
+    RECIPE EDITOR. Typing a name that doesn't exist MINTS an ingredient —
+    which is what already happens implicitly today, since typing a new name
+    creates a config entry on first use. Typing one that exists links to it.
+    Item 11's autocomplete already steers onto existing names.
+
+    DONE SO FAR (committed on the branch):
+      mintIngredientId, normalizeIngredient, compactIngredient
+      ingredientIndex   - byId + byName, built once per render
+      resolveIngredientId / ingredientIdOf - accept id, legacy key, or name
+      withIngredientIds - converts a name-keyed catalog, rewrites recipe lines,
+                          mints for names no ingredient entry covers
+      remapIngredientKeys - re-keys the state's five stores; an entry that
+                          resolves to nothing is KEPT under its old key rather
+                          than dropped, because losing what you ticked off
+                          would be worse than a stale key nothing reads
+
+    STILL TO DO:
+      - App.jsx `data` memo: resolve ingredientId -> name when assembling
+        data.recipes[].ingredients[]. THIS IS THE TRICK THAT KEEPS THE BLAST
+        RADIUS SMALL — tab code that reads i.name keeps working unchanged.
+      - aggregateItems: key items by ingredient id, display the resolved name.
+        addPart currently does `key = norm(name)`.
+      - the state remap, run opportunistically once the catalog has ids
+      - normalizeCatalog: run withIngredientIds when it sees a name-keyed
+        catalog, so adoption converts
+      - PantryTab: rows keyed by id; commitRename becomes a name edit only
+      - SettingsTab catalogJson(): resolve ids back to names on export
+      - APP_DATA_VERSION -> 2
+      - a test that FAILS when a new ingredient-keyed store is added and not
+        handled. bought/stapleNeeds were lost precisely because nothing
+        enforced that list; ids make it structural, but the test is what stops
+        the next one.
+
 24. Key concurrently-edited collections by id instead of using arrays.
     localRecipes, list.extras, extraStores and removedStores are arrays
     (lib.js:134-142). An array index is not a stable identity, so two phones
