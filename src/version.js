@@ -27,4 +27,7 @@
 
    Every bump costs somebody a forced update in a supermarket. Spend it only
    when the alternative is worse. */
-export const APP_DATA_VERSION = 1;
+// 2: ingredients gained stable ids. An older build reads catalog.ingredients
+//    keyed by name, so it would render "ing_7f3a2b" where a name belongs and
+//    join none of its recipes to their config. Exactly what the gate is for.
+export const APP_DATA_VERSION = 2;

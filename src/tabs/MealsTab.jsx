@@ -6,7 +6,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, StickyBar } from "../ui";
-import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, unitSuggestions, ingredientNames, normalizeCfg, ingredientMatches } from "../lib";
+import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, unitSuggestions, ingredientNames, normalizeCfg, ingredientMatches, ensureIngredientId } from "../lib";
 import { RecipeDetail } from "../RecipeDetail";
 
 // Rounded "pill" grouping a remove / count / add cluster so the controls read
@@ -94,11 +94,19 @@ export function MealsTab({ data, update, updateCatalog }) {
     // and nothing shadowing anything. New ingredients get an entry so they show
     // up on the Ingredients tab ready to have a store set.
     updateCatalog((c) => {
-      c.recipes[clean.id] = clean;
-      for (const ing of clean.ingredients) {
-        const k = norm(ing.name);
-        if (!c.ingredients[k]) c.ingredients[k] = { store: UNASSIGNED, aisles: {} };
-      }
+      // Recipe lines store an ingredient ID, not a spelling. Typing a name the
+      // household has never used mints an ingredient — which is what already
+      // happened implicitly, since a new name used to create a config entry on
+      // first use. Now it also gets an identity that renaming can't break.
+      c.recipes[clean.id] = {
+        ...clean,
+        ingredients: clean.ingredients
+          .map((ing) => {
+            const id = ensureIngredientId(c, ing.name);
+            return id ? { ingredientId: id, qty: ing.qty, unit: ing.unit } : null;
+          })
+          .filter(Boolean),
+      };
       return c;
     });
     setDraft(null);

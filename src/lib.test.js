@@ -27,6 +27,12 @@ import {
   plannedMealCount,
   slotFeedsList,
   seedCatalog,
+  needsIngredientIds,
+  ensureIngredientId,
+  ingredientIdByName,
+  mergeIngredients,
+  ingredientNameFor,
+  norm,
   daysInOrder,
   normalizePrefs,
   DAYS,
@@ -883,14 +889,29 @@ const catalogJson = () => ({
   },
 });
 
-test("seedCatalog keys recipes by id and ingredients by key", () => {
+test("seedCatalog keys recipes by id and MINTS ingredient ids", () => {
   const c = seedCatalog(catalogJson());
   assert.deepEqual(Object.keys(c.recipes).sort(), ["chili", "tacos"]);
-  assert.deepEqual(Object.keys(c.ingredients).sort(), ["beef", "salt"]);
   assert.deepEqual(c.stores, ["Kroger", "Aldi"]); // order is meaningful, stays an array
-  assert.equal(c.ingredients.salt.staple, true);
-  // compactCfg's contract: a non-staple carries no staple key at all.
-  assert.equal("staple" in c.ingredients.beef, false);
+
+  // Ingredients are keyed by a minted id, carrying the name that used to BE
+  // the key. Minted here rather than left to the listener's migration: a
+  // household born name-keyed would convert only on a second round trip.
+  const ids = Object.keys(c.ingredients);
+  assert.ok(ids.every((k) => /^ing_/.test(k)), `expected minted ids, got ${ids}`);
+  assert.equal(needsIngredientIds(c), false);
+
+  const byName = Object.fromEntries(Object.values(c.ingredients).map((i) => [norm(i.name), i]));
+  assert.deepEqual(Object.keys(byName).sort(), ["beef", "salt"]);
+  assert.equal(byName.salt.staple, true);
+  assert.equal(byName.beef.staple, false);
+
+  // Every recipe line points at an ingredient that exists.
+  for (const r of Object.values(c.recipes)) {
+    for (const line of r.ingredients) {
+      assert.ok(c.ingredients[line.ingredientId], `dangling line ${JSON.stringify(line)}`);
+    }
+  }
 });
 
 test("seedCatalog skips legacy hidden markers", () => {
@@ -1049,4 +1070,89 @@ test("the units preference reaches the shopping list", () => {
   };
   assert.deepEqual(byKey(aggregateItems(aggData(base)), "beef").parts, { lb: 1.5 });
   assert.deepEqual(byKey(aggregateItems(aggData({ ...base, prefs: { units: "metric" } })), "beef").parts, { g: 680.39 });
+});
+
+
+/* ---------------- ingredient ids: the "key was the name" traps ----------------
+   Everything below existed as a bug during this change. Each one is a place
+   that read a KEY and rendered or wrote it as a NAME. */
+
+test("a name typed for the first time mints exactly one ingredient", () => {
+  const draft = { ingredients: {} };
+  let n = 0;
+  const mint = () => "ing_" + ++n;
+  const a = ensureIngredientId(draft, "Baby spinach", mint);
+  assert.equal(a, "ing_1");
+  assert.equal(draft.ingredients.ing_1.name, "Baby spinach");
+  // Same name again — including differently cased — reuses it rather than
+  // creating a duplicate under a second id.
+  assert.equal(ensureIngredientId(draft, "baby spinach", mint), "ing_1");
+  assert.equal(ensureIngredientId(draft, "  BABY SPINACH  ", mint), "ing_1");
+  assert.equal(Object.keys(draft.ingredients).length, 1);
+  // A blank name mints nothing.
+  assert.equal(ensureIngredientId(draft, "   ", mint), null);
+  assert.equal(Object.keys(draft.ingredients).length, 1);
+});
+
+test("a key renders as its NAME, never as the raw id", () => {
+  // Two screens shipped showing "Ing_c45b0s82" where a name belonged: the
+  // rename dialog and the already-bought panel. Both used cap(key), which was
+  // right for exactly as long as the key was the name.
+  const data = {
+    config: { ing_a1: { name: "Applesauce", store: "Aldi", aisles: {} } },
+    list: { extras: { ing_b2: { name: "Paper towels", qty: 1, unit: "" } } },
+  };
+  assert.equal(ingredientNameFor(data, "ing_a1"), "Applesauce");
+  // A hand-added entry that never became an ingredient still has a name.
+  assert.equal(ingredientNameFor(data, "ing_b2"), "Paper towels");
+  // Something deleted still shows SOMETHING rather than blank.
+  assert.equal(ingredientNameFor(data, "ing_gone"), "Ing_gone");
+});
+
+
+test("two ingredients can't quietly end up sharing a name", () => {
+  // Found in real use: rename applesauce -> Applesaucer, then type
+  // "applesauce" into a recipe (which mints a fresh, detail-less one), then
+  // rename THAT to Applesaucer as well. Two Applesaucers, one with a store and
+  // aisle and one without. Impossible while the key was the name; renaming has
+  // to look for the collision now.
+  const ings = {
+    ing_a: { name: "Applesaucer", store: "Aldi", aisles: { Aldi: 3 } },
+    ing_b: { name: "applesauce", store: "Unassigned", aisles: {} },
+  };
+  assert.equal(ingredientIdByName(ings, "Applesaucer", "ing_b"), "ing_a");
+  // Case and padding don't hide a collision.
+  assert.equal(ingredientIdByName(ings, "  APPLESAUCER ", "ing_b"), "ing_a");
+  // And an ingredient never collides with itself.
+  assert.equal(ingredientIdByName(ings, "Applesaucer", "ing_a"), null);
+  assert.equal(ingredientIdByName(ings, "Something else", "ing_b"), null);
+});
+
+test("merging keeps the survivor's details and repoints every recipe", () => {
+  const draft = {
+    ingredients: {
+      ing_a: { name: "Applesaucer", store: "Aldi", aisles: { Aldi: 3 } },
+      ing_b: { name: "Applesaucer", store: "Unassigned", aisles: {} },
+    },
+    recipes: {
+      r1: { id: "r1", ingredients: [{ ingredientId: "ing_b", qty: 1, unit: "cup" }] },
+      // Already lists the survivor: repointing would duplicate the line, so
+      // the quantities are added instead.
+      r2: { id: "r2", ingredients: [{ ingredientId: "ing_a", qty: 2, unit: "cup" }, { ingredientId: "ing_b", qty: 3, unit: "cup" }] },
+    },
+  };
+  mergeIngredients(draft, "ing_b", "ing_a");
+  assert.deepEqual(Object.keys(draft.ingredients), ["ing_a"]);
+  assert.equal(draft.ingredients.ing_a.store, "Aldi"); // survivor's details win
+  assert.deepEqual(draft.recipes.r1.ingredients, [{ ingredientId: "ing_a", qty: 1, unit: "cup" }]);
+  assert.deepEqual(draft.recipes.r2.ingredients, [{ ingredientId: "ing_a", qty: 5, unit: "cup" }]);
+});
+
+test("merging refuses the cases that would lose data", () => {
+  const draft = { ingredients: { ing_a: { name: "A" } }, recipes: {} };
+  // Into itself, into something that doesn't exist, or from nothing.
+  mergeIngredients(draft, "ing_a", "ing_a");
+  mergeIngredients(draft, "ing_a", "ing_missing");
+  mergeIngredients(draft, null, "ing_a");
+  assert.deepEqual(Object.keys(draft.ingredients), ["ing_a"]);
 });

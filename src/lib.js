@@ -580,6 +580,208 @@ export function validCatalog(d) {
    grouping) and they're touched about never, the same call made for
    extraStores/removedStores.                                                */
 
+/* ---------------------- ingredient identity ----------------------
+   Ingredients used to BE their name: the key of catalog.ingredients was
+   norm(name), and every reference — recipes, list.checked, list.bought,
+   list.overrides, list.extras, stapleNeeds — pointed at that string. So
+   renaming an ingredient orphaned all of them. Two were already being lost
+   in practice (bought and stapleNeeds), because they were added after the
+   rename code was written and nobody went back.
+
+   Now an ingredient has an id that never changes, and the name is a field
+   like any other. Renaming is a display change that touches no keys.
+
+   TOLERANT READS, EXPAND THEN CONTRACT. The catalog and the shopping state
+   are two separately-synced nodes, so they cannot migrate atomically — if the
+   catalog converted and the state write were lost, everything you'd ticked
+   off would detach. Instead, anything that resolves a reference accepts BOTH
+   an id and a legacy norm(name) key, and writes always use ids. State
+   converts as it's touched. A later release drops the legacy path.
+
+   THE FILE STAYS NAME-KEYED. catalog.json is hand-edited and diffed in git;
+   ids in it would mean inventing one and matching it across two sections just
+   to add a recipe. Ids are minted on the way in (seedCatalog) and resolved
+   back to names on the way out (the Settings export).                      */
+
+export const mintIngredientId = () => "ing_" + uid();
+
+// An ingredient entry: the config it always had, plus the name it used to be
+// keyed by. `name` is the display name; norm(name) is only ever a fallback
+// lookup for references written before ids existed.
+export function normalizeIngredient(raw, fallbackName) {
+  const cfg = normalizeCfg(raw);
+  const name = (raw && typeof raw === "object" && raw.name) || fallbackName || "";
+  return { ...(raw && typeof raw === "object" ? raw : {}), ...cfg, name: cap(String(name).trim()) };
+}
+
+// Storage shape: like compactCfg, but carrying the name, since that is now
+// data rather than the key.
+export function compactIngredient(ing) {
+  const n = normalizeIngredient(ing);
+  const out = { name: n.name, store: n.store, aisles: n.aisles };
+  if (n.staple) out.staple = true;
+  return out;
+}
+
+// Look-up table over a household's ingredients: by id, and by norm(name) so a
+// reference written before ids can still be resolved. Built once per render
+// rather than scanned per lookup.
+export function ingredientIndex(ingredients) {
+  const byId = asObject(ingredients);
+  const byName = {};
+  for (const [id, ing] of Object.entries(byId)) {
+    const n = norm(normalizeIngredient(ing, id).name);
+    if (n && byName[n] === undefined) byName[n] = id;
+  }
+  return { byId, byName };
+}
+
+// The id a reference means. Accepts an id, a legacy norm(name) key, or a raw
+// name. Returns null when it resolves to nothing, so callers can tell "this
+// ingredient is gone" from "this is a new one".
+export function resolveIngredientId(index, ref) {
+  if (!ref) return null;
+  const key = String(ref);
+  if (index.byId[key]) return key;
+  const byName = index.byName[norm(key)];
+  return byName || null;
+}
+
+// What a recipe line points at. Prefers the stored id; falls back to the name
+// for lines written before ids. Returns null for a line pointing at nothing.
+export function ingredientIdOf(index, line) {
+  if (!line) return null;
+  if (line.ingredientId && index.byId[line.ingredientId]) return line.ingredientId;
+  return resolveIngredientId(index, line.ingredientId || line.name);
+}
+
+// The id for an ingredient NAME inside a catalog being edited, minting an
+// entry if this household has never seen it. Every place a user can type a
+// name that becomes an ingredient goes through here — the recipe editor and
+// the Ingredients tab's add box — so neither can quietly write a name-keyed
+// entry into an id-keyed catalog.
+//
+// Mutates the draft it is given, which is what the updateCatalog callers want.
+export function ensureIngredientId(draft, name, mint = mintIngredientId) {
+  const n = norm(name);
+  if (!n) return null;
+  if (!draft.ingredients) draft.ingredients = {};
+  for (const [id, ing] of Object.entries(draft.ingredients)) {
+    if (norm(normalizeIngredient(ing, id).name) === n) return id;
+  }
+  const id = mint();
+  draft.ingredients[id] = normalizeIngredient(null, name);
+  return id;
+}
+
+// The id of a DIFFERENT ingredient already called this, or null. Two entries
+// sharing a name was structurally impossible while the key WAS the name; with
+// ids it is not, so renaming has to look before it leaps.
+export function ingredientIdByName(ingredients, name, exceptId) {
+  const n = norm(name);
+  if (!n) return null;
+  for (const [id, ing] of Object.entries(asObject(ingredients))) {
+    if (id === exceptId) continue;
+    if (norm(normalizeIngredient(ing, id).name) === n) return id;
+  }
+  return null;
+}
+
+// Fold one ingredient into another: repoint every recipe line, then delete the
+// loser. The SURVIVOR's store and aisles win, matching what renaming onto an
+// existing name did back when the name was the key.
+//
+// Mutates the draft, like ensureIngredientId.
+export function mergeIngredients(draft, fromId, intoId) {
+  if (!fromId || !intoId || fromId === intoId) return draft;
+  if (!draft.ingredients || !draft.ingredients[intoId]) return draft;
+  for (const [rid, r] of Object.entries(asObject(draft.recipes))) {
+    const lines = asArray(r && r.ingredients);
+    if (!lines.some((l) => l && l.ingredientId === fromId)) continue;
+    // If the recipe already lists the survivor, the repointed line would
+    // duplicate it — add the quantities instead, when the units agree.
+    const out = [];
+    for (const line of lines) {
+      const id = line.ingredientId === fromId ? intoId : line.ingredientId;
+      const twin = out.find((x) => x.ingredientId === id && (x.unit || "") === (line.unit || ""));
+      if (twin) twin.qty = r2((Number(twin.qty) || 0) + (Number(line.qty) || 0));
+      else out.push({ ...line, ingredientId: id });
+    }
+    draft.recipes[rid] = { ...r, ingredients: out };
+  }
+  delete draft.ingredients[fromId];
+  return draft;
+}
+
+// Convert a name-keyed catalog to an id-keyed one, rewriting every recipe line
+// to point at an id. Names a recipe mentions that have no ingredient entry get
+// one minted, which is also how a hand-edited catalog.json gains ingredients
+// it never listed explicitly.
+export function withIngredientIds(catalog, mint = mintIngredientId) {
+  const src = asObject(catalog && catalog.ingredients);
+  const ingredients = {};
+  const idForName = {};
+  for (const [key, raw] of Object.entries(src)) {
+    // Already an id: keep it. Otherwise the key IS the old name.
+    const alreadyId = raw && typeof raw === "object" && typeof raw.name === "string" && raw.name !== "";
+    const id = alreadyId && /^ing_/.test(key) ? key : mint();
+    const ing = normalizeIngredient(raw, alreadyId ? raw.name : key);
+    ingredients[id] = ing;
+    const n = norm(ing.name);
+    if (n && idForName[n] === undefined) idForName[n] = id;
+  }
+  const idFor = (name) => {
+    const n = norm(name);
+    if (!n) return null;
+    if (idForName[n] !== undefined) return idForName[n];
+    const id = mint();
+    ingredients[id] = normalizeIngredient(null, name);
+    idForName[n] = id;
+    return id;
+  };
+  const recipes = {};
+  for (const [rid, r] of Object.entries(asObject(catalog && catalog.recipes))) {
+    recipes[rid] = {
+      ...r,
+      ingredients: asArray(r && r.ingredients)
+        .map((line) => {
+          const id = line && line.ingredientId && ingredients[line.ingredientId] ? line.ingredientId : idFor(line && line.name);
+          return id ? { ingredientId: id, qty: Number(line.qty) || 0, unit: (line.unit || "").trim() } : null;
+        })
+        .filter(Boolean),
+    };
+  }
+  return { ...catalog, ingredients, recipes };
+}
+
+// Re-key a { ingredientKey: value } map onto ids. Used for the shopping
+// state's five stores. An entry that resolves to nothing is KEPT under its
+// original key rather than dropped — losing what you'd ticked off because an
+// ingredient was deleted would be worse than a stale key nothing reads.
+export function remapIngredientKeys(obj, index) {
+  const out = {};
+  for (const [key, v] of Object.entries(asObject(obj))) {
+    const id = resolveIngredientId(index, key);
+    out[id || key] = v;
+  }
+  return out;
+}
+
+// Does this catalog still key ingredients by name? Deliberately NOT folded
+// into normalizeCatalog: that runs on every listener report, and minting ids
+// there would hand out fresh ones on every read. The conversion is an explicit
+// one-time write, the same shape as needsKeyMigration.
+//
+// If both phones convert at once they mint different ids, and the later write
+// wins on updatedAt. That is survivable rather than ideal: state keyed to the
+// losing ids still resolves, because every reference falls back to the name.
+export function needsIngredientIds(catalog) {
+  const ings = asObject(catalog && catalog.ingredients);
+  const keys = Object.keys(ings);
+  if (keys.length === 0) return false;
+  return keys.some((k) => !/^ing_/.test(k));
+}
+
 export const CATALOG_SHAPE_VERSION = 1;
 
 /* --------------------------- preferences ---------------------------
@@ -653,7 +855,20 @@ export function seedCatalog(catalogJson) {
   // updatedAt 0 on purpose: a pristine seed is just the shipped file, and it
   // must LOSE to any catalog the database already holds. Only an actual edit
   // stamps a real time, which is what lets an edit made offline win later.
-  return { version: CATALOG_SHAPE_VERSION, appDataVersion: APP_DATA_VERSION, updatedAt: 0, prefs: { ...DEFAULT_PREFS }, recipes, ingredients, stores: asArray(cat.stores) };
+  // Minted here rather than left to the listener's migration. A household born
+  // name-keyed would convert only on a second round trip, which means its first
+  // write is a shape the app immediately wants to replace — and it made "a new
+  // household works" a weaker test than it looks, because renaming succeeds in
+  // the un-migrated state too.
+  return withIngredientIds({
+    version: CATALOG_SHAPE_VERSION,
+    appDataVersion: APP_DATA_VERSION,
+    updatedAt: 0,
+    prefs: { ...DEFAULT_PREFS },
+    recipes,
+    ingredients,
+    stores: asArray(cat.stores),
+  });
 }
 
 // Rebuild the full shape from whatever the database hands back, same contract
@@ -681,19 +896,40 @@ export function normalizeCatalog(raw) {
 // (case-insensitive, by `key`) used throughout the app. Shared by the
 // Ingredients tab's list and the List tab's add-item suggestions so both
 // draw from one definition of "known ingredient".
+// The display name for an ingredient key. Every place that used to write
+// cap(key) needs this now: the key was the name until ingredients got ids, and
+// two screens were caught rendering "Ing_c45b0s82" where a name belonged.
+// Falls back to the key itself so a reference to something deleted still shows
+// SOMETHING rather than blank.
+export function ingredientNameFor(data, key) {
+  const cfg = data && data.config && data.config[key];
+  if (cfg) return normalizeIngredient(cfg, key).name || cap(key);
+  const extra = data && data.list && data.list.extras && data.list.extras[key];
+  if (extra && extra.name) return cap(String(extra.name).trim());
+  return cap(key);
+}
+
+// Every ingredient the household knows about, as { key, name }. The catalog is
+// the authority on names now that ingredients have ids — a recipe line carries
+// an id, not a spelling, so there is no second opinion to merge in. Hand-added
+// list entries that never became ingredients are still included.
 export function ingredientNames(data) {
   const set = new Map();
-  for (const k of Object.keys(data.config)) set.set(k, cap(k));
-  for (const r of data.recipes) for (const i of r.ingredients) set.set(norm(i.name), cap(i.name.trim()));
-  for (const e of Object.values(data.list.extras)) set.set(norm(e.name), cap(e.name.trim()));
-  return [...set.entries()].map(([key, name]) => ({ key, name })).sort((a, b) => a.name.localeCompare(b.name));
+  for (const [id, ing] of Object.entries(asObject(data.config))) set.set(id, normalizeIngredient(ing, id).name);
+  for (const [key, e] of Object.entries(asObject(data.list.extras))) {
+    if (!set.has(key)) set.set(key, cap((e.name || "").trim()));
+  }
+  return [...set.entries()]
+    .filter(([, name]) => name)
+    .map(([key, name]) => ({ key, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // Every recipe that references the given ingredient key (case-insensitive).
 // Shared by the rename-affected-recipes check, the remove-item safety check,
 // and the Ingredients tab's "used in" display.
 export function usedInRecipes(data, key) {
-  return data.recipes.filter((r) => r.ingredients.some((i) => norm(i.name) === key));
+  return data.recipes.filter((r) => r.ingredients.some((i) => (i.ingredientId || norm(i.name)) === key));
 }
 
 // Type-ahead matches over ingredientNames(). Hidden once the text is already an
@@ -736,7 +972,7 @@ export function commonUnitFor(data, key) {
   const counts = {};
   for (const r of data.recipes)
     for (const i of r.ingredients) {
-      if (norm(i.name) !== key) continue;
+      if ((i.ingredientId || norm(i.name)) !== key) continue;
       const u = (i.unit || "").trim();
       if (u) counts[u] = (counts[u] || 0) + 1;
     }
@@ -863,8 +1099,10 @@ export function servingsByRecipe(data) {
 
 export function aggregateItems(data) {
   const map = new Map();
-  const addPart = (name, qty, unit, sourceName, detail) => {
-    const key = norm(name);
+  // Items are keyed by INGREDIENT ID now, with the name carried alongside for
+  // display. A legacy reference still resolves: a recipe line or list entry
+  // written before ids falls back to norm(name), which is what that key was.
+  const addPart = (key, name, qty, unit, sourceName, detail) => {
     if (!key) return;
     if (!map.has(key)) map.set(key, { key, name: cap(name.trim()), parts: {}, handParts: {}, sources: [], contribs: [] });
     const item = map.get(key);
@@ -882,6 +1120,7 @@ export function aggregateItems(data) {
     const scale = servings / base;
     for (const ing of r.ingredients) {
       addPart(
+        ing.ingredientId || norm(ing.name),
         ing.name,
         (Number(ing.qty) || 0) * scale,
         ing.unit,
@@ -903,7 +1142,7 @@ export function aggregateItems(data) {
       }
     }
   }
-  for (const ex of Object.values(data.list.extras)) addPart(ex.name, Number(ex.qty) || 0, ex.unit, "Added by hand", "Added by hand on the shopping list");
+  for (const [key, ex] of Object.entries(data.list.extras)) addPart(key, ex.name, Number(ex.qty) || 0, ex.unit, "Added by hand", "Added by hand on the shopping list");
 
   // Home staples. A staple you have is dropped even when a recipe calls for
   // it — that's the whole point: you already own the olive oil, so it shouldn't
@@ -939,7 +1178,9 @@ export function aggregateItems(data) {
   }
   for (const key of Object.keys(needs)) {
     if (!needs[key] || !normalizeCfg(data.config[key]).staple) continue;
-    if (!map.has(key)) map.set(key, { key, name: cap(key), parts: {}, sources: [], contribs: [], staple: true });
+    if (!map.has(key)) {
+      map.set(key, { key, name: ingredientNameFor(data, key), parts: {}, sources: [], contribs: [], staple: true });
+    }
   }
   return [...map.values()];
 }
