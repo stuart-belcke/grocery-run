@@ -157,9 +157,10 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
             <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 12px" }}>
               Both phones using the <b>same household code</b> share one live shopping list, week plan, and store choices. Set the same code on each phone once; after that, changes appear on both whenever you're online (and queue up when you're not).
             </p>
-            <label style={{ fontSize: 12, color: C.faint, display: "block", marginBottom: 4 }}>Household code</label>
+            <label htmlFor="household-code" style={{ fontSize: 12, color: C.faint, display: "block", marginBottom: 4 }}>Household code</label>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <input
+                id="household-code"
                 value={codeInput}
                 onChange={(e) => setCodeInput(e.target.value)}
                 spellCheck={false}

@@ -5,6 +5,8 @@ import {
   saveDeviceCode,
   loadCache,
   saveCache,
+  loadCatalogCache,
+  saveCatalogCache,
   subscribeHousehold,
   watchConnection,
   writeHousehold,
@@ -19,7 +21,6 @@ import { Stripe } from "./ui";
 import {
   LOCAL_KEY,
   CATALOG_KEY,
-  HOUSEHOLD_CATALOG_KEY,
   storageOk,
   FALLBACK_CATALOG,
   emptyLocal,
@@ -72,7 +73,7 @@ export default function App() {
   // single source for all three. Held here rather than in `local` because it
   // lives at its own database node, on its own listener.
   const [hCatalog, setHCatalog] = useState(() => {
-    const cached = loadJSON(HOUSEHOLD_CATALOG_KEY);
+    const cached = loadCatalogCache(code);
     return cached ? normalizeCatalog(cached) : null;
   });
   // Whether the catalog listener has reported once. Until it has we don't know
@@ -117,7 +118,7 @@ export default function App() {
     const next = { ...fn(structuredClone(base)), updatedAt: Date.now() };
     setHCatalog(next);
     hCatalogRef.current = next;
-    saveJSON(HOUSEHOLD_CATALOG_KEY, next);
+    saveCatalogCache(code, next);
     // Held back until the listener has reported: writing before we know whether
     // a catalog already exists risks replacing it with a locally seeded copy.
     // The write isn't lost — the listener pushes it once it can tell.
@@ -171,6 +172,18 @@ export default function App() {
     const cached = loadCache(code);
     if (cached) setLocalState(normalizeLocal(cached));
 
+    // Swap to THIS household's catalog, and forget whether the previous one had
+    // reported. Both matter when joining a different code: carrying the old
+    // catalog in memory would seed the new household with it, and carrying a
+    // stale "ready" would let the next edit write it there before the listener
+    // has said whether that household already has a catalog of its own.
+    const cachedCat = loadCatalogCache(code);
+    const startingCat = cachedCat ? normalizeCatalog(cachedCat) : null;
+    setHCatalog(startingCat);
+    hCatalogRef.current = startingCat;
+    setCatalogReady(false);
+    catalogReadyRef.current = false;
+
     if (!syncEnabled) {
       setSyncStatus("local-only");
       // Nothing will ever report, so treat the local copy as authoritative.
@@ -217,7 +230,7 @@ export default function App() {
         const adopted = normalizeCatalog(remote);
         setHCatalog(adopted);
         hCatalogRef.current = adopted;
-        saveJSON(HOUSEHOLD_CATALOG_KEY, adopted);
+        saveCatalogCache(code, adopted);
         markCatalogSynced(code, adopted);
         return;
       }
@@ -239,7 +252,7 @@ export default function App() {
       const ours = hCatalogRef.current || migrateCatalog(catalogRef.current, localRef.current);
       setHCatalog(ours);
       hCatalogRef.current = ours;
-      saveJSON(HOUSEHOLD_CATALOG_KEY, ours);
+      saveCatalogCache(code, ours);
       markCatalogSynced(code, null); // no baseline: send it with one full write
       writeCatalog(code, ours);
     });
