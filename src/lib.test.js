@@ -27,6 +27,9 @@ import {
   plannedMealCount,
   slotFeedsList,
   seedCatalog,
+  daysInOrder,
+  normalizePrefs,
+  DAYS,
   isBuildTooOld,
   APP_DATA_VERSION,
   pickState,
@@ -986,4 +989,61 @@ test("a catalog written before this was recorded reads as 0, and doesn't gate", 
   const older = normalizeCatalog({ recipes: {} });
   assert.equal(older.appDataVersion, 0);
   assert.equal(isBuildTooOld(older.appDataVersion, APP_DATA_VERSION), false);
+});
+
+
+/* ---------------- preferences ---------------- */
+
+test("the week start ROTATES the days, never renumbers them", () => {
+  assert.deepEqual(daysInOrder({ weekStart: "Mon" }), ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
+  assert.deepEqual(daysInOrder({ weekStart: "Sun" }), ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]);
+  // Same seven names, every time. If this ever fails, plan data keyed by day
+  // name has been silently shifted and every planned meal has moved a day.
+  for (const p of [{ weekStart: "Mon" }, { weekStart: "Sun" }, null, {}, { weekStart: "nonsense" }]) {
+    assert.deepEqual([...daysInOrder(p)].sort(), [...DAYS].sort());
+  }
+});
+
+test("a meal planned for a day stays on that day whichever end the week starts", () => {
+  const d = aggData({
+    recipes: [recipe("r1", "Chili", 4, [{ name: "Beef", qty: 2, unit: "lb" }])],
+    plan: { Sun: { Dinner: { recipeId: "r1", servings: 4 } } },
+  });
+  // Aggregation walks DAYS to SUM, so the presentation order can't affect it.
+  assert.deepEqual(byKey(aggregateItems(d), "beef").parts, { lb: 2 });
+  assert.equal(plannedMealCount(d), 1);
+});
+
+test("prefs fall back to safe defaults rather than trusting what's stored", () => {
+  assert.deepEqual(normalizePrefs(undefined), { units: "as-entered", weekStart: "Mon" });
+  assert.equal(normalizePrefs({ units: "furlongs" }).units, "as-entered");
+  assert.equal(normalizePrefs({ weekStart: "Wed" }).weekStart, "Mon");
+  assert.equal(normalizePrefs({ units: "metric" }).units, "metric");
+  // Unknown keys survive, same forward-compatibility rule as everywhere else.
+  assert.equal(normalizePrefs({ somethingLater: 1 }).somethingLater, 1);
+});
+
+test("a units preference is what authorises crossing measurement systems", () => {
+  // Unprompted, the layer refuses: 24 oz reads 1.5 lb, never 680 g.
+  assert.deepEqual(combineParts({ oz: 24 }), { lb: 1.5 });
+  // Asked for, it's the answer to a question you posed.
+  assert.deepEqual(combineParts({ oz: 24 }, "metric"), { g: 680.39 });
+  assert.deepEqual(combineParts({ g: 1500 }, "standard"), { lb: 3.31 });
+});
+
+test("a units preference can't strand a total with nothing to render it in", () => {
+  // Counts and invented units have no metric or standard form. Choosing one
+  // must leave them exactly as they were rather than dropping them.
+  assert.deepEqual(combineParts({ ea: 24 }, "metric"), { ea: 24 });
+  assert.deepEqual(combineParts({ can: 3 }, "metric"), { can: 3 });
+  assert.deepEqual(combineParts({ dozen: 1, ea: 2 }, "standard"), { ea: 14 });
+});
+
+test("the units preference reaches the shopping list", () => {
+  const base = {
+    recipes: [recipe("r1", "Chili", 4, [{ name: "Beef", qty: 24, unit: "oz" }])],
+    list: { ...aggData().list, selections: { r1: 4 } },
+  };
+  assert.deepEqual(byKey(aggregateItems(aggData(base)), "beef").parts, { lb: 1.5 });
+  assert.deepEqual(byKey(aggregateItems(aggData({ ...base, prefs: { units: "metric" } })), "beef").parts, { g: 680.39 });
 });

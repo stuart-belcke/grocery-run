@@ -7,9 +7,12 @@
 import { useMemo, useState } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, ConfirmDialog } from "../ui";
-import { DAYS, MEAL_TYPES, norm, planStageOf, plannedMealCount } from "../lib";
+import { MEAL_TYPES, norm, planStageOf, plannedMealCount, daysInOrder } from "../lib";
 
 export function WeekTab({ data, update }) {
+  // Presentation order only. Plan data stays keyed by day name, so a meal
+  // planned for Sunday is on Sunday whichever end of the week it's drawn at.
+  const days = useMemo(() => daysInOrder(data.prefs), [data.prefs]);
   const recipesSorted = useMemo(() => [...data.recipes].sort((a, b) => a.name.localeCompare(b.name)), [data.recipes]);
   const [picker, setPicker] = useState(null); // { day, type } while choosing a recipe for a slot
   const [pickQuery, setPickQuery] = useState("");
@@ -145,7 +148,7 @@ export function WeekTab({ data, update }) {
           Add some meals on the Meals tab first, then plan them here.
         </div>
       ) : (
-        DAYS.map((day) => {
+        days.map((day) => {
           const dayHasMeals = MEAL_TYPES.some((t) => data.plan?.[day]?.[t]?.recipeId);
           return (
             <div key={day} style={{ background: C.card, border: `1px solid ${dayHasMeals ? C.green : C.line}`, borderRadius: 12, padding: "12px 16px", marginBottom: 10 }}>

@@ -5,12 +5,14 @@
 /* ------------------------------------------------------------------ */
 
 import { useState, useEffect } from "react";
-import { C, fontDisplay, inputStyle } from "../theme";
-import { Btn, ConfirmDialog, AlertDialog } from "../ui";
+import { C, fontBody, inputStyle } from "../theme";
+import { Btn, ConfirmDialog, AlertDialog, Section, Seg } from "../ui";
 import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog } from "../lib";
 import { syncEnabled, cleanCode } from "../sync";
 
 export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, syncStatus }) {
+  const prefs = data.prefs;
+  const setPref = (patch) => updateCatalog((c) => ({ ...c, prefs: { ...c.prefs, ...patch } }));
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
   const [msg, setMsg] = useState("");
@@ -136,18 +138,70 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
     setAskReset(false);
   };
 
+  const row = { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "10px 0" };
+  const rowLabel = { fontSize: 13, color: C.ink, flex: 1, minWidth: 120 };
+
   return (
     <div>
-      <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <h3 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 2px" }}>Phone-to-phone sync</h3>
-          {syncEnabled && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: syncStatus === "offline" ? C.tomato : C.faint }}>
+      <Section title="Preferences">
+        <p style={{ fontSize: 12, color: C.faint, margin: "8px 0 4px" }}>
+          Shared by the whole household, so both phones agree. These change how
+          things are SHOWN — nothing is rewritten, so you can switch back at any
+          time.
+        </p>
+
+        <div style={{ ...row, borderTop: `1px dashed ${C.line}` }}>
+          <div style={rowLabel}>
+            Units
+            <div style={{ fontSize: 12, color: C.faint }}>
+              {prefs.units === "as-entered"
+                ? "Shown the way recipes are written, converting only within one system."
+                : prefs.units === "metric"
+                  ? "Totals converted to grams and litres."
+                  : "Totals converted to pounds, ounces and cups."}
+            </div>
+          </div>
+          <Seg
+            options={[
+              { value: "as-entered", label: "As entered" },
+              { value: "metric", label: "Metric" },
+              { value: "standard", label: "Standard" },
+            ]}
+            value={prefs.units}
+            onChange={(v) => setPref({ units: v })}
+          />
+        </div>
+
+        <div style={{ ...row, borderTop: `1px dashed ${C.line}` }}>
+          <div style={rowLabel}>
+            Week starts on
+            <div style={{ fontSize: 12, color: C.faint }}>
+              Changes the order days are listed in. Meals stay on the days
+              they're planned for.
+            </div>
+          </div>
+          <Seg
+            options={[
+              { value: "Mon", label: "Monday" },
+              { value: "Sun", label: "Sunday" },
+            ]}
+            value={prefs.weekStart}
+            onChange={(v) => setPref({ weekStart: v })}
+          />
+        </div>
+      </Section>
+
+      <Section
+        title="Phone-to-phone sync"
+        aside={
+          syncEnabled ? (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontFamily: fontBody, fontWeight: 400, color: syncStatus === "offline" ? C.tomato : C.faint }}>
               <span aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: syncStatus === "synced" ? C.green : syncStatus === "offline" ? C.tomato : C.faint }} />
               {syncStatus === "synced" ? "Synced" : syncStatus === "offline" ? "Offline" : "Connecting…"}
             </span>
-          )}
-        </div>
+          ) : null
+        }
+      >
         {!syncEnabled ? (
           <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 0" }}>
             Sync is off — data is saved only on this device. To sync your shopping list, week plan, and store choices live between phones, add a free Firebase database (see the "Phone-to-phone sync" steps in README.md), then reopen the app. Until then, use the Backup buttons below to copy data over manually.
@@ -176,10 +230,9 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
             </p>
           </>
         )}
-      </div>
+      </Section>
 
-      <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16 }}>
-        <h3 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 2px" }}>Export &amp; recover</h3>
+      <Section title="Export &amp; recover">
         <p style={{ fontSize: 13, color: C.faint, margin: "0 0 14px" }}>
           Your recipes, ingredients and stores live in this household&apos;s own catalog and sync between phones — {catalogSize} entr
           {catalogSize === 1 ? "y" : "ies"} right now. Edits are saved as you make them; nothing needs publishing.
@@ -231,7 +284,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
             </div>
           </div>
         )}
-      </div>
+      </Section>
 
       <p style={{ fontSize: 11, color: C.faint, textAlign: "center", margin: "14px 0 4px", fontFamily: "ui-monospace, Menlo, monospace" }}>
         Build {__BUILD__}

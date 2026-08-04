@@ -426,7 +426,7 @@ From a week of actually using it (Aug 2026)
 Kept together rather than scattered into the tiers above, so the numbering
 doesn't shift; the tier each belongs to is noted.
 
-26. Week starts Sunday, not Monday — and make it a setting rather than a
+26. [DONE] Week starts Sunday, not Monday — and make it a setting rather than a
     constant. DAYS is hardcoded in lib.js, so this is a small change to the
     array plus a place to choose. That place doesn't exist: the Settings tab is
     household sync and the publish flow, with no actual preferences section.
@@ -534,7 +534,7 @@ doesn't shift; the tier each belongs to is noted.
     per device, and not recurring — but it took reading build stamps off two
     phones to establish that, which is what this item is for.
 
-31. Metric or standard as a preference, and a PREFERENCES SECTION to hold it
+31. [DONE] Metric or standard as a preference, and a PREFERENCES SECTION to hold it
     and item 26's week start. Neither setting has anywhere to live: the
     Settings tab is household sync plus export/recover, with no preferences.
     Build the section once and both land in it. TIER 1.
@@ -570,6 +570,28 @@ doesn't shift; the tier each belongs to is noted.
     to rotate the order the days are PRESENTED in, never to renumber the keys.
     Rotating presentation is a display change; renumbering keys would silently
     move every planned meal by a day.
+
+    BUILT, and the week start turned out safer than this note feared. Only the
+    Week tab needs the rotated order: aggregateItems, servingsByRecipe and
+    plannedMealCount walk DAYS to SUM, and a sum doesn't care what order it
+    adds in. So daysInOrder() is used in exactly one place, and a test asserts
+    the rotation always returns the same seven names — if that ever fails,
+    day-keyed plan data has been shifted and every meal has moved.
+
+    SETTINGS IS NOW ALL TAP-TO-OPEN, via a <Section> in ui.jsx. Every section
+    starts closed, so the whole tab fits on one screen and you choose what to
+    look at. The sync status dot renders in the section HEADER whether open or
+    closed — it's the one part worth reading without opening anything, and it
+    was the signal used to tell two diverged phones apart.
+    Preferences is listed first because it's the only thing anyone comes to
+    Settings for routinely; export, backup and restore are below it and are
+    touched about never.
+    Not a new tab: the nav already wraps to two lines at phone width.
+
+    The units preference is DISPLAY ONLY and can't strand a total. Counts and
+    invented units have no metric or standard form, so choosing one leaves them
+    exactly as they were rather than dropping them — tested, because "choose
+    metric, lose your 3 cans of tomatoes" is the failure that matters.
 
 
 32. [DONE] Tell a device a new build exists, and gate on it when the data
