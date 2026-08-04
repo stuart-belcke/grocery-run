@@ -534,6 +534,43 @@ doesn't shift; the tier each belongs to is noted.
     per device, and not recurring — but it took reading build stamps off two
     phones to establish that, which is what this item is for.
 
+31. Metric or standard as a preference, and a PREFERENCES SECTION to hold it
+    and item 26's week start. Neither setting has anywhere to live: the
+    Settings tab is household sync plus export/recover, with no preferences.
+    Build the section once and both land in it. TIER 1.
+
+    WHERE THE VALUE IS. The conversion layer (item 12) already promotes within
+    a measurement system — 24 oz reads 1.5 lb, 1500 g reads 1.5 kg — and
+    refuses to cross between them, because answering "how much flour" in a
+    system this household doesn't use is a surprise. An explicit preference is
+    the one thing that makes crossing correct: if you have SAID metric, 24 oz
+    reading 680 g is the answer to a question you asked. So this setting isn't
+    a knob for its own sake; it authorises the single conversion the layer
+    deliberately refuses to do on its own.
+
+    Shape: "standard" | "metric" | "as entered" (the current behaviour, and the
+    right default — it changes nothing for anyone who doesn't go looking).
+    It affects DISPLAY ONLY. Recipes keep the units they were written in, the
+    conversion table is unchanged, and an unconvertible unit ("can", "bunch")
+    is unaffected whatever the setting says. Nothing is rewritten on disk, so
+    the setting can be flipped back and forth with no migration.
+
+    HOUSEHOLD, NOT DEVICE — the same call staples made ("a shared fact about
+    the kitchen"). Two phones disagreeing about whether the week starts Sunday
+    would make the plan grid mean different things on each, which is worse than
+    either choice. Same for units on a list you both read in a shop.
+    So prefs belong on the catalog node, which is already "how this household
+    works" and changes rarely, rather than in state, which changes constantly.
+    Additive: normalizeCatalog spreads fields it doesn't know, so an older
+    build carries prefs through untouched instead of stripping them.
+
+    The week start (item 26) is the harder half despite sounding smaller. DAYS
+    is a module constant that aggregateItems, servingsByRecipe, plannedMealCount
+    and WeekTab all iterate, and plan data is keyed BY DAY NAME — so the fix is
+    to rotate the order the days are PRESENTED in, never to renumber the keys.
+    Rotating presentation is a display change; renumbering keys would silently
+    move every planned meal by a day.
+
 
 Refactor notes
 --------------
