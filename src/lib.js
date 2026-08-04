@@ -134,12 +134,6 @@ export const FALLBACK_CATALOG = {
 
 export const emptyLocal = () => ({
   version: 1,
-  // Keyed by recipe id, not an array — see asKeyed above.
-  localRecipes: {},
-  recipeOverrides: {}, // catalogId -> edited recipe, or null = hidden
-  configOverrides: {}, // ingredient key -> { store, aisles: { storeName: number } }
-  extraStores: [],
-  removedStores: [],
   // `bought`: ingredient keys acquired on an earlier trip this week. Recipe-
   // driven items are computed from the plan, so they can't be deleted — this
   // records that you already have them so they drop off the list.
@@ -194,7 +188,10 @@ const looksLegacyCollection = (v) =>
 
 export function needsKeyMigration(raw) {
   if (!raw || typeof raw !== "object") return false;
-  return looksLegacyCollection(raw.localRecipes) || looksLegacyCollection(raw.list && raw.list.extras);
+  // Only extras. localRecipes used to be re-keyed here too, but normalizeLocal
+  // no longer touches it — an array in the database passes through unchanged,
+  // so baseline and server agree about it and there is nothing to repair.
+  return looksLegacyCollection(raw.list && raw.list.extras);
 }
 
 export function asKeyed(v, keyOf) {
@@ -218,17 +215,9 @@ export function asKeyed(v, keyOf) {
 export const normalizeRecipe = (r) => ({ ...r, mealTypes: asArray(r.mealTypes), ingredients: asArray(r.ingredients) });
 export function normalizeLocal(raw) {
   const d = raw && typeof raw === "object" ? raw : {};
-  const recipeOverrides = {};
-  for (const [id, v] of Object.entries(asObject(d.recipeOverrides)))
-    recipeOverrides[id] = v && typeof v === "object" ? normalizeRecipe(v) : v;
   return {
     ...emptyLocal(),
     ...d,
-    localRecipes: mapValues(asKeyed(d.localRecipes, (r) => r.id), normalizeRecipe),
-    recipeOverrides,
-    configOverrides: asObject(d.configOverrides),
-    extraStores: asArray(d.extraStores),
-    removedStores: asArray(d.removedStores),
     // Spread what actually arrived BEFORE overlaying the fields we know how to
     // normalize. Listing the known subfields alone silently destroys any other
     // one — and since every device writes the whole state back, a phone running
@@ -338,9 +327,10 @@ export function saveJSON(key, value) {
 }
 
 export function validLocal(d) {
-  // localRecipes accepts either shape: an object now, an array from a save
-  // made before keyed collections shipped.
-  return d && typeof d === "object" && !!d.list && !!d.localRecipes && typeof d.localRecipes === "object";
+  // `list` is the whole of it now. This used to also require localRecipes,
+  // which would have rejected every state written after the catalog moved —
+  // including the empty one a new device starts from.
+  return d && typeof d === "object" && !!d.list;
 }
 export function validCatalog(d) {
   return d && typeof d === "object" && Array.isArray(d.recipes) && Array.isArray(d.stores) && typeof d.config === "object";
@@ -356,9 +346,12 @@ export function validCatalog(d) {
    The file doesn't go away. It becomes two one-directional things: the seed a
    brand-new household starts from, and an export target you can seed a git
    history from at any time. What it stops being is something the app READS at
-   runtime and reconciles against — that read is the whole reason
-   configOverrides / recipeOverrides / localRecipes / reconcileToCatalog exist,
-   and it's where most of this app's bugs have lived.
+   runtime and reconciles against — that read was the whole reason
+   configOverrides / recipeOverrides / localRecipes / reconcileToCatalog
+   existed, and it's where most of this app's bugs lived. All four are now
+   gone. Devices and the database may still HOLD the retired fields; nothing
+   reads them, and normalizeLocal's `...d` carries them through untouched
+   rather than pruning them, so there is no migration write to get wrong.
 
    Shape, keyed by identity for the reasons item 24 covers:
      catalog/
@@ -389,36 +382,6 @@ export function seedCatalog(catalogJson) {
   return { version: CATALOG_SHAPE_VERSION, updatedAt: 0, recipes, ingredients, stores: asArray(cat.stores) };
 }
 
-// The catalog a household should END UP with when it moves off the file:
-// the seed with this device's un-published edits folded in, so nothing that
-// only ever existed on a phone is lost on the way.
-//
-// After this runs the override fields are dead — the result already contains
-// what they were expressing. They're kept in the state for one release rather
-// than deleted here, so a mistake is recoverable by reading them again.
-export function migrateCatalog(catalogJson, local) {
-  const out = seedCatalog(catalogJson);
-  const l = local && typeof local === "object" ? local : {};
-
-  for (const [id, ov] of Object.entries(asObject(l.recipeOverrides))) {
-    if (ov === false || ov === null) delete out.recipes[id]; // removed on this device
-    else if (ov && typeof ov === "object") out.recipes[id] = normalizeRecipe({ ...ov, id });
-  }
-  for (const [id, r] of Object.entries(asKeyed(l.localRecipes, (x) => x.id))) {
-    if (!out.recipes[id]) out.recipes[id] = normalizeRecipe(r);
-  }
-  for (const [key, cfg] of Object.entries(asObject(l.configOverrides))) {
-    if (cfg === false || cfg === null) delete out.ingredients[key];
-    else out.ingredients[key] = compactCfg(cfg);
-  }
-  const removed = new Set(asArray(l.removedStores));
-  out.stores = out.stores.filter((s) => !removed.has(s));
-  for (const s of asArray(l.extraStores)) {
-    if (!out.stores.some((x) => norm(x) === norm(s))) out.stores.push(s);
-  }
-  return out;
-}
-
 // Rebuild the full shape from whatever the database hands back, same contract
 // as normalizeLocal: an absent field means empty, never undefined.
 export function normalizeCatalog(raw) {
@@ -433,87 +396,6 @@ export function normalizeCatalog(raw) {
     ingredients: asObject(d.ingredients),
     stores: asArray(d.stores),
   };
-}
-
-/* --------------------- catalog reconciliation --------------------- */
-// Canonical string forms so an override can be compared to the catalog by
-// value — field order, and the order of mealTypes, don't matter.
-const recipeShape = (r) =>
-  JSON.stringify({
-    name: (r.name || "").trim(),
-    mealTypes: [...asArray(r.mealTypes)].map((t) => String(t)).sort(),
-    easy: !!r.easy,
-    servings: r.servings || 4,
-    notes: (r.notes || "").trim(),
-    ingredients: asArray(r.ingredients).map((i) => ({ name: (i.name || "").trim(), qty: Number(i.qty) || 0, unit: (i.unit || "").trim() })),
-  });
-const cfgShape = (c) => {
-  const n = normalizeCfg(c);
-  const aisles = {};
-  for (const k of Object.keys(n.aisles).sort()) aisles[k] = Number(n.aisles[k]);
-  // `staple` is part of the shape: without it, flagging an ingredient as a
-  // home staple wouldn't register as an unpublished change.
-  return JSON.stringify({ store: n.store, aisles, staple: n.staple });
-};
-
-// The subset of a device's local overrides that still genuinely differ from the
-// catalog. Anything the catalog already reflects — e.g. right after publishing
-// and reloading — is dropped, so the "unpublished" state tracks real, still-
-// unpushed work rather than every override ever recorded. A locally-added
-// recipe whose id has since entered the catalog is either identical (dropped)
-// or edited-since (folded into recipeOverrides so it renders once, as an edit).
-export function unpublishedChanges(local, catalog) {
-  const cat = validCatalog(catalog) ? catalog : FALLBACK_CATALOG;
-  const catById = new Map(cat.recipes.map((r) => [r.id, r]));
-
-  const recipeOverrides = {};
-  for (const [id, ov] of Object.entries(asObject(local.recipeOverrides))) {
-    const catR = catById.get(id);
-    if (ov === false || ov === null) {
-      if (catR) recipeOverrides[id] = ov; // a hide only matters while the catalog still lists it
-    } else if (ov && typeof ov === "object") {
-      if (!catR || recipeShape(catR) !== recipeShape(ov)) recipeOverrides[id] = ov;
-    }
-  }
-
-  const localRecipes = {};
-  for (const r of Object.values(asKeyed(local.localRecipes, (x) => x.id))) {
-    const catR = catById.get(r.id);
-    if (!catR) localRecipes[r.id] = r; // still purely local
-    else if (recipeShape(catR) !== recipeShape(r)) recipeOverrides[r.id] = r; // promoted but edited since
-    // identical to the catalog copy → drop it
-  }
-
-  const configOverrides = {};
-  for (const [k, cfg] of Object.entries(asObject(local.configOverrides))) {
-    const catCfg = cat.config[k];
-    // `false` = removed on this device. That's a real unpublished change while
-    // the catalog still lists the ingredient; once a publish drops it, the
-    // marker has nothing left to hide and is pruned.
-    if (cfg === false || cfg === null) {
-      if (catCfg !== undefined) configOverrides[k] = false;
-      continue;
-    }
-    if (catCfg === undefined || cfgShape(catCfg) !== cfgShape(cfg)) configOverrides[k] = cfg;
-  }
-
-  const extraStores = asArray(local.extraStores).filter((s) => !cat.stores.some((c) => norm(c) === norm(s)));
-  const removedStores = asArray(local.removedStores).filter((s) => cat.stores.includes(s));
-
-  return { recipeOverrides, localRecipes, configOverrides, extraStores, removedStores };
-}
-
-// How many local changes still differ from the catalog (drives the Settings
-// tab's "N not yet published" copy and the Reset button's visibility).
-export function unpublishedCount(local, catalog) {
-  const u = unpublishedChanges(local, catalog);
-  return (
-    Object.keys(u.recipeOverrides).length +
-    Object.keys(u.localRecipes).length +
-    Object.keys(u.configOverrides).length +
-    u.extraStores.length +
-    u.removedStores.length
-  );
 }
 
 // Every ingredient name the household knows about: configured defaults,

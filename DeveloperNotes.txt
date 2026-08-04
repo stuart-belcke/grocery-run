@@ -505,6 +505,25 @@ doesn't shift; the tier each belongs to is noted.
 
 Refactor notes
 --------------
+[DONE] The catalog move was done as EXPAND then CONTRACT, and it's the pattern
+  to reuse for any future shape change that two devices have to survive.
+    expand   — the new path (households/{code}/catalog) is added and read, and
+               the old fields are left in place, written by nobody and read by
+               nobody. Rolling back is reading them again, not restoring a
+               backup. Shipped as one release, then actually used on two phones
+               for a day.
+    contract — the old fields come out of the code once the new path is proved.
+  Two things made the contract step cheap. normalizeLocal spreads `...d`, so
+  retiring a field carries it through instead of pruning it — there is no
+  migration write to get wrong, and a device that never saw the new build keeps
+  its copy. And every reference was in lib.js by then, because the read half had
+  already moved in the expand release.
+  The traps, both caught by tests rather than by reading: validLocal gated on
+  localRecipes existing, so removing it from emptyLocal would have made every
+  new device's state read as invalid; and needsKeyMigration checked localRecipes
+  for a legacy array shape, which after the contract would force a needless full
+  set() to repair a disagreement that no longer exists.
+
 [DONE] App.jsx was split so each feature edits a small, reviewable surface:
   - theme.js + ui.jsx: UI primitives (colors, fonts, Btn, Seg, Stripe, inputStyle)
   - lib.js: pure helpers (constants, catalog/config normalization, storage,
