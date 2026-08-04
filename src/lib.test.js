@@ -26,7 +26,6 @@ import {
   seedCatalog,
   pickState,
   FALLBACK_CATALOG,
-  migrateCatalog,
   normalizeCatalog,
 } from "./lib.js";
 
@@ -85,7 +84,6 @@ test("missing fields are rebuilt as empty, not left undefined", () => {
   assert.deepEqual(d.list.checked, {});
   assert.deepEqual(d.list.bought, {});
   assert.deepEqual(d.list.extras, {});
-  assert.deepEqual(d.localRecipes, {});
   assert.deepEqual(d.stapleNeeds, {});
   assert.deepEqual(d.plan, {});
 });
@@ -121,11 +119,21 @@ test("already-keyed extras pass through unchanged", () => {
   assert.deepEqual(d.list.extras, extras);
 });
 
-test("a legacy localRecipes ARRAY migrates to keys by id", () => {
-  const d = normalizeLocal({ localRecipes: [{ id: "r1", name: "Chili" }, { id: "r2", name: "Tacos" }] });
-  assert.deepEqual(Object.keys(d.localRecipes).sort(), ["r1", "r2"]);
-  assert.equal(d.localRecipes.r1.name, "Chili");
-  assert.ok(Array.isArray(d.localRecipes.r1.ingredients)); // still normalized
+test("retired override fields pass through untouched", () => {
+  // localRecipes and friends stopped being part of the shape when the catalog
+  // moved into the database. Devices and the database still hold them, and the
+  // forward-compatibility rule applies to a field we've retired exactly as it
+  // does to one we haven't met yet: carry it, don't read it, don't destroy it.
+  const legacy = {
+    list: {},
+    localRecipes: [{ id: "r1", name: "Chili" }],
+    configOverrides: { beef: { store: "Aldi" } },
+    extraStores: ["Costco"],
+  };
+  const d = normalizeLocal(legacy);
+  assert.deepEqual(d.localRecipes, legacy.localRecipes);
+  assert.deepEqual(d.configOverrides, legacy.configOverrides);
+  assert.deepEqual(d.extraStores, legacy.extraStores);
 });
 
 test("asKeyed drops entries that can't produce a key", () => {
@@ -280,7 +288,14 @@ test("diffPaths does not mutate either input", () => {
 
 test("a legacy array collection is detected", () => {
   assert.equal(needsKeyMigration({ list: { extras: [{ name: "milk" }] } }), true);
-  assert.equal(needsKeyMigration({ localRecipes: [{ id: "r1" }] }), true);
+});
+
+test("a legacy localRecipes array no longer forces a migration write", () => {
+  // It used to: normalizeLocal re-keyed localRecipes, so baseline and server
+  // disagreed about where entries lived. Nothing re-keys it now, both sides
+  // hold the same array, and forcing a full set() would be a wide write to
+  // repair a disagreement that no longer exists.
+  assert.equal(needsKeyMigration({ list: { extras: {} }, localRecipes: [{ id: "r1" }] }), false);
 });
 
 test("an index-keyed collection from Firebase is detected", () => {
@@ -289,10 +304,10 @@ test("an index-keyed collection from Firebase is detected", () => {
 
 test("properly keyed state needs no migration", () => {
   assert.equal(
-    needsKeyMigration({ list: { extras: { milk: { name: "milk" } } }, localRecipes: { r1: { id: "r1" } } }),
+    needsKeyMigration({ list: { extras: { milk: { name: "milk" } } } }),
     false
   );
-  assert.equal(needsKeyMigration({ list: { extras: {} }, localRecipes: {} }), false);
+  assert.equal(needsKeyMigration({ list: { extras: {} } }), false);
   assert.equal(needsKeyMigration(null), false);
 });
 
@@ -731,49 +746,10 @@ test("seedCatalog survives a junk catalog", () => {
   assert.ok(Array.isArray(c.stores));
 });
 
-test("migrateCatalog with no overrides equals the seed", () => {
-  const j = catalogJson();
-  assert.deepEqual(migrateCatalog(j, {}), seedCatalog(j));
-});
-
-test("migrateCatalog folds in an edited catalog recipe", () => {
-  const c = migrateCatalog(catalogJson(), {
-    recipeOverrides: { chili: { id: "chili", name: "Spicy Chili", servings: 6, ingredients: [], mealTypes: [] } },
-  });
-  assert.equal(c.recipes.chili.name, "Spicy Chili");
-  assert.equal(c.recipes.chili.servings, 6);
-});
-
-test("migrateCatalog honours a removed catalog recipe", () => {
-  const c = migrateCatalog(catalogJson(), { recipeOverrides: { tacos: false } });
-  assert.deepEqual(Object.keys(c.recipes), ["chili"]);
-});
-
-test("migrateCatalog keeps recipes that only ever existed on a phone", () => {
-  const c = migrateCatalog(catalogJson(), {
-    localRecipes: { mine: { id: "mine", name: "Mum's stew", servings: 4, ingredients: [] } },
-  });
-  assert.equal(c.recipes.mine.name, "Mum's stew");
-  assert.ok(Array.isArray(c.recipes.mine.ingredients));
-});
-
-test("migrateCatalog folds in ingredient config, including removals", () => {
-  const c = migrateCatalog(catalogJson(), {
-    configOverrides: { beef: { store: "Aldi", aisles: { Aldi: 7 }, staple: true }, salt: false },
-  });
-  assert.deepEqual(c.ingredients.beef, { store: "Aldi", aisles: { Aldi: 7 }, staple: true });
-  assert.equal("salt" in c.ingredients, false);
-});
-
-test("migrateCatalog applies store additions and removals", () => {
-  const c = migrateCatalog(catalogJson(), { extraStores: ["Costco"], removedStores: ["Aldi"] });
-  assert.deepEqual(c.stores, ["Kroger", "Costco"]);
-});
-
-test("migrateCatalog doesn't duplicate a store that differs only by case", () => {
-  const c = migrateCatalog(catalogJson(), { extraStores: ["kroger"] });
-  assert.deepEqual(c.stores, ["Kroger", "Aldi"]);
-});
+/* The migrateCatalog tests lived here. That function folded a device's local
+   overrides into the seed while households were moving off the file; every
+   household has moved, and the fields it read no longer exist. A new
+   household now seeds from catalog.json alone, which seedCatalog covers. */
 
 test("normalizeCatalog rebuilds a full shape from anything", () => {
   assert.deepEqual(normalizeCatalog(undefined).recipes, {});

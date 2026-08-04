@@ -32,7 +32,6 @@ import {
   pickState,
   needsKeyMigration,
   seedCatalog,
-  migrateCatalog,
   normalizeCatalog,
 } from "./lib";
 import { ListTab } from "./tabs/ListTab";
@@ -236,9 +235,8 @@ export default function App() {
       }
       // Our copy wins, which means one of two things:
       //
-      //   - no catalog for this household yet, so seed it from the shipped file
-      //     with this device's un-published edits folded in, and nothing that
-      //     only ever existed on a phone gets dropped; or
+      //   - no catalog for this household yet, so seed it from the shipped
+      //     file; or
       //   - this device holds catalog edits the database never received. That's
       //     the offline case: updateCatalog can't write until the listener has
       //     reported, so the edit sat on disk with a fresh updatedAt. Adopting
@@ -249,7 +247,7 @@ export default function App() {
       // Wholesale, like the state node: a newer local catalog replaces an older
       // remote one rather than merging into it. Losing the older edit is the
       // accepted cost of never losing the newer one.
-      const ours = hCatalogRef.current || migrateCatalog(catalogRef.current, localRef.current);
+      const ours = hCatalogRef.current || seedCatalog(catalogRef.current);
       setHCatalog(ours);
       hCatalogRef.current = ours;
       saveCatalogCache(code, ours);
