@@ -17,7 +17,7 @@ import {
   markCatalogSynced,
 } from "./sync";
 import { C, fontDisplay, fontBody } from "./theme";
-import { Stripe } from "./ui";
+import { Stripe, Btn, ChoiceDialog } from "./ui";
 import {
   LOCAL_KEY,
   CATALOG_KEY,
@@ -32,6 +32,8 @@ import {
   pickState,
   needsKeyMigration,
   seedCatalog,
+  isBuildTooOld,
+  APP_DATA_VERSION,
   normalizeCatalog,
 } from "./lib";
 import { ListTab } from "./tabs/ListTab";
@@ -82,6 +84,26 @@ export default function App() {
   const [tab, setTab] = useState("list");
   const [syncStatus, setSyncStatus] = useState(syncEnabled ? "connecting" : "local-only");
   const [catalogNote, setCatalogNote] = useState("");
+  // The build the site is serving, when it differs from the one running here.
+  // Stored as the build id rather than a boolean so that dismissing it can be
+  // remembered PER BUILD: "Later" should mean "not for this one", not "not
+  // until the next time I switch apps".
+  const [liveBuild, setLiveBuild] = useState(null);
+  const [dismissedBuild, setDismissedBuild] = useState(null);
+  // The gate's modal is shown once and then dismissible; its banner stays.
+  // Without that, dismissing would leave editing mysteriously dead.
+  const [gateSeen, setGateSeen] = useState(false);
+  // A device on a NEWER generation has written to this household. We can still
+  // read it, but writing would mean writing data we don't fully understand.
+  //
+  // Seeded from the cached catalog, not just from the live listener. Offline,
+  // the listener never fires — and "the last catalog I saw was newer than me"
+  // is exactly the situation where writing does damage. Self-correcting: the
+  // listener overwrites this with the truth the moment it connects.
+  const [tooOld, setTooOld] = useState(() => {
+    const cached = loadCatalogCache(loadDeviceCode());
+    return isBuildTooOld(cached && cached.appDataVersion, APP_DATA_VERSION);
+  });
 
   const localRef = useRef(local);
   localRef.current = local;
@@ -91,6 +113,8 @@ export default function App() {
   hCatalogRef.current = hCatalog;
   const catalogReadyRef = useRef(catalogReady);
   catalogReadyRef.current = catalogReady;
+  const tooOldRef = useRef(tooOld);
+  tooOldRef.current = tooOld;
 
   // Persist + (if enabled) push to Firebase. Used for all user edits.
   const setLocal = (next) => {
@@ -104,17 +128,21 @@ export default function App() {
   // which only refreshes on the next render, so a second call in the same
   // handler would rebuild from the same stale base and discard the first
   // update's changes. Make several edits in one fn instead.
-  const update = (fn) => setLocal(fn(structuredClone(localRef.current)));
+  const update = (fn) => {
+    if (tooOldRef.current) return; // a newer build owns this data — see the banner
+    setLocal(fn(structuredClone(localRef.current)));
+  };
 
   // Edit the household catalog. Same one-call-per-handler rule as update() and
   // for the same reason, but a separate ref — a handler that changes both a
   // recipe and the shopping list calls each of these once.
   const updateCatalog = (fn) => {
+    if (tooOldRef.current) return; // as update(): writing would mean writing a shape we don't know
     const base = hCatalogRef.current || seedCatalog(catalogRef.current);
     // Stamped on every edit, and only on an edit. This is what tells the
     // listener below that an offline change is real work rather than a stale
     // cache — a seed nobody has touched keeps updatedAt 0 and always loses.
-    const next = { ...fn(structuredClone(base)), updatedAt: Date.now() };
+    const next = { ...fn(structuredClone(base)), updatedAt: Date.now(), appDataVersion: APP_DATA_VERSION };
     setHCatalog(next);
     hCatalogRef.current = next;
     saveCatalogCache(code, next);
@@ -141,12 +169,19 @@ export default function App() {
     };
   }, []);
 
-  // fetch the latest catalog from the site on load
+  // Fetch the latest catalog from the site, and while we're there notice
+  // whether the site is serving a build newer than this one.
+  //
+  // Re-run on returning to the app and on reconnecting, not just at launch:
+  // an app kept in memory for days would otherwise never find out. Same two
+  // moments main.jsx asks the service worker to check, for the same reason —
+  // that pulls the new bundle into the cache, this tells you it's there.
   useEffect(() => {
-    fetch("./catalog.json", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((fresh) => {
-        if (validCatalog(fresh)) {
+    const check = () => {
+      fetch("./catalog.json", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((fresh) => {
+          if (!validCatalog(fresh)) return;
           setCatalog((old) => {
             if (JSON.stringify(fresh) !== JSON.stringify(old)) {
               saveJSON(CATALOG_KEY, fresh);
@@ -155,14 +190,25 @@ export default function App() {
             }
             return old;
           });
-          // Deliberately no longer reconciling: the override fields aren't read
-          // any more, and pruning them would edit the very copy being kept as
-          // the way back if this change is wrong. The next PR deletes them.
-        }
-      })
-      .catch(() => {
-        /* offline — cached catalog stays in use */
-      });
+          // A build id is a hash: it says two builds DIFFER, never which is
+          // newer. That's enough for an offer to reload — and it's why the
+          // hard gate below uses a number instead.
+          setLiveBuild(fresh.appBuild && fresh.appBuild !== __BUILD__ ? fresh.appBuild : null);
+        })
+        .catch(() => {
+          /* offline — cached catalog stays in use */
+        });
+    };
+    check();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") check();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", check);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", check);
+    };
   }, []);
 
   // Subscribe to the household node whenever the code changes.
@@ -182,6 +228,11 @@ export default function App() {
     hCatalogRef.current = startingCat;
     setCatalogReady(false);
     catalogReadyRef.current = false;
+    // Joining a different household is a different question about a different
+    // catalog, so re-ask it from that household's cache.
+    const gatedByCache = isBuildTooOld(cachedCat && cachedCat.appDataVersion, APP_DATA_VERSION);
+    setTooOld(gatedByCache);
+    tooOldRef.current = gatedByCache;
 
     if (!syncEnabled) {
       setSyncStatus("local-only");
@@ -224,6 +275,12 @@ export default function App() {
       // Same adopt-or-push decision the state node makes, through the same
       // predicate. Both nodes now answer "whose copy wins" one way, so there's
       // one rule to reason about rather than two that can drift.
+      // A peer on a newer generation has written here. Read on, write not at
+      // all: the shopping list still opens, which matters more in a shop than
+      // being able to tick something off.
+      const gated = isBuildTooOld(remote && remote.appDataVersion, APP_DATA_VERSION);
+      setTooOld(gated);
+      tooOldRef.current = gated;
       const { use } = pickState(hCatalogRef.current, remote);
       if (use === "remote") {
         const adopted = normalizeCatalog(remote);
@@ -351,6 +408,24 @@ export default function App() {
           </nav>
         </header>
 
+        {/* Two different messages, deliberately not merged. The first is an
+            offer; the second is a fact about the data. */}
+        {tooOld && (
+          <div
+            role="alert"
+            style={{ background: C.tomatoSoft, border: `1px solid ${C.tomato}`, borderRadius: 10, padding: "12px 14px", marginBottom: 12, fontSize: 13, color: C.ink }}
+          >
+            <b style={{ color: C.tomato }}>Update to keep editing.</b> Another device in this household is
+            running a newer version of the app and has saved something this
+            version doesn't fully understand. You can still see the list —
+            changes are paused until this device updates, so nothing gets
+            overwritten.
+            <div style={{ marginTop: 8 }}>
+              <Btn kind="danger" onClick={() => location.reload()}>Reload to update</Btn>
+            </div>
+          </div>
+        )}
+
         {tab === "list" && <ListTab data={data} update={update} updateCatalog={updateCatalog} />}
         {tab === "meals" && <MealsTab data={data} update={update} updateCatalog={updateCatalog} />}
         {tab === "week" && <WeekTab data={data} update={update} />}
@@ -370,6 +445,37 @@ export default function App() {
           />
         )}
       </div>
+
+      {/* A banner at the top of a scrolling page is easy to scroll past — and
+          for an update you're being ASKED to take, being missed is the whole
+          failure. Both of these are modals in the app's existing dialog
+          treatment rather than a second visual language.
+
+          The gate keeps its banner as well: dismissing this must not leave
+          editing mysteriously dead with no explanation on screen. */}
+      <ChoiceDialog
+        open={!!liveBuild && liveBuild !== dismissedBuild && !tooOld}
+        title="Update available"
+        cancelLabel="Later"
+        onCancel={() => setDismissedBuild(liveBuild)}
+        choices={[{ label: "Reload now", kind: "primary", onClick: () => location.reload() }]}
+      >
+        A newer version of Grocery Run is ready. Reloading takes a moment and
+        keeps your list, week plan and meals exactly as they are.
+      </ChoiceDialog>
+
+      <ChoiceDialog
+        open={tooOld && !gateSeen}
+        title="Update to keep editing"
+        cancelLabel="Not now"
+        onCancel={() => setGateSeen(true)}
+        choices={[{ label: "Reload to update", kind: "danger", onClick: () => location.reload() }]}
+      >
+        Another device in this household is running a newer version and has
+        saved something this version doesn&apos;t fully understand. You can
+        still see the list — changes are paused until this device updates, so
+        nothing gets overwritten.
+      </ChoiceDialog>
     </div>
   );
 }
