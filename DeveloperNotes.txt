@@ -436,31 +436,43 @@ rather than saving them for a cleanup that never gets scheduled.
                           than dropped, because losing what you ticked off
                           would be worse than a stale key nothing reads
 
-    VERIFIED SO FAR
-      - withIngredientIds converts a name-keyed catalog and rewrites recipe
-        lines to ids, minting for names no ingredient entry covered
-      - tolerant reads work: a fully name-keyed household renders correctly
-        against the new code, showing names and never an id
-      - RENAMING NO LONGER DETACHES ANYTHING. Renaming "Baby spinach" to
-        "Spinach": the id is unchanged, the name updates, and list.bought and
-        stapleNeeds stay attached. That is the bug this item exists for.
+    VERIFIED ON THE REAL HOUSEHOLD (two phones, PR preview)
+      - the migration runs: name-keyed ingredients become ing_ ids carrying
+        their name, recipe lines become {ingredientId, qty, unit}, and the
+        shopping state's five stores move across
+      - renaming no longer detaches anything, and propagates between devices
+      - seedCatalog mints ids directly, so a new household is never born in a
+        shape the app immediately wants to migrate
 
-    NOT YET VERIFIED — needs a real database
-      The migration fires from the catalog LISTENER, which never reports in a
-      sandbox with no Firebase, so the id conversion and the state remap have
-      not been exercised end to end. That placement is deliberate, not
-      incidental: converting offline would let a device mint ids, remap its
-      state onto them, then adopt the OTHER phone's catalog with different ids
-      and orphan everything. Exactly one authority converts, and it is the one
-      that has just adopted the server's copy. Test it the way #51 was tested:
-      one phone first, confirm the catalog converted, then the second.
+    STILL NOT VERIFIED: THE GATE FIRING FOR REAL. A device on the OLD build
+    sharing a migrated household should show "update to keep editing" rather
+    than rendering ing_ ids as names. Only ever tested with a synthetic
+    appDataVersion of 99. To test: production site in one browser, PR preview
+    in another, same throwaway household — production and preview share an
+    origin on desktop, so two browsers, not two tabs.
 
-    KNOWN, ACCEPTED DURING EXPAND
-      A recipe line written before ids still renders its stored name, so
-      renaming an ingredient does not change what the shopping list calls it
-      until the migration has run. Correct for this phase and self-resolving.
+    TWO BUGS FOUND BY USING IT, NOT BY TESTS. Both are the same shape: code
+    written when the key WAS the name.
+      1. Four places read a key and treated it as a name. Two rendered
+         "Ing_c45b0s82" where a name belonged; the other two were worse —
+         the Ingredients "add" box and the recipe editor both WROTE name-keyed
+         entries into an id-keyed catalog, which would have reintroduced the
+         old shape one entry at a time while looking fine. Everything that
+         turns a typed name into an ingredient now goes through
+         ensureIngredientId; everything that displays one uses
+         ingredientNameFor.
+      2. Renaming onto an existing name created a DUPLICATE. Two ingredients
+         sharing a name was impossible while the key was the name, and the old
+         rename merged instead — a rule that was dropped along with the
+         key-moving it needed. Renaming now merges, repointing recipes and
+         summing a line that would otherwise duplicate, and asks first because
+         a merge deletes an ingredient.
 
-    STILL TO DO:
+    The lesson worth keeping: the migration was correct both times. What broke
+    was ordinary EDITING afterwards. A migration test that only checks the
+    conversion will miss this entire class.
+
+    STILL TO DO:    STILL TO DO:
       - App.jsx `data` memo: resolve ingredientId -> name when assembling
         data.recipes[].ingredients[]. THIS IS THE TRICK THAT KEEPS THE BLAST
         RADIUS SMALL — tab code that reads i.name keeps working unchanged.
