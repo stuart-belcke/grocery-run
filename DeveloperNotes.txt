@@ -312,6 +312,30 @@ rather than saving them for a cleanup that never gets scheduled.
     Related measurement in item 25 — informative, not a gate.
     Background in FutureProjects.md ("Per-user catalog").
 
+    UPDATE, once the catalog move shipped: the catalog went to its OWN node
+    (households/{code}/catalog) with its OWN listener and its OWN updatedAt,
+    not into the state node. So the ~30x growth this item was waiting for
+    never lands on `state` — it lands next to it, already split. Ticking a
+    checkbox still delivers under a kilobyte, and editing a recipe delivers
+    the catalog without touching the list.
+    That is one branch of the per-branch split this item describes, done for
+    the branch that actually needed it, and it cost none of the four things
+    above: each node keeps its atomic snapshot, keeps a single updatedAt that
+    pickState reads unchanged, and keeps "remote === null means seed me".
+    What remains open is splitting the STATE node itself (list vs plan vs
+    stapleNeeds), and the case for that is still weak at 954 bytes. The next
+    real trigger would be a third party in the household, not size.
+
+    The adopt-vs-push rule is now shared. Both nodes route their listener
+    through the same pickState: newer stamp wins, ties go to remote so two
+    phones don't bounce a value between them, and no remote at all means
+    seed. The catalog needed it for a specific reason — updateCatalog can't
+    write before the listener has reported (writing early could replace a real
+    catalog with a locally seeded copy), so an edit made offline sits on disk
+    unwritten, and adopting on connect would silently discard it. A pristine
+    seed carries updatedAt 0 precisely so it can never win that comparison;
+    only an actual edit stamps a real time.
+
 22. Move list-building logic out of the tabs and into lib.js. PantryTab is 758
     lines, MealsTab 696, ListTab 593 — all past the point where a diff is
     reviewable, and all mixing data logic with rendering. Extracting the logic

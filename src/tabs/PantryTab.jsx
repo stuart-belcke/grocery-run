@@ -21,7 +21,7 @@ const segBtn = { padding: "4px 10px", border: "none", cursor: "pointer", fontFam
 // Section heading inside the expanded row panel.
 const groupLabel = { fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: C.faint, marginBottom: 6 };
 
-export function PantryTab({ data, catalog, update }) {
+export function PantryTab({ data, update, updateCatalog }) {
   const [newStore, setNewStore] = useState("");
   const [newItem, setNewItem] = useState("");
   const [editItem, setEditItem] = useState(null); // { key, name } while renaming an ingredient
@@ -70,41 +70,43 @@ export function PantryTab({ data, catalog, update }) {
     });
 
   const setCfg = (key, patch) =>
-    update((d) => {
-      const base = normalizeCfg(d.configOverrides[key] || data.config[key]);
-      d.configOverrides[key] = compactCfg({ ...base, ...patch });
-      return d;
+    updateCatalog((c) => {
+      const base = normalizeCfg(c.ingredients[key]);
+      c.ingredients[key] = compactCfg({ ...base, ...patch });
+      return c;
     });
 
   const setAisle = (key, store, value) =>
-    update((d) => {
-      const base = normalizeCfg(d.configOverrides[key] || data.config[key]);
+    updateCatalog((c) => {
+      const base = normalizeCfg(c.ingredients[key]);
       const aisles = { ...base.aisles };
       if (value === "") delete aisles[store];
       else aisles[store] = Number(value);
-      d.configOverrides[key] = compactCfg({ ...base, aisles });
-      return d;
+      c.ingredients[key] = compactCfg({ ...base, aisles });
+      return c;
     });
 
   const addStore = () => {
     const s = newStore.trim();
     if (!s || data.stores.some((x) => norm(x) === norm(s))) return setNewStore("");
-    update((d) => {
-      d.removedStores = d.removedStores.filter((x) => norm(x) !== norm(s));
-      if (!d.extraStores.some((x) => norm(x) === norm(s)) && !catalog.stores.some((x) => norm(x) === norm(s))) d.extraStores.push(s);
-      return d;
+    updateCatalog((c) => {
+      if (!c.stores.some((x) => norm(x) === norm(s))) c.stores.push(s);
+      return c;
     });
     setNewStore("");
   };
 
   const removeStore = (s) => {
-    update((d) => {
-      d.extraStores = d.extraStores.filter((x) => x !== s);
-      if (catalog.stores.includes(s) && !d.removedStores.includes(s)) d.removedStores.push(s);
-      for (const k of keys) {
-        const eff = d.configOverrides[k.key]?.store ?? data.config[k.key]?.store;
-        if (eff === s) d.configOverrides[k.key] = { ...(d.configOverrides[k.key] || data.config[k.key] || {}), store: UNASSIGNED };
+    // Two homes, so two calls: the store and the ingredients that pointed at it
+    // live in the catalog, while a per-list reroute belongs to this trip.
+    updateCatalog((c) => {
+      c.stores = c.stores.filter((x) => x !== s);
+      for (const [key, cfg] of Object.entries(c.ingredients)) {
+        if (normalizeCfg(cfg).store === s) c.ingredients[key] = compactCfg({ ...normalizeCfg(cfg), store: UNASSIGNED });
       }
+      return c;
+    });
+    update((d) => {
       for (const k of Object.keys(d.list.overrides)) if (d.list.overrides[k] === s) delete d.list.overrides[k];
       return d;
     });
@@ -115,9 +117,9 @@ export function PantryTab({ data, catalog, update }) {
     const name = newItem.trim();
     if (!name) return;
     const key = norm(name);
-    update((d) => {
-      if (!data.config[key] && !d.configOverrides[key]) d.configOverrides[key] = { store: UNASSIGNED, aisles: {} };
-      return d;
+    updateCatalog((c) => {
+      if (!c.ingredients[key]) c.ingredients[key] = { store: UNASSIGNED, aisles: {} };
+      return c;
     });
     setNewItem("");
   };
@@ -183,45 +185,44 @@ export function PantryTab({ data, catalog, update }) {
   };
 
   const commitRename = ({ oldKey, newName, newKey, affected }, asNew) => {
-    const isCatalogId = (id) => catalog.recipes.some((r) => r.id === id);
-    update((d) => {
-      const cfg = normalizeCfg(d.configOverrides[oldKey] || data.config[oldKey]);
-      if (!data.config[newKey]) d.configOverrides[newKey] = cfg;
-      if (asNew) return d;
+    // The ingredient and any recipes mentioning it are catalog; the shopping
+    // list's own bookkeeping is trip state. One call to each.
+    updateCatalog((c) => {
+      const cfg = normalizeCfg(c.ingredients[oldKey]);
+      if (!c.ingredients[newKey]) c.ingredients[newKey] = compactCfg(cfg);
+      if (asNew) return c; // "save as a separate item" leaves the original alone
       for (const r of affected) {
-        const renamed = {
-          id: r.id,
-          name: r.name,
-          mealTypes: r.mealTypes || [],
-          easy: !!r.easy,
-          servings: r.servings || 4,
-          notes: r.notes || "",
-          ingredients: r.ingredients.map((i) => (norm(i.name) === oldKey ? { ...i, name: newName } : i)),
+        const existing = c.recipes[r.id];
+        if (!existing) continue;
+        c.recipes[r.id] = {
+          ...existing,
+          ingredients: (existing.ingredients || []).map((i) => (norm(i.name) === oldKey ? { ...i, name: newName } : i)),
         };
-        if (isCatalogId(r.id)) d.recipeOverrides[r.id] = renamed;
-        else {
-          if (d.localRecipes[r.id]) d.localRecipes[r.id] = renamed;
-        }
       }
-      // Renaming moves the hand-added entry to its new key, merging if the
-      // target name already has one.
-      if (d.list.extras[oldKey]) {
-        d.list.extras[newKey] = { ...d.list.extras[oldKey], name: newName };
-        if (newKey !== oldKey) delete d.list.extras[oldKey];
-      }
-      if (d.list.overrides[oldKey] != null) {
-        if (d.list.overrides[newKey] == null) d.list.overrides[newKey] = d.list.overrides[oldKey];
-        delete d.list.overrides[oldKey];
-      }
-      if (d.list.checked[oldKey]) {
-        d.list.checked[newKey] = true;
-        delete d.list.checked[oldKey];
-      }
-      // retire the old entry; catalog keys can only be shadowed, like removeItem
-      delete d.configOverrides[oldKey];
-      if (catalog.config[oldKey]) d.configOverrides[oldKey] = { store: UNASSIGNED, aisles: {} };
-      return d;
+      // One layer now, so the old entry is simply gone — no shadowing, no
+      // false-as-hidden marker, no catalog copy waiting to come back.
+      if (newKey !== oldKey) delete c.ingredients[oldKey];
+      return c;
     });
+    if (!asNew) {
+      update((d) => {
+        // Renaming moves the hand-added entry to its new key, merging if the
+        // target name already has one.
+        if (d.list.extras[oldKey]) {
+          d.list.extras[newKey] = { ...d.list.extras[oldKey], name: newName };
+          if (newKey !== oldKey) delete d.list.extras[oldKey];
+        }
+        if (d.list.overrides[oldKey] != null) {
+          if (d.list.overrides[newKey] == null) d.list.overrides[newKey] = d.list.overrides[oldKey];
+          delete d.list.overrides[oldKey];
+        }
+        if (d.list.checked[oldKey]) {
+          d.list.checked[newKey] = true;
+          delete d.list.checked[oldKey];
+        }
+        return d;
+      });
+    }
     setEditItem(null);
     setAskRename(null);
   };
@@ -238,27 +239,27 @@ export function PantryTab({ data, catalog, update }) {
   };
 
   const resetItemDefaults = ({ key }) => {
-    update((d) => {
+    updateCatalog((c) => {
       // Writing the entry replaces it wholesale, so carry the staple flag over —
       // "reset store & aisle" shouldn't quietly stop it being a home staple.
-      const staple = normalizeCfg(d.configOverrides[key] || data.config[key]).staple;
-      d.configOverrides[key] = compactCfg({ store: UNASSIGNED, aisles: {}, staple });
-      return d;
+      const staple = normalizeCfg(c.ingredients[key]).staple;
+      c.ingredients[key] = compactCfg({ store: UNASSIGNED, aisles: {}, staple });
+      return c;
     });
     setInUseNote(null);
   };
 
   const commitRemoveItem = ({ key }) => {
+    // Deleting is now just deleting. With the catalog in the database there's
+    // no read-only file underneath for the key to come back from, so the
+    // `false`-as-hidden marker that made this work is gone with it.
+    updateCatalog((c) => {
+      delete c.ingredients[key];
+      return c;
+    });
     update((d) => {
-      delete d.configOverrides[key];
       delete d.list.overrides[key];
       if (d.stapleNeeds) delete d.stapleNeeds[key];
-      // A catalog ingredient can't just be deleted — data.config spreads the
-      // catalog, so the key would come straight back. Mark it hidden the way a
-      // catalog recipe is (false, not null: Firebase drops nulls). It used to
-      // write an Unassigned config here, which reset the item but left it in
-      // the list, so catalog ingredients could never actually be removed.
-      if (catalog.config[key]) d.configOverrides[key] = false;
       return d;
     });
     setConfirmItem(null);
@@ -553,7 +554,7 @@ export function PantryTab({ data, catalog, update }) {
                         <div style={groupLabel}>Where it lives</div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                           <label style={{ fontSize: 11, color: C.faint }}>Usually at</label>
-                          <select value={cfg.store || UNASSIGNED} onChange={(e) => setCfg(key, { store: e.target.value })} aria-label={`Default store for ${name}`} style={{ fontSize: 13, padding: "6px 6px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", maxWidth: 160 }}>
+                          <select aria-label={`Default store for ${name}`} value={cfg.store || UNASSIGNED} onChange={(e) => setCfg(key, { store: e.target.value })} aria-label={`Default store for ${name}`} style={{ fontSize: 13, padding: "6px 6px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", maxWidth: 160 }}>
                             {[...data.stores, UNASSIGNED].map((s) => (
                               <option key={s} value={s}>
                                 {s}
@@ -615,15 +616,20 @@ export function PantryTab({ data, catalog, update }) {
                             checked={cfg.staple}
                             onChange={(e) => {
                               const on = e.target.checked;
-                              // Both edits in ONE update(): it snapshots the current
-                              // state up front, so a second call would rebuild from
-                              // the same stale base and clobber the first.
-                              update((d) => {
-                                const base = normalizeCfg(d.configOverrides[key] || data.config[key]);
-                                d.configOverrides[key] = compactCfg({ ...base, staple: on });
-                                if (!on && d.stapleNeeds) delete d.stapleNeeds[key]; // no orphaned "need"
-                                return d;
+                              // The designation is catalog, the have/need state is
+                              // trip state — one call to each, and only ever one
+                              // per handler, since each snapshots its own ref.
+                              updateCatalog((c) => {
+                                const base = normalizeCfg(c.ingredients[key]);
+                                c.ingredients[key] = compactCfg({ ...base, staple: on });
+                                return c;
                               });
+                              if (!on) {
+                                update((d) => {
+                                  if (d.stapleNeeds) delete d.stapleNeeds[key]; // no orphaned "need"
+                                  return d;
+                                });
+                              }
                             }}
                             style={{ width: 16, height: 16, accentColor: C.gold, flexShrink: 0 }}
                           />

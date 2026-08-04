@@ -90,6 +90,29 @@ export function saveCache(code, state) {
   }
 }
 
+// The catalog cache is keyed by household for the same reason the state cache
+// is: one cache shared across codes means joining a household hands it YOUR
+// previous catalog, which — carrying a real updatedAt from your last edit —
+// then outranks and replaces theirs.
+const CATALOG_CACHE_PREFIX = "grocery-run-household-catalog-v1-";
+
+export function loadCatalogCache(code) {
+  try {
+    const raw = localStorage.getItem(CATALOG_CACHE_PREFIX + code);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+export function saveCatalogCache(code, catalog) {
+  try {
+    localStorage.setItem(CATALOG_CACHE_PREFIX + code, JSON.stringify(catalog));
+  } catch (e) {
+    /* storage full or unavailable */
+  }
+}
+
 /* ------------------------- realtime sync --------------------------- */
 
 // Subscribe to a household's shared state. cb(remoteStateOrNull) fires

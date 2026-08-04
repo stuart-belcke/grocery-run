@@ -17,7 +17,7 @@ const pillLabel = { fontSize: 11, fontWeight: 600, color: C.faint, padding: "0 2
 const pillCount = { minWidth: 26, textAlign: "center", fontWeight: 700, fontVariantNumeric: "tabular-nums", fontSize: 14 };
 const planSelect = { fontSize: 13, padding: "6px 8px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", fontFamily: fontBody };
 
-export function MealsTab({ data, catalog, update }) {
+export function MealsTab({ data, update, updateCatalog }) {
   const [draft, setDraft] = useState(null);
   const [mealView, setMealView] = useState("az");
   const [easyOnly, setEasyOnly] = useState(false);
@@ -29,7 +29,6 @@ export function MealsTab({ data, catalog, update }) {
   const [filterOpen, setFilterOpen] = useState(false); // sort/filter popover
   const [ingSug, setIngSug] = useState(null); // { row, idx } — which draft-ingredient row's name suggestions are open
 
-  const isCatalogId = (id) => catalog.recipes.some((r) => r.id === id);
 
   const setServings = (id, servings) =>
     update((d) => {
@@ -73,7 +72,6 @@ export function MealsTab({ data, catalog, update }) {
       servings: String(r.servings || 4),
       notes: r.notes || "",
       ingredients: r.ingredients.map((i) => ({ ...i, qty: String(i.qty) })),
-      fromCatalog: r.fromCatalog,
     });
 
   const toggleDraftType = (t) =>
@@ -92,26 +90,28 @@ export function MealsTab({ data, catalog, update }) {
         .filter((i) => i.name.trim())
         .map((i) => ({ name: i.name.trim(), qty: Number(i.qty) || 0, unit: i.unit.trim() })),
     };
-    update((d) => {
-      if (isCatalogId(clean.id)) {
-        d.recipeOverrides[clean.id] = clean; // local edit shadowing the catalog copy
-      } else {
-        d.localRecipes[clean.id] = clean;
-      }
+    // One layer now: a recipe is just written, with no catalog-vs-local split
+    // and nothing shadowing anything. New ingredients get an entry so they show
+    // up on the Ingredients tab ready to have a store set.
+    updateCatalog((c) => {
+      c.recipes[clean.id] = clean;
       for (const ing of clean.ingredients) {
         const k = norm(ing.name);
-        if (!data.config[k] && !d.configOverrides[k]) d.configOverrides[k] = { store: UNASSIGNED, aisles: {} };
+        if (!c.ingredients[k]) c.ingredients[k] = { store: UNASSIGNED, aisles: {} };
       }
-      return d;
+      return c;
     });
     setDraft(null);
   };
 
   const deleteRecipe = (r) => {
-    const catalogRecipe = isCatalogId(r.id);
+    // Deleting is just deleting — there's no read-only catalog copy underneath
+    // for it to come back from, so the false-as-hidden marker goes too.
+    updateCatalog((c) => {
+      delete c.recipes[r.id];
+      return c;
+    });
     update((d) => {
-      if (catalogRecipe) d.recipeOverrides[r.id] = false; // false, not null: Firebase drops nulls
-      else delete d.localRecipes[r.id];
       delete d.list.selections[r.id];
       for (const day of Object.keys(d.plan || {})) {
         for (const t of Object.keys(d.plan[day] || {})) {
@@ -200,11 +200,6 @@ export function MealsTab({ data, catalog, update }) {
               {r.easy && (
                 <span title="Quick, low-effort meal" style={{ fontSize: 11, fontWeight: 500, background: C.goldSoft, color: C.gold, padding: "2px 8px", borderRadius: 999 }}>
                   ⚡ Easy
-                </span>
-              )}
-              {r.fromCatalog && (
-                <span style={{ fontSize: 11, color: C.faint }} title={r.edited ? "From the shared catalog, edited on this device" : "From the shared catalog"}>
-                  catalog{r.edited ? "*" : ""}
                 </span>
               )}
             </div>
@@ -610,11 +605,6 @@ export function MealsTab({ data, catalog, update }) {
             rows={4}
             style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 8 }}
           />
-          {draft.fromCatalog && (
-            <div style={{ fontSize: 12, color: C.faint, marginBottom: 8 }}>
-              This meal comes from the shared catalog. Saving stores your edits on this device; use "Publish changes" on the Settings tab to make them permanent for both phones.
-            </div>
-          )}
           <div style={{ display: "flex", gap: 8 }}>
             <div style={{ flex: 1 }} />
             <Btn small onClick={() => setDraft(null)}>Cancel</Btn>
@@ -665,8 +655,8 @@ export function MealsTab({ data, catalog, update }) {
 
       <ConfirmDialog
         open={!!confirmDelete}
-        title={confirmDelete && isCatalogId(confirmDelete.id) ? "Hide this catalog meal?" : "Delete this meal?"}
-        confirmLabel={confirmDelete && isCatalogId(confirmDelete.id) ? "Hide it" : "Delete"}
+        title="Delete this meal?"
+        confirmLabel="Delete"
         onConfirm={() => deleteRecipe(confirmDelete)}
         onCancel={() => setConfirmDelete(null)}
       >
@@ -675,11 +665,6 @@ export function MealsTab({ data, catalog, update }) {
             <p style={{ margin: "0 0 8px" }}>
               <b style={{ color: C.ink }}>{confirmDelete.name}</b> will be removed from your meals, the shopping list, and any week-plan slot it fills.
             </p>
-            {isCatalogId(confirmDelete.id) && (
-              <p style={{ margin: 0 }}>
-                This hides it on this device only. To remove it everywhere, also delete it from catalog.json — Settings → Publish changes makes that easy.
-              </p>
-            )}
           </>
         )}
       </ConfirmDialog>

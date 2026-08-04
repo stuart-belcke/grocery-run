@@ -24,6 +24,8 @@ import {
   plannedMealCount,
   slotFeedsList,
   seedCatalog,
+  pickState,
+  FALLBACK_CATALOG,
   migrateCatalog,
   normalizeCatalog,
 } from "./lib.js";
@@ -786,4 +788,40 @@ test("normalizeCatalog rebuilds a full shape from anything", () => {
 test("normalizeCatalog keeps fields it doesn't understand", () => {
   const c = normalizeCatalog({ recipes: {}, somethingLater: { keep: "me" } });
   assert.deepEqual(c.somethingLater, { keep: "me" });
+});
+
+/* ------- whose catalog wins -------
+   The catalog goes through the SAME pickState the household state does, so an
+   edit made offline isn't silently replaced when the socket finally connects.
+   A pristine seed carries updatedAt 0 precisely so it can never win that way. */
+
+test("a pristine seed is stamped 0 so any real catalog outranks it", () => {
+  const seeded = seedCatalog({ catalogVersion: 1, stores: ["A"], recipes: [], config: {} });
+  assert.equal(seeded.updatedAt, 0);
+  // Server has a real catalog; ours is untouched file contents -> adopt theirs.
+  assert.deepEqual(pickState(seeded, { updatedAt: 5, recipes: {} }), { use: "remote", push: false });
+});
+
+test("an edit made offline outranks the copy the database hands back", () => {
+  // updateCatalog stamps Date.now() on every edit, so an offline edit is newer
+  // than the server copy it never reached. Adopting would discard it.
+  const edited = { ...seedCatalog(FALLBACK_CATALOG), updatedAt: 9 };
+  const { use, push } = pickState(edited, { updatedAt: 4, recipes: {} });
+  assert.equal(use, "local");
+  assert.equal(push, true);
+});
+
+test("an equal stamp adopts, so two phones don't bounce the catalog", () => {
+  const mine = { ...seedCatalog(FALLBACK_CATALOG), updatedAt: 7 };
+  assert.deepEqual(pickState(mine, { updatedAt: 7, recipes: {} }), { use: "remote", push: false });
+});
+
+test("no catalog in the database yet means seed it", () => {
+  assert.deepEqual(pickState(null, null), { use: "local", push: true });
+  assert.deepEqual(pickState(seedCatalog(FALLBACK_CATALOG), null), { use: "local", push: true });
+});
+
+test("normalizeCatalog treats a missing stamp as 0", () => {
+  assert.equal(normalizeCatalog({ recipes: {} }).updatedAt, 0);
+  assert.equal(normalizeCatalog({ recipes: {}, updatedAt: 12 }).updatedAt, 12);
 });

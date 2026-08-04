@@ -383,7 +383,10 @@ export function seedCatalog(catalogJson) {
     if (cfg === false || cfg === null) continue; // legacy hidden marker
     ingredients[key] = compactCfg(cfg);
   }
-  return { version: CATALOG_SHAPE_VERSION, recipes, ingredients, stores: asArray(cat.stores) };
+  // updatedAt 0 on purpose: a pristine seed is just the shipped file, and it
+  // must LOSE to any catalog the database already holds. Only an actual edit
+  // stamps a real time, which is what lets an edit made offline win later.
+  return { version: CATALOG_SHAPE_VERSION, updatedAt: 0, recipes, ingredients, stores: asArray(cat.stores) };
 }
 
 // The catalog a household should END UP with when it moves off the file:
@@ -423,6 +426,9 @@ export function normalizeCatalog(raw) {
   return {
     ...d,
     version: Number(d.version) || CATALOG_SHAPE_VERSION,
+    // Absent means 0, i.e. "older than anything that carries a real stamp".
+    // pickState compares this against the local copy to decide adopt vs push.
+    updatedAt: Number(d.updatedAt) || 0,
     recipes: mapValues(asKeyed(d.recipes, (r) => r.id), normalizeRecipe),
     ingredients: asObject(d.ingredients),
     stores: asArray(d.stores),
