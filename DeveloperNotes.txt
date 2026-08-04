@@ -54,7 +54,39 @@ Tier 2 — Ingredients-tab cluster (shared refactor, then features)
 11. [DONE — #17] The List tab's "add an item" field now suggests matching
     known ingredients as you type (name + default store, keyboard-navigable),
     so you pick an existing item instead of creating a duplicate.
-12. Suggest units as you type when adding a new ingredient. Extend the unit
+12. [PART DONE] Suggest units as you type when adding a new ingredient.
+    The CONVERSION half is built; the suggestion half below is still open.
+
+    What shipped: a factor table in lib.js grouping units by dimension, and
+    resolveAgainstBought doing the cupboard subtraction in base units so
+    buying 1 lb offsets a recipe asking for 16 oz. That was the costly bug —
+    the item stayed on the list looking unbought and you bought it twice.
+    Amounts that can be added are added (1 lb + 8 oz reads 1.5 lb), and
+    commonUnitFor now weighs by dimension so one "can" can't outrank an lb
+    and an oz that between them say this is measured by weight.
+
+    Two decisions worth keeping:
+      - PROMOTION NEVER CROSSES MEASUREMENT SYSTEMS. Display picks the largest
+        unit that keeps the number at or above 1, stepping down when it would
+        fall below: 24 oz reads 1.5 lb, 1500 g reads 1.5 kg, a quarter pound
+        reads 4 oz. It will promote to a unit nobody typed, because g/kg and
+        oz/lb are one scale that everyone reads at a glance. It will NOT cross
+        between them — answering "how much flour" in a system this household
+        doesn't use is the surprise actually worth avoiding, and that is the
+        one thing the metric/standard setting (item 31) would authorise.
+        Two carve-outs, both learned by looking at the output:
+          pt / qt / gal convert but are never promotion TARGETS. They're
+          container sizes; a recipe wanting 2 cups of stock read "1 pt".
+          Count units don't promote at all and show in the SMALLEST unit used:
+          a dozen eggs plus two more is "14 ea", not "1.17 dozen".
+      - US factors are defined from their exact ratios (1 lb = 16 oz, 1 cup =
+        16 tbsp, 1 tbsp = 3 tsp) rather than via the metric base, so 16 oz and
+        1 lb compare exactly instead of missing by a float hair and leaving
+        0.0001 lb on the list.
+    An amount with qty 0 ("salt, to taste") is kept at zero rather than
+    dropped — an empty group is not the same as a covered one.
+
+    STILL OPEN — the original item: Extend the unit
     suggestions (item 3) to the ingredient-adding flow — the recipe editor's
     add-ingredient row and the Ingredients tab — offering the units already in
     use as you type. Must still let you type a brand-new unit and use it; the

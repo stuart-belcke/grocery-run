@@ -20,6 +20,9 @@ import {
   aggregateItems,
   servingsByRecipe,
   qtyLabel,
+  convertQty,
+  unitInfo,
+  combineParts,
   planStageOf,
   plannedMealCount,
   slotFeedsList,
@@ -387,6 +390,22 @@ test("commonUnitFor picks the unit recipes use most", () => {
   assert.equal(commonUnitFor(d, "nothing"), "");
 });
 
+test("commonUnitFor weighs units that combine as one kind", () => {
+  // One "can" used to outrank an lb and an oz on a straight string count, even
+  // though those two are the same kind of measurement and now add together —
+  // between them, weight is what this ingredient is really measured in.
+  const d = {
+    ...listData(),
+    recipes: [
+      { id: "r1", ingredients: [{ name: "Tomatoes", qty: 1, unit: "lb" }] },
+      { id: "r2", ingredients: [{ name: "tomatoes", qty: 8, unit: "oz" }] },
+      { id: "r3", ingredients: [{ name: "tomatoes", qty: 2, unit: "can" }] },
+    ],
+  };
+  const u = commonUnitFor(d, "tomatoes");
+  assert.ok(u === "lb" || u === "oz", `expected a weight unit, got ${u}`);
+});
+
 test("storeFor prefers a list reroute over the ingredient default", () => {
   const d = listData();
   assert.equal(storeFor(d, "milk"), "Kroger");
@@ -573,14 +592,150 @@ test("a fully covered item drops off the list", () => {
   assert.equal(byKey(aggregateItems(d), "beef"), undefined);
 });
 
-test("the cupboard only offsets a MATCHING unit", () => {
-  // Documents roadmap item 12: buying 1 lb does not offset a recipe asking for
-  // 16 oz, because nothing converts between units yet.
+test("the cupboard offsets across units of the same kind", () => {
+  // This test used to assert the OPPOSITE, documenting item 12: buying 1 lb
+  // didn't offset a recipe asking for 16 oz, so it stayed on the list looking
+  // unbought and you bought it twice. That is the bug the conversion layer
+  // exists to kill, so the assertion is inverted rather than deleted.
   const d = aggData({
     recipes: [recipe("r1", "Chili", 4, [{ name: "Beef", qty: 16, unit: "oz" }])],
     list: { ...aggData().list, selections: { r1: 4 }, bought: { beef: { lb: 1 } } },
   });
-  assert.deepEqual(byKey(aggregateItems(d), "beef").parts, { oz: 16 });
+  assert.equal(byKey(aggregateItems(d), "beef"), undefined);
+});
+
+test("a partial offset across units leaves the remainder", () => {
+  const d = aggData({
+    recipes: [recipe("r1", "Chili", 4, [{ name: "Beef", qty: 2, unit: "lb" }])],
+    list: { ...aggData().list, selections: { r1: 4 }, bought: { beef: { oz: 16 } } },
+  });
+  assert.deepEqual(byKey(aggregateItems(d), "beef").parts, { lb: 1 });
+});
+
+test("the cupboard still can't offset a DIFFERENT kind of unit", () => {
+  // Weight and volume don't convert — that needs per-ingredient density.
+  const d = aggData({
+    recipes: [recipe("r1", "Soup", 4, [{ name: "Stock", qty: 2, unit: "cup" }])],
+    list: { ...aggData().list, selections: { r1: 4 }, bought: { stock: { lb: 5 } } },
+  });
+  assert.deepEqual(byKey(aggregateItems(d), "stock").parts, { cup: 2 });
+});
+
+test("two recipes measuring the same thing differently now add up", () => {
+  const d = aggData({
+    recipes: [
+      recipe("r1", "Chili", 4, [{ name: "Beef", qty: 1, unit: "lb" }]),
+      recipe("r2", "Tacos", 4, [{ name: "beef", qty: 8, unit: "oz" }]),
+    ],
+    list: { ...aggData().list, selections: { r1: 4, r2: 4 } },
+  });
+  // Was "1 lb + 8 oz", which you then had to add up in the shop.
+  assert.deepEqual(byKey(aggregateItems(d), "beef").parts, { lb: 1.5 });
+});
+
+test("unconvertible units stay separate and untouched", () => {
+  const d = aggData({
+    recipes: [
+      recipe("r1", "A", 4, [{ name: "Tomatoes", qty: 2, unit: "can" }]),
+      recipe("r2", "B", 4, [{ name: "tomatoes", qty: 1, unit: "bunch" }]),
+    ],
+    list: { ...aggData().list, selections: { r1: 4, r2: 4 } },
+  });
+  assert.deepEqual(byKey(aggregateItems(d), "tomatoes").parts, { can: 2, bunch: 1 });
+});
+
+test("an ingredient with no amount survives, rather than reading as bought", () => {
+  // "Salt, to taste" is qty 0. Dropping empty groups outright would take it
+  // off the list entirely.
+  const d = aggData({
+    recipes: [recipe("r1", "Chili", 4, [{ name: "Salt", qty: 0, unit: "tsp" }])],
+    list: { ...aggData().list, selections: { r1: 4 } },
+  });
+  assert.deepEqual(byKey(aggregateItems(d), "salt").parts, { tsp: 0 });
+});
+
+/* ---------------- unit conversion ---------------- */
+
+test("units convert within a dimension and refuse across one", () => {
+  assert.equal(convertQty(1, "lb", "oz"), 16);
+  assert.equal(convertQty(1, "cup", "tbsp"), 16);
+  assert.equal(convertQty(1, "tbsp", "tsp"), 3);
+  assert.equal(convertQty(1, "kg", "g"), 1000);
+  assert.equal(convertQty(1, "dozen", "ea"), 12);
+  // oz is weight, fl oz is volume — a real trap, and they must not convert.
+  assert.equal(convertQty(1, "oz", "fl oz"), null);
+  assert.equal(convertQty(1, "lb", "cup"), null);
+  assert.equal(convertQty(1, "can", "lb"), null);
+});
+
+test("a unit converts to itself even when the table has never heard of it", () => {
+  assert.equal(convertQty(3, "sprig", "sprig"), 3);
+  assert.equal(convertQty(3, "sprig", "bunch"), null);
+});
+
+test("the spellings people actually type resolve", () => {
+  for (const [typed, means] of [["lbs", "lb"], ["Pounds", "lb"], ["OZ", "oz"], ["cups", "cup"],
+                                ["Tablespoons", "tbsp"], ["grams", "g"], ["litres", "l"], ["ea.", "ea"]]) {
+    assert.equal(unitInfo(typed)?.unit, means, `${typed} should mean ${means}`);
+  }
+});
+
+test("an invented unit stays unconvertible instead of being guessed at", () => {
+  // The app deliberately lets you type any unit. That must keep working.
+  assert.equal(unitInfo("glug"), null);
+  assert.equal(unitInfo(""), null);
+  assert.deepEqual(combineParts({ glug: 2, splash: 1 }), { glug: 2, splash: 1 });
+});
+
+test("an empty unit is not merged into 'ea'", () => {
+  // "" means no unit was given, not "each". Merging them would put a count on
+  // something that never had one.
+  assert.deepEqual(combineParts({ "": 2, ea: 3 }), { "": 2, ea: 3 });
+});
+
+test("the display unit is the largest that keeps the number above 1", () => {
+  assert.deepEqual(combineParts({ oz: 8, lb: 1 }), { lb: 1.5 });
+  // Promotes even to a unit that wasn't typed: 24 oz is 1.5 lb, and everyone
+  // reads lb and oz as the same scale.
+  assert.deepEqual(combineParts({ oz: 24 }), { lb: 1.5 });
+  assert.deepEqual(combineParts({ g: 1500 }), { kg: 1.5 });
+  // And steps down when the number would drop below 1.
+  assert.deepEqual(combineParts({ lb: 0.25 }), { oz: 4 });
+  assert.deepEqual(combineParts({ kg: 0.4 }), { g: 400 });
+});
+
+test("promotion never crosses measurement systems", () => {
+  // The one guard worth keeping. g -> kg is a scale step; g -> oz is a
+  // different way of measuring, and answering "how much flour" in a system
+  // this household doesn't use is the real surprise.
+  assert.deepEqual(combineParts({ g: 500 }), { g: 500 });
+  assert.deepEqual(combineParts({ oz: 2 }), { oz: 2 });
+  assert.deepEqual(combineParts({ ml: 400 }), { ml: 400 });
+});
+
+test("a mixed-system amount shows in whichever system dominates it", () => {
+  // 1 lb (453.6 g) plus 1 kg — mostly metric, so it reads metric.
+  assert.deepEqual(combineParts({ lb: 1, kg: 1 }), { kg: 1.45 });
+  // 5 lb plus 100 g — mostly pounds, so it reads pounds.
+  assert.deepEqual(combineParts({ lb: 5, g: 100 }), { lb: 5.22 });
+});
+
+test("container sizes convert but never become the display unit", () => {
+  // 2 cups of stock must not read "1 pt" just because the arithmetic allows
+  // it — pints and quarts are what you buy, not what a recipe asks for.
+  assert.deepEqual(combineParts({ cup: 2 }), { cup: 2 });
+  assert.deepEqual(combineParts({ tsp: 48 }), { cup: 1 });
+  // Typed explicitly, a container size is kept.
+  assert.deepEqual(combineParts({ qt: 2 }), { qt: 2 });
+});
+
+test("count units add up but read in the smallest unit used", () => {
+  // 24 apples aren't "2 dozen", and a dozen eggs plus two more is "14 ea",
+  // not "1.17 dozen". Fractions of a dozen describe packaging, not shopping.
+  assert.deepEqual(combineParts({ ea: 24 }), { ea: 24 });
+  assert.deepEqual(combineParts({ dozen: 1, ea: 2 }), { ea: 14 });
+  // A dozen on its own is still a dozen.
+  assert.deepEqual(combineParts({ dozen: 2 }), { dozen: 2 });
 });
 
 test("a hand-added amount is never cancelled by the cupboard", () => {
