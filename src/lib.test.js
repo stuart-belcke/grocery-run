@@ -27,6 +27,8 @@ import {
   plannedMealCount,
   slotFeedsList,
   seedCatalog,
+  isBuildTooOld,
+  APP_DATA_VERSION,
   pickState,
   FALLBACK_CATALOG,
   normalizeCatalog,
@@ -955,4 +957,33 @@ test("no catalog in the database yet means seed it", () => {
 test("normalizeCatalog treats a missing stamp as 0", () => {
   assert.equal(normalizeCatalog({ recipes: {} }).updatedAt, 0);
   assert.equal(normalizeCatalog({ recipes: {}, updatedAt: 12 }).updatedAt, 12);
+});
+
+
+/* ---------------- the update gate ----------------
+   Getting this wrong locks someone out of their shopping list in a shop, so
+   every ambiguous answer has to be "no". */
+
+test("the gate only fires when the household is on a strictly newer build", () => {
+  assert.equal(isBuildTooOld(2, 1), true);
+  assert.equal(isBuildTooOld(1, 1), false);
+  assert.equal(isBuildTooOld(1, 2), false); // ahead of the database is fine
+});
+
+test("anything unreadable is never treated as out of date", () => {
+  for (const junk of [undefined, null, "", "x", NaN, {}, []]) {
+    assert.equal(isBuildTooOld(junk, 1), false, `${JSON.stringify(junk)} must not gate`);
+  }
+  // A build with no version of its own can't conclude anything either.
+  assert.equal(isBuildTooOld(9, undefined), false);
+});
+
+test("a seeded catalog records which generation wrote it", () => {
+  assert.equal(seedCatalog(FALLBACK_CATALOG).appDataVersion, APP_DATA_VERSION);
+});
+
+test("a catalog written before this was recorded reads as 0, and doesn't gate", () => {
+  const older = normalizeCatalog({ recipes: {} });
+  assert.equal(older.appDataVersion, 0);
+  assert.equal(isBuildTooOld(older.appDataVersion, APP_DATA_VERSION), false);
 });
