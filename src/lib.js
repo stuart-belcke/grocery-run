@@ -580,6 +580,135 @@ export function validCatalog(d) {
    grouping) and they're touched about never, the same call made for
    extraStores/removedStores.                                                */
 
+/* ---------------------- ingredient identity ----------------------
+   Ingredients used to BE their name: the key of catalog.ingredients was
+   norm(name), and every reference — recipes, list.checked, list.bought,
+   list.overrides, list.extras, stapleNeeds — pointed at that string. So
+   renaming an ingredient orphaned all of them. Two were already being lost
+   in practice (bought and stapleNeeds), because they were added after the
+   rename code was written and nobody went back.
+
+   Now an ingredient has an id that never changes, and the name is a field
+   like any other. Renaming is a display change that touches no keys.
+
+   TOLERANT READS, EXPAND THEN CONTRACT. The catalog and the shopping state
+   are two separately-synced nodes, so they cannot migrate atomically — if the
+   catalog converted and the state write were lost, everything you'd ticked
+   off would detach. Instead, anything that resolves a reference accepts BOTH
+   an id and a legacy norm(name) key, and writes always use ids. State
+   converts as it's touched. A later release drops the legacy path.
+
+   THE FILE STAYS NAME-KEYED. catalog.json is hand-edited and diffed in git;
+   ids in it would mean inventing one and matching it across two sections just
+   to add a recipe. Ids are minted on the way in (seedCatalog) and resolved
+   back to names on the way out (the Settings export).                      */
+
+export const mintIngredientId = () => "ing_" + uid();
+
+// An ingredient entry: the config it always had, plus the name it used to be
+// keyed by. `name` is the display name; norm(name) is only ever a fallback
+// lookup for references written before ids existed.
+export function normalizeIngredient(raw, fallbackName) {
+  const cfg = normalizeCfg(raw);
+  const name = (raw && typeof raw === "object" && raw.name) || fallbackName || "";
+  return { ...(raw && typeof raw === "object" ? raw : {}), ...cfg, name: cap(String(name).trim()) };
+}
+
+// Storage shape: like compactCfg, but carrying the name, since that is now
+// data rather than the key.
+export function compactIngredient(ing) {
+  const n = normalizeIngredient(ing);
+  const out = { name: n.name, store: n.store, aisles: n.aisles };
+  if (n.staple) out.staple = true;
+  return out;
+}
+
+// Look-up table over a household's ingredients: by id, and by norm(name) so a
+// reference written before ids can still be resolved. Built once per render
+// rather than scanned per lookup.
+export function ingredientIndex(ingredients) {
+  const byId = asObject(ingredients);
+  const byName = {};
+  for (const [id, ing] of Object.entries(byId)) {
+    const n = norm(normalizeIngredient(ing, id).name);
+    if (n && byName[n] === undefined) byName[n] = id;
+  }
+  return { byId, byName };
+}
+
+// The id a reference means. Accepts an id, a legacy norm(name) key, or a raw
+// name. Returns null when it resolves to nothing, so callers can tell "this
+// ingredient is gone" from "this is a new one".
+export function resolveIngredientId(index, ref) {
+  if (!ref) return null;
+  const key = String(ref);
+  if (index.byId[key]) return key;
+  const byName = index.byName[norm(key)];
+  return byName || null;
+}
+
+// What a recipe line points at. Prefers the stored id; falls back to the name
+// for lines written before ids. Returns null for a line pointing at nothing.
+export function ingredientIdOf(index, line) {
+  if (!line) return null;
+  if (line.ingredientId && index.byId[line.ingredientId]) return line.ingredientId;
+  return resolveIngredientId(index, line.ingredientId || line.name);
+}
+
+// Convert a name-keyed catalog to an id-keyed one, rewriting every recipe line
+// to point at an id. Names a recipe mentions that have no ingredient entry get
+// one minted, which is also how a hand-edited catalog.json gains ingredients
+// it never listed explicitly.
+export function withIngredientIds(catalog, mint = mintIngredientId) {
+  const src = asObject(catalog && catalog.ingredients);
+  const ingredients = {};
+  const idForName = {};
+  for (const [key, raw] of Object.entries(src)) {
+    // Already an id: keep it. Otherwise the key IS the old name.
+    const alreadyId = raw && typeof raw === "object" && typeof raw.name === "string" && raw.name !== "";
+    const id = alreadyId && /^ing_/.test(key) ? key : mint();
+    const ing = normalizeIngredient(raw, alreadyId ? raw.name : key);
+    ingredients[id] = ing;
+    const n = norm(ing.name);
+    if (n && idForName[n] === undefined) idForName[n] = id;
+  }
+  const idFor = (name) => {
+    const n = norm(name);
+    if (!n) return null;
+    if (idForName[n] !== undefined) return idForName[n];
+    const id = mint();
+    ingredients[id] = normalizeIngredient(null, name);
+    idForName[n] = id;
+    return id;
+  };
+  const recipes = {};
+  for (const [rid, r] of Object.entries(asObject(catalog && catalog.recipes))) {
+    recipes[rid] = {
+      ...r,
+      ingredients: asArray(r && r.ingredients)
+        .map((line) => {
+          const id = line && line.ingredientId && ingredients[line.ingredientId] ? line.ingredientId : idFor(line && line.name);
+          return id ? { ingredientId: id, qty: Number(line.qty) || 0, unit: (line.unit || "").trim() } : null;
+        })
+        .filter(Boolean),
+    };
+  }
+  return { ...catalog, ingredients, recipes };
+}
+
+// Re-key a { ingredientKey: value } map onto ids. Used for the shopping
+// state's five stores. An entry that resolves to nothing is KEPT under its
+// original key rather than dropped — losing what you'd ticked off because an
+// ingredient was deleted would be worse than a stale key nothing reads.
+export function remapIngredientKeys(obj, index) {
+  const out = {};
+  for (const [key, v] of Object.entries(asObject(obj))) {
+    const id = resolveIngredientId(index, key);
+    out[id || key] = v;
+  }
+  return out;
+}
+
 export const CATALOG_SHAPE_VERSION = 1;
 
 /* --------------------------- preferences ---------------------------
