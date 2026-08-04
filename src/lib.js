@@ -592,14 +592,21 @@ export const CATALOG_SHAPE_VERSION = 1;
    works" and changes rarely, rather than in state, which changes constantly.
    Display only: nothing here rewrites stored data, so any of it can be
    flipped back and forth with no migration.                                */
-export const DEFAULT_PREFS = { units: "as-entered", weekStart: "Mon" };
+// Defaults describe THIS household rather than a neutral position: a US
+// kitchen whose week runs Sunday to Saturday. "as-entered" was the cautious
+// choice while the units setting was new and nobody had asked for anything;
+// once someone has, cautious just means wrong by default.
+export const DEFAULT_PREFS = { units: "standard", weekStart: "Sun" };
 
 export function normalizePrefs(raw) {
   const d = raw && typeof raw === "object" ? raw : {};
   return {
     ...d,
     units: ["as-entered", "metric", "standard"].includes(d.units) ? d.units : DEFAULT_PREFS.units,
-    weekStart: d.weekStart === "Sun" ? "Sun" : DEFAULT_PREFS.weekStart,
+    // A whitelist, not a test against one value. Written as `=== "Sun" ? ...`
+    // it silently made whichever day WASN'T the default unselectable the
+    // moment the default changed.
+    weekStart: ["Mon", "Sun"].includes(d.weekStart) ? d.weekStart : DEFAULT_PREFS.weekStart,
   };
 }
 
