@@ -27,6 +27,8 @@ import {
   plannedMealCount,
   slotFeedsList,
   seedCatalog,
+  needsIngredientIds,
+  norm,
   daysInOrder,
   normalizePrefs,
   DAYS,
@@ -883,14 +885,29 @@ const catalogJson = () => ({
   },
 });
 
-test("seedCatalog keys recipes by id and ingredients by key", () => {
+test("seedCatalog keys recipes by id and MINTS ingredient ids", () => {
   const c = seedCatalog(catalogJson());
   assert.deepEqual(Object.keys(c.recipes).sort(), ["chili", "tacos"]);
-  assert.deepEqual(Object.keys(c.ingredients).sort(), ["beef", "salt"]);
   assert.deepEqual(c.stores, ["Kroger", "Aldi"]); // order is meaningful, stays an array
-  assert.equal(c.ingredients.salt.staple, true);
-  // compactCfg's contract: a non-staple carries no staple key at all.
-  assert.equal("staple" in c.ingredients.beef, false);
+
+  // Ingredients are keyed by a minted id, carrying the name that used to BE
+  // the key. Minted here rather than left to the listener's migration: a
+  // household born name-keyed would convert only on a second round trip.
+  const ids = Object.keys(c.ingredients);
+  assert.ok(ids.every((k) => /^ing_/.test(k)), `expected minted ids, got ${ids}`);
+  assert.equal(needsIngredientIds(c), false);
+
+  const byName = Object.fromEntries(Object.values(c.ingredients).map((i) => [norm(i.name), i]));
+  assert.deepEqual(Object.keys(byName).sort(), ["beef", "salt"]);
+  assert.equal(byName.salt.staple, true);
+  assert.equal(byName.beef.staple, false);
+
+  // Every recipe line points at an ingredient that exists.
+  for (const r of Object.values(c.recipes)) {
+    for (const line of r.ingredients) {
+      assert.ok(c.ingredients[line.ingredientId], `dangling line ${JSON.stringify(line)}`);
+    }
+  }
 });
 
 test("seedCatalog skips legacy hidden markers", () => {

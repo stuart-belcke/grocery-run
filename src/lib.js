@@ -797,7 +797,20 @@ export function seedCatalog(catalogJson) {
   // updatedAt 0 on purpose: a pristine seed is just the shipped file, and it
   // must LOSE to any catalog the database already holds. Only an actual edit
   // stamps a real time, which is what lets an edit made offline win later.
-  return { version: CATALOG_SHAPE_VERSION, appDataVersion: APP_DATA_VERSION, updatedAt: 0, prefs: { ...DEFAULT_PREFS }, recipes, ingredients, stores: asArray(cat.stores) };
+  // Minted here rather than left to the listener's migration. A household born
+  // name-keyed would convert only on a second round trip, which means its first
+  // write is a shape the app immediately wants to replace — and it made "a new
+  // household works" a weaker test than it looks, because renaming succeeds in
+  // the un-migrated state too.
+  return withIngredientIds({
+    version: CATALOG_SHAPE_VERSION,
+    appDataVersion: APP_DATA_VERSION,
+    updatedAt: 0,
+    prefs: { ...DEFAULT_PREFS },
+    recipes,
+    ingredients,
+    stores: asArray(cat.stores),
+  });
 }
 
 // Rebuild the full shape from whatever the database hands back, same contract
