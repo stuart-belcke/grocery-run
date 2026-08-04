@@ -17,7 +17,7 @@ import {
   markCatalogSynced,
 } from "./sync";
 import { C, fontDisplay, fontBody } from "./theme";
-import { Stripe, Btn } from "./ui";
+import { Stripe, Btn, ChoiceDialog } from "./ui";
 import {
   LOCAL_KEY,
   CATALOG_KEY,
@@ -90,6 +90,9 @@ export default function App() {
   // until the next time I switch apps".
   const [liveBuild, setLiveBuild] = useState(null);
   const [dismissedBuild, setDismissedBuild] = useState(null);
+  // The gate's modal is shown once and then dismissible; its banner stays.
+  // Without that, dismissing would leave editing mysteriously dead.
+  const [gateSeen, setGateSeen] = useState(false);
   // A device on a NEWER generation has written to this household. We can still
   // read it, but writing would mean writing data we don't fully understand.
   //
@@ -422,15 +425,6 @@ export default function App() {
             </div>
           </div>
         )}
-        {liveBuild && liveBuild !== dismissedBuild && !tooOld && (
-          <div
-            style={{ background: C.greenSoft, border: `1px solid ${C.green}`, borderRadius: 10, padding: "10px 12px", marginBottom: 12, fontSize: 13, color: C.ink, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}
-          >
-            <span style={{ flex: 1, minWidth: 160 }}>A newer version of Grocery Run is ready.</span>
-            <Btn kind="primary" onClick={() => location.reload()}>Reload</Btn>
-            <Btn onClick={() => setDismissedBuild(liveBuild)}>Later</Btn>
-          </div>
-        )}
 
         {tab === "list" && <ListTab data={data} update={update} updateCatalog={updateCatalog} />}
         {tab === "meals" && <MealsTab data={data} update={update} updateCatalog={updateCatalog} />}
@@ -451,6 +445,37 @@ export default function App() {
           />
         )}
       </div>
+
+      {/* A banner at the top of a scrolling page is easy to scroll past — and
+          for an update you're being ASKED to take, being missed is the whole
+          failure. Both of these are modals in the app's existing dialog
+          treatment rather than a second visual language.
+
+          The gate keeps its banner as well: dismissing this must not leave
+          editing mysteriously dead with no explanation on screen. */}
+      <ChoiceDialog
+        open={!!liveBuild && liveBuild !== dismissedBuild && !tooOld}
+        title="Update available"
+        cancelLabel="Later"
+        onCancel={() => setDismissedBuild(liveBuild)}
+        choices={[{ label: "Reload now", kind: "primary", onClick: () => location.reload() }]}
+      >
+        A newer version of Grocery Run is ready. Reloading takes a moment and
+        keeps your list, week plan and meals exactly as they are.
+      </ChoiceDialog>
+
+      <ChoiceDialog
+        open={tooOld && !gateSeen}
+        title="Update to keep editing"
+        cancelLabel="Not now"
+        onCancel={() => setGateSeen(true)}
+        choices={[{ label: "Reload to update", kind: "danger", onClick: () => location.reload() }]}
+      >
+        Another device in this household is running a newer version and has
+        saved something this version doesn&apos;t fully understand. You can
+        still see the list — changes are paused until this device updates, so
+        nothing gets overwritten.
+      </ChoiceDialog>
     </div>
   );
 }

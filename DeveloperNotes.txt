@@ -654,6 +654,15 @@ doesn't shift; the tier each belongs to is noted.
     STRICTLY greater, because the cost of a false positive is somebody locked
     out of their shopping list in a shop.
 
+    BOTH PROMPTS ARE MODALS, NOT BANNERS. Built as banners first and changed
+    after using one: a strip at the top of a scrolling page is exactly what a
+    person scrolls past, and for a prompt you are being ASKED to act on, being
+    missed IS the failure. They reuse the existing ConfirmDialog/ChoiceDialog
+    treatment rather than introducing a second visual language.
+    The gate keeps its banner AS WELL as its modal. Dismissing the modal must
+    not leave editing silently dead with nothing on screen explaining why —
+    the modal is the interruption, the banner is the standing reason.
+
 Refactor notes
 --------------
 [DONE] The catalog move was done as EXPAND then CONTRACT, and it's the pattern
