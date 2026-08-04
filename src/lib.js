@@ -655,6 +655,25 @@ export function ingredientIdOf(index, line) {
   return resolveIngredientId(index, line.ingredientId || line.name);
 }
 
+// The id for an ingredient NAME inside a catalog being edited, minting an
+// entry if this household has never seen it. Every place a user can type a
+// name that becomes an ingredient goes through here — the recipe editor and
+// the Ingredients tab's add box — so neither can quietly write a name-keyed
+// entry into an id-keyed catalog.
+//
+// Mutates the draft it is given, which is what the updateCatalog callers want.
+export function ensureIngredientId(draft, name, mint = mintIngredientId) {
+  const n = norm(name);
+  if (!n) return null;
+  if (!draft.ingredients) draft.ingredients = {};
+  for (const [id, ing] of Object.entries(draft.ingredients)) {
+    if (norm(normalizeIngredient(ing, id).name) === n) return id;
+  }
+  const id = mint();
+  draft.ingredients[id] = normalizeIngredient(null, name);
+  return id;
+}
+
 // Convert a name-keyed catalog to an id-keyed one, rewriting every recipe line
 // to point at an id. Names a recipe mentions that have no ingredient entry get
 // one minted, which is also how a hand-edited catalog.json gains ingredients
@@ -838,6 +857,19 @@ export function normalizeCatalog(raw) {
 // (case-insensitive, by `key`) used throughout the app. Shared by the
 // Ingredients tab's list and the List tab's add-item suggestions so both
 // draw from one definition of "known ingredient".
+// The display name for an ingredient key. Every place that used to write
+// cap(key) needs this now: the key was the name until ingredients got ids, and
+// two screens were caught rendering "Ing_c45b0s82" where a name belonged.
+// Falls back to the key itself so a reference to something deleted still shows
+// SOMETHING rather than blank.
+export function ingredientNameFor(data, key) {
+  const cfg = data && data.config && data.config[key];
+  if (cfg) return normalizeIngredient(cfg, key).name || cap(key);
+  const extra = data && data.list && data.list.extras && data.list.extras[key];
+  if (extra && extra.name) return cap(String(extra.name).trim());
+  return cap(key);
+}
+
 // Every ingredient the household knows about, as { key, name }. The catalog is
 // the authority on names now that ingredients have ids — a recipe line carries
 // an id, not a spelling, so there is no second opinion to merge in. Hand-added
@@ -1108,8 +1140,7 @@ export function aggregateItems(data) {
   for (const key of Object.keys(needs)) {
     if (!needs[key] || !normalizeCfg(data.config[key]).staple) continue;
     if (!map.has(key)) {
-      const name = normalizeIngredient(data.config[key], key).name || cap(key);
-      map.set(key, { key, name, parts: {}, sources: [], contribs: [], staple: true });
+      map.set(key, { key, name: ingredientNameFor(data, key), parts: {}, sources: [], contribs: [], staple: true });
     }
   }
   return [...map.values()];

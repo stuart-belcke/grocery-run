@@ -7,7 +7,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Btn, ConfirmDialog, ChoiceDialog, StickyBar } from "../ui";
-import { UNASSIGNED, norm, cap, r2, normalizeCfg, compactCfg, ingredientNames, unitSuggestions, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient } from "../lib";
+import { UNASSIGNED, norm, cap, r2, normalizeCfg, compactCfg, ingredientNames, unitSuggestions, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient, ensureIngredientId } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
 // "how many of this on the list" reads the same everywhere in the app.
@@ -116,9 +116,10 @@ export function PantryTab({ data, update, updateCatalog }) {
   const addItem = () => {
     const name = newItem.trim();
     if (!name) return;
-    const key = norm(name);
+    // Mints an id if this name is new, or returns the existing one so adding a
+    // name that already exists doesn't create a duplicate under a second id.
     updateCatalog((c) => {
-      if (!c.ingredients[key]) c.ingredients[key] = { store: UNASSIGNED, aisles: {} };
+      ensureIngredientId(c, name);
       return c;
     });
     setNewItem("");
@@ -183,7 +184,7 @@ export function PantryTab({ data, update, updateCatalog }) {
     const affected = usedInRecipes(data, oldKey);
     // Recipes use this name, so the choice ("rename everywhere" vs "save as a
     // separate item") goes to a dialog and comes back through commitRename.
-    if (affected.length > 0) return setAskRename({ oldKey, newName, affected });
+    if (affected.length > 0) return setAskRename({ oldKey, oldName: current, newName, affected });
     commitRename({ oldKey, newName, affected }, false);
   };
 
@@ -713,7 +714,7 @@ export function PantryTab({ data, update, updateCatalog }) {
         {askRename && (
           <>
             <p style={{ margin: "0 0 8px" }}>
-              <b style={{ color: C.ink }}>{cap(askRename.oldKey)}</b> → <b style={{ color: C.ink }}>{askRename.newName}</b>, used by{" "}
+              <b style={{ color: C.ink }}>{askRename.oldName}</b> → <b style={{ color: C.ink }}>{askRename.newName}</b>, used by{" "}
               <b style={{ color: C.ink }}>{askRename.affected.map((r) => r.name).join(", ")}</b>.
             </p>
             <p style={{ margin: 0 }}>

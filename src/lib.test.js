@@ -28,6 +28,8 @@ import {
   slotFeedsList,
   seedCatalog,
   needsIngredientIds,
+  ensureIngredientId,
+  ingredientNameFor,
   norm,
   daysInOrder,
   normalizePrefs,
@@ -1066,4 +1068,41 @@ test("the units preference reaches the shopping list", () => {
   };
   assert.deepEqual(byKey(aggregateItems(aggData(base)), "beef").parts, { lb: 1.5 });
   assert.deepEqual(byKey(aggregateItems(aggData({ ...base, prefs: { units: "metric" } })), "beef").parts, { g: 680.39 });
+});
+
+
+/* ---------------- ingredient ids: the "key was the name" traps ----------------
+   Everything below existed as a bug during this change. Each one is a place
+   that read a KEY and rendered or wrote it as a NAME. */
+
+test("a name typed for the first time mints exactly one ingredient", () => {
+  const draft = { ingredients: {} };
+  let n = 0;
+  const mint = () => "ing_" + ++n;
+  const a = ensureIngredientId(draft, "Baby spinach", mint);
+  assert.equal(a, "ing_1");
+  assert.equal(draft.ingredients.ing_1.name, "Baby spinach");
+  // Same name again — including differently cased — reuses it rather than
+  // creating a duplicate under a second id.
+  assert.equal(ensureIngredientId(draft, "baby spinach", mint), "ing_1");
+  assert.equal(ensureIngredientId(draft, "  BABY SPINACH  ", mint), "ing_1");
+  assert.equal(Object.keys(draft.ingredients).length, 1);
+  // A blank name mints nothing.
+  assert.equal(ensureIngredientId(draft, "   ", mint), null);
+  assert.equal(Object.keys(draft.ingredients).length, 1);
+});
+
+test("a key renders as its NAME, never as the raw id", () => {
+  // Two screens shipped showing "Ing_c45b0s82" where a name belonged: the
+  // rename dialog and the already-bought panel. Both used cap(key), which was
+  // right for exactly as long as the key was the name.
+  const data = {
+    config: { ing_a1: { name: "Applesauce", store: "Aldi", aisles: {} } },
+    list: { extras: { ing_b2: { name: "Paper towels", qty: 1, unit: "" } } },
+  };
+  assert.equal(ingredientNameFor(data, "ing_a1"), "Applesauce");
+  // A hand-added entry that never became an ingredient still has a name.
+  assert.equal(ingredientNameFor(data, "ing_b2"), "Paper towels");
+  // Something deleted still shows SOMETHING rather than blank.
+  assert.equal(ingredientNameFor(data, "ing_gone"), "Ing_gone");
 });
