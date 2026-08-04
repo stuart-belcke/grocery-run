@@ -84,8 +84,12 @@ export default function App() {
   const [tab, setTab] = useState("list");
   const [syncStatus, setSyncStatus] = useState(syncEnabled ? "connecting" : "local-only");
   const [catalogNote, setCatalogNote] = useState("");
-  // The site is serving a different build than this one: offer a reload.
-  const [updateReady, setUpdateReady] = useState(false);
+  // The build the site is serving, when it differs from the one running here.
+  // Stored as the build id rather than a boolean so that dismissing it can be
+  // remembered PER BUILD: "Later" should mean "not for this one", not "not
+  // until the next time I switch apps".
+  const [liveBuild, setLiveBuild] = useState(null);
+  const [dismissedBuild, setDismissedBuild] = useState(null);
   // A device on a NEWER generation has written to this household. We can still
   // read it, but writing would mean writing data we don't fully understand.
   //
@@ -186,7 +190,7 @@ export default function App() {
           // A build id is a hash: it says two builds DIFFER, never which is
           // newer. That's enough for an offer to reload — and it's why the
           // hard gate below uses a number instead.
-          if (fresh.appBuild && fresh.appBuild !== __BUILD__) setUpdateReady(true);
+          setLiveBuild(fresh.appBuild && fresh.appBuild !== __BUILD__ ? fresh.appBuild : null);
         })
         .catch(() => {
           /* offline — cached catalog stays in use */
@@ -418,13 +422,13 @@ export default function App() {
             </div>
           </div>
         )}
-        {updateReady && !tooOld && (
+        {liveBuild && liveBuild !== dismissedBuild && !tooOld && (
           <div
             style={{ background: C.greenSoft, border: `1px solid ${C.green}`, borderRadius: 10, padding: "10px 12px", marginBottom: 12, fontSize: 13, color: C.ink, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}
           >
             <span style={{ flex: 1, minWidth: 160 }}>A newer version of Grocery Run is ready.</span>
             <Btn kind="primary" onClick={() => location.reload()}>Reload</Btn>
-            <Btn onClick={() => setUpdateReady(false)}>Later</Btn>
+            <Btn onClick={() => setDismissedBuild(liveBuild)}>Later</Btn>
           </div>
         )}
 
