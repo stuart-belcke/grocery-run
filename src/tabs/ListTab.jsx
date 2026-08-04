@@ -5,7 +5,7 @@
 
 import { useState, useMemo, useRef } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
-import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog } from "../ui";
+import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, StickyBar } from "../ui";
 import { UNASSIGNED, norm, r2, normalizeCfg, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor } from "../lib";
 
 export function ListTab({ data, update, updateCatalog }) {
@@ -413,17 +413,31 @@ export function ListTab({ data, update, updateCatalog }) {
 
   return (
     <div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", marginBottom: 12 }}>
-        <Seg options={[{ value: "all", label: "All items A–Z" }, { value: "store", label: "By store" }]} value={view} onChange={setView} />
-        {view === "store" && <Seg options={[{ value: "az", label: "A–Z" }, { value: "flow", label: "Store flow" }]} value={storeSort} onChange={setStoreSort} />}
+      {/* What's pinned here was cut down deliberately. The whole header — both
+          toggles, Done shopping, and the full status line — came to three
+          wrapped lines at 390px, about a seventh of the screen permanently
+          gone, which costs more than it gives on the one tab you scroll while
+          holding a trolley.
+          So: the grouping toggles and the count that changes as you shop.
+          "Done shopping" is once per trip and stays below, which also keeps a
+          destructive button out of a permanently tappable spot. */}
+      <StickyBar>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+          <Seg options={[{ value: "all", label: "All items A–Z" }, { value: "store", label: "By store" }]} value={view} onChange={setView} />
+          {view === "store" && <Seg options={[{ value: "az", label: "A–Z" }, { value: "flow", label: "Store flow" }]} value={storeSort} onChange={setStoreSort} />}
+          <div style={{ flex: 1 }} />
+          <span style={{ fontSize: 13, color: C.faint, whiteSpace: "nowrap" }}>
+            {remaining} left to buy
+          </span>
+        </div>
+      </StickyBar>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", margin: "10px 0 8px" }}>
+        <span style={{ fontSize: 13, color: C.faint }}>
+          {selectedMealCount} meal{selectedMealCount === 1 ? "" : "s"} selected
+        </span>
         <div style={{ flex: 1 }} />
         <Btn kind="danger" onClick={() => setConfirmDone(true)}>Done shopping</Btn>
-      </div>
-
-      <div style={{ fontSize: 13, color: C.faint, marginBottom: 8 }}>
-        {selectedMealCount} meal{selectedMealCount === 1 ? "" : "s"} selected · {remaining} item{remaining === 1 ? "" : "s"} left to buy
-        {/* Bought items are hidden, so say so rather than leaving the list
-            mysteriously short. */}
       </div>
 
       {/* Its own object, not a clause in the status line above. This is the
