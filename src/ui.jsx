@@ -3,8 +3,56 @@
     Stripe, the Btn (primary / ghost / danger), and the Seg toggle.     */
 /* ------------------------------------------------------------------ */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { C, fontBody, fontDisplay } from "./theme";
+
+/* Pins a tab's controls to the top of the viewport once you scroll past them.
+   Fine at thirty recipes, the difference between usable and not at three
+   hundred: without it, searching again means scrolling all the way back up.
+
+   The bar is invisible at rest and grows a hairline + shadow only while it's
+   actually stuck, so a short list looks exactly as it did before. That state
+   comes from a zero-height sentinel rendered just above it — when the sentinel
+   scrolls out of view, the bar has reached the top. Reading it this way means
+   no scroll handler firing on every frame.
+
+   Solid background, not translucent: content passes underneath. */
+export function StickyBar({ children, style }) {
+  const [stuck, setStuck] = useState(false);
+  const sentinel = useRef(null);
+
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(([e]) => setStuck(!e.isIntersecting), { threshold: 1 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  return (
+    <>
+      <div ref={sentinel} aria-hidden style={{ height: 1, marginBottom: -1 }} />
+      <div
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 15,
+          background: C.paper,
+          // Cancels the page's 14px side padding so the background reaches the
+          // screen edges — otherwise rows show through the gap as they pass.
+          margin: "0 -14px",
+          padding: stuck ? "10px 14px" : "0 14px 10px",
+          borderBottom: `1px solid ${stuck ? C.line : "transparent"}`,
+          boxShadow: stuck ? "0 6px 12px -8px rgba(20,24,16,0.35)" : "none",
+          transition: "padding 120ms ease, box-shadow 120ms ease",
+          ...style,
+        }}
+      >
+        {children}
+      </div>
+    </>
+  );
+}
 
 export function Stripe() {
   return (

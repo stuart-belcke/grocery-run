@@ -5,7 +5,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
-import { Stripe, Btn, Seg, ConfirmDialog } from "../ui";
+import { Stripe, Btn, Seg, ConfirmDialog, StickyBar } from "../ui";
 import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, unitSuggestions, ingredientNames, normalizeCfg, ingredientMatches } from "../lib";
 import { RecipeDetail } from "../RecipeDetail";
 
@@ -320,8 +320,13 @@ export function MealsTab({ data, update, updateCatalog }) {
     <div>
       {/* Search + one Filter button + the primary action, matching the
           Ingredients tab. Sort and the Easy filter live inside the popover so
-          the row stays on a single line at phone widths. */}
-      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
+          the row stays on a single line at phone widths.
+
+          Pinned: at three hundred recipes you scroll a long way, and having to
+          scroll back to reach the search box is what makes a list that size
+          unusable. */}
+      <StickyBar>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
           <input
             placeholder="Search meals or ingredients"
@@ -407,6 +412,7 @@ export function MealsTab({ data, update, updateCatalog }) {
         </div>
         <Btn kind="primary" onClick={startNew} style={{ flexShrink: 0 }}>Add</Btn>
       </div>
+      </StickyBar>
       <p style={{ margin: "0 0 12px", fontSize: 13, color: C.faint }}>
         Choose meals — the shopping list totals every ingredient automatically.
       </p>
