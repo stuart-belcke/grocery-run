@@ -92,39 +92,6 @@ Tier 2 — Ingredients-tab cluster (shared refactor, then features)
     use as you type. Must still let you type a brand-new unit and use it; the
     suggestions never restrict entry to a fixed set.
 
-    UNIT CONVERSION — do this as part of the same "take units seriously" pass.
-    Nothing converts today. aggregateItems keys an item's `parts` by the raw
-    unit string, so equivalent amounts never combine:
-      - a recipe wanting 1 lb and another wanting 8 oz list as "1 lb, 8 oz"
-        instead of 1.5 lb
-      - `list.bought` subtracts per unit, so buying 1 lb does NOT offset a
-        recipe asking for 16 oz — it stays on the list looking unbought
-      - unitForKey (the staple quick-add default) just picks the most common
-        unit, with no notion that others are the same thing
-    So it bites in three places, and the shopping-list one is the costly one:
-    it can make you buy something you already have.
-
-    What a conversion layer needs:
-      - units grouped by DIMENSION (weight / volume / count) with a factor to
-        a base unit per dimension — lb→oz ×16, kg→g ×1000, l→ml ×1000,
-        cup→tbsp ×16, tbsp→tsp ×3
-      - conversion only WITHIN a dimension. oz (weight) and fl oz (volume) are
-        different things, and "can" / "bunch" / "head" convert to nothing
-      - unknown and free-text units must keep working untouched, just
-        unconvertible — the app deliberately lets you invent a unit, and that
-        can't regress (see the rule above)
-      - display picks the most readable unit for the total (1500 g → 1.5 kg)
-        rather than always normalizing to the base
-    Deliberately out of scope: weight <-> volume. That needs per-ingredient
-    density (a cup of flour and a cup of water differ), which is a much bigger
-    data problem than a factor table.
-
-    Where it lives: a table in lib.js beside COMMON_UNITS, which is already the
-    unit vocabulary. Additive — existing data keeps working because anything
-    not in the table simply doesn't convert. If it should be editable per
-    household rather than hardcoded, it could ride in catalog.json like stores
-    and ingredient config, but start hardcoded; these factors don't vary.
-
 
 Tier 3 — data-model / sorting
 -----------------------------
