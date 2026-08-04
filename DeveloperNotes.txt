@@ -66,12 +66,19 @@ Tier 2 — Ingredients-tab cluster (shared refactor, then features)
     and an oz that between them say this is measured by weight.
 
     Two decisions worth keeping:
-      - DISPLAY ONLY EVER USES A UNIT THE HOUSEHOLD TYPED. The note below said
-        1500 g -> 1.5 kg; that was not built. Promoting to a unit nobody used
-        means a household that only writes grams suddenly reads kilograms, and
-        the surprise costs more than the tidier number buys. The rule is: the
-        largest USED unit that keeps the number at or above 1, else the
-        smallest used one.
+      - PROMOTION NEVER CROSSES MEASUREMENT SYSTEMS. Display picks the largest
+        unit that keeps the number at or above 1, stepping down when it would
+        fall below: 24 oz reads 1.5 lb, 1500 g reads 1.5 kg, a quarter pound
+        reads 4 oz. It will promote to a unit nobody typed, because g/kg and
+        oz/lb are one scale that everyone reads at a glance. It will NOT cross
+        between them — answering "how much flour" in a system this household
+        doesn't use is the surprise actually worth avoiding, and that is the
+        one thing the metric/standard setting (item 31) would authorise.
+        Two carve-outs, both learned by looking at the output:
+          pt / qt / gal convert but are never promotion TARGETS. They're
+          container sizes; a recipe wanting 2 cups of stock read "1 pt".
+          Count units don't promote at all and show in the SMALLEST unit used:
+          a dozen eggs plus two more is "14 ea", not "1.17 dozen".
       - US factors are defined from their exact ratios (1 lb = 16 oz, 1 cup =
         16 tbsp, 1 tbsp = 3 tsp) rather than via the metric base, so 16 oz and
         1 lb compare exactly instead of missing by a float hair and leaving

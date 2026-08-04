@@ -48,23 +48,27 @@ const TSP_ML = 4.92892159375; // exact US teaspoon
 
 const UNIT_TABLE = {
   // weight, base = gram
-  g: { dim: "weight", per: 1 },
-  kg: { dim: "weight", per: 1000 },
-  oz: { dim: "weight", per: OZ_G },
-  lb: { dim: "weight", per: OZ_G * 16 },
+  g: { dim: "weight", sys: "metric", per: 1 },
+  kg: { dim: "weight", sys: "metric", per: 1000 },
+  oz: { dim: "weight", sys: "us", per: OZ_G },
+  lb: { dim: "weight", sys: "us", per: OZ_G * 16 },
   // volume, base = millilitre
-  ml: { dim: "volume", per: 1 },
-  l: { dim: "volume", per: 1000 },
-  tsp: { dim: "volume", per: TSP_ML },
-  tbsp: { dim: "volume", per: TSP_ML * 3 },
-  "fl oz": { dim: "volume", per: TSP_ML * 6 },
-  cup: { dim: "volume", per: TSP_ML * 48 },
-  pt: { dim: "volume", per: TSP_ML * 96 },
-  qt: { dim: "volume", per: TSP_ML * 192 },
-  gal: { dim: "volume", per: TSP_ML * 768 },
-  // count. "" is deliberately absent: an empty unit means "no unit given",
-  // not "each", and merging the two would put a number on something that
-  // never had one.
+  ml: { dim: "volume", sys: "metric", per: 1 },
+  l: { dim: "volume", sys: "metric", per: 1000 },
+  tsp: { dim: "volume", sys: "us", per: TSP_ML },
+  tbsp: { dim: "volume", sys: "us", per: TSP_ML * 3 },
+  "fl oz": { dim: "volume", sys: "us", per: TSP_ML * 6 },
+  cup: { dim: "volume", sys: "us", per: TSP_ML * 48 },
+  // Container sizes rather than cooking measures. They convert fine when
+  // typed, but they are not PROMOTION targets: a recipe wanting 2 cups of
+  // stock should not read "1 pt" just because the arithmetic allows it.
+  pt: { dim: "volume", sys: "us", per: TSP_ML * 96, noPromote: true },
+  qt: { dim: "volume", sys: "us", per: TSP_ML * 192, noPromote: true },
+  gal: { dim: "volume", sys: "us", per: TSP_ML * 768, noPromote: true },
+  // count. No `sys`, and deliberately no promotion: "dozen" is a packaging
+  // idea, not a scale step, and turning 24 apples into 2 dozen helps nobody.
+  // "" is absent too — an empty unit means "no unit given", not "each", and
+  // merging the two would put a count on something that never had one.
   ea: { dim: "count", per: 1 },
   dozen: { dim: "count", per: 12 },
 };
@@ -120,17 +124,44 @@ export function convertQty(qty, from, to) {
   return (n * a.per) / b.per;
 }
 
-// Which of the units actually in use should show the total. Deliberately
-// chooses only from units this household typed: the largest one that still
-// leaves a number of at least 1, else the smallest available.
+// Which unit should show the total: the largest that still leaves a number of
+// at least 1, else the smallest available. 1500 g reads 1.5 kg, 24 oz reads
+// 1.5 lb, and a quarter pound reads 4 oz.
 //
-// This is a considered departure from "1500 g -> 1.5 kg". Promoting to a unit
-// nobody used means a household that only ever writes grams suddenly reads
-// kilograms, and the surprise costs more than the tidier number buys.
-export function pickDisplayUnit(units, baseQty) {
+// THE ONE RULE IS THAT PROMOTION NEVER CROSSES MEASUREMENT SYSTEMS. g -> kg
+// and oz -> lb are scale steps anyone reads at a glance; g -> oz is a
+// different way of measuring, and answering "how much flour" in a system the
+// household doesn't use is the actual surprise worth avoiding. So candidates
+// come from the systems already in play, not from the whole table.
+//
+// Units with no system (the count dimension) don't promote at all — see the
+// table. And when both systems appear at once, the one contributing more of
+// the total wins, so a mostly-metric amount stays metric.
+export function pickDisplayUnit(units, baseQty, bySys) {
   const known = units.map((u) => ({ u, info: unitInfo(u) })).filter((x) => x.info);
   if (known.length === 0) return units[0];
-  const bigFirst = [...known].sort((a, b) => b.info.per - a.info.per);
+
+  const systems = [...new Set(known.map((x) => x.info.sys).filter(Boolean))];
+  if (systems.length === 0) {
+    // Count. No promotion, and the SMALLEST used unit wins: a dozen eggs plus
+    // two more is "14 ea", not "1.17 dozen". Fractions of a dozen are how you
+    // describe packaging, not how you shop.
+    return known.reduce((a, b) => (a.info.per <= b.info.per ? a : b)).u;
+  }
+  let candidates;
+  {
+    const sys =
+      systems.length === 1
+        ? systems[0]
+        : systems.reduce((a, b) => ((bySys && bySys[a] ? bySys[a] : 0) >= (bySys && bySys[b] ? bySys[b] : 0) ? a : b));
+    const dim = known[0].info.dim;
+    const used = new Set(known.map((x) => unitInfo(x.u).unit));
+    candidates = Object.entries(UNIT_TABLE)
+      .filter(([u, v]) => v.dim === dim && v.sys === sys && (!v.noPromote || used.has(u)))
+      .map(([u, info]) => ({ u, info }));
+  }
+
+  const bigFirst = [...candidates].sort((a, b) => b.info.per - a.info.per);
   const fits = bigFirst.find((x) => baseQty / x.info.per >= 1);
   return (fits || bigFirst[bigFirst.length - 1]).u;
 }
@@ -143,10 +174,12 @@ export function groupPartsByDimension(parts) {
   for (const [unit, qty] of Object.entries(parts || {})) {
     const info = unitInfo(unit);
     const gk = info ? `dim:${info.dim}` : `raw:${unit}`;
-    if (!groups.has(gk)) groups.set(gk, { units: [], base: 0, convertible: !!info });
+    if (!groups.has(gk)) groups.set(gk, { units: [], base: 0, bySys: {}, convertible: !!info });
     const g = groups.get(gk);
     if (!g.units.includes(unit)) g.units.push(unit);
-    g.base += (Number(qty) || 0) * (info ? info.per : 1);
+    const add = (Number(qty) || 0) * (info ? info.per : 1);
+    g.base += add;
+    if (info && info.sys) g.bySys[info.sys] = (g.bySys[info.sys] || 0) + add;
   }
   return groups;
 }
@@ -170,7 +203,7 @@ export function resolveAgainstBought(parts, handParts, have) {
   const cupboard = groupPartsByDimension(have || {});
   const out = {};
   const emit = (g, baseQty) => {
-    const unit = g.convertible ? pickDisplayUnit(g.units, baseQty) : g.units[0];
+    const unit = g.convertible ? pickDisplayUnit(g.units, baseQty, g.bySys) : g.units[0];
     const info = unitInfo(unit);
     out[unit] = r2(baseQty / (info ? info.per : 1));
   };

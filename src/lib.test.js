@@ -678,12 +678,49 @@ test("an empty unit is not merged into 'ea'", () => {
   assert.deepEqual(combineParts({ "": 2, ea: 3 }), { "": 2, ea: 3 });
 });
 
-test("the display unit is the largest USED one that keeps the number above 1", () => {
+test("the display unit is the largest that keeps the number above 1", () => {
   assert.deepEqual(combineParts({ oz: 8, lb: 1 }), { lb: 1.5 });
-  // Only ounces used, so it stays ounces — no promotion to a unit nobody typed.
-  assert.deepEqual(combineParts({ oz: 24 }), { oz: 24 });
-  // Under 1 lb, so it steps down to the smaller unit that was used.
-  assert.deepEqual(combineParts({ lb: 0.25, oz: 0 }), { oz: 4 });
+  // Promotes even to a unit that wasn't typed: 24 oz is 1.5 lb, and everyone
+  // reads lb and oz as the same scale.
+  assert.deepEqual(combineParts({ oz: 24 }), { lb: 1.5 });
+  assert.deepEqual(combineParts({ g: 1500 }), { kg: 1.5 });
+  // And steps down when the number would drop below 1.
+  assert.deepEqual(combineParts({ lb: 0.25 }), { oz: 4 });
+  assert.deepEqual(combineParts({ kg: 0.4 }), { g: 400 });
+});
+
+test("promotion never crosses measurement systems", () => {
+  // The one guard worth keeping. g -> kg is a scale step; g -> oz is a
+  // different way of measuring, and answering "how much flour" in a system
+  // this household doesn't use is the real surprise.
+  assert.deepEqual(combineParts({ g: 500 }), { g: 500 });
+  assert.deepEqual(combineParts({ oz: 2 }), { oz: 2 });
+  assert.deepEqual(combineParts({ ml: 400 }), { ml: 400 });
+});
+
+test("a mixed-system amount shows in whichever system dominates it", () => {
+  // 1 lb (453.6 g) plus 1 kg — mostly metric, so it reads metric.
+  assert.deepEqual(combineParts({ lb: 1, kg: 1 }), { kg: 1.45 });
+  // 5 lb plus 100 g — mostly pounds, so it reads pounds.
+  assert.deepEqual(combineParts({ lb: 5, g: 100 }), { lb: 5.22 });
+});
+
+test("container sizes convert but never become the display unit", () => {
+  // 2 cups of stock must not read "1 pt" just because the arithmetic allows
+  // it — pints and quarts are what you buy, not what a recipe asks for.
+  assert.deepEqual(combineParts({ cup: 2 }), { cup: 2 });
+  assert.deepEqual(combineParts({ tsp: 48 }), { cup: 1 });
+  // Typed explicitly, a container size is kept.
+  assert.deepEqual(combineParts({ qt: 2 }), { qt: 2 });
+});
+
+test("count units add up but read in the smallest unit used", () => {
+  // 24 apples aren't "2 dozen", and a dozen eggs plus two more is "14 ea",
+  // not "1.17 dozen". Fractions of a dozen describe packaging, not shopping.
+  assert.deepEqual(combineParts({ ea: 24 }), { ea: 24 });
+  assert.deepEqual(combineParts({ dozen: 1, ea: 2 }), { ea: 14 });
+  // A dozen on its own is still a dozen.
+  assert.deepEqual(combineParts({ dozen: 2 }), { dozen: 2 });
 });
 
 test("a hand-added amount is never cancelled by the cupboard", () => {
