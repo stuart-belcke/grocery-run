@@ -7,14 +7,14 @@
 import { useMemo, useState } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, ConfirmDialog } from "../ui";
-import { MEAL_TYPES, norm, planStageOf, plannedMealCount, daysInOrder } from "../lib";
+import { MEAL_TYPES, norm, planStageOf, plannedMealCount, daysInOrder, asArray } from "../lib";
 
 export function WeekTab({ data, update }) {
   // Presentation order only. Plan data stays keyed by day name, so a meal
   // planned for Sunday is on Sunday whichever end of the week it's drawn at.
   const days = useMemo(() => daysInOrder(data.prefs), [data.prefs]);
   const recipesSorted = useMemo(() => [...data.recipes].sort((a, b) => a.name.localeCompare(b.name)), [data.recipes]);
-  const [picker, setPicker] = useState(null); // { day, type } while choosing a recipe for a slot
+  const [picker, setPicker] = useState(null); // { day, type, role } while choosing a recipe — role is "main" or "side"
   const [pickQuery, setPickQuery] = useState("");
   const [editing, setEditing] = useState(false); // whole-plan edit mode: reveals per-slot change + clear
   const [confirmClear, setConfirmClear] = useState(false);
@@ -76,17 +76,50 @@ export function WeekTab({ data, update }) {
     setConfirmClear(false);
   };
 
-  const openPicker = (day, type) => {
+  const openPicker = (day, type, role = "main") => {
     setPickQuery("");
-    setPicker({ day, type });
+    setPicker({ day, type, role });
   };
 
   const assignFromPicker = (r) => {
+    if (picker.role === "side") {
+      const sides = asArray(data.plan?.[picker.day]?.[picker.type]?.sides);
+      setSlot(picker.day, picker.type, { sides: [...sides, { recipeId: r.id, servings: r.servings || 4 }] });
+      setPicker(null);
+      return;
+    }
     // A freshly picked meal starts at its own default servings, and on the
     // shopping list: "already have the ingredients" was about the meal that
-    // used to be in this slot, not whatever replaces it.
-    setSlot(picker.day, picker.type, { recipeId: r.id, servings: r.servings || 4, skipList: undefined });
+    // used to be in this slot, not whatever replaces it — and neither were
+    // its sides, which were paired with the dish being replaced.
+    setSlot(picker.day, picker.type, { recipeId: r.id, servings: r.servings || 4, skipList: undefined, sides: undefined });
     setPicker(null);
+  };
+
+  const setSlotSide = (day, type, index, patch) =>
+    update((d) => {
+      const slot = d.plan?.[day]?.[type];
+      if (!slot) return d;
+      d.plan[day][type] = { ...slot, sides: asArray(slot.sides).map((s, i) => (i === index ? { ...s, ...patch } : s)) };
+      return d;
+    });
+
+  const removeSide = (day, type, index) =>
+    update((d) => {
+      const slot = d.plan?.[day]?.[type];
+      if (!slot) return d;
+      const sides = asArray(slot.sides).filter((_, i) => i !== index);
+      const next = { ...slot };
+      if (sides.length) next.sides = sides;
+      else delete next.sides;
+      d.plan[day][type] = next;
+      return d;
+    });
+
+  // Same snap-back as normalizeServings, for one side's amount.
+  const normalizeSideServings = (day, type, index, base) => {
+    const cur = Number(data.plan?.[day]?.[type]?.sides?.[index]?.servings);
+    if (!(cur > 0)) setSlotSide(day, type, index, { servings: base });
   };
 
   // Snap an empty / non-positive servings value back to the recipe's default so
@@ -113,7 +146,9 @@ export function WeekTab({ data, update }) {
     ].filter((g) => g.recipes.length > 0);
   }, [picker, pickQuery, recipesSorted]);
 
-  const activeSlotRecipeId = picker ? data.plan?.[picker.day]?.[picker.type]?.recipeId : null;
+  // Only meaningful for the main: a side picker is always adding another one,
+  // so there's no single "current" side to highlight or offer to remove.
+  const activeSlotRecipeId = picker && picker.role !== "side" ? data.plan?.[picker.day]?.[picker.type]?.recipeId : null;
 
   return (
     <div>
@@ -165,6 +200,14 @@ export function WeekTab({ data, update }) {
                 // Leftovers, or a meal you already have everything for: still
                 // on the plan, but its ingredients never reach the list.
                 const skipped = !!slot?.skipList;
+                // Side dishes for this slot. A reference to a deleted recipe
+                // is filtered out here rather than crashing — MealsTab cleans
+                // these up on delete, but an old build's own edits might not.
+                const sideEntries = recipe
+                  ? asArray(slot.sides)
+                      .map((s, index) => ({ ...s, index, recipe: data.recipes.find((r) => r.id === s.recipeId) }))
+                      .filter((s) => s.recipe)
+                  : [];
                 // Shared box styling so the read-only display and the editable
                 // meal button occupy the same shape on the line. A skipped slot
                 // drops the green so the week reads at a glance as which meals
@@ -214,7 +257,9 @@ export function WeekTab({ data, update }) {
                         <span style={{ ...slotBox, cursor: "default", flexDirection: "column", alignItems: "stretch", gap: 1 }}>
                           <span style={{ fontWeight: 600 }}>{recipe.easy ? "⚡ " : ""}{recipe.name}</span>
                           <span style={{ fontSize: 12, color: C.faint, fontVariantNumeric: "tabular-nums" }}>
-                            {Number(slot.servings) || base} sv{skipped ? " · already have the ingredients" : ""}
+                            {Number(slot.servings) || base} sv
+                            {sideEntries.length ? ` · with ${sideEntries.map((s) => `${s.recipe.name} (${Number(s.servings) || s.recipe.servings || 4} sv)`).join(", ")}` : ""}
+                            {skipped ? " · already have the ingredients" : ""}
                           </span>
                         </span>
                       )}
@@ -245,6 +290,45 @@ export function WeekTab({ data, update }) {
                         </label>
                       </div>
                     )}
+                    {recipe && slotsEditable && (
+                      <div style={{ marginTop: 4, marginLeft: 78 }}>
+                        {sideEntries.map((s) => {
+                          const sideBase = s.recipe.servings || 4;
+                          return (
+                            <div key={s.index} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.faint, padding: "3px 0" }}>
+                              <span aria-hidden>+</span>
+                              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.recipe.name}</span>
+                              <input
+                                type="number"
+                                min="1"
+                                value={s.servings}
+                                onChange={(e) => setSlotSide(day, type, s.index, { servings: e.target.value === "" ? "" : Number(e.target.value) })}
+                                onBlur={() => normalizeSideServings(day, type, s.index, sideBase)}
+                                onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                                aria-label={`Servings of ${s.recipe.name} on ${day} ${type}`}
+                                style={{ ...inputStyle, width: 44, padding: "4px 6px", fontVariantNumeric: "tabular-nums" }}
+                              />
+                              sv
+                              <button
+                                onClick={() => removeSide(day, type, s.index)}
+                                aria-label={`Remove ${s.recipe.name} from ${day} ${type}`}
+                                title="Remove this side"
+                                style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 2, lineHeight: 1 }}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          );
+                        })}
+                        <button
+                          onClick={() => openPicker(day, type, "side")}
+                          aria-label={`Add a side for ${day} ${type}`}
+                          style={{ border: "none", background: "transparent", color: C.green, cursor: "pointer", fontSize: 12, fontWeight: 500, padding: "3px 0", fontFamily: fontBody }}
+                        >
+                          + Add a side
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -257,7 +341,7 @@ export function WeekTab({ data, update }) {
         <div
           role="dialog"
           aria-modal="true"
-          aria-label={`Choose a meal for ${picker.day} ${picker.type}`}
+          aria-label={picker.role === "side" ? `Add a side for ${picker.day} ${picker.type}` : `Choose a meal for ${picker.day} ${picker.type}`}
           onClick={() => setPicker(null)}
           // Anchored to the top (not vertically centered) so that as the search
           // narrows the list and the panel shrinks, its top — and the search box
@@ -271,7 +355,7 @@ export function WeekTab({ data, update }) {
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px 10px" }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 700, color: C.ink }}>{picker.day} · {picker.type}</div>
-                <div style={{ fontSize: 12, color: C.faint }}>Pick a meal for this slot</div>
+                <div style={{ fontSize: 12, color: C.faint }}>{picker.role === "side" ? "Add a side to this slot" : "Pick a meal for this slot"}</div>
               </div>
               <button
                 onClick={() => setPicker(null)}

@@ -507,13 +507,67 @@ doesn't shift; the tier each belongs to is noted.
     household sync and the publish flow, with no actual preferences section.
     Build the section first, then this is its first occupant. TIER 1.
 
-27. Sides on a dinner. A slot is { recipeId, servings } today, so a main plus
-    two sides means several recipes per slot — either an array of them or a
-    main/sides split. Both feed the shopping list the same way through
-    aggregateItems, which already sums the same ingredient from several
-    sources, so the list side needs nothing.
-    DO THIS AFTER THE CATALOG MOVE. It changes the shape of a plan slot, and
-    doing it first means migrating that shape twice. TIER 3.
+27. [DONE] Sides on a dinner. Built as the main/sides split rather than an
+    array of equals: a slot stays { recipeId, servings, skipList } for the
+    main exactly as before, plus an optional `sides: [{ recipeId, servings }]`.
+    Keeping the main where every existing reader already looks for it (Meals
+    tab's per-recipe plan summary, plannedMealCount, the empty-slot picker)
+    meant only the code that actually needed to know about sides had to
+    change, rather than every reader of a slot.
+
+    THE ONE GATE. slotDishes(slot) is now the single place that turns a slot
+    into the flat { recipeId, servings } list both aggregation walks
+    (aggregateItems, servingsByRecipe) sum over. skipList or an empty slot
+    means NOTHING feeds the list — sides included, no separate check for
+    them, so a side can never sneak onto the list of a meal marked "already
+    have the ingredients." Mutation-tested: dropping the skipList check
+    inside slotDishes failed exactly the four tests that should catch it.
+
+    Ingredient summing needed nothing, as the note predicted: a main and a
+    side sharing garlic already sum to one line via aggregateItems' existing
+    per-ingredient-id map.
+
+    WHERE SIDES ARE MANAGED. The Week tab only — "+ Add a side" under an
+    editable slot, each side removable and independently servings-editable,
+    reusing the same recipe picker as the main (a `role: "side"` on picker
+    state skips the main's "remove meal" shortcut and its checkmark, since
+    adding a side is always additive). The Meals tab's "Add to week's plan"
+    still assigns the MAIN only — sides need the rest of that slot's dishes
+    in view to make sense of, which only the Week tab shows. Meals tab does
+    read sides now, via a new planSlotsFor(data, recipeId) shared with the
+    delete-recipe cleanup below: a recipe used as a side shows up in that
+    recipe's "on the plan N times" summary, tagged "(side)", independently
+    removable from the main.
+
+    REASSIGNING THE MAIN CLEARS ITS SIDES, same call already made for
+    skipList when item 28 shipped: a freshly picked entree's sides belonged
+    to the dish being replaced, not to whatever replaces it. Only the Week
+    tab's picker does this explicitly (patches `sides: undefined`); the Meals
+    tab's assignPlan already achieves the same result by writing a fresh slot
+    object rather than merging into the old one — true before this item too,
+    so no change was needed there.
+
+    DELETING A RECIPE now also strips it from every slot's `sides` array, not
+    just from being a main — deleteRecipe's cleanup loop used to only check
+    `slot.recipeId`, which would have left a dangling ingredientId reference
+    any time the deleted recipe was only ever used as a side.
+
+    APP_DATA_VERSION -> 3, per item 32's gate, since this is a plan-slot shape
+    change: the Meals tab's assignPlan overwrites a slot wholesale rather
+    than merging, so an OLDER build reassigning a slot's main would silently
+    drop another device's sides with no warning. Same class of risk item 23
+    bumped it for — an ordinary edit on one device quietly destroying data
+    the other device is relying on. Worth being honest about the gap this
+    doesn't close: the stamp lives on the CATALOG node (updateCatalog stamps
+    every write), and sides live in the STATE node, which carries no
+    appDataVersion of its own. A household that only ever touches sides
+    through the Week tab, never editing a recipe or ingredient, won't trip
+    the gate on the first sides edit — it activates on the next catalog
+    touch, which real usage makes likely but doesn't guarantee. Extending the
+    gate to stamp and compare the state node too would close that gap
+    properly; not done here, in keeping with "use the infrastructure that
+    shipped rather than build more of it" — flagged here so it isn't
+    forgotten if the narrow case ever bites.
 
 28. [DONE] Meals that don't feed the shopping list. "We're having leftovers" or
     "we already have everything for this" — you want it on the plan for the

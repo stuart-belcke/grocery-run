@@ -26,6 +26,8 @@ import {
   planStageOf,
   plannedMealCount,
   slotFeedsList,
+  slotDishes,
+  planSlotsFor,
   seedCatalog,
   needsIngredientIds,
   ensureIngredientId,
@@ -583,6 +585,87 @@ test("slotFeedsList reads a slot the same way both aggregation walks do", () => 
   // An empty slot feeds nothing whatever its flag says.
   assert.equal(slotFeedsList({ skipList: true }), false);
   assert.equal(slotFeedsList(undefined), false);
+});
+
+/* ---------------- sides on a dinner (item 27) ----------------
+   A slot's main plus its sides are several recipes feeding the same day/meal.
+   slotDishes is the one place that turns a slot into a flat list of
+   {recipeId, servings} — both aggregateItems and servingsByRecipe walk it,
+   so a bug here would show up in either. */
+
+test("slotDishes lists the main and every side", () => {
+  const slot = { recipeId: "r1", servings: 4, sides: [{ recipeId: "r2", servings: 2 }, { recipeId: "r3", servings: 6 }] };
+  assert.deepEqual(slotDishes(slot), [
+    { recipeId: "r1", servings: 4 },
+    { recipeId: "r2", servings: 2 },
+    { recipeId: "r3", servings: 6 },
+  ]);
+});
+
+test("slotDishes drops everything when the slot is skipped or empty", () => {
+  assert.deepEqual(slotDishes({ recipeId: "r1", servings: 4, skipList: true, sides: [{ recipeId: "r2", servings: 2 }] }), []);
+  assert.deepEqual(slotDishes(undefined), []);
+});
+
+test("slotDishes ignores a malformed side entry rather than crashing", () => {
+  const slot = { recipeId: "r1", servings: 4, sides: [null, {}, { recipeId: "r2", servings: 2 }] };
+  assert.deepEqual(slotDishes(slot), [
+    { recipeId: "r1", servings: 4 },
+    { recipeId: "r2", servings: 2 },
+  ]);
+});
+
+test("a side's ingredients reach the shopping list alongside the main", () => {
+  const d = aggData({
+    recipes: [
+      recipe("r1", "Roast chicken", 4, [{ name: "Chicken", qty: 4, unit: "lb" }]),
+      recipe("r2", "Green beans", 4, [{ name: "Beans", qty: 1, unit: "lb" }]),
+    ],
+    plan: { Mon: { Dinner: { recipeId: "r1", servings: 4, sides: [{ recipeId: "r2", servings: 4 }] } } },
+  });
+  const items = aggregateItems(d);
+  assert.deepEqual(byKey(items, "chicken").parts, { lb: 4 });
+  assert.deepEqual(byKey(items, "beans").parts, { lb: 1 });
+  assert.deepEqual(servingsByRecipe(d), { r1: 4, r2: 4 });
+});
+
+test("a skipped slot suppresses its sides too, not just the main", () => {
+  const d = aggData({
+    recipes: [
+      recipe("r1", "Roast chicken", 4, [{ name: "Chicken", qty: 4, unit: "lb" }]),
+      recipe("r2", "Green beans", 4, [{ name: "Beans", qty: 1, unit: "lb" }]),
+    ],
+    plan: { Mon: { Dinner: { recipeId: "r1", servings: 4, skipList: true, sides: [{ recipeId: "r2", servings: 4 }] } } },
+  });
+  assert.deepEqual(aggregateItems(d), []);
+  assert.deepEqual(servingsByRecipe(d), {});
+});
+
+test("the same ingredient sums across a main and a side", () => {
+  // Both dishes call for garlic — one line on the shopping list, not two.
+  const d = aggData({
+    recipes: [
+      recipe("r1", "Roast chicken", 4, [{ name: "Garlic", qty: 2, unit: "clove" }]),
+      recipe("r2", "Green beans", 4, [{ name: "garlic", qty: 1, unit: "clove" }]),
+    ],
+    plan: { Mon: { Dinner: { recipeId: "r1", servings: 4, sides: [{ recipeId: "r2", servings: 4 }] } } },
+  });
+  assert.deepEqual(byKey(aggregateItems(d), "garlic").parts, { clove: 3 });
+});
+
+test("planSlotsFor finds a recipe whether it's the main or a side", () => {
+  const d = aggData({
+    plan: {
+      Mon: { Dinner: { recipeId: "r1", servings: 4, sides: [{ recipeId: "r2", servings: 2 }] } },
+      Tue: { Dinner: { recipeId: "r3", servings: 4, sides: [{ recipeId: "r2", servings: 6 }] } },
+    },
+  });
+  assert.deepEqual(planSlotsFor(d, "r1"), [{ day: "Mon", type: "Dinner", role: "main", servings: 4 }]);
+  assert.deepEqual(planSlotsFor(d, "r2"), [
+    { day: "Mon", type: "Dinner", role: "side", index: 0, servings: 2 },
+    { day: "Tue", type: "Dinner", role: "side", index: 0, servings: 6 },
+  ]);
+  assert.deepEqual(planSlotsFor(d, "nope"), []);
 });
 
 test("the cupboard SUBTRACTS from demand instead of hiding the item", () => {
