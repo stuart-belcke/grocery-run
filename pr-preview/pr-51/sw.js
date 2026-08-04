@@ -17,9 +17,9 @@
         cache is touched — so going offline mid-update leaves the previous
         app working instead of nothing at all                                */
 
-const BUILD = "3a0124a8";
+const BUILD = "aeb19ec8";
 const CACHE = `grocery-run-${BUILD}`;
-const PRECACHE = ["./","./catalog.json","./manifest.webmanifest","./icon.svg","./apple-touch-icon.png","./assets/index-BJfwevVO.js","./assets/index.esm-CNV-itFQ.js","./assets/index.esm-9fMCgNLM.js","./assets/index.esm2017-D2GdQcvr.js"];
+const PRECACHE = ["./","./catalog.json","./manifest.webmanifest","./icon.svg","./apple-touch-icon.png","./assets/index-DS0pgSl5.js","./assets/index.esm-CNV-itFQ.js","./assets/index.esm-9fMCgNLM.js","./assets/index.esm2017-D2GdQcvr.js"];
 
 self.addEventListener("install", (e) =>
   e.waitUntil(
