@@ -29,6 +29,8 @@ import {
   seedCatalog,
   needsIngredientIds,
   ensureIngredientId,
+  ingredientIdByName,
+  mergeIngredients,
   ingredientNameFor,
   norm,
   daysInOrder,
@@ -1105,4 +1107,52 @@ test("a key renders as its NAME, never as the raw id", () => {
   assert.equal(ingredientNameFor(data, "ing_b2"), "Paper towels");
   // Something deleted still shows SOMETHING rather than blank.
   assert.equal(ingredientNameFor(data, "ing_gone"), "Ing_gone");
+});
+
+
+test("two ingredients can't quietly end up sharing a name", () => {
+  // Found in real use: rename applesauce -> Applesaucer, then type
+  // "applesauce" into a recipe (which mints a fresh, detail-less one), then
+  // rename THAT to Applesaucer as well. Two Applesaucers, one with a store and
+  // aisle and one without. Impossible while the key was the name; renaming has
+  // to look for the collision now.
+  const ings = {
+    ing_a: { name: "Applesaucer", store: "Aldi", aisles: { Aldi: 3 } },
+    ing_b: { name: "applesauce", store: "Unassigned", aisles: {} },
+  };
+  assert.equal(ingredientIdByName(ings, "Applesaucer", "ing_b"), "ing_a");
+  // Case and padding don't hide a collision.
+  assert.equal(ingredientIdByName(ings, "  APPLESAUCER ", "ing_b"), "ing_a");
+  // And an ingredient never collides with itself.
+  assert.equal(ingredientIdByName(ings, "Applesaucer", "ing_a"), null);
+  assert.equal(ingredientIdByName(ings, "Something else", "ing_b"), null);
+});
+
+test("merging keeps the survivor's details and repoints every recipe", () => {
+  const draft = {
+    ingredients: {
+      ing_a: { name: "Applesaucer", store: "Aldi", aisles: { Aldi: 3 } },
+      ing_b: { name: "Applesaucer", store: "Unassigned", aisles: {} },
+    },
+    recipes: {
+      r1: { id: "r1", ingredients: [{ ingredientId: "ing_b", qty: 1, unit: "cup" }] },
+      // Already lists the survivor: repointing would duplicate the line, so
+      // the quantities are added instead.
+      r2: { id: "r2", ingredients: [{ ingredientId: "ing_a", qty: 2, unit: "cup" }, { ingredientId: "ing_b", qty: 3, unit: "cup" }] },
+    },
+  };
+  mergeIngredients(draft, "ing_b", "ing_a");
+  assert.deepEqual(Object.keys(draft.ingredients), ["ing_a"]);
+  assert.equal(draft.ingredients.ing_a.store, "Aldi"); // survivor's details win
+  assert.deepEqual(draft.recipes.r1.ingredients, [{ ingredientId: "ing_a", qty: 1, unit: "cup" }]);
+  assert.deepEqual(draft.recipes.r2.ingredients, [{ ingredientId: "ing_a", qty: 5, unit: "cup" }]);
+});
+
+test("merging refuses the cases that would lose data", () => {
+  const draft = { ingredients: { ing_a: { name: "A" } }, recipes: {} };
+  // Into itself, into something that doesn't exist, or from nothing.
+  mergeIngredients(draft, "ing_a", "ing_a");
+  mergeIngredients(draft, "ing_a", "ing_missing");
+  mergeIngredients(draft, null, "ing_a");
+  assert.deepEqual(Object.keys(draft.ingredients), ["ing_a"]);
 });

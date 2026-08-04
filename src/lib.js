@@ -674,6 +674,45 @@ export function ensureIngredientId(draft, name, mint = mintIngredientId) {
   return id;
 }
 
+// The id of a DIFFERENT ingredient already called this, or null. Two entries
+// sharing a name was structurally impossible while the key WAS the name; with
+// ids it is not, so renaming has to look before it leaps.
+export function ingredientIdByName(ingredients, name, exceptId) {
+  const n = norm(name);
+  if (!n) return null;
+  for (const [id, ing] of Object.entries(asObject(ingredients))) {
+    if (id === exceptId) continue;
+    if (norm(normalizeIngredient(ing, id).name) === n) return id;
+  }
+  return null;
+}
+
+// Fold one ingredient into another: repoint every recipe line, then delete the
+// loser. The SURVIVOR's store and aisles win, matching what renaming onto an
+// existing name did back when the name was the key.
+//
+// Mutates the draft, like ensureIngredientId.
+export function mergeIngredients(draft, fromId, intoId) {
+  if (!fromId || !intoId || fromId === intoId) return draft;
+  if (!draft.ingredients || !draft.ingredients[intoId]) return draft;
+  for (const [rid, r] of Object.entries(asObject(draft.recipes))) {
+    const lines = asArray(r && r.ingredients);
+    if (!lines.some((l) => l && l.ingredientId === fromId)) continue;
+    // If the recipe already lists the survivor, the repointed line would
+    // duplicate it — add the quantities instead, when the units agree.
+    const out = [];
+    for (const line of lines) {
+      const id = line.ingredientId === fromId ? intoId : line.ingredientId;
+      const twin = out.find((x) => x.ingredientId === id && (x.unit || "") === (line.unit || ""));
+      if (twin) twin.qty = r2((Number(twin.qty) || 0) + (Number(line.qty) || 0));
+      else out.push({ ...line, ingredientId: id });
+    }
+    draft.recipes[rid] = { ...r, ingredients: out };
+  }
+  delete draft.ingredients[fromId];
+  return draft;
+}
+
 // Convert a name-keyed catalog to an id-keyed one, rewriting every recipe line
 // to point at an id. Names a recipe mentions that have no ingredient entry get
 // one minted, which is also how a hand-edited catalog.json gains ingredients

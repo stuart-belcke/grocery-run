@@ -7,7 +7,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Btn, ConfirmDialog, ChoiceDialog, StickyBar } from "../ui";
-import { UNASSIGNED, norm, cap, r2, normalizeCfg, compactCfg, ingredientNames, unitSuggestions, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient, ensureIngredientId } from "../lib";
+import { UNASSIGNED, norm, cap, r2, normalizeCfg, compactCfg, ingredientNames, unitSuggestions, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient, ensureIngredientId, ingredientIdByName, mergeIngredients } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
 // "how many of this on the list" reads the same everywhere in the app.
@@ -184,17 +184,28 @@ export function PantryTab({ data, update, updateCatalog }) {
     const affected = usedInRecipes(data, oldKey);
     // Recipes use this name, so the choice ("rename everywhere" vs "save as a
     // separate item") goes to a dialog and comes back through commitRename.
-    if (affected.length > 0) return setAskRename({ oldKey, oldName: current, newName, affected });
+    // Confirm when recipes are affected OR when this would merge into an
+    // existing ingredient — a merge deletes one, which is too much to do
+    // silently just because two names happen to match.
+    const mergeInto = ingredientIdByName(data.config, newName, oldKey);
+    if (affected.length > 0 || mergeInto) {
+      return setAskRename({ oldKey, oldName: current, newName, affected, mergeInto });
+    }
     commitRename({ oldKey, newName, affected }, false);
   };
 
   const commitRename = ({ oldKey, newName, affected }, asNew) => {
-    // Renaming is now a NAME EDIT and nothing else. Ingredients have stable
-    // ids, so recipes, list.checked, list.bought, list.overrides, list.extras
-    // and stapleNeeds all keep pointing at the same thing without being
-    // touched. This function used to move four of those by hand and silently
-    // missed the other two, which is how an already-bought item came back onto
-    // the list and a staple you were out of stopped appearing.
+    // Renaming is a NAME EDIT: ids are stable, so recipes, list.checked,
+    // list.bought, list.overrides, list.extras and stapleNeeds all keep
+    // pointing at the same thing without being touched.
+    //
+    // WITH ONE EXCEPTION. Two ingredients sharing a name was structurally
+    // impossible while the key WAS the name. It isn't now, so renaming onto a
+    // name that already exists MERGES into it — the behaviour the old
+    // key-moving version got for free, and whose loss produced two entries
+    // both called "Applesaucer", only one carrying a store and aisle.
+    const mergeInto = asNew ? null : ingredientIdByName(data.config, newName, oldKey);
+
     updateCatalog((c) => {
       if (asNew) {
         // "Save as a separate item": a brand-new ingredient, leaving the
@@ -202,9 +213,29 @@ export function PantryTab({ data, update, updateCatalog }) {
         c.ingredients[mintIngredientId()] = { ...normalizeIngredient(c.ingredients[oldKey], newName), name: newName };
         return c;
       }
+      if (mergeInto) return mergeIngredients(c, oldKey, mergeInto);
       c.ingredients[oldKey] = { ...normalizeIngredient(c.ingredients[oldKey], newName), name: newName };
       return c;
     });
+
+    // The shopping state points at ids too, so a merge has to move its five
+    // stores off the id that just disappeared.
+    if (mergeInto) {
+      update((d) => {
+        const move = (obj) => {
+          if (!obj || obj[oldKey] === undefined) return obj;
+          if (obj[mergeInto] === undefined) obj[mergeInto] = obj[oldKey];
+          delete obj[oldKey];
+          return obj;
+        };
+        move(d.list.checked);
+        move(d.list.bought);
+        move(d.list.overrides);
+        move(d.list.extras);
+        move(d.stapleNeeds);
+        return d;
+      });
+    }
     setEditItem(null);
     setAskRename(null);
   };
@@ -704,7 +735,7 @@ export function PantryTab({ data, update, updateCatalog }) {
           hid "save as a separate item" behind Cancel. */}
       <ChoiceDialog
         open={!!askRename}
-        title="Rename inside recipes too?"
+        title={askRename && askRename.mergeInto ? "Combine with the existing one?" : "Rename inside recipes too?"}
         onCancel={() => setAskRename(null)}
         choices={[
           { label: "Keep as separate item", kind: "ghost", onClick: () => commitRename(askRename, true) },
@@ -714,9 +745,21 @@ export function PantryTab({ data, update, updateCatalog }) {
         {askRename && (
           <>
             <p style={{ margin: "0 0 8px" }}>
-              <b style={{ color: C.ink }}>{askRename.oldName}</b> → <b style={{ color: C.ink }}>{askRename.newName}</b>, used by{" "}
-              <b style={{ color: C.ink }}>{askRename.affected.map((r) => r.name).join(", ")}</b>.
+              <b style={{ color: C.ink }}>{askRename.oldName}</b> → <b style={{ color: C.ink }}>{askRename.newName}</b>
+              {askRename.affected.length > 0 && (
+                <>
+                  , used by <b style={{ color: C.ink }}>{askRename.affected.map((r) => r.name).join(", ")}</b>
+                </>
+              )}
+              .
             </p>
+            {askRename.mergeInto && (
+              <p style={{ margin: "0 0 8px", color: C.tomato }}>
+                You already have an ingredient called <b>{askRename.newName}</b>. Renaming everywhere
+                COMBINES the two: recipes using this one switch over, and its store and aisle are
+                dropped in favour of the existing one&apos;s.
+              </p>
+            )}
             <p style={{ margin: 0 }}>
               Rename everywhere updates {askRename.affected.length === 1 ? "that recipe" : "those recipes"} too. Keeping it separate leaves them alone and saves{" "}
               <b style={{ color: C.ink }}>{askRename.newName}</b> as its own ingredient.
