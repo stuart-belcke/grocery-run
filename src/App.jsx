@@ -334,6 +334,7 @@ export default function App() {
       list: local.list,
       plan: local.plan,
       stapleNeeds: local.stapleNeeds,
+      prefs: cat.prefs,
     };
   }, [catalog, local, hCatalog]);
 

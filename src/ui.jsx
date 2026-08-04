@@ -54,6 +54,48 @@ export function StickyBar({ children, style }) {
   );
 }
 
+/* A settings card that opens on tap. Settings had grown into two always-open
+   cards — one of them a wall of export, backup and restore controls you touch
+   about never — so the thing you actually came for was always below the fold.
+
+   `aside` renders in the header whether open or closed: the sync status dot is
+   the one part of that section worth reading without opening it.
+
+   Kept in ui.jsx rather than inside SettingsTab because the app already has
+   this idiom in three places (recipe cards, ingredient rows, the bought-items
+   panel) and they should look and behave the same. */
+export function Section({ title, aside, children, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, marginBottom: 12, overflow: "hidden" }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          width: "100%",
+          textAlign: "left",
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          padding: "14px 16px",
+          fontFamily: fontDisplay,
+          fontSize: 18,
+          fontWeight: 700,
+          color: C.ink,
+        }}
+      >
+        <span style={{ flex: 1, minWidth: 0 }}>{title}</span>
+        {aside}
+        <span aria-hidden style={{ color: C.faint, fontSize: 13, flexShrink: 0 }}>{open ? "\u25b2" : "\u25be"}</span>
+      </button>
+      {open && <div style={{ padding: "0 16px 16px" }}>{children}</div>}
+    </div>
+  );
+}
+
 export function Stripe() {
   return (
     <div

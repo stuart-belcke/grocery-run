@@ -140,11 +140,19 @@ export function convertQty(qty, from, to) {
 // Units with no system (the count dimension) don't promote at all — see the
 // table. And when both systems appear at once, the one contributing more of
 // the total wins, so a mostly-metric amount stays metric.
-export function pickDisplayUnit(units, baseQty, bySys) {
+export function pickDisplayUnit(units, baseQty, bySys, unitsPref) {
   const known = units.map((u) => ({ u, info: unitInfo(u) })).filter((x) => x.info);
   if (known.length === 0) return units[0];
 
-  const systems = [...new Set(known.map((x) => x.info.sys).filter(Boolean))];
+  // An explicit preference is the ONE thing that authorises crossing systems.
+  // Unprompted it's a surprise; asked for, it's the answer to your question.
+  // Falls back to what was typed for a dimension with no such units (count),
+  // so choosing metric can never leave a total with nothing to render in.
+  const forced = unitsPref === "metric" ? "metric" : unitsPref === "standard" ? "us" : null;
+  const systems =
+    forced && known.some((x) => x.info.dim !== "count")
+      ? [forced]
+      : [...new Set(known.map((x) => x.info.sys).filter(Boolean))];
   if (systems.length === 0) {
     // Count. No promotion, and the SMALLEST used unit wins: a dozen eggs plus
     // two more is "14 ea", not "1.17 dozen". Fractions of a dozen are how you
@@ -200,13 +208,13 @@ export function groupPartsByDimension(parts) {
 //     card's job, not the shopping list's.
 //   - a group that was never positive is KEPT at zero. "Salt, to taste" is an
 //     ingredient with no amount, not an ingredient you've already bought.
-export function resolveAgainstBought(parts, handParts, have) {
+export function resolveAgainstBought(parts, handParts, have, unitsPref) {
   const need = groupPartsByDimension(parts);
   const hand = groupPartsByDimension(handParts || {});
   const cupboard = groupPartsByDimension(have || {});
   const out = {};
   const emit = (g, baseQty) => {
-    const unit = g.convertible ? pickDisplayUnit(g.units, baseQty, g.bySys) : g.units[0];
+    const unit = g.convertible ? pickDisplayUnit(g.units, baseQty, g.bySys, unitsPref) : g.units[0];
     const info = unitInfo(unit);
     out[unit] = r2(baseQty / (info ? info.per : 1));
   };
@@ -227,7 +235,7 @@ export function resolveAgainstBought(parts, handParts, have) {
 
 // Merge everything that can be added, and render each group in one unit.
 // Unconvertible units pass through untouched.
-export const combineParts = (parts) => resolveAgainstBought(parts, {}, {});
+export const combineParts = (parts, unitsPref) => resolveAgainstBought(parts, {}, {}, unitsPref);
 
 // Deduped unit suggestions: units seen in this household's data first, then
 // any common units not already present. Order is stable for a tidy datalist.
@@ -574,6 +582,38 @@ export function validCatalog(d) {
 
 export const CATALOG_SHAPE_VERSION = 1;
 
+/* --------------------------- preferences ---------------------------
+   How this household wants to be shown things. A HOUSEHOLD fact, not a
+   device one — the same call staples made. Two phones disagreeing about
+   where the week starts would make the plan grid mean different things on
+   each, which is worse than either answer.
+
+   Lives on the catalog node because that is already "how this household
+   works" and changes rarely, rather than in state, which changes constantly.
+   Display only: nothing here rewrites stored data, so any of it can be
+   flipped back and forth with no migration.                                */
+export const DEFAULT_PREFS = { units: "as-entered", weekStart: "Mon" };
+
+export function normalizePrefs(raw) {
+  const d = raw && typeof raw === "object" ? raw : {};
+  return {
+    ...d,
+    units: ["as-entered", "metric", "standard"].includes(d.units) ? d.units : DEFAULT_PREFS.units,
+    weekStart: d.weekStart === "Sun" ? "Sun" : DEFAULT_PREFS.weekStart,
+  };
+}
+
+// The days as they should be PRESENTED. Deliberately a rotation of DAYS and
+// never a renumbering: plan data is keyed by day name, so reordering the keys
+// would silently move every planned meal by a day.
+//
+// Only the Week tab needs this. aggregateItems, servingsByRecipe and
+// plannedMealCount walk DAYS to SUM, and a sum doesn't care about order.
+export function daysInOrder(prefs) {
+  const i = DAYS.indexOf(normalizePrefs(prefs).weekStart);
+  return i <= 0 ? [...DAYS] : [...DAYS.slice(i), ...DAYS.slice(0, i)];
+}
+
 // Is a build holding APP_DATA_VERSION `mine` too old to safely WRITE to a
 // household whose catalog says `remote`?
 //
@@ -606,7 +646,7 @@ export function seedCatalog(catalogJson) {
   // updatedAt 0 on purpose: a pristine seed is just the shipped file, and it
   // must LOSE to any catalog the database already holds. Only an actual edit
   // stamps a real time, which is what lets an edit made offline win later.
-  return { version: CATALOG_SHAPE_VERSION, appDataVersion: APP_DATA_VERSION, updatedAt: 0, recipes, ingredients, stores: asArray(cat.stores) };
+  return { version: CATALOG_SHAPE_VERSION, appDataVersion: APP_DATA_VERSION, updatedAt: 0, prefs: { ...DEFAULT_PREFS }, recipes, ingredients, stores: asArray(cat.stores) };
 }
 
 // Rebuild the full shape from whatever the database hands back, same contract
@@ -619,6 +659,7 @@ export function normalizeCatalog(raw) {
     // Which generation of the app last wrote this. Absent means "before this
     // was recorded", which is older than anything that carries it.
     appDataVersion: Number(d.appDataVersion) || 0,
+    prefs: normalizePrefs(d.prefs),
     // Absent means 0, i.e. "older than anything that carries a real stamp".
     // pickState compares this against the local copy to decide adopt vs push.
     updatedAt: Number(d.updatedAt) || 0,
@@ -874,7 +915,7 @@ export function aggregateItems(data) {
     // Staples run on have/need, not amounts, so the cupboard never applies to
     // them — but they still go through here so their parts get combined.
     const have = normalizeCfg(data.config[key]).staple ? {} : asObject(bought[key]);
-    item.parts = resolveAgainstBought(item.parts, item.handParts, have);
+    item.parts = resolveAgainstBought(item.parts, item.handParts, have, data.prefs && data.prefs.units);
     if (Object.keys(item.parts).length === 0) map.delete(key);
   }
 
