@@ -20,6 +20,179 @@ export const COMMON_UNITS = [
   "can", "jar", "bag", "box", "pack", "bunch", "clove", "head", "loaf", "dozen", "pinch", "slice", "stick",
 ];
 
+/* ------------------------- unit conversion -------------------------
+   Amounts used to combine only when the unit strings matched exactly, which
+   bit in three places. A recipe wanting 1 lb and another wanting 8 oz listed
+   as "1 lb + 8 oz" instead of 1.5 lb. `list.bought` subtracted per unit, so
+   buying 1 lb did NOT offset a recipe asking for 16 oz — it stayed on the list
+   looking unbought, which is the one that costs money. And commonUnitFor had
+   no notion that two units are the same thing.
+
+   Units are grouped by DIMENSION with a factor to that dimension's base unit.
+   Conversion happens only WITHIN a dimension: oz (weight) and fl oz (volume)
+   are different things, and a "can" or a "bunch" converts to nothing.
+
+   Deliberately out of scope: weight <-> volume. That needs per-ingredient
+   density — a cup of flour and a cup of water are not the same weight — which
+   is a much bigger data problem than a factor table.
+
+   THE TABLE IS NOT THE VOCABULARY. Anything absent simply doesn't convert and
+   keeps working exactly as before, which is what protects the rule that you
+   can always invent a unit and use it.
+
+   US factors are defined from their exact ratios (1 lb = 16 oz, 1 cup =
+   16 tbsp, 1 tbsp = 3 tsp) so that converting between them is exact rather
+   than accumulating float error through a metric base.                      */
+const OZ_G = 28.349523125; // exact, by definition
+const TSP_ML = 4.92892159375; // exact US teaspoon
+
+const UNIT_TABLE = {
+  // weight, base = gram
+  g: { dim: "weight", per: 1 },
+  kg: { dim: "weight", per: 1000 },
+  oz: { dim: "weight", per: OZ_G },
+  lb: { dim: "weight", per: OZ_G * 16 },
+  // volume, base = millilitre
+  ml: { dim: "volume", per: 1 },
+  l: { dim: "volume", per: 1000 },
+  tsp: { dim: "volume", per: TSP_ML },
+  tbsp: { dim: "volume", per: TSP_ML * 3 },
+  "fl oz": { dim: "volume", per: TSP_ML * 6 },
+  cup: { dim: "volume", per: TSP_ML * 48 },
+  pt: { dim: "volume", per: TSP_ML * 96 },
+  qt: { dim: "volume", per: TSP_ML * 192 },
+  gal: { dim: "volume", per: TSP_ML * 768 },
+  // count. "" is deliberately absent: an empty unit means "no unit given",
+  // not "each", and merging the two would put a number on something that
+  // never had one.
+  ea: { dim: "count", per: 1 },
+  dozen: { dim: "count", per: 12 },
+};
+
+// Spellings people actually type. Anything not resolvable stays unconvertible
+// rather than being guessed at.
+const UNIT_ALIASES = {
+  pound: "lb", pounds: "lb", lbs: "lb",
+  ounce: "oz", ounces: "oz", ozs: "oz",
+  gram: "g", grams: "g", gs: "g",
+  kilogram: "kg", kilograms: "kg", kilo: "kg", kilos: "kg", kgs: "kg",
+  litre: "l", litres: "l", liter: "l", liters: "l",
+  millilitre: "ml", millilitres: "ml", milliliter: "ml", milliliters: "ml", mls: "ml",
+  teaspoon: "tsp", teaspoons: "tsp", tsps: "tsp",
+  tablespoon: "tbsp", tablespoons: "tbsp", tbsps: "tbsp", tbs: "tbsp",
+  "fluid ounce": "fl oz", "fluid ounces": "fl oz", floz: "fl oz", "fl. oz": "fl oz",
+  cups: "cup",
+  pint: "pt", pints: "pt", pts: "pt",
+  quart: "qt", quarts: "qt", qts: "qt",
+  gallon: "gal", gallons: "gal", gals: "gal",
+  each: "ea", eaches: "ea", ct: "ea", count: "ea",
+  dozens: "dozen", doz: "dozen",
+};
+
+// What a unit string means, or null if we don't know it. Case and a trailing
+// period are ignored, and a trailing "s" is tried as a last resort so a unit
+// invented in the plural still resolves.
+export function unitInfo(unit) {
+  const raw = (unit || "").trim().toLowerCase().replace(/\.$/, "");
+  if (!raw) return null;
+  const name = UNIT_ALIASES[raw] || raw;
+  const hit = UNIT_TABLE[name] || (name.endsWith("s") ? UNIT_TABLE[UNIT_ALIASES[name.slice(0, -1)] || name.slice(0, -1)] : null);
+  return hit ? { ...hit, unit: UNIT_TABLE[name] ? name : name.replace(/s$/, "") } : null;
+}
+
+// Are two units the same kind of measurement? Used to decide whether an amount
+// in the cupboard can offset an amount a recipe wants.
+export function sameDimension(a, b) {
+  const ia = unitInfo(a);
+  const ib = unitInfo(b);
+  return !!ia && !!ib && ia.dim === ib.dim;
+}
+
+// qty of `from` expressed in `to`, or null when they don't convert. A unit
+// converts to itself even when it isn't in the table, so callers can use this
+// without checking first.
+export function convertQty(qty, from, to) {
+  const n = Number(qty) || 0;
+  if ((from || "").trim().toLowerCase() === (to || "").trim().toLowerCase()) return n;
+  const a = unitInfo(from);
+  const b = unitInfo(to);
+  if (!a || !b || a.dim !== b.dim) return null;
+  return (n * a.per) / b.per;
+}
+
+// Which of the units actually in use should show the total. Deliberately
+// chooses only from units this household typed: the largest one that still
+// leaves a number of at least 1, else the smallest available.
+//
+// This is a considered departure from "1500 g -> 1.5 kg". Promoting to a unit
+// nobody used means a household that only ever writes grams suddenly reads
+// kilograms, and the surprise costs more than the tidier number buys.
+export function pickDisplayUnit(units, baseQty) {
+  const known = units.map((u) => ({ u, info: unitInfo(u) })).filter((x) => x.info);
+  if (known.length === 0) return units[0];
+  const bigFirst = [...known].sort((a, b) => b.info.per - a.info.per);
+  const fits = bigFirst.find((x) => baseQty / x.info.per >= 1);
+  return (fits || bigFirst[bigFirst.length - 1]).u;
+}
+
+// Split a { unit: qty } map into groups that can be added together. Convertible
+// units group by dimension; everything else is its own group, which is what
+// keeps "2 can" and "1 bunch" separate and untouched.
+export function groupPartsByDimension(parts) {
+  const groups = new Map();
+  for (const [unit, qty] of Object.entries(parts || {})) {
+    const info = unitInfo(unit);
+    const gk = info ? `dim:${info.dim}` : `raw:${unit}`;
+    if (!groups.has(gk)) groups.set(gk, { units: [], base: 0, convertible: !!info });
+    const g = groups.get(gk);
+    if (!g.units.includes(unit)) g.units.push(unit);
+    g.base += (Number(qty) || 0) * (info ? info.per : 1);
+  }
+  return groups;
+}
+
+// What's still to buy, once the cupboard is taken off what the plan wants —
+// and, in the same pass, everything addable added together and shown in one
+// unit. The two are one operation because they both need base units: buying
+// 1 lb has to offset a recipe asking for 16 oz, which per-unit-string
+// subtraction could never do.
+//
+// Three rules the shapes here encode:
+//   - only the recipe-driven share is coverable. An explicit "buy this" typed
+//     onto the list is a request, and the cupboard can't cancel it.
+//   - a group reduced to nothing DROPS. What a recipe contains is the recipe
+//     card's job, not the shopping list's.
+//   - a group that was never positive is KEPT at zero. "Salt, to taste" is an
+//     ingredient with no amount, not an ingredient you've already bought.
+export function resolveAgainstBought(parts, handParts, have) {
+  const need = groupPartsByDimension(parts);
+  const hand = groupPartsByDimension(handParts || {});
+  const cupboard = groupPartsByDimension(have || {});
+  const out = {};
+  const emit = (g, baseQty) => {
+    const unit = g.convertible ? pickDisplayUnit(g.units, baseQty) : g.units[0];
+    const info = unitInfo(unit);
+    out[unit] = r2(baseQty / (info ? info.per : 1));
+  };
+  for (const [gk, g] of need) {
+    const haveBase = cupboard.has(gk) ? cupboard.get(gk).base : 0;
+    if (haveBase <= 0) {
+      emit(g, g.base);
+      continue;
+    }
+    const handBase = hand.has(gk) ? hand.get(gk).base : 0;
+    const reduce = Math.min(Math.max(g.base - handBase, 0), haveBase);
+    const remaining = g.base - reduce;
+    if (remaining <= 0) continue;
+    emit(g, remaining);
+  }
+  return out;
+}
+
+// Merge everything that can be added, and render each group in one unit.
+// Unconvertible units pass through untouched.
+export const combineParts = (parts) => resolveAgainstBought(parts, {}, {});
+
 // Deduped unit suggestions: units seen in this household's data first, then
 // any common units not already present. Order is stable for a tidy datalist.
 export function unitSuggestions(data) {
@@ -567,6 +740,11 @@ export function filterIngredients(data, known, { query = "", store = "", staples
 // The unit an ingredient is most often measured in across the household's
 // recipes (garlic → "clove"), so a hand-add totals with those recipes instead
 // of sitting as a bare count. Items no recipe measures stay unitless.
+// The unit to default a quick-add to: the most-used unit, decided by DIMENSION
+// first. Counting bare strings meant one recipe saying "1 can" could outrank
+// two saying "lb" and "oz" — which are the same kind of measurement and now
+// add together, so between them they're what this ingredient is really
+// measured in.
 export function commonUnitFor(data, key) {
   const counts = {};
   for (const r of data.recipes)
@@ -575,9 +753,27 @@ export function commonUnitFor(data, key) {
       const u = (i.unit || "").trim();
       if (u) counts[u] = (counts[u] || 0) + 1;
     }
+  const entries = Object.entries(counts);
+  if (entries.length === 0) return "";
+
+  // Total each dimension, so units that combine are weighed together.
+  const dimTotals = {};
+  for (const [u, n] of entries) {
+    const dk = unitInfo(u) ? `dim:${unitInfo(u).dim}` : `raw:${u}`;
+    dimTotals[dk] = (dimTotals[dk] || 0) + n;
+  }
+  let bestDim = null;
+  let bestDimN = 0;
+  for (const [dk, n] of Object.entries(dimTotals)) if (n > bestDimN) [bestDim, bestDimN] = [dk, n];
+
+  // Then the most-used unit within the winning dimension.
   let best = "";
   let bestN = 0;
-  for (const [u, n] of Object.entries(counts)) if (n > bestN) [best, bestN] = [u, n];
+  for (const [u, n] of entries) {
+    const dk = unitInfo(u) ? `dim:${unitInfo(u).dim}` : `raw:${u}`;
+    if (dk !== bestDim) continue;
+    if (n > bestN) [best, bestN] = [u, n];
+  }
   return best;
 }
 
@@ -736,20 +932,10 @@ export function aggregateItems(data) {
   // Cleared when the week is cleared.
   const bought = asObject(data.list.bought);
   for (const [key, item] of [...map.entries()]) {
-    const have = bought[key];
-    if (!have || typeof have !== "object") continue;
-    if (normalizeCfg(data.config[key]).staple) continue; // staples run on have/need, not amounts
-    for (const [unit, q] of Object.entries(have)) {
-      const total = item.parts[unit];
-      if (total == null) continue;
-      // Only the recipe-driven share can be covered by the cupboard.
-      const coverable = total - (item.handParts[unit] || 0);
-      const reduce = Math.min(coverable, Number(q) || 0);
-      if (reduce <= 0) continue;
-      const left = r2(total - reduce);
-      if (left > 0) item.parts[unit] = left;
-      else delete item.parts[unit];
-    }
+    // Staples run on have/need, not amounts, so the cupboard never applies to
+    // them — but they still go through here so their parts get combined.
+    const have = normalizeCfg(data.config[key]).staple ? {} : asObject(bought[key]);
+    item.parts = resolveAgainstBought(item.parts, item.handParts, have);
     if (Object.keys(item.parts).length === 0) map.delete(key);
   }
 
