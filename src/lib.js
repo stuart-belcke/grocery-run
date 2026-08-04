@@ -4,6 +4,9 @@
     normalization, and shopping-list aggregation. No React in here.    */
 /* ------------------------------------------------------------------ */
 
+import { APP_DATA_VERSION } from "./version.js";
+export { APP_DATA_VERSION };
+
 export const LOCAL_KEY = "grocery-run-local-v1";
 export const CATALOG_KEY = "grocery-run-catalog-cache-v1";
 // The household's own catalog, cached so the app opens offline before the
@@ -571,6 +574,24 @@ export function validCatalog(d) {
 
 export const CATALOG_SHAPE_VERSION = 1;
 
+// Is a build holding APP_DATA_VERSION `mine` too old to safely WRITE to a
+// household whose catalog says `remote`?
+//
+// Deliberately conservative in three ways, because the failure mode of getting
+// this wrong is locking someone out of their shopping list in a shop:
+//   - anything unparseable answers "no". A missing or corrupt value must never
+//     be read as "you're out of date".
+//   - strictly greater only. Equal is fine, and a device somehow ahead of the
+//     database is fine.
+//   - it gates WRITING, never reading. The list still opens and still shows
+//     what's there.
+export function isBuildTooOld(remoteAppDataVersion, mine) {
+  const r = Number(remoteAppDataVersion);
+  const m = Number(mine);
+  if (!Number.isFinite(r) || !Number.isFinite(m)) return false;
+  return r > m;
+}
+
 // The starting catalog for a household that doesn't have one yet, built from
 // the shipped catalog.json.
 export function seedCatalog(catalogJson) {
@@ -585,7 +606,7 @@ export function seedCatalog(catalogJson) {
   // updatedAt 0 on purpose: a pristine seed is just the shipped file, and it
   // must LOSE to any catalog the database already holds. Only an actual edit
   // stamps a real time, which is what lets an edit made offline win later.
-  return { version: CATALOG_SHAPE_VERSION, updatedAt: 0, recipes, ingredients, stores: asArray(cat.stores) };
+  return { version: CATALOG_SHAPE_VERSION, appDataVersion: APP_DATA_VERSION, updatedAt: 0, recipes, ingredients, stores: asArray(cat.stores) };
 }
 
 // Rebuild the full shape from whatever the database hands back, same contract
@@ -595,6 +616,9 @@ export function normalizeCatalog(raw) {
   return {
     ...d,
     version: Number(d.version) || CATALOG_SHAPE_VERSION,
+    // Which generation of the app last wrote this. Absent means "before this
+    // was recorded", which is older than anything that carries it.
+    appDataVersion: Number(d.appDataVersion) || 0,
     // Absent means 0, i.e. "older than anything that carries a real stamp".
     // pickState compares this against the local copy to decide adopt vs push.
     updatedAt: Number(d.updatedAt) || 0,

@@ -572,7 +572,7 @@ doesn't shift; the tier each belongs to is noted.
     move every planned meal by a day.
 
 
-32. Tell a device a new build exists, and gate on it when the data demands.
+32. [DONE] Tell a device a new build exists, and gate on it when the data demands.
     Prompted by having to wait for two phones to update before merging the
     contract PR — coordination done by asking a human to open an app twice.
     TIER 2, and it makes every later data-shape change cheaper.
@@ -624,6 +624,35 @@ doesn't shift; the tier each belongs to is noted.
     JavaScript — coherent today only because install precaches in full. Any
     change here wants the same treatment the last one got: verify offline
     still opens, and verify an update actually lands, before merging.
+
+    BUILT. APP_DATA_VERSION in its own module (src/version.js), because none of
+    the three numbers already in the codebase means "which generation of the
+    app wrote this". catalogVersion is CONTENT — it gates the deploy verify
+    step, shows as "Catalog v9 loaded", and is bumped by a user pressing
+    Export. CATALOG_SHAPE_VERSION and the state's `version` are written and
+    defaulted on read but never compared, and both are narrower. Reusing any of
+    them would have tied a release decision to something that moves for other
+    reasons.
+
+    The constant is injected into dist/catalog.json by the build, alongside the
+    build stamp — never committed into public/catalog.json, which is CONTENT
+    that Settings exports and a human pastes back. Build metadata there would
+    be stale the moment it was exported and would be noise in every diff.
+
+    Two signals, two behaviours, as designed above:
+      site appBuild != mine   -> soft green banner, Reload / Later
+      catalog appDataVersion  -> red banner, WRITES REFUSED, reads untouched
+        > mine
+    The gate seeds from the CACHED catalog as well as the live listener. That
+    was a hole found by testing rather than by reasoning: offline the listener
+    never fires, and "the last catalog I saw was newer than me" is exactly when
+    writing does damage. Self-correcting, because the listener overwrites it
+    with the truth on connect.
+
+    isBuildTooOld answers "no" to anything unparseable and only fires on
+    STRICTLY greater, because the cost of a false positive is someone locked
+    out of their shopping list in a shop. It gates writing, never reading —
+    the list still opens and still shows what's there.
 
 Refactor notes
 --------------

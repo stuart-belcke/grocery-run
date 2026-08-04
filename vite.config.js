@@ -4,6 +4,7 @@ import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { APP_DATA_VERSION } from "./src/version.js";
 
 // Stamp each build with when it was made and the exact commit it came
 // from, shown at the bottom of the Settings tab. On a PWA behind a caching
@@ -65,6 +66,28 @@ function stampServiceWorker() {
         .replace('"__SW_BUILD__"', JSON.stringify(build))
         .replace('"__SW_ASSETS__"', JSON.stringify(precache));
       writeFileSync(swPath, src);
+
+      // Publish what this build IS into the copy of catalog.json that ships
+      // with it. The app already fetches that file with cache: no-store on
+      // every load, so a device can ask "is a newer build being served?" and
+      // "is my build too old for this household?" without a second request or
+      // a new endpoint.
+      //
+      // Injected here rather than committed into public/catalog.json, because
+      // public/ is CONTENT — it's what Settings exports and what a human
+      // pastes back. Build metadata living there would be stale the moment it
+      // was exported, and would show up as noise in every catalog diff.
+      const catPath = resolve(outDir, "catalog.json");
+      if (!existsSync(catPath)) return;
+      try {
+        const cat = JSON.parse(readFileSync(catPath, "utf8"));
+        cat.appBuild = `${builtAt} · ${commit}`;
+        cat.appDataVersion = APP_DATA_VERSION;
+        writeFileSync(catPath, JSON.stringify(cat, null, 1) + "\n");
+      } catch (e) {
+        // A malformed catalog.json is the build's problem, not this plugin's.
+        // Leaving it untouched keeps the failure where it belongs.
+      }
     },
   };
 }
