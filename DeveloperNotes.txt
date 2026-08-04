@@ -436,6 +436,30 @@ rather than saving them for a cleanup that never gets scheduled.
                           than dropped, because losing what you ticked off
                           would be worse than a stale key nothing reads
 
+    VERIFIED SO FAR
+      - withIngredientIds converts a name-keyed catalog and rewrites recipe
+        lines to ids, minting for names no ingredient entry covered
+      - tolerant reads work: a fully name-keyed household renders correctly
+        against the new code, showing names and never an id
+      - RENAMING NO LONGER DETACHES ANYTHING. Renaming "Baby spinach" to
+        "Spinach": the id is unchanged, the name updates, and list.bought and
+        stapleNeeds stay attached. That is the bug this item exists for.
+
+    NOT YET VERIFIED — needs a real database
+      The migration fires from the catalog LISTENER, which never reports in a
+      sandbox with no Firebase, so the id conversion and the state remap have
+      not been exercised end to end. That placement is deliberate, not
+      incidental: converting offline would let a device mint ids, remap its
+      state onto them, then adopt the OTHER phone's catalog with different ids
+      and orphan everything. Exactly one authority converts, and it is the one
+      that has just adopted the server's copy. Test it the way #51 was tested:
+      one phone first, confirm the catalog converted, then the second.
+
+    KNOWN, ACCEPTED DURING EXPAND
+      A recipe line written before ids still renders its stored name, so
+      renaming an ingredient does not change what the shopping list calls it
+      until the migration has run. Correct for this phase and self-resolving.
+
     STILL TO DO:
       - App.jsx `data` memo: resolve ingredientId -> name when assembling
         data.recipes[].ingredients[]. THIS IS THE TRICK THAT KEEPS THE BLAST

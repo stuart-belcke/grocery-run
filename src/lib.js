@@ -709,6 +709,21 @@ export function remapIngredientKeys(obj, index) {
   return out;
 }
 
+// Does this catalog still key ingredients by name? Deliberately NOT folded
+// into normalizeCatalog: that runs on every listener report, and minting ids
+// there would hand out fresh ones on every read. The conversion is an explicit
+// one-time write, the same shape as needsKeyMigration.
+//
+// If both phones convert at once they mint different ids, and the later write
+// wins on updatedAt. That is survivable rather than ideal: state keyed to the
+// losing ids still resolves, because every reference falls back to the name.
+export function needsIngredientIds(catalog) {
+  const ings = asObject(catalog && catalog.ingredients);
+  const keys = Object.keys(ings);
+  if (keys.length === 0) return false;
+  return keys.some((k) => !/^ing_/.test(k));
+}
+
 export const CATALOG_SHAPE_VERSION = 1;
 
 /* --------------------------- preferences ---------------------------
@@ -803,19 +818,27 @@ export function normalizeCatalog(raw) {
 // (case-insensitive, by `key`) used throughout the app. Shared by the
 // Ingredients tab's list and the List tab's add-item suggestions so both
 // draw from one definition of "known ingredient".
+// Every ingredient the household knows about, as { key, name }. The catalog is
+// the authority on names now that ingredients have ids — a recipe line carries
+// an id, not a spelling, so there is no second opinion to merge in. Hand-added
+// list entries that never became ingredients are still included.
 export function ingredientNames(data) {
   const set = new Map();
-  for (const k of Object.keys(data.config)) set.set(k, cap(k));
-  for (const r of data.recipes) for (const i of r.ingredients) set.set(norm(i.name), cap(i.name.trim()));
-  for (const e of Object.values(data.list.extras)) set.set(norm(e.name), cap(e.name.trim()));
-  return [...set.entries()].map(([key, name]) => ({ key, name })).sort((a, b) => a.name.localeCompare(b.name));
+  for (const [id, ing] of Object.entries(asObject(data.config))) set.set(id, normalizeIngredient(ing, id).name);
+  for (const [key, e] of Object.entries(asObject(data.list.extras))) {
+    if (!set.has(key)) set.set(key, cap((e.name || "").trim()));
+  }
+  return [...set.entries()]
+    .filter(([, name]) => name)
+    .map(([key, name]) => ({ key, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // Every recipe that references the given ingredient key (case-insensitive).
 // Shared by the rename-affected-recipes check, the remove-item safety check,
 // and the Ingredients tab's "used in" display.
 export function usedInRecipes(data, key) {
-  return data.recipes.filter((r) => r.ingredients.some((i) => norm(i.name) === key));
+  return data.recipes.filter((r) => r.ingredients.some((i) => (i.ingredientId || norm(i.name)) === key));
 }
 
 // Type-ahead matches over ingredientNames(). Hidden once the text is already an
@@ -858,7 +881,7 @@ export function commonUnitFor(data, key) {
   const counts = {};
   for (const r of data.recipes)
     for (const i of r.ingredients) {
-      if (norm(i.name) !== key) continue;
+      if ((i.ingredientId || norm(i.name)) !== key) continue;
       const u = (i.unit || "").trim();
       if (u) counts[u] = (counts[u] || 0) + 1;
     }
@@ -985,8 +1008,10 @@ export function servingsByRecipe(data) {
 
 export function aggregateItems(data) {
   const map = new Map();
-  const addPart = (name, qty, unit, sourceName, detail) => {
-    const key = norm(name);
+  // Items are keyed by INGREDIENT ID now, with the name carried alongside for
+  // display. A legacy reference still resolves: a recipe line or list entry
+  // written before ids falls back to norm(name), which is what that key was.
+  const addPart = (key, name, qty, unit, sourceName, detail) => {
     if (!key) return;
     if (!map.has(key)) map.set(key, { key, name: cap(name.trim()), parts: {}, handParts: {}, sources: [], contribs: [] });
     const item = map.get(key);
@@ -1004,6 +1029,7 @@ export function aggregateItems(data) {
     const scale = servings / base;
     for (const ing of r.ingredients) {
       addPart(
+        ing.ingredientId || norm(ing.name),
         ing.name,
         (Number(ing.qty) || 0) * scale,
         ing.unit,
@@ -1025,7 +1051,7 @@ export function aggregateItems(data) {
       }
     }
   }
-  for (const ex of Object.values(data.list.extras)) addPart(ex.name, Number(ex.qty) || 0, ex.unit, "Added by hand", "Added by hand on the shopping list");
+  for (const [key, ex] of Object.entries(data.list.extras)) addPart(key, ex.name, Number(ex.qty) || 0, ex.unit, "Added by hand", "Added by hand on the shopping list");
 
   // Home staples. A staple you have is dropped even when a recipe calls for
   // it — that's the whole point: you already own the olive oil, so it shouldn't
@@ -1061,7 +1087,10 @@ export function aggregateItems(data) {
   }
   for (const key of Object.keys(needs)) {
     if (!needs[key] || !normalizeCfg(data.config[key]).staple) continue;
-    if (!map.has(key)) map.set(key, { key, name: cap(key), parts: {}, sources: [], contribs: [], staple: true });
+    if (!map.has(key)) {
+      const name = normalizeIngredient(data.config[key], key).name || cap(key);
+      map.set(key, { key, name, parts: {}, sources: [], contribs: [], staple: true });
+    }
   }
   return [...map.values()];
 }

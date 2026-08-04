@@ -7,7 +7,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Btn, ConfirmDialog, ChoiceDialog, StickyBar } from "../ui";
-import { UNASSIGNED, norm, cap, r2, normalizeCfg, compactCfg, ingredientNames, unitSuggestions, usedInRecipes, filterIngredients, commonUnitFor } from "../lib";
+import { UNASSIGNED, norm, cap, r2, normalizeCfg, compactCfg, ingredientNames, unitSuggestions, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
 // "how many of this on the list" reads the same everywhere in the app.
@@ -175,54 +175,35 @@ export function PantryTab({ data, update, updateCatalog }) {
     if (!editItem) return;
     const newName = editItem.name.trim();
     const oldKey = editItem.key;
-    const newKey = norm(newName);
-    if (!newName || newKey === oldKey) return setEditItem(null);
+    // Nothing to do if the name is blank or unchanged. Compared against the
+    // ingredient's CURRENT name, not against the key — the key is an id now
+    // and has nothing to say about what the thing is called.
+    const current = normalizeIngredient(data.config[oldKey], oldKey).name;
+    if (!newName || norm(newName) === norm(current)) return setEditItem(null);
     const affected = usedInRecipes(data, oldKey);
     // Recipes use this name, so the choice ("rename everywhere" vs "save as a
     // separate item") goes to a dialog and comes back through commitRename.
-    if (affected.length > 0) return setAskRename({ oldKey, newName, newKey, affected });
-    commitRename({ oldKey, newName, newKey, affected }, false);
+    if (affected.length > 0) return setAskRename({ oldKey, newName, affected });
+    commitRename({ oldKey, newName, affected }, false);
   };
 
-  const commitRename = ({ oldKey, newName, newKey, affected }, asNew) => {
-    // The ingredient and any recipes mentioning it are catalog; the shopping
-    // list's own bookkeeping is trip state. One call to each.
+  const commitRename = ({ oldKey, newName, affected }, asNew) => {
+    // Renaming is now a NAME EDIT and nothing else. Ingredients have stable
+    // ids, so recipes, list.checked, list.bought, list.overrides, list.extras
+    // and stapleNeeds all keep pointing at the same thing without being
+    // touched. This function used to move four of those by hand and silently
+    // missed the other two, which is how an already-bought item came back onto
+    // the list and a staple you were out of stopped appearing.
     updateCatalog((c) => {
-      const cfg = normalizeCfg(c.ingredients[oldKey]);
-      if (!c.ingredients[newKey]) c.ingredients[newKey] = compactCfg(cfg);
-      if (asNew) return c; // "save as a separate item" leaves the original alone
-      for (const r of affected) {
-        const existing = c.recipes[r.id];
-        if (!existing) continue;
-        c.recipes[r.id] = {
-          ...existing,
-          ingredients: (existing.ingredients || []).map((i) => (norm(i.name) === oldKey ? { ...i, name: newName } : i)),
-        };
+      if (asNew) {
+        // "Save as a separate item": a brand-new ingredient, leaving the
+        // original and everything pointing at it exactly as they were.
+        c.ingredients[mintIngredientId()] = { ...normalizeIngredient(c.ingredients[oldKey], newName), name: newName };
+        return c;
       }
-      // One layer now, so the old entry is simply gone — no shadowing, no
-      // false-as-hidden marker, no catalog copy waiting to come back.
-      if (newKey !== oldKey) delete c.ingredients[oldKey];
+      c.ingredients[oldKey] = { ...normalizeIngredient(c.ingredients[oldKey], newName), name: newName };
       return c;
     });
-    if (!asNew) {
-      update((d) => {
-        // Renaming moves the hand-added entry to its new key, merging if the
-        // target name already has one.
-        if (d.list.extras[oldKey]) {
-          d.list.extras[newKey] = { ...d.list.extras[oldKey], name: newName };
-          if (newKey !== oldKey) delete d.list.extras[oldKey];
-        }
-        if (d.list.overrides[oldKey] != null) {
-          if (d.list.overrides[newKey] == null) d.list.overrides[newKey] = d.list.overrides[oldKey];
-          delete d.list.overrides[oldKey];
-        }
-        if (d.list.checked[oldKey]) {
-          d.list.checked[newKey] = true;
-          delete d.list.checked[oldKey];
-        }
-        return d;
-      });
-    }
     setEditItem(null);
     setAskRename(null);
   };

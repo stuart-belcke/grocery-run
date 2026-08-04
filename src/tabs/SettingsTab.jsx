@@ -7,7 +7,7 @@
 import { useState, useEffect } from "react";
 import { C, fontBody, inputStyle } from "../theme";
 import { Btn, ConfirmDialog, AlertDialog, Section, Seg } from "../ui";
-import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog } from "../lib";
+import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, normalizeIngredient, norm } from "../lib";
 import { syncEnabled, cleanCode } from "../sync";
 
 export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, syncStatus }) {
@@ -80,10 +80,18 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
       easy: !!r.easy,
       servings: r.servings || 4,
       notes: r.notes || "",
-      ingredients: r.ingredients,
+      // r.ingredients already carries the resolved name (App fills it in when
+      // it assembles `data`), so the export drops the id and keeps the name.
+      ingredients: (r.ingredients || []).map((i) => ({ name: i.name, qty: i.qty, unit: i.unit })),
     }));
+    // The FILE stays name-keyed: it's hand-edited and diffed in git, and ids
+    // in it would mean inventing one and matching it across two sections just
+    // to add a recipe. So ids are resolved back to names on the way out, and
+    // minted again on the way in by seedCatalog.
     const config = {};
-    for (const [k, cfg] of Object.entries(data.config)) config[k] = compactCfg(cfg);
+    for (const [id, cfg] of Object.entries(data.config)) {
+      config[norm(normalizeIngredient(cfg, id).name) || id] = compactCfg(cfg);
+    }
     const out = {
       catalogVersion: (Number(catalog.catalogVersion) || 0) + 1,
       stores: data.stores,
