@@ -1015,9 +1015,12 @@ test("a meal planned for a day stays on that day whichever end the week starts",
 });
 
 test("prefs fall back to safe defaults rather than trusting what's stored", () => {
-  assert.deepEqual(normalizePrefs(undefined), { units: "as-entered", weekStart: "Mon" });
-  assert.equal(normalizePrefs({ units: "furlongs" }).units, "as-entered");
-  assert.equal(normalizePrefs({ weekStart: "Wed" }).weekStart, "Mon");
+  assert.deepEqual(normalizePrefs(undefined), { units: "standard", weekStart: "Sun" });
+  assert.equal(normalizePrefs({ units: "furlongs" }).units, "standard");
+  assert.equal(normalizePrefs({ weekStart: "Wed" }).weekStart, "Sun");
+  // An explicit choice still wins over the default, including going back.
+  assert.equal(normalizePrefs({ units: "as-entered" }).units, "as-entered");
+  assert.equal(normalizePrefs({ weekStart: "Mon" }).weekStart, "Mon");
   assert.equal(normalizePrefs({ units: "metric" }).units, "metric");
   // Unknown keys survive, same forward-compatibility rule as everywhere else.
   assert.equal(normalizePrefs({ somethingLater: 1 }).somethingLater, 1);
