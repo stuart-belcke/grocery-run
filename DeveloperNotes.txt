@@ -438,10 +438,43 @@ doesn't shift; the tier each belongs to is noted.
     writes nothing extra. Re-picking a meal into the slot clears the flag too —
     "already have the ingredients" was about the meal being replaced.
 
-29. Return to top on the Meals tab, or keep the search + filter row fixed. Fine
-    at 30 recipes, unusable at 300 — you scroll for a while and then have to
-    scroll all the way back to search again. Sticky controls solve it without
-    adding a control. TIER 1.
+29. [DONE] Return to top on the Meals tab, or keep the search + filter row
+    fixed. Fine at 30 recipes, unusable at 300 — you scroll for a while and
+    then have to scroll all the way back to search again. Sticky controls solve
+    it without adding a control. TIER 1.
+
+    Built as a shared <StickyBar> in ui.jsx and applied to three tabs, because
+    the same "scroll a long way, then need the controls again" problem exists
+    on all of them. One component means one set of decisions about background,
+    z-index and edge bleed rather than three that drift.
+
+    Invisible at rest, hairline + shadow only while actually stuck, so a short
+    list looks exactly as it did before. That state comes from a zero-height
+    sentinel rendered just above the bar and read with IntersectionObserver —
+    when the sentinel leaves the viewport the bar has reached the top. No
+    scroll handler running on every frame.
+
+    WHAT TO PIN IS THE WHOLE DESIGN, and the answer differs per tab:
+      Meals        search + Filter. One row. The item as written.
+      Ingredients  search + Filter. The "add an item" band above deliberately
+                   does NOT pin: adding is occasional, searching is what you do
+                   while scrolling, and two pinned bands eat the screen.
+      List         the grouping toggles and the count that changes as you shop.
+                   Pinning the whole header came to THREE wrapped lines at
+                   390px — about a seventh of the screen permanently gone, on
+                   the one tab you scroll while holding a trolley. "Done
+                   shopping" and "N meals selected" stayed below; that also
+                   keeps a destructive button out of a permanently tappable
+                   spot, though it opens a confirmation either way.
+    The general rule: pin what you reach for WHILE scrolling, not everything
+    that happens to live at the top.
+
+    Two things that needed checking rather than assuming. A sticky ancestor
+    with a z-index creates a stacking context, so the Filter popover had to be
+    confirmed still rendering above the cards (it does — verified with
+    elementFromPoint, not by eye). And the bar cancels the page's 14px side
+    padding with a negative margin, or rows show through the gap as they pass
+    underneath.
 
 30. Warn when another device is running an older build. Two phones on the same
     household diverged this week, and the only signal either gave was "Synced",
@@ -450,6 +483,16 @@ doesn't shift; the tier each belongs to is noted.
     build say "another device is on an older version" when it sees an older
     stamp. An old build can't warn about itself — but the new one can warn
     about it, which is enough. TIER 4.
+
+    Prerequisite, now done: the stamp has to name a commit that exists. On a
+    pull request Actions checks out a temporary MERGE commit, so every preview
+    was stamped with a SHA found nowhere in the branch. That cost a real
+    debugging session during the catalog move — a phone was serving a stale
+    preview and the only way to tell which build it had was matching its
+    timestamp against gh-pages deploy times. CI now passes the pull request's
+    head SHA through as BUILD_SHA and vite.config.js prefers it. Stamping
+    writes with an id nobody can look up would have made this item worse than
+    useless, so it had to be fixed first.
 
     Context, because it looked worse than it was: neither phone was old enough
     to do whole-state writes. The likely cause was #39's migration, which makes

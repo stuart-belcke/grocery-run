@@ -6,7 +6,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
-import { Btn, ConfirmDialog, ChoiceDialog } from "../ui";
+import { Btn, ConfirmDialog, ChoiceDialog, StickyBar } from "../ui";
 import { UNASSIGNED, norm, cap, r2, normalizeCfg, compactCfg, ingredientNames, unitSuggestions, usedInRecipes, filterIngredients, commonUnitFor } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
@@ -298,7 +298,11 @@ export function PantryTab({ data, update, updateCatalog }) {
         {keys.length > 0 && (
           <>
             <div style={{ borderTop: `1px dashed ${C.line}`, margin: "20px 0 14px" }} />
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
+            {/* Searching is what you do WHILE scrolling this list, so it pins.
+                The "add an item" band above deliberately doesn't — adding is
+                occasional, and two pinned bands would eat the screen. */}
+            <StickyBar>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
                 <input
                   placeholder="Search ingredients"
@@ -400,6 +404,7 @@ export function PantryTab({ data, update, updateCatalog }) {
                 )}
               </div>
             </div>
+            </StickyBar>
           </>
         )}
         {keys.length === 0 && <div style={{ color: C.faint, fontSize: 14 }}>Ingredients appear here as you add meals.</div>}

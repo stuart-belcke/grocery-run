@@ -59,8 +59,13 @@ jobs:
         if: github.event.action != 'closed'
         run: npm test
 
+      # BUILD_SHA is the commit a human can actually look up. On a pull request
+      # the checkout is a temporary merge commit, so without this the stamp
+      # shown in Settings names something that exists only inside this run.
       - name: Build
         if: github.event.action != 'closed'
+        env:
+          BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: npm run build
 
       # Production: publish dist to the root of gh-pages. clean-exclude keeps
