@@ -9,11 +9,21 @@ import { resolve } from "node:path";
 // from, shown at the bottom of the Settings tab. On a PWA behind a caching
 // service worker, "which build is this device running?" is the first
 // debugging question — this answers it at a glance.
+// BUILD_SHA wins when CI sets it, because `git rev-parse HEAD` is the WRONG
+// answer on a pull request: Actions checks out a temporary merge commit, so a
+// preview ends up stamped with a SHA that exists nowhere in the branch and
+// can't be looked up. That already cost a debugging session — a phone was
+// serving a stale preview and there was no way to tell which commit it came
+// from except by matching build timestamps against deploy times.
 let commit = "dev";
-try {
-  commit = execSync("git rev-parse --short HEAD").toString().trim();
-} catch (e) {
-  /* not building from a git checkout */
+if (process.env.BUILD_SHA) {
+  commit = process.env.BUILD_SHA.trim().slice(0, 7);
+} else {
+  try {
+    commit = execSync("git rev-parse --short HEAD").toString().trim();
+  } catch (e) {
+    /* not building from a git checkout */
+  }
 }
 const builtAt = new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC";
 

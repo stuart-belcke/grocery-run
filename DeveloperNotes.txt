@@ -451,6 +451,16 @@ doesn't shift; the tier each belongs to is noted.
     stamp. An old build can't warn about itself — but the new one can warn
     about it, which is enough. TIER 4.
 
+    Prerequisite, now done: the stamp has to name a commit that exists. On a
+    pull request Actions checks out a temporary MERGE commit, so every preview
+    was stamped with a SHA found nowhere in the branch. That cost a real
+    debugging session during the catalog move — a phone was serving a stale
+    preview and the only way to tell which build it had was matching its
+    timestamp against gh-pages deploy times. CI now passes the pull request's
+    head SHA through as BUILD_SHA and vite.config.js prefers it. Stamping
+    writes with an id nobody can look up would have made this item worse than
+    useless, so it had to be fixed first.
+
     Context, because it looked worse than it was: neither phone was old enough
     to do whole-state writes. The likely cause was #39's migration, which makes
     each device do ONE full set() the first time it writes after updating, to
