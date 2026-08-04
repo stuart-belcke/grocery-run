@@ -572,6 +572,59 @@ doesn't shift; the tier each belongs to is noted.
     move every planned meal by a day.
 
 
+32. Tell a device a new build exists, and gate on it when the data demands.
+    Prompted by having to wait for two phones to update before merging the
+    contract PR — coordination done by asking a human to open an app twice.
+    TIER 2, and it makes every later data-shape change cheaper.
+
+    TWO MECHANISMS, OFTEN CONFLATED. Build both, but keep them separate:
+      SOFT — "a newer version is available". A banner with a Reload button.
+        Correct for almost every release. Never blocks; a shopping list you
+        can't open in a shop is worse than one showing last week's layout.
+      HARD — "this household's data needs a newer version than you have".
+        Blocks writes and says update to continue. Correct ONLY when an old
+        build would misread or diverge from what a newer one has written.
+        This is the one that removes the human coordination step.
+
+    WHAT'S ACTUALLY MISSING. main.jsx registers the service worker once on
+    load and never calls registration.update() again, so a PWA left in memory
+    for days never asks whether a new build exists. That is the whole bug.
+    Call update() on visibilitychange (returning to the app is exactly when
+    you want the check) and when the connection comes back.
+
+    DETECTION NEEDS NO NEW ENDPOINT. App.jsx already fetches catalog.json with
+    cache: no-store on every load. Stamp the build id into it — the same
+    __BUILD__ value vite.config.js already produces — and a device compares
+    the live one against its own. Different means a newer build is being
+    served. It also self-corrects: catalog.json is deployed by the same job
+    that deploys the bundle, and the workflow already polls the live site to
+    prove it's serving the expected version.
+
+    THE HARD GATE NEEDS AN ORDINAL, WHICH BUILD IDS ARE NOT. A SHA hash tells
+    you two builds differ, never which is newer. Add a small integer that only
+    moves when a release changes what the shared data means — call it
+    dataShape — published in catalog.json and held as a constant in lib.js.
+      catalog.dataShape > mine  -> hard gate: I am too old for this household
+      catalog.dataShape <= mine -> soft banner at most
+    CATALOG_SHAPE_VERSION already exists and is the natural place to grow this
+    from; it just isn't published or compared today.
+
+    BE HONEST ABOUT THE RISK BEING GATED. For the contract PR the danger was
+    DIVERGENCE, not corruption: an old build reads override fields a new build
+    no longer writes, so it renders stale data. Forward compatibility already
+    stops anything being destroyed — normalizeLocal spreads what it doesn't
+    know. So the gate buys certainty and removes a manual step; it is not
+    protecting against data loss, and overstating that would justify blocking
+    people more often than is warranted.
+
+    RISK IN BUILDING IT. sw.js is the file most able to brick the app, and it
+    already carries scars: a cache name that never changed meant a phone could
+    boot a months-old bundle. It uses skipWaiting + clients.claim, so a new
+    worker takes control while the open page is still running the OLD
+    JavaScript — coherent today only because install precaches in full. Any
+    change here wants the same treatment the last one got: verify offline
+    still opens, and verify an update actually lands, before merging.
+
 Refactor notes
 --------------
 [DONE] The catalog move was done as EXPAND then CONTRACT, and it's the pattern
