@@ -16,6 +16,10 @@ export function WeekTab({ data, update }) {
   const recipesSorted = useMemo(() => [...data.recipes].sort((a, b) => a.name.localeCompare(b.name)), [data.recipes]);
   const [picker, setPicker] = useState(null); // { day, type, role } while choosing a recipe — role is "main" or "side"
   const [pickQuery, setPickQuery] = useState("");
+  // Recipe ids tapped in an OPEN side picker, not yet written to the slot.
+  // Side-picking is multi-select — commitSidePicks writes them all at once on
+  // "Add N sides" — unlike the main, where a tap assigns and closes immediately.
+  const [sidePicks, setSidePicks] = useState([]);
   const [editing, setEditing] = useState(false); // whole-plan edit mode: reveals per-slot change + clear
   const [confirmClear, setConfirmClear] = useState(false);
 
@@ -78,21 +82,37 @@ export function WeekTab({ data, update }) {
 
   const openPicker = (day, type, role = "main") => {
     setPickQuery("");
+    setSidePicks([]);
     setPicker({ day, type, role });
   };
 
   const assignFromPicker = (r) => {
-    if (picker.role === "side") {
-      const sides = asArray(data.plan?.[picker.day]?.[picker.type]?.sides);
-      setSlot(picker.day, picker.type, { sides: [...sides, { recipeId: r.id, servings: r.servings || 4 }] });
-      setPicker(null);
-      return;
-    }
     // A freshly picked meal starts at its own default servings, and on the
     // shopping list: "already have the ingredients" was about the meal that
     // used to be in this slot, not whatever replaces it — and neither were
     // its sides, which were paired with the dish being replaced.
     setSlot(picker.day, picker.type, { recipeId: r.id, servings: r.servings || 4, skipList: undefined, sides: undefined });
+    setPicker(null);
+  };
+
+  const toggleSidePick = (id) => setSidePicks((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+
+  // Commit every side tapped this session in one write. New sides default to
+  // the MAIN's current servings, not their own recipe's base — sides almost
+  // always feed the same headcount as the entree, and defaulting to the
+  // side recipe's own batch size (e.g. a "serves 6" green beans recipe on a
+  // 4-serving dinner) was the wrong number more often than not.
+  const commitSidePicks = () => {
+    if (!picker) return;
+    const slot = data.plan?.[picker.day]?.[picker.type];
+    if (sidePicks.length) {
+      const mainServings = Number(slot?.servings) || 0;
+      const added = sidePicks.map((id) => {
+        const r = data.recipes.find((x) => x.id === id);
+        return { recipeId: id, servings: mainServings || (r && r.servings) || 4 };
+      });
+      setSlot(picker.day, picker.type, { sides: [...asArray(slot?.sides), ...added] });
+    }
     setPicker(null);
   };
 
@@ -131,20 +151,39 @@ export function WeekTab({ data, update }) {
 
   const plannedCount = plannedMealCount(data);
 
-  // Recipes offered in the open picker: tagged for that slot's meal type first,
-  // then everything else, each narrowed by the search box (name or ingredient).
+  // Recipes offered in the open picker, narrowed by the search box (name or
+  // ingredient) and grouped differently per role:
+  //   main — tagged for that slot's meal type first, then everything else.
+  //   side — recipes marked "🥗 Side" first (a recipe-level trait, set in the
+  //     Meals tab editor), then the meal-type groups as for a main. A side
+  //     picker also drops whatever's already in this slot — the main and any
+  //     side already added — so re-tapping one can't create a duplicate; the
+  //     only way to remove one is the ✕ on its row.
   const pickGroups = useMemo(() => {
     if (!picker) return [];
     const q = norm(pickQuery);
     const match = (r) => !q || norm(r.name).includes(q) || r.ingredients.some((i) => norm(i.name).includes(q));
-    const hits = recipesSorted.filter(match);
+    let hits = recipesSorted.filter(match);
+    if (picker.role === "side") {
+      const slot = data.plan?.[picker.day]?.[picker.type];
+      const taken = new Set([slot?.recipeId, ...asArray(slot?.sides).map((s) => s.recipeId)].filter(Boolean));
+      hits = hits.filter((r) => !taken.has(r.id));
+      const sideTagged = hits.filter((r) => r.side);
+      const tagged = hits.filter((r) => !r.side && (r.mealTypes || []).includes(picker.type));
+      const other = hits.filter((r) => !r.side && !(r.mealTypes || []).includes(picker.type));
+      return [
+        { label: "Side dishes", recipes: sideTagged },
+        { label: `${picker.type} meals`, recipes: tagged },
+        { label: "Other meals", recipes: other },
+      ].filter((g) => g.recipes.length > 0);
+    }
     const tagged = hits.filter((r) => (r.mealTypes || []).includes(picker.type));
     const other = hits.filter((r) => !(r.mealTypes || []).includes(picker.type));
     return [
       { label: `${picker.type} meals`, recipes: tagged },
       { label: "Other meals", recipes: other },
     ].filter((g) => g.recipes.length > 0);
-  }, [picker, pickQuery, recipesSorted]);
+  }, [picker, pickQuery, recipesSorted, data.plan]);
 
   // Only meaningful for the main: a side picker is always adding another one,
   // so there's no single "current" side to highlight or offer to remove.
@@ -254,12 +293,12 @@ export function WeekTab({ data, update }) {
                         // Read-only: title spans the full bubble width, with the
                         // servings as a subtitle underneath (like the picker cards)
                         // so long names aren't crowded by a side-by-side count.
+                        // Sides get their own rows below rather than being folded
+                        // into this line — see the sides block after this div.
                         <span style={{ ...slotBox, cursor: "default", flexDirection: "column", alignItems: "stretch", gap: 1 }}>
                           <span style={{ fontWeight: 600 }}>{recipe.easy ? "⚡ " : ""}{recipe.name}</span>
                           <span style={{ fontSize: 12, color: C.faint, fontVariantNumeric: "tabular-nums" }}>
-                            {Number(slot.servings) || base} sv
-                            {sideEntries.length ? ` · with ${sideEntries.map((s) => `${s.recipe.name} (${Number(s.servings) || s.recipe.servings || 4} sv)`).join(", ")}` : ""}
-                            {skipped ? " · already have the ingredients" : ""}
+                            {Number(slot.servings) || base} sv{skipped ? " · already have the ingredients" : ""}
                           </span>
                         </span>
                       )}
@@ -290,43 +329,60 @@ export function WeekTab({ data, update }) {
                         </label>
                       </div>
                     )}
-                    {recipe && slotsEditable && (
+                    {/* Sides get their own rows in BOTH modes — read-only shows
+                        name + servings as plain text, editable adds the
+                        amount input and a remove ✕. Each row is a small
+                        bordered chip rather than bare text, so a side reads
+                        as part of the meal instead of an easy-to-miss aside. */}
+                    {recipe && (sideEntries.length > 0 || slotsEditable) && (
                       <div style={{ marginTop: 4, marginLeft: 78 }}>
                         {sideEntries.map((s) => {
                           const sideBase = s.recipe.servings || 4;
                           return (
-                            <div key={s.index} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.faint, padding: "3px 0" }}>
-                              <span aria-hidden>+</span>
-                              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.recipe.name}</span>
-                              <input
-                                type="number"
-                                min="1"
-                                value={s.servings}
-                                onChange={(e) => setSlotSide(day, type, s.index, { servings: e.target.value === "" ? "" : Number(e.target.value) })}
-                                onBlur={() => normalizeSideServings(day, type, s.index, sideBase)}
-                                onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                                aria-label={`Servings of ${s.recipe.name} on ${day} ${type}`}
-                                style={{ ...inputStyle, width: 44, padding: "4px 6px", fontVariantNumeric: "tabular-nums" }}
-                              />
-                              sv
-                              <button
-                                onClick={() => removeSide(day, type, s.index)}
-                                aria-label={`Remove ${s.recipe.name} from ${day} ${type}`}
-                                title="Remove this side"
-                                style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 2, lineHeight: 1 }}
-                              >
-                                ✕
-                              </button>
+                            <div
+                              key={s.index}
+                              style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.ink, padding: "4px 8px", marginBottom: 4, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 7 }}
+                            >
+                              <span aria-hidden style={{ color: C.green, flexShrink: 0 }}>+</span>
+                              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.recipe.easy ? "⚡ " : ""}{s.recipe.name}</span>
+                              {slotsEditable ? (
+                                <>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={s.servings}
+                                    onChange={(e) => setSlotSide(day, type, s.index, { servings: e.target.value === "" ? "" : Number(e.target.value) })}
+                                    onBlur={() => normalizeSideServings(day, type, s.index, sideBase)}
+                                    onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                                    aria-label={`Servings of ${s.recipe.name} on ${day} ${type}`}
+                                    style={{ ...inputStyle, width: 44, padding: "4px 6px", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}
+                                  />
+                                  <span style={{ color: C.faint, flexShrink: 0 }}>sv</span>
+                                  <button
+                                    onClick={() => removeSide(day, type, s.index)}
+                                    aria-label={`Remove ${s.recipe.name} from ${day} ${type}`}
+                                    title="Remove this side"
+                                    style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 2, lineHeight: 1, flexShrink: 0 }}
+                                  >
+                                    ✕
+                                  </button>
+                                </>
+                              ) : (
+                                <span style={{ color: C.faint, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{Number(s.servings) || sideBase} sv</span>
+                              )}
                             </div>
                           );
                         })}
-                        <button
-                          onClick={() => openPicker(day, type, "side")}
-                          aria-label={`Add a side for ${day} ${type}`}
-                          style={{ border: "none", background: "transparent", color: C.green, cursor: "pointer", fontSize: 12, fontWeight: 500, padding: "3px 0", fontFamily: fontBody }}
-                        >
-                          + Add a side
-                        </button>
+                        {slotsEditable && (
+                          <button
+                            onClick={() => openPicker(day, type, "side")}
+                            aria-label={`Add a side for ${day} ${type}`}
+                            style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", boxSizing: "border-box", textAlign: "left", fontFamily: fontBody, fontSize: 12, fontWeight: 500, padding: "5px 8px", borderRadius: 7, cursor: "pointer", border: `1px dashed ${C.line}`, background: "transparent", color: C.faint }}
+                          >
+                            <span aria-hidden style={{ fontSize: 13, lineHeight: 1 }}>＋</span>
+                            Add a side
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -355,7 +411,9 @@ export function WeekTab({ data, update }) {
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px 10px" }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 700, color: C.ink }}>{picker.day} · {picker.type}</div>
-                <div style={{ fontSize: 12, color: C.faint }}>{picker.role === "side" ? "Add a side to this slot" : "Pick a meal for this slot"}</div>
+                <div style={{ fontSize: 12, color: C.faint }}>
+                  {picker.role === "side" ? "Tap to add a side — pick as many as you like, then Add" : "Pick a meal for this slot"}
+                </div>
               </div>
               <button
                 onClick={() => setPicker(null)}
@@ -412,11 +470,15 @@ export function WeekTab({ data, update }) {
                       {g.label}
                     </div>
                     {g.recipes.map((r) => {
-                      const chosen = r.id === activeSlotRecipeId;
+                      // Main: highlighted means "currently assigned here", a tap
+                      // replaces it and closes. Side: highlighted means "picked
+                      // this session", a tap toggles it and the picker stays open
+                      // for more.
+                      const chosen = picker.role === "side" ? sidePicks.includes(r.id) : r.id === activeSlotRecipeId;
                       return (
                         <button
                           key={r.id}
-                          onClick={() => assignFromPicker(r)}
+                          onClick={() => (picker.role === "side" ? toggleSidePick(r.id) : assignFromPicker(r))}
                           style={{
                             display: "flex",
                             alignItems: "center",
@@ -434,7 +496,7 @@ export function WeekTab({ data, update }) {
                         >
                           <div style={{ minWidth: 0, flex: 1 }}>
                             <div style={{ fontSize: 14, fontWeight: 600, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {r.easy ? "⚡ " : ""}{r.name}
+                              {r.easy ? "⚡ " : ""}{r.side ? "🥗 " : ""}{r.name}
                             </div>
                             <div style={{ fontSize: 12, color: C.faint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               Serves {r.servings || 4}
@@ -449,6 +511,13 @@ export function WeekTab({ data, update }) {
                 ))
               )}
             </div>
+            {picker.role === "side" && (
+              <div style={{ display: "flex", justifyContent: "flex-end", padding: "10px 16px", borderTop: `1px solid ${C.line}` }}>
+                <Btn kind="primary" onClick={commitSidePicks} disabled={sidePicks.length === 0}>
+                  {sidePicks.length > 0 ? `Add ${sidePicks.length} side${sidePicks.length === 1 ? "" : "s"}` : "Add sides"}
+                </Btn>
+              </div>
+            )}
           </div>
         </div>
       )}

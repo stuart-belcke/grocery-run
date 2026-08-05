@@ -76,13 +76,14 @@ export function MealsTab({ data, update, updateCatalog }) {
       return d;
     });
 
-  const startNew = () => setDraft({ id: null, name: "", mealTypes: [], easy: false, servings: "4", notes: "", ingredients: [{ name: "", qty: "1", unit: "" }] });
+  const startNew = () => setDraft({ id: null, name: "", mealTypes: [], easy: false, side: false, servings: "4", notes: "", ingredients: [{ name: "", qty: "1", unit: "" }] });
   const startEdit = (r) =>
     setDraft({
       id: r.id,
       name: r.name,
       mealTypes: (r.mealTypes || []).slice(),
       easy: !!r.easy,
+      side: !!r.side,
       servings: String(r.servings || 4),
       notes: r.notes || "",
       ingredients: r.ingredients.map((i) => ({ ...i, qty: String(i.qty) })),
@@ -98,6 +99,7 @@ export function MealsTab({ data, update, updateCatalog }) {
       name: draft.name.trim(),
       mealTypes: draft.mealTypes,
       easy: !!draft.easy,
+      side: !!draft.side,
       servings: Math.max(1, Number(draft.servings) || 4),
       notes: draft.notes.trim(),
       ingredients: draft.ingredients
@@ -233,6 +235,14 @@ export function MealsTab({ data, update, updateCatalog }) {
               {r.easy && (
                 <span title="Quick, low-effort meal" style={{ fontSize: 11, fontWeight: 500, background: C.goldSoft, color: C.gold, padding: "2px 8px", borderRadius: 999 }}>
                   ⚡ Easy
+                </span>
+              )}
+              {r.side && (
+                // Outlined rather than filled like the mealType pills, so it
+                // reads as a trait ("this can be a side") rather than another
+                // category next to Breakfast/Lunch/Dinner/Dessert.
+                <span title="Typically served as a side dish" style={{ fontSize: 11, fontWeight: 500, background: "transparent", border: `1px solid ${C.green}`, color: C.green, padding: "1px 7px", borderRadius: 999 }}>
+                  🥗 Side
                 </span>
               )}
             </div>
@@ -501,6 +511,24 @@ export function MealsTab({ data, update, updateCatalog }) {
               }}
             >
               ⚡ Easy
+            </button>
+            <button
+              onClick={() => setDraft({ ...draft, side: !draft.side })}
+              aria-pressed={draft.side}
+              title="Typically served as a side dish, not the main — surfaces first when picking a side for a week-plan slot"
+              style={{
+                fontFamily: fontBody,
+                fontSize: 13,
+                fontWeight: 500,
+                padding: "5px 12px",
+                borderRadius: 999,
+                cursor: "pointer",
+                border: `1px solid ${draft.side ? C.green : C.line}`,
+                background: draft.side ? C.greenSoft : "#fff",
+                color: draft.side ? C.green : C.ink,
+              }}
+            >
+              🥗 Side
             </button>
             <span style={{ flex: 1 }} />
             <label style={{ fontSize: 12, color: C.faint, display: "flex", alignItems: "center", gap: 6 }}>
