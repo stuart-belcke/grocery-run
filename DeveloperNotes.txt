@@ -152,11 +152,20 @@ rather than saving them for a cleanup that never gets scheduled.
     the right tests fail, restore. A test that passes either way protects
     nothing, and several here originally did.
 
-20. Make a failed write visible. writeHousehold logs a rejection to the
-    console (sync.js:162) and nothing else. The header dot reports CONNECTION
-    state, not whether data landed, so a rules rejection looks identical to a
-    healthy app while edits quietly disappear. Surface it in the UI the way
-    the offline state already is.
+20. Make a failed write visible. THE HIGHEST-SEVERITY THING STILL OPEN: a
+    rejected write is silent data loss with no signal.
+
+        catch (e) { console.error("... write rejected", e); }
+
+    On a phone there is no console. A rejection — security rules, quota, a
+    malformed payload — looks identical to a healthy app, and you find out in
+    a shop from a list missing what you added last night. Both writeHousehold
+    and writeCatalog do this.
+    The header dot reports CONNECTION state, which is a different question.
+    The app already has the vocabulary: a rejected write should turn that dot
+    red and say so, the way the offline state and the update gate already do.
+    Pairs naturally with item 33 — same file, same theme of writes being
+    trustworthy, and neither is more than an hour.
 
 21. Keep the database seam narrow. Every database call lives in sync.js, and
     App.jsx is the only component that touches sync at all (SettingsTab
@@ -391,6 +400,53 @@ rather than saving them for a cleanup that never gets scheduled.
     anything unparseable and fires only on strictly greater.
     STILL UNVERIFIED: the gate firing against a genuinely old build. Test with
     production in one browser and a PR preview in another, same household.
+
+33. Fix the two require-atomic-updates races in sync.js. Flagged by lint since
+    ESLint landed, and both are real.
+
+        if (plan.kind === "update") await update(node, plan.paths);
+        else await set(node, plan.state);
+        lastCatalog = { code, catalog };   // assigned AFTER the await
+
+    Two flushes interleaving can leave the baseline holding the OLDER write.
+    The next diff is then computed against the wrong base, so a narrow write
+    silently omits changes — a correctness bug in the exact machinery that
+    stops two phones clobbering each other (item 21).
+    Same shape at lastWritten in writeHousehold.
+    Fix: capture the intended baseline before the await and only commit it if
+    it is still the newest, or sequence flushes so two can't be in flight.
+    Do it with item 20 — same file, same theme.
+
+34. Put the Firebase security rules in the repo. There is no rules file under
+    version control, so nobody can review or reason about what is actually
+    deployed. If they are still the defaults, anyone who guesses a household
+    code has read and write access to it.
+    Committing them makes them reviewable and diffable, and it is the
+    prerequisite for ever sharing this app with anyone outside the household.
+    Minimum: deny listing households, require the code length the UI enforces,
+    and validate the shape of what can be written. Real fix is auth — see
+    FutureProjects.md.
+
+35. Add an error boundary. A render throw currently gives a white screen, in a
+    shop, with no way back. About twenty lines for a "something went wrong,
+    reload" fallback that keeps the cached list reachable.
+    Cheap, and the failure it prevents is the worst-timed one this app has.
+
+36. Split lib.js WHEN IT MAKES A CHANGE HARD, not on principle. It is 1,222
+    lines and has become a grab-bag: units, ingredient identity, aggregation,
+    storage, write-planning. Domain files (units.js, ingredients.js,
+    aggregate.js) would be genuinely better.
+    Deliberately not urgent. Splitting is churn with no behaviour change, and
+    the file has not yet made anything hard to do. Revisit when it does.
+
+MEASURED AND DELIBERATELY NOT PROBLEMS
+    Recorded so nobody optimises them on instinct.
+      - Bundle at 253 KB / 76 KB gzipped. Firebase is already dynamically
+        imported in sync.js and code-split into its own chunks.
+      - aggregateItems is O(recipes x ingredients) and runs on every render.
+        Invisible at this scale. MEASURE BEFORE TOUCHING IT — the last time
+        payload size was reasoned about rather than measured, the estimate was
+        wrong by 30x (item 25).
 
 Refactor notes
 --------------
