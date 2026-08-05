@@ -422,10 +422,10 @@ rather than saving them for a cleanup that never gets scheduled.
     overlap this item was about.
     Done together with item 20 — same file, same theme.
 
-34. [RULES WRITTEN, NOT YET DEPLOYED] Put the Firebase security rules in the
-    repo. There was no rules file under version control — README.md carried
-    an inline copy instead, which is not diffable and can quietly drift from
-    whatever is actually live on the console.
+34. [DONE] Put the Firebase security rules in the repo, and published them.
+    There was no rules file under version control — README.md carried an
+    inline copy instead, which is not diffable and could quietly drift from
+    whatever was actually live on the console.
 
     database.rules.json is now that source of truth, with firebase.json and
     .firebaserc alongside it so `firebase deploy --only database` targets the
@@ -447,19 +447,18 @@ rather than saving them for a cleanup that never gets scheduled.
     that same guarantee from underneath the app, rejecting a legitimate
     future field the app itself is built to tolerate.
 
-    STILL TO DO, and NOT something this session could do: actually publish the
-    rules. That means either pasting database.rules.json into the Firebase
-    console's Rules tab, or running `firebase deploy --only database` with the
-    CLI authenticated — both require reaching Firebase directly, which this
-    sandboxed environment cannot. STRONGLY test in the console's Rules
-    Playground against the real household code first; a mistake here can
-    lock both phones out of their own data, which is exactly the failure mode
-    item 20 was built to make visible rather than prevent.
-
-    UNVERIFIED ASSUMPTION: these rules are believed compatible with whatever
-    is currently live, on the strength of the README's prior inline snippet
-    (`$code.length >= 8`) presumably matching it — nobody could confirm
-    against the actual Firebase console from here.
+    PUBLISHED via the console's Rules tab (pasted from database.rules.json),
+    not the CLI. Nothing in the build or CI touches the deployed rules — the
+    committed file and the live database are two separate things kept in sync
+    by hand, same as before this item except now there is a diffable copy to
+    paste FROM. If the rules ever need to change again, that's still a manual
+    republish, not something a merge triggers automatically.
+    STILL NOT INDEPENDENTLY VERIFIED FROM THIS SIDE: nothing in this session
+    can reach the Firebase console, so whether the deployed rules exactly
+    match database.rules.json rests on the paste having gone cleanly. Worth
+    a quick real check next time both phones are open — sync still working
+    confirms it; item 20's write-error signal would surface it immediately if
+    something in the paste was off.
 
     Real fix is auth — see FutureProjects.md and item 37.
 
