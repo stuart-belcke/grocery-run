@@ -152,20 +152,19 @@ rather than saving them for a cleanup that never gets scheduled.
     the right tests fail, restore. A test that passes either way protects
     nothing, and several here originally did.
 
-20. Make a failed write visible. THE HIGHEST-SEVERITY THING STILL OPEN: a
-    rejected write is silent data loss with no signal.
-
-        catch (e) { console.error("... write rejected", e); }
-
-    On a phone there is no console. A rejection — security rules, quota, a
-    malformed payload — looks identical to a healthy app, and you find out in
-    a shop from a list missing what you added last night. Both writeHousehold
-    and writeCatalog do this.
-    The header dot reports CONNECTION state, which is a different question.
-    The app already has the vocabulary: a rejected write should turn that dot
-    red and say so, the way the offline state and the update gate already do.
-    Pairs naturally with item 33 — same file, same theme of writes being
-    trustworthy, and neither is more than an hour.
+20. [DONE] Make a failed write visible. A rejected write used to be
+    console.error and nothing else — invisible on a phone, where there is no
+    console. Both writeHousehold and writeCatalog now report through a small
+    pub-sub in sync.js (watchWriteErrors), which App.jsx subscribes to and
+    reuses the SAME dot/label the offline state already draws with — no new
+    visual language, just a truthful reason attached to the existing one.
+    Offline is deliberately NOT this: the SDK queues writes in memory and
+    flushes on reconnect without ever rejecting, so the signal only fires when
+    the server actively refuses a write while connected (rules, quota, a
+    malformed payload). Self-correcting, same shape as the update gate: it
+    clears the moment any write succeeds again, no dismiss button needed.
+    Done together with item 33 — same file, same theme, and fixing 33 first
+    made 20 land on writes that no longer intermittently reordered anyway.
 
 21. Keep the database seam narrow. Every database call lives in sync.js, and
     App.jsx is the only component that touches sync at all (SettingsTab
@@ -401,21 +400,27 @@ rather than saving them for a cleanup that never gets scheduled.
     STILL UNVERIFIED: the gate firing against a genuinely old build. Test with
     production in one browser and a PR preview in another, same household.
 
-33. Fix the two require-atomic-updates races in sync.js. Flagged by lint since
-    ESLint landed, and both are real.
-
-        if (plan.kind === "update") await update(node, plan.paths);
-        else await set(node, plan.state);
-        lastCatalog = { code, catalog };   // assigned AFTER the await
-
-    Two flushes interleaving can leave the baseline holding the OLDER write.
-    The next diff is then computed against the wrong base, so a narrow write
-    silently omits changes — a correctness bug in the exact machinery that
-    stops two phones clobbering each other (item 21).
-    Same shape at lastWritten in writeHousehold.
-    Fix: capture the intended baseline before the await and only commit it if
-    it is still the newest, or sequence flushes so two can't be in flight.
-    Do it with item 20 — same file, same theme.
+33. [DONE] Fixed the two require-atomic-updates races in sync.js, by
+    sequencing rather than by racing to commit the newest baseline — the
+    second option the item sketched, chosen because it removes the ambiguity
+    by construction instead of needing a way to compare "newest".
+    doWriteCatalog and doFlush (the actual network calls) now run through a
+    tiny per-node queue (sequencer(): a chained `tail = tail.then(fn)`), so a
+    second write's read of lastCatalog/lastWritten can never happen until the
+    first write's has fully landed — no overlap, no ambiguity about which
+    await resolves last.
+    THE LINT RULE STILL FIRES, because require-atomic-updates is syntactic:
+    it can't see that the sequencer makes the read-then-write-after-await
+    pattern safe. Two targeted eslint-disable-next-line comments cover the
+    exact lines, each explaining why — the first eslint-disable comments
+    anywhere in this codebase, and a legitimate use of one: the rule's
+    underlying concern is actually addressed, just not provably so from where
+    it's looking.
+    Verified by rapid-fire browser test — three recipes added back-to-back
+    (writeCatalog) and three hand-added list items back-to-back
+    (writeHousehold) — all landed with nothing lost, exercising exactly the
+    overlap this item was about.
+    Done together with item 20 — same file, same theme.
 
 34. Put the Firebase security rules in the repo. There is no rules file under
     version control, so nobody can review or reason about what is actually

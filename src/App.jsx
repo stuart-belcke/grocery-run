@@ -9,6 +9,7 @@ import {
   saveCatalogCache,
   subscribeHousehold,
   watchConnection,
+  watchWriteErrors,
   writeHousehold,
   flushHousehold,
   markSynced,
@@ -88,6 +89,10 @@ export default function App() {
   const [catalogReady, setCatalogReady] = useState(false);
   const [tab, setTab] = useState("list");
   const [syncStatus, setSyncStatus] = useState(syncEnabled ? "connecting" : "local-only");
+  // A write the server actively rejected (rules, quota, a malformed payload) —
+  // NOT offline, which the SDK handles by queuing and never surfaces here.
+  // Self-correcting: cleared the moment any write succeeds again.
+  const [writeError, setWriteError] = useState(false);
   const [catalogNote, setCatalogNote] = useState("");
   // The build the site is serving, when it differs from the one running here.
   // Stored as the build id rather than a boolean so that dismissing it can be
@@ -195,6 +200,11 @@ export default function App() {
       window.removeEventListener("pagehide", flushHousehold);
     };
   }, []);
+
+  // Item 20: a write the server rejects otherwise fails silently — a console
+  // on a phone is nowhere. sync.js reports it here the moment it happens, and
+  // clears it the moment a write lands again.
+  useEffect(() => watchWriteErrors(setWriteError), []);
 
   // Fetch the latest catalog from the site, and while we're there notice
   // whether the site is serving a build newer than this one.
@@ -395,7 +405,7 @@ export default function App() {
         <header style={{ marginBottom: 18 }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
             <h1 style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 30, margin: 0 }}>Grocery Run</h1>
-            <span style={{ fontSize: 12, color: syncStatus === "offline" ? C.tomato : C.faint, display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <span style={{ fontSize: 12, color: writeError || syncStatus === "offline" ? C.tomato : C.faint, display: "inline-flex", alignItems: "center", gap: 5 }}>
               {syncEnabled && (
                 <span
                   aria-hidden
@@ -403,12 +413,14 @@ export default function App() {
                     width: 7,
                     height: 7,
                     borderRadius: "50%",
-                    background: syncStatus === "synced" ? C.green : syncStatus === "offline" ? C.tomato : C.faint,
+                    background: writeError ? C.tomato : syncStatus === "synced" ? C.green : syncStatus === "offline" ? C.tomato : C.faint,
                   }}
                 />
               )}
               {!syncEnabled
                 ? "Saved on this device"
+                : writeError
+                ? "Sync error — changes may not be saved"
                 : syncStatus === "synced"
                 ? "Synced"
                 : syncStatus === "offline"

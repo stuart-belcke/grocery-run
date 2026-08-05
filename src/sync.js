@@ -14,6 +14,45 @@
 import { firebaseConfig, syncEnabled } from "./firebase-config";
 import { planWrite } from "./lib";
 
+/* ------------------------- write failure signal ---------------------
+   A rejected write (security rules, quota, a malformed payload) used to be
+   console.error and nothing else — invisible on a phone, where there is no
+   console. Offline is NOT a failure here: the SDK queues writes in memory
+   and flushes them on reconnect, so this only fires when the server actively
+   REJECTS a write while connected. Cleared by the next write that succeeds,
+   the same self-correcting shape the update gate already uses.            */
+const writeErrorListeners = new Set();
+
+export function watchWriteErrors(cb) {
+  writeErrorListeners.add(cb);
+  return () => writeErrorListeners.delete(cb);
+}
+
+function reportWriteError(e) {
+  console.error("Grocery Run: write rejected", e);
+  for (const cb of writeErrorListeners) cb(true);
+}
+
+function reportWriteOk() {
+  for (const cb of writeErrorListeners) cb(false);
+}
+
+// Runs write() calls to the same database node one at a time. Two flushes
+// overlapping (e.g. a rapid second edit while the first is still awaiting the
+// network) used to both read the SAME stale baseline before either had
+// updated it — so whichever await happened to resolve LAST won the baseline
+// assignment, even when it represented the OLDER write. The next diff was
+// then computed against that wrong base and could silently omit changes.
+// Sequencing removes the ambiguity by construction: a write's baseline read
+// can never happen until the previous write has fully landed (or failed).
+function sequencer() {
+  let tail = Promise.resolve();
+  return (fn) => {
+    tail = tail.then(fn, fn);
+    return tail;
+  };
+}
+
 let dbPromise = null;
 
 // Lazy-load the Firebase SDK only when sync is actually on, so the
@@ -178,9 +217,14 @@ export function subscribeCatalog(code, cb) {
 // Narrow, like the state writes: send the paths that differ, so editing one
 // recipe doesn't rewrite the other sixteen and collide with the other phone.
 let lastCatalog = null; // { code, catalog } — what the server is known to hold
+const runCatalogWrite = sequencer();
 
-export async function writeCatalog(code, catalog) {
+export function writeCatalog(code, catalog) {
   if (!syncEnabled) return;
+  return runCatalogWrite(() => doWriteCatalog(code, catalog));
+}
+
+async function doWriteCatalog(code, catalog) {
   const plan = planWrite(lastCatalog && { code: lastCatalog.code, state: lastCatalog.catalog }, code, catalog);
   if (plan.kind === "skip") return;
   const db = await getDb();
@@ -190,9 +234,16 @@ export async function writeCatalog(code, catalog) {
     const node = ref(db, `households/${code}/catalog`);
     if (plan.kind === "update") await update(node, plan.paths);
     else await set(node, plan.state);
+    // require-atomic-updates flags this on sight — a read of lastCatalog
+    // above, an await, then a write here. What it can't see is runCatalogWrite:
+    // this whole function only ever runs one invocation at a time, so no
+    // OTHER read of lastCatalog can land between the read above and this
+    // write. That's what actually closes the race, not this line.
+    // eslint-disable-next-line require-atomic-updates
     lastCatalog = { code, catalog };
+    reportWriteOk();
   } catch (e) {
-    console.error("Grocery Run: catalog write rejected", e);
+    reportWriteError(e);
   }
 }
 
@@ -212,6 +263,7 @@ export function markCatalogSynced(code, catalog) {
 let writeTimer = null;
 let pending = null; // { code, state }
 let lastWritten = null; // { code, state } — what the server is known to hold
+const runHouseholdWrite = sequencer();
 
 export function writeHousehold(code, state) {
   if (!syncEnabled) return;
@@ -236,13 +288,22 @@ export function markSynced(code, state) {
 // backgrounded or closed: the debounce timer dies with the page, so an edit
 // made in the last 250ms would otherwise never reach the database, and the
 // next launch would load the older remote state over the top of it.
-export async function flushHousehold() {
-  if (!syncEnabled || !pending) return;
+//
+// Claiming `pending` happens HERE, synchronously, outside the sequencer —
+// it's what decides whether there's anything to send at all, and two calls
+// racing for it is fine, since only one can see it non-null. What has to be
+// sequenced is what happens AFTER: reading `lastWritten` to compute the diff
+// must never happen until the previous write has finished updating it.
+export function flushHousehold() {
+  if (!syncEnabled || !pending) return Promise.resolve();
   clearTimeout(writeTimer);
   writeTimer = null;
   const { code, state } = pending;
   pending = null;
+  return runHouseholdWrite(() => doFlush(code, state));
+}
 
+async function doFlush(code, state) {
   const plan = planWrite(lastWritten, code, state);
   if (plan.kind === "skip") return; // nothing actually changed
 
@@ -253,7 +314,11 @@ export async function flushHousehold() {
     const node = ref(db, `households/${code}/state`);
     if (plan.kind === "update") await update(node, plan.paths);
     else await set(node, plan.state);
+    // See the matching comment in doWriteCatalog — runHouseholdWrite is what
+    // actually prevents a concurrent read of lastWritten, not this line.
+    // eslint-disable-next-line require-atomic-updates
     lastWritten = { code, state };
+    reportWriteOk();
   } catch (e) {
     // Offline never rejects (the SDK queues and flushes on reconnect);
     // reaching here means the server refused the write — usually the
@@ -262,6 +327,6 @@ export async function flushHousehold() {
     // lastWritten deliberately stays put: the next flush then re-diffs from
     // the last state that actually landed, so a rejected edit is retried
     // rather than silently dropped from every future diff.
-    console.error("Grocery Run: sync write rejected", e);
+    reportWriteError(e);
   }
 }
