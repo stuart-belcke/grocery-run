@@ -569,6 +569,46 @@ doesn't shift; the tier each belongs to is noted.
     shipped rather than build more of it" — flagged here so it isn't
     forgotten if the narrow case ever bites.
 
+    UX FOLLOW-UP, same session, after actually looking at the first cut:
+      - Sides now default to the MAIN's current servings, not their own
+        recipe's base. Green Beans written as "serves 6" added to a
+        4-serving dinner used to start at 6 — the side recipe's own batch
+        size, not the headcount actually being cooked for. Almost always
+        wrong; commitSidePicks in WeekTab now reads the slot's servings
+        first and only falls back to the side's own base if the main
+        somehow has none.
+      - Adding sides is MULTI-SELECT. The picker stays open across taps —
+        each toggles a local, uncommitted pick with a checkmark — and a
+        footer "Add N sides" button commits them all in one write. The
+        motivating case is literally "a main plus two sides," which used
+        to mean two full open/pick/close round trips. The main picker is
+        unchanged: single tap, assigns, closes — swapping the entree is a
+        different action than adding to a list of dishes.
+      - Sides render as their own bordered rows in BOTH edit and read-only
+        mode, not folded into the main's subtitle line ("4 sv · with X (4
+        sv), Y (2 sv)" wrapped badly past two sides and buried small gray
+        text next to the main's colored box). Read-only rows are the same
+        shape as editable ones, just without the input/remove controls —
+        one layout, not two that could drift.
+      - "+ Add a side" is a real dashed-border button now, matching the
+        weight of the empty-slot "+ Choose a meal" affordance instead of
+        being a bare text link easy to scroll past.
+      - NEW: a recipe-level `side: true` flag ("🥗 Side" toggle in the Meals
+        tab editor, next to "⚡ Easy"; same handling — plumbed through
+        draft/save exactly like `easy`, no version bump, purely additive).
+        It's a HINT about a recipe's usual role, not a constraint: a
+        side-tagged recipe can still be picked as a main, and an untagged
+        one can still be picked as a side. The only place it changes
+        behavior is picker ORDERING — opening a side picker groups
+        `side: true` recipes into their own "Side dishes" heading before
+        the meal-type groups, so browsing for a side surfaces actual side
+        dishes first instead of mixing them into "Other meals" by
+        recipe-name-search luck.
+      - The side picker also drops whatever's already in the slot (the
+        main, and any side already added) from the offered list, so a
+        second tap on an already-added side can't create a duplicate
+        entry — the only way to remove one stays the ✕ on its row.
+
 28. [DONE] Meals that don't feed the shopping list. "We're having leftovers" or
     "we already have everything for this" — you want it on the plan for the
     record without its ingredients padding the list. A `skipList: true` on the
