@@ -1,14 +1,12 @@
 # Future Projects
 
-Two kinds of entry live here:
+**Forks** — other apps that could be built by reusing the grocery-run
+scaffolding. grocery-run is really two things stacked together: a generic,
+offline-first, optionally-synced app shell, and a grocery-specific domain on
+top. The shell is worth reusing; the domain gets swapped.
 
-- **Forks** — other apps that could be built by reusing the grocery-run
-  scaffolding. grocery-run is really two things stacked together: a generic,
-  offline-first, optionally-synced app shell, and a grocery-specific domain on
-  top. The shell is worth reusing; the domain gets swapped.
-- **Platform phases** — work on grocery-run itself that is too large for the
-  numbered roadmap in `DeveloperNotes.txt`, because it changes the foundation
-  rather than adding a feature.
+Work on grocery-run ITSELF belongs in `DeveloperNotes.txt`, however large —
+see the note at the bottom of this file.
 
 ---
 
@@ -131,227 +129,19 @@ unavailable, multi-device sync can be deferred past the first version.
 
 ---
 
-## Platform phase: per-user catalog (the multi-user foundation)
+## Platform phase: per-user catalog — MOVED
 
-**Concept.** Move the catalog out of the repo and into the database, per
-account, so a signed-in user owns their own recipes, ingredients and stores.
-This is the phase that has to come first if the app is ever going to support
-people other than us — and it is worth doing on its own merits even if it
-never does.
+This lived here because it was too large for a numbered roadmap item. Most of
+it has now shipped: narrow writes, the catalog moved into the database per
+household, and the override layer deleted outright.
 
-### Why this is a foundation, not a feature
+What remains — auth, re-parenting the household under an account, invites and
+roles — is now **item 37 in `DeveloperNotes.txt`**, alongside the two items it
+depends on (21, narrow listeners; 34, security rules).
 
-The app has two data layers today:
+The boundary this file keeps from now on:
 
-1. **`public/catalog.json`** — stores, recipes, ingredient defaults. Versioned
-   in git, fetched over HTTP, **read-only at runtime**.
-2. **The override layer** — `configOverrides`, `recipeOverrides`,
-   `localRecipes`, `extraStores`, `removedStores`, all inside the synced
-   household blob.
+- **`DeveloperNotes.txt`** — everything about grocery-run itself, at any size.
+- **`FutureProjects.md`** — other apps built on the same scaffolding.
 
-Layer 2 exists *only* because layer 1 can't be written. Every edit a user makes
-has to be expressed as a diff against a file the app cannot change, then
-reconciled back when the file eventually catches up. That indirection is where
-almost every bug in this app has lived:
-
-- `false` as a "hidden" marker, because Firebase drops nulls — and the whole
-  class of "I deleted it and it came back" bugs that came from a key still
-  being present in `catalog.config`.
-- `compactCfg()` existing at all, because the normalized in-memory config shape
-  leaked into the stored shape and stamped `"staple": false` on 114 ingredients.
-- `reconcileToCatalog()` having to guess which local edits a new catalog now
-  reflects, and prune the rest.
-- The publish flow — copy JSON out of Settings, paste into the repo, merge, wait
-  for a deploy — which is the only way an edit becomes permanent.
-
-Rough size of the layer, for scale (against ~3,800 lines of `src`):
-`configOverrides` 41 references, `recipeOverrides` 22, `localRecipes` 22,
-`compactCfg` 8, `unpublishedChanges` 4, `reconcileToCatalog` 2, plus the
-292-line `SettingsTab.jsx` that is mostly publish/export plumbing.
-
-**Collapsing the two layers into one is the actual win.** Multi-user support is
-the reason to do it; a large amount of deleted code and a whole category of
-retired bugs is the payoff.
-
-### Shape of it: household as tenant
-
-Auth (Firebase Auth — Google / Apple / email link) gives every person a stable
-`uid`. A **household** is the tenant, and users join households; that keeps the
-existing sharing model (two phones, one list) intact instead of inventing a new
-one. Suggested Firestore layout:
-
-```
-users/{uid}                       → { displayName, households: [hid] }
-households/{hid}
-  members/{uid}                   → { role: "owner" | "member", joinedAt }
-  recipes/{recipeId}              → { name, servings, ingredients: [...] }
-  ingredients/{key}               → { name, store, aisles, staple }
-  stores/{storeId}                → { name, order }
-  plan/{weekId}                   → { slots: { ... } }
-  trips/{tripId}                  → { list, checked, bought, extras }
-```
-
-**Correction worth stating plainly: narrow writes are not a reason to leave
-RTDB.** An earlier draft of this file claimed per-document writes were what
-Firestore bought us. They aren't. RTDB writes at any path —
-`set(ref(db, 'households/x/list/checked/milk'), true)` — and `update()` takes
-several paths atomically. The whole-blob write in `sync.js:157` is a choice in
-our code, not a limit of the database, and the clobber it causes is fixable
-without changing databases at all. That fix is Phase 0 below.
-
-What Firestore actually buys, once narrow writes are off the table:
-
-- **Real offline persistence.** IndexedDB-backed, with a pending-write queue
-  that survives closing the tab. RTDB's web SDK queues in memory only, which is
-  why `loadCache`/`saveCache`/`pickState`/`flushHousehold` exist. Firestore
-  deletes all four.
-- **Queries.** RTDB allows one sort field and range filters on that same field,
-  and nothing else — "store = Kroger AND staple = true" is not expressible
-  without storing a hand-made composite key. Firestore does compound `where()`
-  and cursors. We don't need this today (everything is filtered in JavaScript
-  over ~120 ingredients) but it is the ceiling we'd hit first.
-- **Membership-scoped security rules** — `request.auth.uid` must appear in
-  `households/{hid}/members`. There is no way to express that today; the current
-  rules can only guard a guessable household code.
-- **Unbounded collections.** Storage is ~$0.18/GiB against RTDB's $5/GB, and
-  paginating a growing collection is a first-class operation rather than a
-  client-side slice. This is the one that matters for history.
-
-**Postgres would be the more durable choice** if this ever becomes a product:
-a `recipe_ingredients` join table makes roadmap item 15 (recipes referencing
-the ingredient list instead of duplicating names) structurally true rather than
-a convention the UI has to maintain, and it gives real queries, migrations, and
-a place to hang billing. The cost is a backend to run and an offline story to
-build by hand. Firestore is the right first step; Postgres is the right second
-one if there are paying users.
-
-### What happens to `catalog.json`
-
-It stops being live data and takes on two jobs, both one-directional.
-
-**A seed template.** On first sign-in, copy it into the new household's
-`recipes` / `ingredients` / `stores` collections. New users get a sensible
-starting pantry; from then on their edits are just writes. The file stays in
-the repo, versioned, as the definition of "what a new household starts with" —
-a much more honest job than the one it has now.
-
-**An export target, kept indefinitely.** Being able to dump a household back
-out to `catalog.json` at any time is worth keeping: it's a restorable backup,
-it makes the data portable, and it preserves the one thing catalog-in-git is
-genuinely good at — a diffable, reviewable history of how the data changed.
-Most of `formatCatalog`/`inlineJson` survives for this even though the rest of
-the publish flow goes.
-
-**The rule that keeps this safe: export only. The app must never read the file
-back at runtime.** The moment a runtime read merges file data with database
-data there are two sources of truth again, and the override layer regrows —
-`configOverrides`, `reconcileToCatalog`, `false`-as-hidden, all of it. If a
-restore is ever wanted it has to be an explicit, deliberate action that
-REPLACES a household's collections, never one that merges into them.
-
-### What gets deleted
-
-`configOverrides`, `recipeOverrides`, `localRecipes`, `extraStores`,
-`removedStores`, `unpublishedChanges`, `reconcileToCatalog`, `compactCfg`,
-`cfgShape`/`recipeShape`, `formatCatalog`/`inlineJson`, the `false`-as-hidden
-convention, and most of `SettingsTab.jsx`. The Settings tab becomes account +
-household management instead of an export console.
-
-### Sequencing (this order matters)
-
-0. **[DONE] Narrow the writes, staying on RTDB.** Shipped in #36 (path-scoped
-   writes via `diffPaths`/`planWrite`) and #39 (keyed collections, so adding a
-   hand-added item stops rewriting the whole array). This fixed the live
-   clobber that `updatedAt`/`pickState` only papered over, and needed no login
-   screen and no migration. The listener half was deliberately NOT done — see
-   step 3.
-1. **Catalog as data.** Seed from `catalog.json`, move every read off
-   `catalog.*` and onto the household node, delete the override layer. Touches
-   every tab. **Build the export alongside it, not after** — see above.
-2. **Auth, when it's needed.** Sign-in, `users/{uid}`, and re-parenting the
-   household under a real account.
-3. **Narrow the listeners.** Gated on step 1, not on taste: the synced node is
-   954 bytes today (measured), so wide listeners cost nothing worth a refactor.
-   Step 1 makes it ~30 KB and the calculus flips. Details and the four costs
-   are in `DeveloperNotes.txt` item 21.
-4. **Everything else** — invites, roles, billing, a landing page — is ordinary
-   product work once the above is done.
-
-**Auth is NOT a prerequisite for step 1, which an earlier version of this file
-got wrong.** The reasoning was "you can't migrate data without an identity to
-migrate it to" — but the household code already *is* a tenant key. It's a weak
-one, a bearer secret with no recovery, and that's exactly what auth later
-fixes. It is still a working key to hang data off today. So for a single
-household the catalog can move now and be re-parented under an account later,
-and waiting for auth just means building more features on top of the override
-layer first — each of which then has to be migrated too. Item 12 (units) would
-touch ingredient config; item 23 (stable ids) touches ingredient identity.
-Both are cheaper after the move than before it.
-
-Firestore is not a step here. It becomes worth adopting when one of its four
-advantages above actually binds — most likely offline persistence, or history
-outgrowing what a client-side slice can page through.
-
-### Effort, roughly
-
-Split by what you're actually buying, because the single-household version is
-much cheaper than the multi-user one:
-
-**Single household (steps 1 and 3) — a few days.**
-- Catalog-as-data + removing the override layer: **~3–4 days**. Still a rewrite
-  of the data flow rather than an addition — every tab reads config or recipes
-  — but with no auth, no tenancy, and no rules work in it.
-- Export alongside it: **half a day**, mostly reusing `formatCatalog`.
-- Narrow listeners: **~2 days**.
-
-**Multi-user, whenever it's wanted — add one to two weeks.**
-- Auth + re-parenting the household under an account: **~2–3 days**.
-- Membership-scoped security rules + verifying them: **~2 days**, worth doing
-  properly since this is where a mistake exposes other people's data.
-- Invites, roles, account management: the rest.
-
-The earlier "two to three weeks for the foundation" figure bundled all of it
-together and made the useful part look far more expensive than it is.
-
-### Portability to the workout app
-
-This foundation ports almost entirely — and the workout app needs it *more*
-than groceries does.
-
-Everything above the leaf collections is domain-agnostic: auth, `users/{uid}`,
-the household-as-tenant model, `members/` with roles, the seed-on-signup flow,
-the membership-scoped rules, offline persistence, and billing. Only the leaves
-change:
-
-| grocery-run | Workout Planner |
-|---|---|
-| `households/{hid}` | `households/{hid}` (or `athletes/{hid}` — same structure, a training group or a household of one) |
-| `recipes/{recipeId}` | `workouts/{workoutId}` (templates) |
-| `ingredients/{key}` | `exercises/{key}` |
-| `stores/{storeId}` | — dropped |
-| `plan/{weekId}` | `plan/{weekId}` — near-identical |
-| `trips/{tripId}` | `sessions/{sessionId}` (dated log) |
-
-Two things are worth calling out:
-
-- **The workout app cannot use the current *write pattern* at all** — note the
-  pattern, not the database. Its per-exercise history is an append-only time
-  series that grows without bound, and serializing the entire state on every
-  edit works for a rolling shopping list but falls over the moment that state
-  includes a year of sessions. Narrow writes are a precondition there rather
-  than an improvement, so Phase 0 is not optional for the fork; it's the
-  starting point.
-- **History is where RTDB genuinely runs out.** Narrow writes solve the write
-  side, but reading "this exercise over the last year" means a range query over
-  a growing collection, and RTDB gives one sort field, no compound filters, and
-  $5/GB storage. That is the concrete trigger for Firestore in the workout app,
-  and it arrives much earlier there than it does in groceries.
-- **Sessions want the same split as trips.** `trips/{tripId}` and
-  `sessions/{sessionId}` are the same idea: a dated, immutable-ish instance
-  generated from a template. Getting that split right in grocery-run first means
-  the workout app inherits it instead of discovering it.
-
-Practical consequence: **if both apps are wanted, build this phase in
-grocery-run first and fork after.** Forking today copies the override layer and
-the whole-blob write into a domain that is a worse fit for both, and the work
-gets done twice.
+Two lists for the same app meant two places to look and two places to go stale.
