@@ -1036,6 +1036,37 @@ export function slotFeedsList(slot) {
   return !!slot?.recipeId && !slot.skipList;
 }
 
+// Every dish a feeding slot puts on the table: the main plus its sides, as
+// { recipeId, servings }. A side never makes sense without its main, so this
+// is the ONE gate — skipList or an empty slot means nothing feeds the list,
+// sides included, with no separate check for them.
+export function slotDishes(slot) {
+  if (!slotFeedsList(slot)) return [];
+  const out = [{ recipeId: slot.recipeId, servings: Number(slot.servings) || 0 }];
+  for (const s of asArray(slot.sides)) {
+    if (s && s.recipeId) out.push({ recipeId: s.recipeId, servings: Number(s.servings) || 0 });
+  }
+  return out;
+}
+
+// Every day/type/role a recipe appears in the plan, as main or as a side —
+// used both for the Meals tab's "planned meals" summary and for cleaning up
+// dangling references when a recipe is deleted.
+export function planSlotsFor(data, recipeId) {
+  const out = [];
+  for (const day of DAYS) {
+    for (const type of MEAL_TYPES) {
+      const slot = data.plan?.[day]?.[type];
+      if (!slot) continue;
+      if (slot.recipeId === recipeId) out.push({ day, type, role: "main", servings: slot.servings });
+      asArray(slot.sides).forEach((s, index) => {
+        if (s && s.recipeId === recipeId) out.push({ day, type, role: "side", index, servings: s.servings });
+      });
+    }
+  }
+  return out;
+}
+
 // Which store a list row belongs under: a per-list reroute wins, then the
 // ingredient's default, then Unassigned.
 export function storeFor(data, key) {
@@ -1090,8 +1121,7 @@ export function servingsByRecipe(data) {
   for (const [id, s] of Object.entries(data.list.selections)) totals[id] = (totals[id] || 0) + s;
   for (const day of DAYS) {
     for (const type of MEAL_TYPES) {
-      const slot = data.plan?.[day]?.[type];
-      if (slotFeedsList(slot)) totals[slot.recipeId] = (totals[slot.recipeId] || 0) + (Number(slot.servings) || 0);
+      for (const dish of slotDishes(data.plan?.[day]?.[type])) totals[dish.recipeId] = (totals[dish.recipeId] || 0) + dish.servings;
     }
   }
   return totals;
@@ -1135,10 +1165,9 @@ export function aggregateItems(data) {
   }
   for (const day of DAYS) {
     for (const type of MEAL_TYPES) {
-      const slot = data.plan?.[day]?.[type];
-      if (slotFeedsList(slot)) {
-        const r = data.recipes.find((x) => x.id === slot.recipeId);
-        if (r) addRecipe(r, Number(slot.servings) || 0, `week plan, ${day} ${type}`);
+      for (const dish of slotDishes(data.plan?.[day]?.[type])) {
+        const r = data.recipes.find((x) => x.id === dish.recipeId);
+        if (r) addRecipe(r, dish.servings, `week plan, ${day} ${type}`);
       }
     }
   }
