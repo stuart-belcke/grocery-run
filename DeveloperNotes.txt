@@ -228,7 +228,15 @@ rather than saving them for a cleanup that never gets scheduled.
     pickState reads unchanged, and keeps "remote === null means seed me".
     What remains open is splitting the STATE node itself (list vs plan vs
     stapleNeeds), and the case for that is still weak at 954 bytes. The next
-    real trigger would be a third party in the household, not size.
+    real trigger is MEASURABLE, not demographic: the state node getting big
+    (per-person data, trip history — anything that isn't one shared list), or
+    re-render jank you can actually feel.
+    An earlier version of this line said "a third party in the household",
+    which doesn't hold. Another person adds write FREQUENCY, not node size —
+    the list is shared. And tripling how often something imperceptible happens
+    leaves it imperceptible. What they genuinely worsen is write CONTENTION,
+    which narrow writes already fixed and narrow listeners don't touch.
+    Re-measure with item 25's method before acting on this.
 
     The adopt-vs-push rule is now shared. Both nodes route their listener
     through the same pickState: newer stamp wins, ties go to remote so two
