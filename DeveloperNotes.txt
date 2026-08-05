@@ -95,123 +95,19 @@ Tier 2 — Ingredients-tab cluster (shared refactor, then features)
 
 Tier 3 — data-model / sorting
 -----------------------------
-13. [DONE] Pantry staples. Built as specified below; the spec is kept as the
-    record of what was decided and why.
+13. [DONE] Pantry staples — things you own, kept off the list until you run
+    out. `config[key].staple` marks one; `stapleNeeds[key]` says you're out.
+    Two decisions that shaped everything after:
+      - NO PARALLEL DATA STRUCTURE. A staple is an ordinary ingredient with a
+        flag. "The staples list" is only ever a VIEW. Nothing to migrate,
+        nothing to keep in sync.
+      - THE SPLIT BY LIFETIME, which later features copied: the designation is
+        a durable fact about the kitchen and lives in the catalog; being out is
+        trip state and lives in the shopping state. Only "need" entries are
+        stored, so an all-clear state tidies itself away.
+    A staple carries forward if you didn't buy it, rather than needing
+    re-entry — that is why it beats a weekly "what are we out of" prompt.
 
-    THE PROBLEM
-    Recipes call for olive oil, garlic, flour, salt. Every week those land on
-    the shopping list even though you already have them, so the list is padded
-    with things you don't need to buy.
-
-    THE MODEL: persistent have/need, not a weekly quiz
-    A staple carries a persistent state that only changes when reality changes:
-      - "have"  (default) — invisible, stays off the shopping list
-      - "need"  — appears on the shopping list
-    You flip it to "need" the moment you notice you're out (Tuesday night, when
-    you pour the last of the oil), not by trying to recall it on Sunday. Most
-    weeks you touch nothing and the review is empty.
-
-    Two consequences worth noting:
-      - It decouples staples from meal planning. "We need olive oil" is true
-        because you ran out, not because a recipe wants a tablespoon. Paper
-        towels and coffee behave identically to recipe ingredients — one
-        mechanism, no special case for non-recipe items.
-      - Anything you didn't manage to buy stays "need" and carries forward to
-        the next list automatically. No re-entry.
-
-    NO PARALLEL DATA STRUCTURE
-    A staple is an ordinary catalog ingredient with a `staple: true` flag on its
-    existing config entry. Same { store, aisles }, same identity, same
-    everything. "The staples list" is only ever a VIEW — a filter over the
-    ingredients that already exist. Nothing to migrate, nothing to keep in sync.
-
-    DATA MODEL — two halves, two sync routes (this split is the important part)
-      config[key].staple = true
-        Durable designation. Lives in ingredient config, rides configOverrides
-        to RTDB, AND publishes to catalog.json. A shared fact about the kitchen.
-      stapleNeeds = { key: true }
-        Volatile "we're out" state. New TOP-LEVEL key in local, sibling to
-        `list` and `plan`. Syncs to RTDB (writeHousehold writes the whole local
-        object, so this is free) but is NEVER published — otherwise every "out
-        of garlic" would be a git diff in catalog.json.
-      Store only the "need" keys; absence means "have". Firebase strips empty
-      objects, so once all are back to "have" the key vanishes from RTDB and
-      asObject() rebuilds it as {} on the way in. Self-healing.
-      Requires: `stapleNeeds: {}` in emptyLocal(), and
-      `stapleNeeds: asObject(d.stapleNeeds)` in normalizeLocal().
-
-    TWO GOTCHAS IN EXISTING CODE (quiet bugs if missed)
-      - normalizeCfg() (lib.js) returns only { store, aisles }, so it would
-        SILENTLY STRIP the staple flag. The publish path (SettingsTab) runs
-        every config through it, so staples would vanish on publish.
-      - cfgShape() (lib.js) hashes only { store, aisles }, so toggling a staple
-        wouldn't register as an unpublished change and the "N not yet
-        published" badge would be wrong.
-
-    WHY NOT PER-TRIP STATE
-    An earlier design put the have/need answer in `list` and wiped it each
-    trip, prompting a full review every week. Rejected: it forces recall
-    instead of capture, and the review burden grows with the recipe
-    collection. Persistence is the whole point — hence the top-level key,
-    deliberately outside `list` and `plan`, which newList() clears.
-
-    UI
-      - Designating a staple: a checkbox in the Ingredients row's expanded gear
-        panel ("Home staple", 🏠). Set-once and rare, so it stays off the
-        collapsed row.
-      - Toggling have/need: on a staple row the "+ List" button is REPLACED by
-        a Have/Need toggle — on a staple the two would mean the same thing to
-        the user, so only one control shows. Non-staple rows keep "+ List".
-      - Managing / reviewing: a "Staples only" filter on the Ingredients tab,
-        reusing the existing search + store-filter machinery. Near-zero new UI.
-      - On the shopping list: a "need" staple sorts into its NORMAL store/aisle
-        group (it keeps its real store), shown inline with a small "staple"
-        tag — not a separate section, so you walk past it in the right aisle.
-        No quantity: it means "get more", not "get 2 lb".
-
-    CLEARING THE LOOP
-    Rename "New shopping list" -> "Done shopping" (it marks the end of a trip).
-    On that action, any staple that was CHECKED resets to "have"; unchecked
-    ones stay "need" and carry to the next list — you didn't get it, maybe the
-    store didn't have it, so it stays pending. Don't clear on the checkbox
-    itself: the item would vanish from the list mid-aisle.
-
-    "Done shopping" was later narrowed, because one button was resetting six
-    things at once. The rule now: what you CHECKED OFF is done with, what you
-    didn't get carries forward.
-      - EVERYTHING checked comes off the list — you own it now. Hand-added
-        items are deleted outright. Recipe-driven items can't be (they're
-        computed from the plan we're keeping), so the AMOUNT bought is banked
-        in `list.bought` as { key: { unit: qty } }. The List tab is a shopping
-        list, not a recipe viewer — what a recipe contains belongs on the
-        recipe card.
-        `bought` records quantities, not a boolean, and aggregateItems
-        SUBTRACTS it from current demand rather than hiding the item: buy 1 lb
-        of beef for one meal, then plan a second wanting 2 lb, and 1 lb is
-        still listed. Only fully-covered items drop off. A boolean here was a
-        real bug — the second meal would have been silently under-bought.
-        Hand-added amounts are tracked separately (item.handParts) and are
-        never cancelled by the cupboard, since typing something onto the list
-        is an explicit "buy this". Staples are skipped entirely: they run on
-        have/need, not amounts.
-      - unchecked items of every kind stay listed
-      - checked staples go back to "have"; unchecked stay "need"
-      - check marks and meal selections clear
-      - store reroutes survive only for items still on the list
-      - the WEEK PLAN is untouched. "Clear week" on the Week plan tab owns it;
-        wiping a week's planning from the shopping list was a far bigger reset
-        than finishing a trip implies.
-    "Clear week" also empties `list.bought`, ending the buying cycle, so the
-    next week's meals list their ingredients again from scratch. A count of
-    suppressed items shows on the List tab ("N already bought this week") so
-    the list is never mysteriously short.
-
-    DECIDED AGAINST (for v1)
-      - A third "low" state. Binary can't express "have half a cup, recipe
-        wants three" — accepted. The whole value is low friction and a third
-        state doubles the decisions; the pre-shop glance catches it.
-      - A "anything else run out?" scan over have-it staples. Re-introduces the
-        weekly chore the persistent model exists to remove.
 14. [DONE] Once an item is checked on the List, move it to the bottom of its
     group and keep following the A-Z / store-flow sort the user has selected.
 15. [DONE] Recipes reference the shared ingredients list to avoid duplicates.
@@ -248,13 +144,13 @@ change: a test layer, one place for shared logic, and a database seam narrow
 enough to swap what sits behind it. Do them alongside whatever feature is next
 rather than saving them for a cleanup that never gets scheduled.
 
-19. Tests on the pure layer. There is no test framework at all — every fix so
-    far was verified by driving a headless browser by hand, which doesn't
-    scale and doesn't survive working in a hurry. lib.js is the cheap win:
-    pure functions, no DOM, no Firebase, and it is where the subtle bugs have
-    actually lived. Start with aggregateItems (bought subtraction, hand-added
-    parts, staple suppression), pickState, normalizeCfg / compactCfg, and
-    unpublishedChanges. Every one of those has already shipped a real bug.
+19. [DONE] Tests on the pure layer. `npm test` runs node's built-in runner
+    over lib.js — 100+ tests, no framework installed. CI runs lint, tests and
+    build before deploying, in that order, so a failure stops the deploy rather
+    than annotating one that already shipped.
+    MUTATION-TEST ANYTHING LOAD-BEARING: break the rule deliberately, confirm
+    the right tests fail, restore. A test that passes either way protects
+    nothing, and several here originally did.
 
 20. Make a failed write visible. writeHousehold logs a rejection to the
     console (sync.js:162) and nothing else. The header dot reports CONNECTION
@@ -335,171 +231,64 @@ rather than saving them for a cleanup that never gets scheduled.
     seed carries updatedAt 0 precisely so it can never win that comparison;
     only an actual edit stamps a real time.
 
-22. Move list-building logic out of the tabs and into lib.js. PantryTab is 758
-    lines, MealsTab 696, ListTab 593 — all past the point where a diff is
-    reviewable, and all mixing data logic with rendering. Extracting the logic
-    shrinks the file AND makes it testable under 19, so it pays twice. The
-    usedInRecipes extraction in Refactor notes is the pattern to copy.
+22. [DONE] List-building logic moved out of the tabs into lib.js. The tabs
+    were 600-750 lines each, mixing data logic with rendering, and none of it
+    was testable. Everything with a rule in it — aggregation, filtering,
+    sectioning, unit conversion, ingredient identity — now lives in lib.js and
+    is covered by item 19's suite.
 
-23. Give ingredients a stable id. The key is norm(name), so renaming an
-    ingredient orphans every reference to it — recipes, list.checked,
-    list.bought, stapleNeeds, configOverrides. Item 15 shipped the suggestion
-    layer that steers recipes onto canonical norm(name) identities; a real id
-    is what would make that structural instead of a convention the UI has to
-    keep enforcing. Gets more expensive with every ingredient added.
-
-    [IN PROGRESS — branch claude/ingredient-ids, EXPAND phase.] Read the
-    "ingredient identity" comment block in lib.js first; it carries the
-    reasoning. What follows is the plan and what's left.
-
-    PROVEN DAMAGE, not hypothetical. Renaming "Baby spinach" to "Spinach" on
-    the real build today:
-        catalog ingredient renamed   ok
-        list.extras followed         ok
-        list.bought  LEFT BEHIND     {"baby spinach":{"bag":2}}
-        stapleNeeds  LEFT BEHIND     {"baby spinach":true}
-    commitRename moves extras, overrides and checked. bought and stapleNeeds
-    were added AFTER it was written and nobody went back. Consequences: you
-    re-buy something you already have (the record is unreachable, so the item
-    returns at full quantity), and a staple you're out of silently stops
-    appearing. Ids kill this by construction — renaming touches no keys.
-
-    SHAPE
+23. [DONE] Ingredients have a stable id. The key used to BE the name, so
+    renaming orphaned every reference — and two were already being lost in
+    practice, because list.bought and stapleNeeds were added after the rename
+    code was written and nobody went back.
       ingredients: { ing_7f3a2b: { name, store, aisles, staple } }
-      recipe.ingredients: [ { ingredientId, qty, unit } ]
-      list.checked / bought / overrides / extras, stapleNeeds -> keyed by id
+      recipe lines: { ingredientId, qty, unit }
+    THE FILE STAYS NAME-KEYED. catalog.json is hand-edited and diffed in git;
+    ids in it would mean inventing one and matching it across two sections just
+    to add a recipe. Minted on the way in, resolved back to names on export.
+    THE TRICK THAT KEPT IT SMALL: App resolves each line's id to a name when it
+    assembles `data`, so every tab that reads i.name was untouched.
+    Reads still accept a legacy norm(name) reference — expand phase. THE
+    CONTRACT PHASE IS STILL TO DO: drop that fallback once both phones have run
+    the migration and been used for a few days.
+    The migration fires from the catalog LISTENER, never at startup. Converting
+    offline would let a device mint ids, remap its state onto them, then adopt
+    the other phone's catalog with DIFFERENT ids and orphan everything. Exactly
+    one authority converts.
 
-    DECISION 1 — catalog.json STAYS NAME-KEYED. The file is hand-edited and
-    diffed in git; ids in it would mean inventing one and matching it across
-    two sections just to add a recipe. Ids are minted on the way in
-    (seedCatalog -> withIngredientIds) and resolved back to names on the way
-    out (the Settings export). The file stays the readable artifact.
-
-    DECISION 2 — EXPAND THEN CONTRACT. The catalog and the shopping state are
-    two separately-synced nodes and cannot migrate atomically: if the catalog
-    converted and the state write were lost, everything ticked off would
-    detach. So every resolver accepts BOTH an id and a legacy norm(name) key,
-    writes use ids, and state converts as it is touched. A LATER release drops
-    the legacy path — do not try to do both at once.
-
-    DECISION 3 — BUMP APP_DATA_VERSION TO 2. An older build reading an
-    id-keyed catalog would render "ing_7f3a2b" as an ingredient name. This is
-    the first real use of the gate built in item 32: the other phone gets
-    "update to keep editing" instead of quietly showing nonsense.
-
-    RECIPE EDITOR. Typing a name that doesn't exist MINTS an ingredient —
-    which is what already happens implicitly today, since typing a new name
-    creates a config entry on first use. Typing one that exists links to it.
-    Item 11's autocomplete already steers onto existing names.
-
-    DONE SO FAR (committed on the branch):
-      mintIngredientId, normalizeIngredient, compactIngredient
-      ingredientIndex   - byId + byName, built once per render
-      resolveIngredientId / ingredientIdOf - accept id, legacy key, or name
-      withIngredientIds - converts a name-keyed catalog, rewrites recipe lines,
-                          mints for names no ingredient entry covers
-      remapIngredientKeys - re-keys the state's five stores; an entry that
-                          resolves to nothing is KEPT under its old key rather
-                          than dropped, because losing what you ticked off
-                          would be worse than a stale key nothing reads
-
-    VERIFIED ON THE REAL HOUSEHOLD (two phones, PR preview)
-      - the migration runs: name-keyed ingredients become ing_ ids carrying
-        their name, recipe lines become {ingredientId, qty, unit}, and the
-        shopping state's five stores move across
-      - renaming no longer detaches anything, and propagates between devices
-      - seedCatalog mints ids directly, so a new household is never born in a
-        shape the app immediately wants to migrate
-
-    STILL NOT VERIFIED: THE GATE FIRING FOR REAL. A device on the OLD build
-    sharing a migrated household should show "update to keep editing" rather
-    than rendering ing_ ids as names. Only ever tested with a synthetic
-    appDataVersion of 99. To test: production site in one browser, PR preview
-    in another, same throwaway household — production and preview share an
-    origin on desktop, so two browsers, not two tabs.
-
-    TWO BUGS FOUND BY USING IT, NOT BY TESTS. Both are the same shape: code
-    written when the key WAS the name.
+    TWO BUGS FOUND BY USING IT, NOT BY TESTS — both "code written when the key
+    WAS the name":
       1. Four places read a key and treated it as a name. Two rendered
-         "Ing_c45b0s82" where a name belonged; the other two were worse —
-         the Ingredients "add" box and the recipe editor both WROTE name-keyed
-         entries into an id-keyed catalog, which would have reintroduced the
-         old shape one entry at a time while looking fine. Everything that
-         turns a typed name into an ingredient now goes through
-         ensureIngredientId; everything that displays one uses
-         ingredientNameFor.
-      2. Renaming onto an existing name created a DUPLICATE. Two ingredients
-         sharing a name was impossible while the key was the name, and the old
-         rename merged instead — a rule that was dropped along with the
-         key-moving it needed. Renaming now merges, repointing recipes and
-         summing a line that would otherwise duplicate, and asks first because
-         a merge deletes an ingredient.
+         "Ing_c45b0s82" where a name belonged; worse, the Ingredients add box
+         and the recipe editor WROTE name-keyed entries into an id-keyed
+         catalog, which would have reintroduced the old shape one entry at a
+         time while looking fine. Everything that turns a typed name into an
+         ingredient now goes through ensureIngredientId; everything that
+         displays one uses ingredientNameFor.
+      2. Renaming onto an existing name created a DUPLICATE. Impossible while
+         the key was the name, and the old rename merged instead — a rule
+         dropped along with the key-moving it needed. Renaming now merges,
+         repoints recipes, sums a line that would otherwise duplicate, and asks
+         first because a merge deletes an ingredient.
+    THE LESSON: the migration was correct both times. What broke was ordinary
+    EDITING afterwards. A migration test that only checks the conversion misses
+    this entire class.
 
-    The lesson worth keeping: the migration was correct both times. What broke
-    was ordinary EDITING afterwards. A migration test that only checks the
-    conversion will miss this entire class.
+24. [DONE] Concurrently-edited collections are keyed by identity, not arrays.
+    An array index is not a stable identity: two phones appending at once
+    collide, and neither database can address one element without rewriting the
+    whole list. diffPaths treats arrays as ATOMIC for that reason, so a keyed
+    object is what makes a narrow write possible at all.
+    Stores stay an array deliberately — order is meaningful (it drives
+    store-flow grouping) and they're edited about never.
+    Accepting the legacy shape on read is permanent, not transitional: Firebase
+    hands arrays back as index-keyed objects regardless.
 
-    STILL TO DO:    STILL TO DO:
-      - App.jsx `data` memo: resolve ingredientId -> name when assembling
-        data.recipes[].ingredients[]. THIS IS THE TRICK THAT KEEPS THE BLAST
-        RADIUS SMALL — tab code that reads i.name keeps working unchanged.
-      - aggregateItems: key items by ingredient id, display the resolved name.
-        addPart currently does `key = norm(name)`.
-      - the state remap, run opportunistically once the catalog has ids
-      - normalizeCatalog: run withIngredientIds when it sees a name-keyed
-        catalog, so adoption converts
-      - PantryTab: rows keyed by id; commitRename becomes a name edit only
-      - SettingsTab catalogJson(): resolve ids back to names on export
-      - APP_DATA_VERSION -> 2
-      - a test that FAILS when a new ingredient-keyed store is added and not
-        handled. bought/stapleNeeds were lost precisely because nothing
-        enforced that list; ids make it structural, but the test is what stops
-        the next one.
-
-24. Key concurrently-edited collections by id instead of using arrays.
-    localRecipes, list.extras, extraStores and removedStores are arrays
-    (lib.js:134-142). An array index is not a stable identity, so two phones
-    appending at once collide, and neither database can address one element
-    without rewriting the whole list. Keyed objects map straight onto RTDB
-    paths and Firestore documents; arrays don't.
-
-25. [DONE] Measure the wire. Two browser windows (one normal, one incognito,
-    same household code in Settings), DevTools → Network → WS → Messages on
-    the observing one. No phones needed; that was a wrong assumption that made
-    this look harder than it is.
-
-    MEASURED, against a99cdb8 (narrow writes) and 9678af6 (keyed collections):
-
-      whole household state, one frame ........... 954 B
-      check off an item .......................... 126-136 B
-      add an item, BEFORE keyed collections ...... grew ~35 B per item, unbounded
-      add an item, AFTER keyed collections ....... 126-183 B, flat
-      keepalive (a bare "0", every ~45-90 s) ..... 1 B
-
-    Frame shape, for next time:
-      {"t":"d","d":{"a":"m","b":{"p":"households/<code>/state",
-                                 "d":{"list/checked/milk":true,"updatedAt":...}}}}
-      "a":"m" = merge (narrow multi-path update); "a":"d" = set at a path.
-      {"s":"ok","d":""} is the server ACKing a write, not data.
-
-    WHAT IT SETTLED
-      - The ~30 KB figure quoted all over these notes was wrong by ~30x. The
-        catalog is NOT in the synced node — it comes from catalog.json over
-        HTTPS — so the household blob is about a kilobyte. Every bandwidth
-        argument built on 30 KB was inflated by the same factor.
-      - Narrow writes and keyed collections were still right, but for
-        CORRECTNESS (two phones overwriting each other), not for bytes.
-      - The listener work is NOT worth doing at 954 bytes. See item 21: the
-        trigger is the catalog move, which makes the node ~30x bigger.
-      - Arrays vs keyed collections showed up directly on the wire: adds grew
-        without bound before, flat after. Worth re-running after any change to
-        how a collection is stored.
-
-
-From a week of actually using it (Aug 2026)
--------------------------------------------
-Kept together rather than scattered into the tiers above, so the numbering
-doesn't shift; the tier each belongs to is noted.
+25. [DONE] Measure the wire. Two browser windows, DevTools on the WebSocket
+    frames. The finding killed a planned optimisation: the whole synced node
+    was 954 BYTES, not the ~30 KB assumed, because the catalog wasn't in it.
+    A checkbox tick is ~130 bytes. Re-measure after any change that moves data
+    into the synced node — arguing from an imagined payload size wasted a day.
 
 26. [DONE] Week starts Sunday, not Monday — and make it a setting rather than a
     constant. DAYS is hardcoded in lib.js, so this is a small change to the
@@ -507,175 +296,33 @@ doesn't shift; the tier each belongs to is noted.
     household sync and the publish flow, with no actual preferences section.
     Build the section first, then this is its first occupant. TIER 1.
 
-27. [DONE] Sides on a dinner. Built as the main/sides split rather than an
-    array of equals: a slot stays { recipeId, servings, skipList } for the
-    main exactly as before, plus an optional `sides: [{ recipeId, servings }]`.
-    Keeping the main where every existing reader already looks for it (Meals
-    tab's per-recipe plan summary, plannedMealCount, the empty-slot picker)
-    meant only the code that actually needed to know about sides had to
-    change, rather than every reader of a slot.
+27. [DONE] Sides on a dinner. A slot holds a main plus sides rather than one
+    recipe. All of them feed the shopping list through aggregateItems, which
+    already summed the same ingredient from several sources, so the list side
+    needed nothing.
+    Done AFTER the catalog move, deliberately — it changes the shape of a plan
+    slot, and doing it first would have meant migrating that shape twice.
 
-    THE ONE GATE. slotDishes(slot) is now the single place that turns a slot
-    into the flat { recipeId, servings } list both aggregation walks
-    (aggregateItems, servingsByRecipe) sum over. skipList or an empty slot
-    means NOTHING feeds the list — sides included, no separate check for
-    them, so a side can never sneak onto the list of a meal marked "already
-    have the ingredients." Mutation-tested: dropping the skipList check
-    inside slotDishes failed exactly the four tests that should catch it.
+28. [DONE] Meals that don't feed the shopping list — leftovers, or a meal
+    you're already stocked for. `skipList: true` on the slot, surfaced as
+    "Already have the ingredients" on the slot's servings row.
+    The label names the EFFECT, not one reason for it. Two list-facing walks
+    honour it through one shared `slotFeedsList`; plannedMealCount deliberately
+    does NOT, because a skipped meal is still a planned meal.
+    Unticking DELETES the key rather than storing false, so a plan that never
+    uses this keeps the shape it always had.
 
-    Ingredient summing needed nothing, as the note predicted: a main and a
-    side sharing garlic already sum to one line via aggregateItems' existing
-    per-ingredient-id map.
-
-    WHERE SIDES ARE MANAGED. The Week tab only — "+ Add a side" under an
-    editable slot, each side removable and independently servings-editable,
-    reusing the same recipe picker as the main (a `role: "side"` on picker
-    state skips the main's "remove meal" shortcut and its checkmark, since
-    adding a side is always additive). The Meals tab's "Add to week's plan"
-    still assigns the MAIN only — sides need the rest of that slot's dishes
-    in view to make sense of, which only the Week tab shows. Meals tab does
-    read sides now, via a new planSlotsFor(data, recipeId) shared with the
-    delete-recipe cleanup below: a recipe used as a side shows up in that
-    recipe's "on the plan N times" summary, tagged "(side)", independently
-    removable from the main.
-
-    REASSIGNING THE MAIN CLEARS ITS SIDES, same call already made for
-    skipList when item 28 shipped: a freshly picked entree's sides belonged
-    to the dish being replaced, not to whatever replaces it. Only the Week
-    tab's picker does this explicitly (patches `sides: undefined`); the Meals
-    tab's assignPlan already achieves the same result by writing a fresh slot
-    object rather than merging into the old one — true before this item too,
-    so no change was needed there.
-
-    DELETING A RECIPE now also strips it from every slot's `sides` array, not
-    just from being a main — deleteRecipe's cleanup loop used to only check
-    `slot.recipeId`, which would have left a dangling ingredientId reference
-    any time the deleted recipe was only ever used as a side.
-
-    APP_DATA_VERSION -> 3, per item 32's gate, since this is a plan-slot shape
-    change: the Meals tab's assignPlan overwrites a slot wholesale rather
-    than merging, so an OLDER build reassigning a slot's main would silently
-    drop another device's sides with no warning. Same class of risk item 23
-    bumped it for — an ordinary edit on one device quietly destroying data
-    the other device is relying on. Worth being honest about the gap this
-    doesn't close: the stamp lives on the CATALOG node (updateCatalog stamps
-    every write), and sides live in the STATE node, which carries no
-    appDataVersion of its own. A household that only ever touches sides
-    through the Week tab, never editing a recipe or ingredient, won't trip
-    the gate on the first sides edit — it activates on the next catalog
-    touch, which real usage makes likely but doesn't guarantee. Extending the
-    gate to stamp and compare the state node too would close that gap
-    properly; not done here, in keeping with "use the infrastructure that
-    shipped rather than build more of it" — flagged here so it isn't
-    forgotten if the narrow case ever bites.
-
-    UX FOLLOW-UP, same session, after actually looking at the first cut:
-      - Sides now default to the MAIN's current servings, not their own
-        recipe's base. Green Beans written as "serves 6" added to a
-        4-serving dinner used to start at 6 — the side recipe's own batch
-        size, not the headcount actually being cooked for. Almost always
-        wrong; commitSidePicks in WeekTab now reads the slot's servings
-        first and only falls back to the side's own base if the main
-        somehow has none.
-      - Adding sides is MULTI-SELECT. The picker stays open across taps —
-        each toggles a local, uncommitted pick with a checkmark — and a
-        footer "Add N sides" button commits them all in one write. The
-        motivating case is literally "a main plus two sides," which used
-        to mean two full open/pick/close round trips. The main picker is
-        unchanged: single tap, assigns, closes — swapping the entree is a
-        different action than adding to a list of dishes.
-      - Sides render as their own bordered rows in BOTH edit and read-only
-        mode, not folded into the main's subtitle line ("4 sv · with X (4
-        sv), Y (2 sv)" wrapped badly past two sides and buried small gray
-        text next to the main's colored box). Read-only rows are the same
-        shape as editable ones, just without the input/remove controls —
-        one layout, not two that could drift.
-      - "+ Add a side" is a real dashed-border button now, matching the
-        weight of the empty-slot "+ Choose a meal" affordance instead of
-        being a bare text link easy to scroll past.
-      - NEW: a recipe-level `side: true` flag ("🥗 Side" toggle in the Meals
-        tab editor, next to "⚡ Easy"; same handling — plumbed through
-        draft/save exactly like `easy`, no version bump, purely additive).
-        It's a HINT about a recipe's usual role, not a constraint: a
-        side-tagged recipe can still be picked as a main, and an untagged
-        one can still be picked as a side. The only place it changes
-        behavior is picker ORDERING — opening a side picker groups
-        `side: true` recipes into their own "Side dishes" heading before
-        the meal-type groups, so browsing for a side surfaces actual side
-        dishes first instead of mixing them into "Other meals" by
-        recipe-name-search luck.
-      - The side picker also drops whatever's already in the slot (the
-        main, and any side already added) from the offered list, so a
-        second tap on an already-added side can't create a duplicate
-        entry — the only way to remove one stays the ✕ on its row.
-
-28. [DONE] Meals that don't feed the shopping list. "We're having leftovers" or
-    "we already have everything for this" — you want it on the plan for the
-    record without its ingredients padding the list. A `skipList: true` on the
-    slot, honoured in aggregateItems where the plan is walked, plus a tick in
-    the picker. Cheapest of these four and probably the most used. TIER 1.
-
-    Built as "Already have the ingredients", a checkbox on the slot's servings
-    row whenever the slot is editable — next to the meal it applies to rather
-    than in the picker, which is about WHICH meal, not how it's treated. The
-    slot keeps its plain (not green) bubble and reads "4 sv · already have the
-    ingredients" when read-only, so the week shows at a glance which meals are
-    driving the shopping.
-
-    The label names the EFFECT ("nothing to buy for this one"), not one reason
-    for it. "Not on the shopping list" described the mechanism, and leftovers
-    are only one of the ways a meal gets there. The stored field stays
-    `skipList` — that is what it does to the data.
-
-    Two aggregation walks read the plan — aggregateItems for the items and
-    servingsByRecipe for the List tab's "N meals selected" — and both are
-    list-facing, so both honour the flag through one shared `slotFeedsList`
-    predicate. plannedMealCount deliberately does not: a skipped meal is still
-    a planned meal, so it still counts toward "2 meals planned" and toward
-    whether the week is in the "shopping" stage.
-
-    Unticking DELETES the key rather than storing `skipList: false`, so a plan
-    that never uses the feature keeps exactly the shape it always had and
-    writes nothing extra. Re-picking a meal into the slot clears the flag too —
-    "already have the ingredients" was about the meal being replaced.
-
-29. [DONE] Return to top on the Meals tab, or keep the search + filter row
-    fixed. Fine at 30 recipes, unusable at 300 — you scroll for a while and
-    then have to scroll all the way back to search again. Sticky controls solve
-    it without adding a control. TIER 1.
-
-    Built as a shared <StickyBar> in ui.jsx and applied to three tabs, because
-    the same "scroll a long way, then need the controls again" problem exists
-    on all of them. One component means one set of decisions about background,
-    z-index and edge bleed rather than three that drift.
-
-    Invisible at rest, hairline + shadow only while actually stuck, so a short
-    list looks exactly as it did before. That state comes from a zero-height
-    sentinel rendered just above the bar and read with IntersectionObserver —
-    when the sentinel leaves the viewport the bar has reached the top. No
-    scroll handler running on every frame.
-
-    WHAT TO PIN IS THE WHOLE DESIGN, and the answer differs per tab:
-      Meals        search + Filter. One row. The item as written.
-      Ingredients  search + Filter. The "add an item" band above deliberately
-                   does NOT pin: adding is occasional, searching is what you do
-                   while scrolling, and two pinned bands eat the screen.
-      List         the grouping toggles and the count that changes as you shop.
-                   Pinning the whole header came to THREE wrapped lines at
-                   390px — about a seventh of the screen permanently gone, on
-                   the one tab you scroll while holding a trolley. "Done
-                   shopping" and "N meals selected" stayed below; that also
-                   keeps a destructive button out of a permanently tappable
-                   spot, though it opens a confirmation either way.
-    The general rule: pin what you reach for WHILE scrolling, not everything
-    that happens to live at the top.
-
-    Two things that needed checking rather than assuming. A sticky ancestor
-    with a z-index creates a stacking context, so the Filter popover had to be
-    confirmed still rendering above the cards (it does — verified with
-    elementFromPoint, not by eye). And the bar cancels the page's 14px side
-    padding with a negative margin, or rows show through the gap as they pass
-    underneath.
+29. [DONE] Sticky controls, via a shared <StickyBar> in ui.jsx, on Meals,
+    Ingredients and List. Invisible at rest; hairline and shadow only while
+    actually stuck, read from a sentinel through IntersectionObserver rather
+    than a scroll handler.
+    WHAT TO PIN IS THE DESIGN, and it differs per tab: pin what you reach for
+    WHILE scrolling, not everything that lives at the top. Pinning the whole
+    List header came to three wrapped lines at 390px, so "Done shopping" and
+    the meal count stayed below.
+    A sticky ancestor with a z-index creates a stacking context — the Filter
+    popover had to be checked with elementFromPoint, not by eye. The bar also
+    cancels the page's 14px side padding, or rows show through at the edges.
 
 30. Warn when another device is running an older build. Two phones on the same
     household diverged this week, and the only signal either gave was "Synced",
@@ -703,156 +350,47 @@ doesn't shift; the tier each belongs to is noted.
     per device, and not recurring — but it took reading build stamps off two
     phones to establish that, which is what this item is for.
 
-31. [DONE] Metric or standard as a preference, and a PREFERENCES SECTION to hold it
-    and item 26's week start. Neither setting has anywhere to live: the
-    Settings tab is household sync plus export/recover, with no preferences.
-    Build the section once and both land in it. TIER 1.
+31. [DONE] Preferences: units (as-entered / metric / standard) and week start,
+    in a Settings tab where every section is now tap-to-open.
+    HOUSEHOLD, NOT DEVICE — they live on the catalog node. Two phones
+    disagreeing about the week start would make the plan grid mean different
+    things on each, which is worse than either answer.
+    Display only; nothing is rewritten, so either can be flipped back freely.
+    The units preference is what AUTHORISES crossing measurement systems, which
+    item 12's conversion layer refuses to do unprompted. It also can't strand a
+    total: counts and invented units have no metric form, so choosing one
+    leaves them alone rather than dropping them.
+    The week start ROTATES the presentation order and never renumbers: plan
+    data is keyed by day name. Only WeekTab needs it — the aggregation walks
+    DAYS to sum, and a sum doesn't care about order.
+    Defaults are Sunday and standard. Note the trap that exposed: a default
+    written as `x === "Sun" ? "Sun" : DEFAULT` silently makes the OTHER value
+    unselectable once the default flips. Whitelist, don't compare.
 
-    WHERE THE VALUE IS. The conversion layer (item 12) already promotes within
-    a measurement system — 24 oz reads 1.5 lb, 1500 g reads 1.5 kg — and
-    refuses to cross between them, because answering "how much flour" in a
-    system this household doesn't use is a surprise. An explicit preference is
-    the one thing that makes crossing correct: if you have SAID metric, 24 oz
-    reading 680 g is the answer to a question you asked. So this setting isn't
-    a knob for its own sake; it authorises the single conversion the layer
-    deliberately refuses to do on its own.
-
-    Shape: "standard" | "metric" | "as entered" (the current behaviour, and the
-    right default — it changes nothing for anyone who doesn't go looking).
-    It affects DISPLAY ONLY. Recipes keep the units they were written in, the
-    conversion table is unchanged, and an unconvertible unit ("can", "bunch")
-    is unaffected whatever the setting says. Nothing is rewritten on disk, so
-    the setting can be flipped back and forth with no migration.
-
-    HOUSEHOLD, NOT DEVICE — the same call staples made ("a shared fact about
-    the kitchen"). Two phones disagreeing about whether the week starts Sunday
-    would make the plan grid mean different things on each, which is worse than
-    either choice. Same for units on a list you both read in a shop.
-    So prefs belong on the catalog node, which is already "how this household
-    works" and changes rarely, rather than in state, which changes constantly.
-    Additive: normalizeCatalog spreads fields it doesn't know, so an older
-    build carries prefs through untouched instead of stripping them.
-
-    The week start (item 26) is the harder half despite sounding smaller. DAYS
-    is a module constant that aggregateItems, servingsByRecipe, plannedMealCount
-    and WeekTab all iterate, and plan data is keyed BY DAY NAME — so the fix is
-    to rotate the order the days are PRESENTED in, never to renumber the keys.
-    Rotating presentation is a display change; renumbering keys would silently
-    move every planned meal by a day.
-
-    BUILT, and the week start turned out safer than this note feared. Only the
-    Week tab needs the rotated order: aggregateItems, servingsByRecipe and
-    plannedMealCount walk DAYS to SUM, and a sum doesn't care what order it
-    adds in. So daysInOrder() is used in exactly one place, and a test asserts
-    the rotation always returns the same seven names — if that ever fails,
-    day-keyed plan data has been shifted and every meal has moved.
-
-    SETTINGS IS NOW ALL TAP-TO-OPEN, via a <Section> in ui.jsx. Every section
-    starts closed, so the whole tab fits on one screen and you choose what to
-    look at. The sync status dot renders in the section HEADER whether open or
-    closed — it's the one part worth reading without opening anything, and it
-    was the signal used to tell two diverged phones apart.
-    Preferences is listed first because it's the only thing anyone comes to
-    Settings for routinely; export, backup and restore are below it and are
-    touched about never.
-    Not a new tab: the nav already wraps to two lines at phone width.
-
-    The units preference is DISPLAY ONLY and can't strand a total. Counts and
-    invented units have no metric or standard form, so choosing one leaves them
-    exactly as they were rather than dropping them — tested, because "choose
-    metric, lose your 3 cans of tomatoes" is the failure that matters.
-
-
-32. [DONE] Tell a device a new build exists, and gate on it when the data
-    demands.
-    Prompted by having to wait for two phones to update before merging the
-    contract PR — coordination done by asking a human to open an app twice.
-    TIER 2, and it makes every later data-shape change cheaper.
-
-    TWO MECHANISMS, OFTEN CONFLATED. Build both, but keep them separate:
-      SOFT — "a newer version is available". A banner with a Reload button.
-        Correct for almost every release. Never blocks; a shopping list you
-        can't open in a shop is worse than one showing last week's layout.
-      HARD — "this household's data needs a newer version than you have".
-        Blocks writes and says update to continue. Correct ONLY when an old
-        build would misread or diverge from what a newer one has written.
-        This is the one that removes the human coordination step.
-
-    WHAT'S ACTUALLY MISSING. main.jsx registers the service worker once on
-    load and never calls registration.update() again, so a PWA left in memory
-    for days never asks whether a new build exists. That is the whole bug.
-    Call update() on visibilitychange (returning to the app is exactly when
-    you want the check) and when the connection comes back.
-
-    DETECTION NEEDS NO NEW ENDPOINT. App.jsx already fetches catalog.json with
-    cache: no-store on every load. Stamp the build id into it — the same
-    __BUILD__ value vite.config.js already produces — and a device compares
-    the live one against its own. Different means a newer build is being
-    served. It also self-corrects: catalog.json is deployed by the same job
-    that deploys the bundle, and the workflow already polls the live site to
-    prove it's serving the expected version.
-
-    THE HARD GATE NEEDS AN ORDINAL, WHICH BUILD IDS ARE NOT. A SHA hash tells
-    you two builds differ, never which is newer. Add a small integer that only
-    moves when a release changes what the shared data means — call it
-    dataShape — published in catalog.json and held as a constant in lib.js.
-      catalog.dataShape > mine  -> hard gate: I am too old for this household
-      catalog.dataShape <= mine -> soft banner at most
-    CATALOG_SHAPE_VERSION already exists and is the natural place to grow this
-    from; it just isn't published or compared today.
-
-    BE HONEST ABOUT THE RISK BEING GATED. For the contract PR the danger was
-    DIVERGENCE, not corruption: an old build reads override fields a new build
-    no longer writes, so it renders stale data. Forward compatibility already
-    stops anything being destroyed — normalizeLocal spreads what it doesn't
-    know. So the gate buys certainty and removes a manual step; it is not
-    protecting against data loss, and overstating that would justify blocking
-    people more often than is warranted.
-
-    RISK IN BUILDING IT. sw.js is the file most able to brick the app, and it
-    already carries scars: a cache name that never changed meant a phone could
-    boot a months-old bundle. It uses skipWaiting + clients.claim, so a new
-    worker takes control while the open page is still running the OLD
-    JavaScript — coherent today only because install precaches in full. Any
-    change here wants the same treatment the last one got: verify offline
-    still opens, and verify an update actually lands, before merging.
-
-    BUILT. APP_DATA_VERSION in its own module (src/version.js), because none of
-    the three numbers already in the codebase means "which generation of the
-    app wrote this". catalogVersion is CONTENT — it gates the deploy verify
-    step, shows as "Catalog v9 loaded", and is bumped by a user pressing
-    Export. CATALOG_SHAPE_VERSION and the state's `version` are written and
-    defaulted on read but never compared, and both are narrower. Reusing any of
-    them would have tied a release decision to a number that moves for other
-    reasons.
-
-    The constant is injected into dist/catalog.json by the build, alongside the
-    build stamp — never committed into public/catalog.json, which is CONTENT
-    that Settings exports and a human pastes back. Build metadata there would
-    be stale the moment it was exported and noise in every catalog diff.
-
-    Two signals, two behaviours, as designed above:
-      site appBuild != mine            -> green banner, Reload / Later
-      catalog appDataVersion > mine    -> red banner, WRITES REFUSED, reads
-                                          left completely alone
-    The gate seeds from the CACHED catalog as well as the live listener. That
-    hole was found by testing rather than by reasoning: offline the listener
-    never fires, and "the last catalog I saw was newer than me" is exactly when
-    writing does damage. Self-correcting, because the listener overwrites it
-    with the truth on connect.
-
-    isBuildTooOld answers "no" to anything unparseable and fires only on
-    STRICTLY greater, because the cost of a false positive is somebody locked
-    out of their shopping list in a shop.
-
-    BOTH PROMPTS ARE MODALS, NOT BANNERS. Built as banners first and changed
-    after using one: a strip at the top of a scrolling page is exactly what a
-    person scrolls past, and for a prompt you are being ASKED to act on, being
-    missed IS the failure. They reuse the existing ConfirmDialog/ChoiceDialog
-    treatment rather than introducing a second visual language.
-    The gate keeps its banner AS WELL as its modal. Dismissing the modal must
-    not leave editing silently dead with nothing on screen explaining why —
-    the modal is the interruption, the banner is the standing reason.
+32. [DONE] Update detection and the write gate.
+    TWO MECHANISMS, KEPT SEPARATE, and that separation is the point:
+      SOFT — the site is serving a different build. A modal offering Reload,
+        dismissible per build. Right for almost every release.
+      HARD — the household's catalog was written by a NEWER generation. Writes
+        refused, reads untouched. A shopping list you can't open in a shop is
+        worse than one you can't tick items off in.
+    Both are modals, not banners: a banner at the top of a scrolling page is
+    exactly what gets scrolled past. The gate keeps a banner TOO, so dismissing
+    the modal doesn't leave editing silently dead.
+    APP_DATA_VERSION (src/version.js) is the ordinal. A build SHA says two
+    builds differ, never which is newer — that is why the gate needs its own
+    number and can't reuse catalogVersion, which moves when a USER presses
+    Export.
+    The fix that made any of it work: main.jsx registered the service worker
+    once and never called registration.update() again, so an app left in memory
+    never learned a new build existed. It now checks on visibilitychange and on
+    reconnect.
+    The gate seeds from the CACHED catalog as well as the live listener —
+    offline the listener never fires, and "the last catalog I saw was newer
+    than me" is exactly when writing does damage. isBuildTooOld answers no to
+    anything unparseable and fires only on strictly greater.
+    STILL UNVERIFIED: the gate firing against a genuinely old build. Test with
+    production in one browser and a PR preview in another, same household.
 
 Refactor notes
 --------------
