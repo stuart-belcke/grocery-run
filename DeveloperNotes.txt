@@ -422,15 +422,46 @@ rather than saving them for a cleanup that never gets scheduled.
     overlap this item was about.
     Done together with item 20 — same file, same theme.
 
-34. Put the Firebase security rules in the repo. There is no rules file under
-    version control, so nobody can review or reason about what is actually
-    deployed. If they are still the defaults, anyone who guesses a household
-    code has read and write access to it.
-    Committing them makes them reviewable and diffable, and it is the
-    prerequisite for ever sharing this app with anyone outside the household.
-    Minimum: deny listing households, require the code length the UI enforces,
-    and validate the shape of what can be written. Real fix is auth — see
-    FutureProjects.md.
+34. [RULES WRITTEN, NOT YET DEPLOYED] Put the Firebase security rules in the
+    repo. There was no rules file under version control — README.md carried
+    an inline copy instead, which is not diffable and can quietly drift from
+    whatever is actually live on the console.
+
+    database.rules.json is now that source of truth, with firebase.json and
+    .firebaserc alongside it so `firebase deploy --only database` targets the
+    right project without extra flags. README.md's setup steps point at the
+    file instead of embedding their own copy.
+
+    WHAT IT DOES: deny listing every household at `/households` (nothing
+    grants that read; only `$code` does, so only a specific known code
+    resolves to anything); require `$code` to match cleanCode()'s own alphabet
+    and be 8-40 characters (the README's prior inline rule only checked
+    length, no character class); and validate that `updatedAt` — present on
+    every write to state and catalog — is actually a number, catching a
+    malformed payload rather than corrupting the shared blob.
+
+    DELIBERATELY SHALLOW. No schema validation beyond those three scalars.
+    normalizeLocal spreads `...d` specifically so an unrecognised field
+    survives a build that doesn't know about it yet (tested in lib.test.js) —
+    a strict `.validate` schema at the database layer would silently defeat
+    that same guarantee from underneath the app, rejecting a legitimate
+    future field the app itself is built to tolerate.
+
+    STILL TO DO, and NOT something this session could do: actually publish the
+    rules. That means either pasting database.rules.json into the Firebase
+    console's Rules tab, or running `firebase deploy --only database` with the
+    CLI authenticated — both require reaching Firebase directly, which this
+    sandboxed environment cannot. STRONGLY test in the console's Rules
+    Playground against the real household code first; a mistake here can
+    lock both phones out of their own data, which is exactly the failure mode
+    item 20 was built to make visible rather than prevent.
+
+    UNVERIFIED ASSUMPTION: these rules are believed compatible with whatever
+    is currently live, on the strength of the README's prior inline snippet
+    (`$code.length >= 8`) presumably matching it — nobody could confirm
+    against the actual Firebase console from here.
+
+    Real fix is auth — see FutureProjects.md and item 37.
 
 35. Add an error boundary. A render throw currently gives a white screen, in a
     shop, with no way back. About twenty lines for a "something went wrong,

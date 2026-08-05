@@ -1,0 +1,25 @@
+{
+  "rules": {
+    "households": {
+      "$code": {
+        ".read": true,
+        ".write": true,
+        ".validate": "$code.matches(/^[a-z0-9-]{8,40}$/)",
+
+        "state": {
+          "updatedAt": {
+            ".validate": "newData.isNumber()"
+          }
+        },
+        "catalog": {
+          "updatedAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "appDataVersion": {
+            ".validate": "newData.isNumber()"
+          }
+        }
+      }
+    }
+  }
+}

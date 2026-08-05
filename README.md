@@ -74,21 +74,14 @@ the day-to-day operational state goes through Firebase.
 2. In the left menu open **Build → Realtime Database → Create Database**.
    Pick a location, and start in **locked mode** (we'll paste rules next).
 3. Once created, open the database's **Rules** tab, replace the contents with
-   the rules below, and Publish. This lets any phone that knows your (long,
-   private) household code read/write only its own household branch:
-
-   ```json
-   {
-     "rules": {
-       "households": {
-         "$code": {
-           ".read": "$code.length >= 8",
-           ".write": "$code.length >= 8"
-         }
-       }
-     }
-   }
-   ```
+   [`database.rules.json`](./database.rules.json) from this repo, and Publish.
+   That file is the source of truth — copy it in rather than retyping it, so
+   what's deployed can never quietly drift from what's reviewable here. It
+   lets any phone that knows your (long, private) household code read/write
+   only its own household branch, denies listing every household's data at
+   once, and rejects a write whose `updatedAt` isn't actually a number (a
+   malformed payload). If you have the Firebase CLI installed and are signed
+   in, `firebase deploy --only database` does the same thing from a terminal.
 
 4. Get your config: Project settings (gear icon) → **General** → scroll to
    "Your apps" → tap the **Web** icon `</>` → register an app (any nickname,
