@@ -448,6 +448,40 @@ MEASURED AND DELIBERATELY NOT PROBLEMS
         payload size was reasoned about rather than measured, the estimate was
         wrong by 30x (item 25).
 
+37. Multi-user: auth, and the household as a real tenant. Absorbed from the
+    "platform phase" that used to live in FutureProjects.md, now that the
+    expensive half of it has shipped.
+
+    ALREADY DONE, and it was the hard part:
+      - narrow, path-scoped writes (item 21's write half)
+      - the catalog moved out of the repo and into the database per household
+      - the override layer — configOverrides, recipeOverrides, localRecipes,
+        extraStores, removedStores — deleted outright
+    That override layer existed ONLY because catalog.json couldn't be written,
+    and it is where almost every bug in this app lived: `false` as a "hidden"
+    marker, compactCfg stamping "staple": false onto 114 ingredients,
+    reconcileToCatalog guessing which local edits a new catalog now reflected.
+    All of it is gone. Nothing below is blocked on it any more.
+
+    WHAT'S LEFT
+      - Sign-in, users/{uid}, and re-parenting the household under a real
+        account. The household code already IS a tenant key — a bearer secret
+        with no recovery, which is exactly what auth fixes. That's why the
+        catalog move did NOT need to wait for auth, and an earlier version of
+        this plan got that backwards.
+      - Narrow listeners: item 21's read half. Still deliberately deferred,
+        and the catalog move made the case WEAKER rather than stronger, since
+        the growth landed on its own node instead of on `state`.
+      - Invites, roles, billing, a landing page. Ordinary product work once
+        sign-in exists, and none of it is a foundation question.
+      - Commit the security rules first — item 34. Auth without reviewable
+        rules is a login screen in front of an open door.
+
+    Firestore is not a step here. It becomes worth adopting when one of its
+    advantages actually binds — most likely offline persistence, or history
+    outgrowing what a client-side slice can page through. Item 21 covers what
+    keeps that door open.
+
 Refactor notes
 --------------
 [DONE] The catalog move was done as EXPAND then CONTRACT, and it's the pattern
