@@ -348,6 +348,114 @@ rather than saving them for a cleanup that never gets scheduled.
     is what would make that structural instead of a convention the UI has to
     keep enforcing. Gets more expensive with every ingredient added.
 
+    [IN PROGRESS — branch claude/ingredient-ids, EXPAND phase.] Read the
+    "ingredient identity" comment block in lib.js first; it carries the
+    reasoning. What follows is the plan and what's left.
+
+    PROVEN DAMAGE, not hypothetical. Renaming "Baby spinach" to "Spinach" on
+    the real build today:
+        catalog ingredient renamed   ok
+        list.extras followed         ok
+        list.bought  LEFT BEHIND     {"baby spinach":{"bag":2}}
+        stapleNeeds  LEFT BEHIND     {"baby spinach":true}
+    commitRename moves extras, overrides and checked. bought and stapleNeeds
+    were added AFTER it was written and nobody went back. Consequences: you
+    re-buy something you already have (the record is unreachable, so the item
+    returns at full quantity), and a staple you're out of silently stops
+    appearing. Ids kill this by construction — renaming touches no keys.
+
+    SHAPE
+      ingredients: { ing_7f3a2b: { name, store, aisles, staple } }
+      recipe.ingredients: [ { ingredientId, qty, unit } ]
+      list.checked / bought / overrides / extras, stapleNeeds -> keyed by id
+
+    DECISION 1 — catalog.json STAYS NAME-KEYED. The file is hand-edited and
+    diffed in git; ids in it would mean inventing one and matching it across
+    two sections just to add a recipe. Ids are minted on the way in
+    (seedCatalog -> withIngredientIds) and resolved back to names on the way
+    out (the Settings export). The file stays the readable artifact.
+
+    DECISION 2 — EXPAND THEN CONTRACT. The catalog and the shopping state are
+    two separately-synced nodes and cannot migrate atomically: if the catalog
+    converted and the state write were lost, everything ticked off would
+    detach. So every resolver accepts BOTH an id and a legacy norm(name) key,
+    writes use ids, and state converts as it is touched. A LATER release drops
+    the legacy path — do not try to do both at once.
+
+    DECISION 3 — BUMP APP_DATA_VERSION TO 2. An older build reading an
+    id-keyed catalog would render "ing_7f3a2b" as an ingredient name. This is
+    the first real use of the gate built in item 32: the other phone gets
+    "update to keep editing" instead of quietly showing nonsense.
+
+    RECIPE EDITOR. Typing a name that doesn't exist MINTS an ingredient —
+    which is what already happens implicitly today, since typing a new name
+    creates a config entry on first use. Typing one that exists links to it.
+    Item 11's autocomplete already steers onto existing names.
+
+    DONE SO FAR (committed on the branch):
+      mintIngredientId, normalizeIngredient, compactIngredient
+      ingredientIndex   - byId + byName, built once per render
+      resolveIngredientId / ingredientIdOf - accept id, legacy key, or name
+      withIngredientIds - converts a name-keyed catalog, rewrites recipe lines,
+                          mints for names no ingredient entry covers
+      remapIngredientKeys - re-keys the state's five stores; an entry that
+                          resolves to nothing is KEPT under its old key rather
+                          than dropped, because losing what you ticked off
+                          would be worse than a stale key nothing reads
+
+    VERIFIED ON THE REAL HOUSEHOLD (two phones, PR preview)
+      - the migration runs: name-keyed ingredients become ing_ ids carrying
+        their name, recipe lines become {ingredientId, qty, unit}, and the
+        shopping state's five stores move across
+      - renaming no longer detaches anything, and propagates between devices
+      - seedCatalog mints ids directly, so a new household is never born in a
+        shape the app immediately wants to migrate
+
+    STILL NOT VERIFIED: THE GATE FIRING FOR REAL. A device on the OLD build
+    sharing a migrated household should show "update to keep editing" rather
+    than rendering ing_ ids as names. Only ever tested with a synthetic
+    appDataVersion of 99. To test: production site in one browser, PR preview
+    in another, same throwaway household — production and preview share an
+    origin on desktop, so two browsers, not two tabs.
+
+    TWO BUGS FOUND BY USING IT, NOT BY TESTS. Both are the same shape: code
+    written when the key WAS the name.
+      1. Four places read a key and treated it as a name. Two rendered
+         "Ing_c45b0s82" where a name belonged; the other two were worse —
+         the Ingredients "add" box and the recipe editor both WROTE name-keyed
+         entries into an id-keyed catalog, which would have reintroduced the
+         old shape one entry at a time while looking fine. Everything that
+         turns a typed name into an ingredient now goes through
+         ensureIngredientId; everything that displays one uses
+         ingredientNameFor.
+      2. Renaming onto an existing name created a DUPLICATE. Two ingredients
+         sharing a name was impossible while the key was the name, and the old
+         rename merged instead — a rule that was dropped along with the
+         key-moving it needed. Renaming now merges, repointing recipes and
+         summing a line that would otherwise duplicate, and asks first because
+         a merge deletes an ingredient.
+
+    The lesson worth keeping: the migration was correct both times. What broke
+    was ordinary EDITING afterwards. A migration test that only checks the
+    conversion will miss this entire class.
+
+    STILL TO DO:    STILL TO DO:
+      - App.jsx `data` memo: resolve ingredientId -> name when assembling
+        data.recipes[].ingredients[]. THIS IS THE TRICK THAT KEEPS THE BLAST
+        RADIUS SMALL — tab code that reads i.name keeps working unchanged.
+      - aggregateItems: key items by ingredient id, display the resolved name.
+        addPart currently does `key = norm(name)`.
+      - the state remap, run opportunistically once the catalog has ids
+      - normalizeCatalog: run withIngredientIds when it sees a name-keyed
+        catalog, so adoption converts
+      - PantryTab: rows keyed by id; commitRename becomes a name edit only
+      - SettingsTab catalogJson(): resolve ids back to names on export
+      - APP_DATA_VERSION -> 2
+      - a test that FAILS when a new ingredient-keyed store is added and not
+        handled. bought/stapleNeeds were lost precisely because nothing
+        enforced that list; ids make it structural, but the test is what stops
+        the next one.
+
 24. Key concurrently-edited collections by id instead of using arrays.
     localRecipes, list.extras, extraStores and removedStores are arrays
     (lib.js:134-142). An array index is not a stable identity, so two phones
@@ -399,13 +507,107 @@ doesn't shift; the tier each belongs to is noted.
     household sync and the publish flow, with no actual preferences section.
     Build the section first, then this is its first occupant. TIER 1.
 
-27. Sides on a dinner. A slot is { recipeId, servings } today, so a main plus
-    two sides means several recipes per slot — either an array of them or a
-    main/sides split. Both feed the shopping list the same way through
-    aggregateItems, which already sums the same ingredient from several
-    sources, so the list side needs nothing.
-    DO THIS AFTER THE CATALOG MOVE. It changes the shape of a plan slot, and
-    doing it first means migrating that shape twice. TIER 3.
+27. [DONE] Sides on a dinner. Built as the main/sides split rather than an
+    array of equals: a slot stays { recipeId, servings, skipList } for the
+    main exactly as before, plus an optional `sides: [{ recipeId, servings }]`.
+    Keeping the main where every existing reader already looks for it (Meals
+    tab's per-recipe plan summary, plannedMealCount, the empty-slot picker)
+    meant only the code that actually needed to know about sides had to
+    change, rather than every reader of a slot.
+
+    THE ONE GATE. slotDishes(slot) is now the single place that turns a slot
+    into the flat { recipeId, servings } list both aggregation walks
+    (aggregateItems, servingsByRecipe) sum over. skipList or an empty slot
+    means NOTHING feeds the list — sides included, no separate check for
+    them, so a side can never sneak onto the list of a meal marked "already
+    have the ingredients." Mutation-tested: dropping the skipList check
+    inside slotDishes failed exactly the four tests that should catch it.
+
+    Ingredient summing needed nothing, as the note predicted: a main and a
+    side sharing garlic already sum to one line via aggregateItems' existing
+    per-ingredient-id map.
+
+    WHERE SIDES ARE MANAGED. The Week tab only — "+ Add a side" under an
+    editable slot, each side removable and independently servings-editable,
+    reusing the same recipe picker as the main (a `role: "side"` on picker
+    state skips the main's "remove meal" shortcut and its checkmark, since
+    adding a side is always additive). The Meals tab's "Add to week's plan"
+    still assigns the MAIN only — sides need the rest of that slot's dishes
+    in view to make sense of, which only the Week tab shows. Meals tab does
+    read sides now, via a new planSlotsFor(data, recipeId) shared with the
+    delete-recipe cleanup below: a recipe used as a side shows up in that
+    recipe's "on the plan N times" summary, tagged "(side)", independently
+    removable from the main.
+
+    REASSIGNING THE MAIN CLEARS ITS SIDES, same call already made for
+    skipList when item 28 shipped: a freshly picked entree's sides belonged
+    to the dish being replaced, not to whatever replaces it. Only the Week
+    tab's picker does this explicitly (patches `sides: undefined`); the Meals
+    tab's assignPlan already achieves the same result by writing a fresh slot
+    object rather than merging into the old one — true before this item too,
+    so no change was needed there.
+
+    DELETING A RECIPE now also strips it from every slot's `sides` array, not
+    just from being a main — deleteRecipe's cleanup loop used to only check
+    `slot.recipeId`, which would have left a dangling ingredientId reference
+    any time the deleted recipe was only ever used as a side.
+
+    APP_DATA_VERSION -> 3, per item 32's gate, since this is a plan-slot shape
+    change: the Meals tab's assignPlan overwrites a slot wholesale rather
+    than merging, so an OLDER build reassigning a slot's main would silently
+    drop another device's sides with no warning. Same class of risk item 23
+    bumped it for — an ordinary edit on one device quietly destroying data
+    the other device is relying on. Worth being honest about the gap this
+    doesn't close: the stamp lives on the CATALOG node (updateCatalog stamps
+    every write), and sides live in the STATE node, which carries no
+    appDataVersion of its own. A household that only ever touches sides
+    through the Week tab, never editing a recipe or ingredient, won't trip
+    the gate on the first sides edit — it activates on the next catalog
+    touch, which real usage makes likely but doesn't guarantee. Extending the
+    gate to stamp and compare the state node too would close that gap
+    properly; not done here, in keeping with "use the infrastructure that
+    shipped rather than build more of it" — flagged here so it isn't
+    forgotten if the narrow case ever bites.
+
+    UX FOLLOW-UP, same session, after actually looking at the first cut:
+      - Sides now default to the MAIN's current servings, not their own
+        recipe's base. Green Beans written as "serves 6" added to a
+        4-serving dinner used to start at 6 — the side recipe's own batch
+        size, not the headcount actually being cooked for. Almost always
+        wrong; commitSidePicks in WeekTab now reads the slot's servings
+        first and only falls back to the side's own base if the main
+        somehow has none.
+      - Adding sides is MULTI-SELECT. The picker stays open across taps —
+        each toggles a local, uncommitted pick with a checkmark — and a
+        footer "Add N sides" button commits them all in one write. The
+        motivating case is literally "a main plus two sides," which used
+        to mean two full open/pick/close round trips. The main picker is
+        unchanged: single tap, assigns, closes — swapping the entree is a
+        different action than adding to a list of dishes.
+      - Sides render as their own bordered rows in BOTH edit and read-only
+        mode, not folded into the main's subtitle line ("4 sv · with X (4
+        sv), Y (2 sv)" wrapped badly past two sides and buried small gray
+        text next to the main's colored box). Read-only rows are the same
+        shape as editable ones, just without the input/remove controls —
+        one layout, not two that could drift.
+      - "+ Add a side" is a real dashed-border button now, matching the
+        weight of the empty-slot "+ Choose a meal" affordance instead of
+        being a bare text link easy to scroll past.
+      - NEW: a recipe-level `side: true` flag ("🥗 Side" toggle in the Meals
+        tab editor, next to "⚡ Easy"; same handling — plumbed through
+        draft/save exactly like `easy`, no version bump, purely additive).
+        It's a HINT about a recipe's usual role, not a constraint: a
+        side-tagged recipe can still be picked as a main, and an untagged
+        one can still be picked as a side. The only place it changes
+        behavior is picker ORDERING — opening a side picker groups
+        `side: true` recipes into their own "Side dishes" heading before
+        the meal-type groups, so browsing for a side surfaces actual side
+        dishes first instead of mixing them into "Other meals" by
+        recipe-name-search luck.
+      - The side picker also drops whatever's already in the slot (the
+        main, and any side already added) from the offered list, so a
+        second tap on an already-added side can't create a duplicate
+        entry — the only way to remove one stays the ✕ on its row.
 
 28. [DONE] Meals that don't feed the shopping list. "We're having leftovers" or
     "we already have everything for this" — you want it on the plan for the

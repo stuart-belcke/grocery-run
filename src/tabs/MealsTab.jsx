@@ -6,7 +6,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, StickyBar } from "../ui";
-import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, unitSuggestions, ingredientNames, normalizeCfg, ingredientMatches } from "../lib";
+import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, unitSuggestions, ingredientNames, normalizeCfg, ingredientMatches, ensureIngredientId, asArray, planSlotsFor } from "../lib";
 import { RecipeDetail } from "../RecipeDetail";
 
 // Rounded "pill" grouping a remove / count / add cluster so the controls read
@@ -61,14 +61,29 @@ export function MealsTab({ data, update, updateCatalog }) {
       if (d.plan[day]) delete d.plan[day][type];
       return d;
     });
+  // Drop this recipe from just its ONE side slot, leaving the main and any
+  // other sides in place — unlike removePlanSlot, which clears the whole day/
+  // meal because there the recipe IS what fills it.
+  const removePlanSlotSide = (day, type, recipeId) =>
+    update((d) => {
+      const slot = d.plan?.[day]?.[type];
+      if (!slot) return d;
+      const sides = asArray(slot.sides).filter((s) => !(s && s.recipeId === recipeId));
+      const next = { ...slot };
+      if (sides.length) next.sides = sides;
+      else delete next.sides;
+      d.plan[day][type] = next;
+      return d;
+    });
 
-  const startNew = () => setDraft({ id: null, name: "", mealTypes: [], easy: false, servings: "4", notes: "", ingredients: [{ name: "", qty: "1", unit: "" }] });
+  const startNew = () => setDraft({ id: null, name: "", mealTypes: [], easy: false, side: false, servings: "4", notes: "", ingredients: [{ name: "", qty: "1", unit: "" }] });
   const startEdit = (r) =>
     setDraft({
       id: r.id,
       name: r.name,
       mealTypes: (r.mealTypes || []).slice(),
       easy: !!r.easy,
+      side: !!r.side,
       servings: String(r.servings || 4),
       notes: r.notes || "",
       ingredients: r.ingredients.map((i) => ({ ...i, qty: String(i.qty) })),
@@ -84,6 +99,7 @@ export function MealsTab({ data, update, updateCatalog }) {
       name: draft.name.trim(),
       mealTypes: draft.mealTypes,
       easy: !!draft.easy,
+      side: !!draft.side,
       servings: Math.max(1, Number(draft.servings) || 4),
       notes: draft.notes.trim(),
       ingredients: draft.ingredients
@@ -94,11 +110,19 @@ export function MealsTab({ data, update, updateCatalog }) {
     // and nothing shadowing anything. New ingredients get an entry so they show
     // up on the Ingredients tab ready to have a store set.
     updateCatalog((c) => {
-      c.recipes[clean.id] = clean;
-      for (const ing of clean.ingredients) {
-        const k = norm(ing.name);
-        if (!c.ingredients[k]) c.ingredients[k] = { store: UNASSIGNED, aisles: {} };
-      }
+      // Recipe lines store an ingredient ID, not a spelling. Typing a name the
+      // household has never used mints an ingredient — which is what already
+      // happened implicitly, since a new name used to create a config entry on
+      // first use. Now it also gets an identity that renaming can't break.
+      c.recipes[clean.id] = {
+        ...clean,
+        ingredients: clean.ingredients
+          .map((ing) => {
+            const id = ensureIngredientId(c, ing.name);
+            return id ? { ingredientId: id, qty: ing.qty, unit: ing.unit } : null;
+          })
+          .filter(Boolean),
+      };
       return c;
     });
     setDraft(null);
@@ -115,7 +139,19 @@ export function MealsTab({ data, update, updateCatalog }) {
       delete d.list.selections[r.id];
       for (const day of Object.keys(d.plan || {})) {
         for (const t of Object.keys(d.plan[day] || {})) {
-          if (d.plan[day][t]?.recipeId === r.id) delete d.plan[day][t];
+          const slot = d.plan[day][t];
+          if (!slot) continue;
+          if (slot.recipeId === r.id) {
+            delete d.plan[day][t];
+          } else if (asArray(slot.sides).some((s) => s && s.recipeId === r.id)) {
+            // Deleted from the catalog but was only a side here — drop just
+            // that reference rather than the whole slot's main dish.
+            const sides = asArray(slot.sides).filter((s) => !(s && s.recipeId === r.id));
+            const next = { ...slot };
+            if (sides.length) next.sides = sides;
+            else delete next.sides;
+            d.plan[day][t] = next;
+          }
         }
       }
       return d;
@@ -154,11 +190,10 @@ export function MealsTab({ data, update, updateCatalog }) {
     const servings = data.list.selections[r.id] || 0;
     const detailShown = detailOpen === r.id;
     const picking = planPick?.id === r.id;
-    const planSlots = [];
-    for (const day of DAYS) for (const type of MEAL_TYPES) {
-      const slot = data.plan?.[day]?.[type];
-      if (slot?.recipeId === r.id) planSlots.push({ day, type, servings: Number(slot.servings) || base });
-    }
+    // Everywhere this recipe appears in the plan, as a main or as a side —
+    // sides are read-only here (a name + which day/meal), since adding one is
+    // a Week-tab action that needs the rest of that slot's dishes in view.
+    const planSlots = planSlotsFor(data, r.id).map(({ day, type, role, servings: sv }) => ({ day, type, role, servings: Number(sv) || base }));
     const onPlan = planSlots.length > 0;
     return (
       <div
@@ -200,6 +235,14 @@ export function MealsTab({ data, update, updateCatalog }) {
               {r.easy && (
                 <span title="Quick, low-effort meal" style={{ fontSize: 11, fontWeight: 500, background: C.goldSoft, color: C.gold, padding: "2px 8px", borderRadius: 999 }}>
                   ⚡ Easy
+                </span>
+              )}
+              {r.side && (
+                // Outlined rather than filled like the mealType pills, so it
+                // reads as a trait ("this can be a side") rather than another
+                // category next to Breakfast/Lunch/Dinner/Dessert.
+                <span title="Typically served as a side dish" style={{ fontSize: 11, fontWeight: 500, background: "transparent", border: `1px solid ${C.green}`, color: C.green, padding: "1px 7px", borderRadius: 999 }}>
+                  🥗 Side
                 </span>
               )}
             </div>
@@ -262,18 +305,19 @@ export function MealsTab({ data, update, updateCatalog }) {
           </div>
 
           {/* Planned meals = week-plan slots. A live summary of every slot this
-              recipe fills (added here or on the Week tab), each removable. */}
+              recipe fills — as a main (added here or on the Week tab) or as a
+              side (added on the Week tab only) — each removable. */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             {planSlots.length > 0 && (
               <span style={{ fontSize: 12, color: C.faint }}>
-                {planSlots.length} planned meal{planSlots.length === 1 ? "" : "s"}:
+                On the plan {planSlots.length} time{planSlots.length === 1 ? "" : "s"}:
               </span>
             )}
-            {planSlots.map(({ day, type, servings: sv }) => (
-              <span key={day + type} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: C.greenSoft, color: C.green, fontSize: 12, fontWeight: 500, padding: "3px 4px 3px 9px", borderRadius: 999 }}>
-                {day} · {type}{sv !== base ? ` ×${r2(sv / base)}` : ""}
+            {planSlots.map(({ day, type, role, servings: sv }) => (
+              <span key={day + type + role} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: C.greenSoft, color: C.green, fontSize: 12, fontWeight: 500, padding: "3px 4px 3px 9px", borderRadius: 999 }}>
+                {day} · {type}{role === "side" ? " (side)" : ""}{sv !== base ? ` ×${r2(sv / base)}` : ""}
                 <button
-                  onClick={() => removePlanSlot(day, type)}
+                  onClick={() => (role === "side" ? removePlanSlotSide(day, type, r.id) : removePlanSlot(day, type))}
                   aria-label={`Remove ${r.name} from ${day} ${type}`}
                   title="Remove from the week plan"
                   style={{ border: "none", background: "transparent", color: C.green, cursor: "pointer", fontSize: 13, lineHeight: 1, padding: "0 2px" }}
@@ -467,6 +511,24 @@ export function MealsTab({ data, update, updateCatalog }) {
               }}
             >
               ⚡ Easy
+            </button>
+            <button
+              onClick={() => setDraft({ ...draft, side: !draft.side })}
+              aria-pressed={draft.side}
+              title="Typically served as a side dish, not the main — surfaces first when picking a side for a week-plan slot"
+              style={{
+                fontFamily: fontBody,
+                fontSize: 13,
+                fontWeight: 500,
+                padding: "5px 12px",
+                borderRadius: 999,
+                cursor: "pointer",
+                border: `1px solid ${draft.side ? C.green : C.line}`,
+                background: draft.side ? C.greenSoft : "#fff",
+                color: draft.side ? C.green : C.ink,
+              }}
+            >
+              🥗 Side
             </button>
             <span style={{ flex: 1 }} />
             <label style={{ fontSize: 12, color: C.faint, display: "flex", alignItems: "center", gap: 6 }}>

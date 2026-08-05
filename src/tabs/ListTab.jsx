@@ -6,7 +6,7 @@
 import { useState, useMemo, useRef } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, StickyBar } from "../ui";
-import { UNASSIGNED, norm, r2, normalizeCfg, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor } from "../lib";
+import { UNASSIGNED, norm, r2, normalizeCfg, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor } from "../lib";
 
 export function ListTab({ data, update, updateCatalog }) {
   const [view, setView] = useState("store");
@@ -81,7 +81,7 @@ export function ListTab({ data, update, updateCatalog }) {
   // week's needs.
   const boughtRows = Object.entries(data.list.bought || {})
     .filter(([, parts]) => parts && typeof parts === "object" && Object.keys(parts).length)
-    .map(([key, parts]) => ({ key, name: cap(key), label: qtyLabel(parts) }))
+    .map(([key, parts]) => ({ key, name: ingredientNameFor(data, key), label: qtyLabel(parts) }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   // Putting something back means "I don't actually have this": it stops

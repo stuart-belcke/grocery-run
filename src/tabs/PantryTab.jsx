@@ -7,7 +7,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Btn, ConfirmDialog, ChoiceDialog, StickyBar } from "../ui";
-import { UNASSIGNED, norm, cap, r2, normalizeCfg, compactCfg, ingredientNames, unitSuggestions, usedInRecipes, filterIngredients, commonUnitFor } from "../lib";
+import { UNASSIGNED, norm, cap, r2, normalizeCfg, compactCfg, ingredientNames, unitSuggestions, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient, ensureIngredientId, ingredientIdByName, mergeIngredients } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
 // "how many of this on the list" reads the same everywhere in the app.
@@ -116,9 +116,10 @@ export function PantryTab({ data, update, updateCatalog }) {
   const addItem = () => {
     const name = newItem.trim();
     if (!name) return;
-    const key = norm(name);
+    // Mints an id if this name is new, or returns the existing one so adding a
+    // name that already exists doesn't create a duplicate under a second id.
     updateCatalog((c) => {
-      if (!c.ingredients[key]) c.ingredients[key] = { store: UNASSIGNED, aisles: {} };
+      ensureIngredientId(c, name);
       return c;
     });
     setNewItem("");
@@ -175,51 +176,63 @@ export function PantryTab({ data, update, updateCatalog }) {
     if (!editItem) return;
     const newName = editItem.name.trim();
     const oldKey = editItem.key;
-    const newKey = norm(newName);
-    if (!newName || newKey === oldKey) return setEditItem(null);
+    // Nothing to do if the name is blank or unchanged. Compared against the
+    // ingredient's CURRENT name, not against the key — the key is an id now
+    // and has nothing to say about what the thing is called.
+    const current = normalizeIngredient(data.config[oldKey], oldKey).name;
+    if (!newName || norm(newName) === norm(current)) return setEditItem(null);
     const affected = usedInRecipes(data, oldKey);
     // Recipes use this name, so the choice ("rename everywhere" vs "save as a
     // separate item") goes to a dialog and comes back through commitRename.
-    if (affected.length > 0) return setAskRename({ oldKey, newName, newKey, affected });
-    commitRename({ oldKey, newName, newKey, affected }, false);
+    // Confirm when recipes are affected OR when this would merge into an
+    // existing ingredient — a merge deletes one, which is too much to do
+    // silently just because two names happen to match.
+    const mergeInto = ingredientIdByName(data.config, newName, oldKey);
+    if (affected.length > 0 || mergeInto) {
+      return setAskRename({ oldKey, oldName: current, newName, affected, mergeInto });
+    }
+    commitRename({ oldKey, newName, affected }, false);
   };
 
-  const commitRename = ({ oldKey, newName, newKey, affected }, asNew) => {
-    // The ingredient and any recipes mentioning it are catalog; the shopping
-    // list's own bookkeeping is trip state. One call to each.
+  const commitRename = ({ oldKey, newName, affected }, asNew) => {
+    // Renaming is a NAME EDIT: ids are stable, so recipes, list.checked,
+    // list.bought, list.overrides, list.extras and stapleNeeds all keep
+    // pointing at the same thing without being touched.
+    //
+    // WITH ONE EXCEPTION. Two ingredients sharing a name was structurally
+    // impossible while the key WAS the name. It isn't now, so renaming onto a
+    // name that already exists MERGES into it — the behaviour the old
+    // key-moving version got for free, and whose loss produced two entries
+    // both called "Applesaucer", only one carrying a store and aisle.
+    const mergeInto = asNew ? null : ingredientIdByName(data.config, newName, oldKey);
+
     updateCatalog((c) => {
-      const cfg = normalizeCfg(c.ingredients[oldKey]);
-      if (!c.ingredients[newKey]) c.ingredients[newKey] = compactCfg(cfg);
-      if (asNew) return c; // "save as a separate item" leaves the original alone
-      for (const r of affected) {
-        const existing = c.recipes[r.id];
-        if (!existing) continue;
-        c.recipes[r.id] = {
-          ...existing,
-          ingredients: (existing.ingredients || []).map((i) => (norm(i.name) === oldKey ? { ...i, name: newName } : i)),
-        };
+      if (asNew) {
+        // "Save as a separate item": a brand-new ingredient, leaving the
+        // original and everything pointing at it exactly as they were.
+        c.ingredients[mintIngredientId()] = { ...normalizeIngredient(c.ingredients[oldKey], newName), name: newName };
+        return c;
       }
-      // One layer now, so the old entry is simply gone — no shadowing, no
-      // false-as-hidden marker, no catalog copy waiting to come back.
-      if (newKey !== oldKey) delete c.ingredients[oldKey];
+      if (mergeInto) return mergeIngredients(c, oldKey, mergeInto);
+      c.ingredients[oldKey] = { ...normalizeIngredient(c.ingredients[oldKey], newName), name: newName };
       return c;
     });
-    if (!asNew) {
+
+    // The shopping state points at ids too, so a merge has to move its five
+    // stores off the id that just disappeared.
+    if (mergeInto) {
       update((d) => {
-        // Renaming moves the hand-added entry to its new key, merging if the
-        // target name already has one.
-        if (d.list.extras[oldKey]) {
-          d.list.extras[newKey] = { ...d.list.extras[oldKey], name: newName };
-          if (newKey !== oldKey) delete d.list.extras[oldKey];
-        }
-        if (d.list.overrides[oldKey] != null) {
-          if (d.list.overrides[newKey] == null) d.list.overrides[newKey] = d.list.overrides[oldKey];
-          delete d.list.overrides[oldKey];
-        }
-        if (d.list.checked[oldKey]) {
-          d.list.checked[newKey] = true;
-          delete d.list.checked[oldKey];
-        }
+        const move = (obj) => {
+          if (!obj || obj[oldKey] === undefined) return obj;
+          if (obj[mergeInto] === undefined) obj[mergeInto] = obj[oldKey];
+          delete obj[oldKey];
+          return obj;
+        };
+        move(d.list.checked);
+        move(d.list.bought);
+        move(d.list.overrides);
+        move(d.list.extras);
+        move(d.stapleNeeds);
         return d;
       });
     }
@@ -722,7 +735,7 @@ export function PantryTab({ data, update, updateCatalog }) {
           hid "save as a separate item" behind Cancel. */}
       <ChoiceDialog
         open={!!askRename}
-        title="Rename inside recipes too?"
+        title={askRename && askRename.mergeInto ? "Combine with the existing one?" : "Rename inside recipes too?"}
         onCancel={() => setAskRename(null)}
         choices={[
           { label: "Keep as separate item", kind: "ghost", onClick: () => commitRename(askRename, true) },
@@ -732,9 +745,21 @@ export function PantryTab({ data, update, updateCatalog }) {
         {askRename && (
           <>
             <p style={{ margin: "0 0 8px" }}>
-              <b style={{ color: C.ink }}>{cap(askRename.oldKey)}</b> → <b style={{ color: C.ink }}>{askRename.newName}</b>, used by{" "}
-              <b style={{ color: C.ink }}>{askRename.affected.map((r) => r.name).join(", ")}</b>.
+              <b style={{ color: C.ink }}>{askRename.oldName}</b> → <b style={{ color: C.ink }}>{askRename.newName}</b>
+              {askRename.affected.length > 0 && (
+                <>
+                  , used by <b style={{ color: C.ink }}>{askRename.affected.map((r) => r.name).join(", ")}</b>
+                </>
+              )}
+              .
             </p>
+            {askRename.mergeInto && (
+              <p style={{ margin: "0 0 8px", color: C.tomato }}>
+                You already have an ingredient called <b>{askRename.newName}</b>. Renaming everywhere
+                COMBINES the two: recipes using this one switch over, and its store and aisle are
+                dropped in favour of the existing one&apos;s.
+              </p>
+            )}
             <p style={{ margin: 0 }}>
               Rename everywhere updates {askRename.affected.length === 1 ? "that recipe" : "those recipes"} too. Keeping it separate leaves them alone and saves{" "}
               <b style={{ color: C.ink }}>{askRename.newName}</b> as its own ingredient.

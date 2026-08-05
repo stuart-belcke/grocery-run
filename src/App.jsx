@@ -32,6 +32,11 @@ import {
   pickState,
   needsKeyMigration,
   seedCatalog,
+  needsIngredientIds,
+  withIngredientIds,
+  ingredientIndex,
+  remapIngredientKeys,
+  normalizeIngredient,
   isBuildTooOld,
   APP_DATA_VERSION,
   normalizeCatalog,
@@ -152,6 +157,28 @@ export default function App() {
     if (catalogReadyRef.current) writeCatalog(code, next);
   };
 
+
+  // One-time: give every ingredient a stable id, and move the shopping state's
+  // five ingredient-keyed stores onto those ids.
+  //
+  // The catalog and the state are separate nodes, so this cannot be atomic.
+  // It is written to be safe if only half lands: every reference resolves by
+  // id OR by name, so a state still keyed by name reads correctly against an
+  // id-keyed catalog, and the remap can happen later or never without losing
+  // anything. That is why the catalog goes first.
+  const migrateToIngredientIds = (adopted) => {
+    const converted = withIngredientIds(adopted);
+    updateCatalog(() => converted);
+    const index = ingredientIndex(converted.ingredients);
+    update((d) => {
+      d.list.checked = remapIngredientKeys(d.list.checked, index);
+      d.list.bought = remapIngredientKeys(d.list.bought, index);
+      d.list.overrides = remapIngredientKeys(d.list.overrides, index);
+      d.list.extras = remapIngredientKeys(d.list.extras, index);
+      d.stapleNeeds = remapIngredientKeys(d.stapleNeeds, index);
+      return d;
+    });
+  };
 
   // The debounced push dies with the page, so force it out when the app is
   // backgrounded or closed — otherwise the last edit before you swipe away is
@@ -288,6 +315,11 @@ export default function App() {
         hCatalogRef.current = adopted;
         saveCatalogCache(code, adopted);
         markCatalogSynced(code, adopted);
+        // Ingredients keyed by name rather than id: convert once, here, where we
+        // have both the catalog and the state in hand. Deliberately after the
+        // adopt above, so a failure leaves a perfectly usable name-keyed catalog
+        // rather than a half-converted one.
+        if (needsIngredientIds(adopted)) migrateToIngredientIds(adopted);
         return;
       }
       // Our copy wins, which means one of two things:
@@ -326,9 +358,22 @@ export default function App() {
      updateCatalog seeds from the file and writes to the household copy. */
   const data = useMemo(() => {
     const cat = hCatalog || seedCatalog(catalog);
+    // Recipe lines store an ingredient id, not a spelling. Resolving the name
+    // HERE is what keeps this change small: every tab reads `i.name` exactly
+    // as it always did, and renaming an ingredient changes what they see
+    // without touching a single stored key.
+    const index = ingredientIndex(cat.ingredients);
+    const recipes = Object.values(cat.recipes).map((r) => ({
+      ...r,
+      ingredients: (r.ingredients || []).map((line) => {
+        const id = line.ingredientId || null;
+        const ing = id ? index.byId[id] : null;
+        return ing ? { ...line, ingredientId: id, name: normalizeIngredient(ing, id).name } : line;
+      }),
+    }));
     return {
       ...local,
-      recipes: Object.values(cat.recipes),
+      recipes,
       config: cat.ingredients,
       stores: cat.stores,
       list: local.list,
