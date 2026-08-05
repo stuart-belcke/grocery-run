@@ -1,0 +1,60 @@
+{
+  // Firebase's rules parser accepts these // comments even though this file
+  // is otherwise plain JSON — the console's Rules tab and `firebase deploy`
+  // both strip them before evaluating. Nothing in this repo's own build or
+  // tests parses this file, so that's safe.
+  "rules": {
+    // No ".read" / ".write" is set here, and RTDB denies by default wherever
+    // nothing grants access — so /households itself (and therefore every
+    // household's data at once) can never be read or listed. Only the
+    // specific $code branch below is ever granted anything.
+    "households": {
+      "$code": {
+        // Grants read/write access to households/{code} and everything under
+        // it. This is the WHOLE security model today: the code IS the
+        // password — anyone who has ever seen it (a URL, Settings, a text
+        // message) has permanent access, because there's no sign-in yet to
+        // check WHO is asking. Item 37 (auth) is what actually fixes that.
+        ".read": true,
+        ".write": true,
+
+        // Runs on every write to this branch or anything below it. $code is
+        // the household code itself (the wildcard segment's value) — this
+        // requires it to be 8-40 lowercase letters/digits/hyphens, matching
+        // the exact alphabet cleanCode() in src/sync.js already restricts a
+        // code to client-side. The floor of 8 exists so a short, easily
+        // guessed code can never be written in the first place; a real
+        // generated code (loadDeviceCode()) is 13 characters, well clear of
+        // it. Doesn't gate READS — a guessed or malformed code just resolves
+        // to nothing, which is harmless.
+        ".validate": "$code.matches(/^[a-z0-9-]{8,40}$/)",
+
+        // The shopping list, week plan and staples. Deliberately NOT a full
+        // schema — normalizeLocal (lib.js) spreads unrecognised fields
+        // through untouched on purpose, so an older build can still write a
+        // household a newer build already extended. A strict schema here
+        // would silently defeat that same forward-compatibility guarantee
+        // from underneath the app. Only checked: updatedAt, present on every
+        // single write (setLocal stamps it), must actually be a number — the
+        // one thing a malformed payload (item 20's whole reason for
+        // existing) would most obviously get wrong.
+        "state": {
+          "updatedAt": {
+            ".validate": "newData.isNumber()"
+          }
+        },
+        // Recipes, ingredients and stores. Same reasoning and same
+        // shallowness as "state" above — just the two stamps every catalog
+        // write always carries.
+        "catalog": {
+          "updatedAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "appDataVersion": {
+            ".validate": "newData.isNumber()"
+          }
+        }
+      }
+    }
+  }
+}
