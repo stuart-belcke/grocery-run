@@ -352,11 +352,20 @@ async function doFlush(code, state) {
  *  accessed — that's still the code, same as before, same security rules.
  *  Re-parenting a household under an account is a later, separate step.
  *
- *  signInWithRedirect over signInWithPopup, deliberately: this is a PWA
- *  used from phones, and popups are unreliable there — blocked outright by
- *  some mobile browsers, and flaky from a home-screen-installed PWA in
- *  particular. Redirect navigates away and back, which works everywhere a
- *  popup doesn't.                                                          */
+ *  signInWithPopup over signInWithRedirect, reversing an earlier decision
+ *  here. The original reasoning — popups are unreliable on mobile PWAs —
+ *  was never actually tested against this app; redirect was chosen on that
+ *  assumption. What got verified instead, real testing on a real phone: the
+ *  Google REDIRECT round trip completes in the browser (Google approves,
+ *  the browser genuinely comes back) but getRedirectResult() resolves to
+ *  nothing, no error, in both Safari AND Chrome — the pending-redirect state
+ *  Firebase persists in IndexedDB across the navigation away and back isn't
+ *  surviving the round trip. A theoretical popup problem lost to a
+ *  reproducible redirect one. Popup sidesteps the whole class of failure —
+ *  the tab never navigates away, so there's no state to lose. It isn't
+ *  failure-proof either (a popup CAN still be blocked), so redirect stays
+ *  as the fallback for exactly that case rather than being removed
+ *  outright.                                                              */
 
 let authPromise = null;
 async function getAuthInstance() {
@@ -395,8 +404,21 @@ export function watchAuthUser(cb) {
 export async function signInWithGoogle() {
   const auth = await getAuthInstance();
   if (!auth) return;
-  const { GoogleAuthProvider, signInWithRedirect } = await import("firebase/auth");
-  await signInWithRedirect(auth, new GoogleAuthProvider());
+  const { GoogleAuthProvider, signInWithPopup, signInWithRedirect } = await import("firebase/auth");
+  const provider = new GoogleAuthProvider();
+  try {
+    const result = await signInWithPopup(auth, provider);
+    if (result && result.user) await writeUserRecord(result.user);
+  } catch (e) {
+    // Only fall back for the cases where a popup genuinely couldn't run —
+    // NOT auth/popup-closed-by-user, which is someone deciding not to sign
+    // in, and shouldn't silently retry a different way behind their back.
+    if (e && (e.code === "auth/popup-blocked" || e.code === "auth/operation-not-supported-in-this-environment")) {
+      await signInWithRedirect(auth, provider);
+      return;
+    }
+    throw e;
+  }
 }
 
 // Firebase's email-link sign-in needs the SAME email back to complete the
