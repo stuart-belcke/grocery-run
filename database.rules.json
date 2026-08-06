@@ -53,6 +53,22 @@
           "appDataVersion": {
             ".validate": "newData.isNumber()"
           }
+        },
+
+        // Item 37, re-parenting EXPAND phase. Grants nothing new — households
+        // already has blanket .write above, and .write/.read can only ever
+        // ADD permission as rules go deeper, never narrow one back down — so
+        // this can't be a .write grant. It's a .validate instead, which DOES
+        // constrain what gets written regardless of the broader grant above:
+        // a member record can only ever be written by the account it claims
+        // to represent (auth.uid == $uid), never forged for someone else.
+        // Nothing reads this yet, and access is still the code alone — this
+        // only starts accumulating the record a LATER, separate step needs
+        // before requiring membership can be safe.
+        "members": {
+          "$uid": {
+            ".validate": "auth != null && auth.uid == $uid"
+          }
         }
       }
     },

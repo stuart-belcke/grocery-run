@@ -21,6 +21,7 @@ import {
   sendEmailSignInLink,
   completePendingSignIn,
   signOutUser,
+  recordHouseholdMembership,
 } from "./sync";
 import { C, fontDisplay, fontBody } from "./theme";
 import { Stripe, Btn, ChoiceDialog } from "./ui";
@@ -228,6 +229,17 @@ export default function App() {
       if (result && !result.ok) setAuthError(result.code || "unknown error");
     });
   }, []);
+
+  // Item 37, re-parenting EXPAND phase: whenever a signed-in account is
+  // looking at a household it has the code for, record that pairing at
+  // households/{code}/members/{uid}. Grants nothing new — the code already
+  // does that — this only starts accumulating what a LATER, separate step
+  // (actually gating access on membership) will need. Re-fires on sign-in/
+  // sign-out and on switching households, which is exactly the two ways
+  // this pairing can change.
+  useEffect(() => {
+    if (user && code) recordHouseholdMembership(code, user);
+  }, [user, code]);
 
   // Fetch the latest catalog from the site, and while we're there notice
   // whether the site is serving a build newer than this one.
