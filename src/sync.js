@@ -423,20 +423,26 @@ export async function sendEmailSignInLink(email) {
 }
 
 // Call once when the app loads. Completes whichever sign-in — a Google
-// redirect, or a clicked email link — sent the browser back here, if
-// either did; a no-op otherwise.
+// redirect, or a clicked email link — sent the browser back here, if either
+// did. Returns { ok: true } when there was nothing pending or it completed
+// fine, { ok: false, code } when something WAS pending and failed — Safari's
+// storage restrictions in particular are known to break a redirect-based
+// sign-in silently. Without a return value here, that failure had nowhere to
+// go but a console.error nobody on a phone can read; the caller surfaces
+// this in the UI instead.
 export async function completePendingSignIn() {
   const auth = await getAuthInstance();
-  if (!auth) return;
+  if (!auth) return { ok: true };
   const { getRedirectResult, isSignInWithEmailLink, signInWithEmailLink } = await import("firebase/auth");
   try {
     const result = await getRedirectResult(auth);
     if (result && result.user) {
       await writeUserRecord(result.user);
-      return;
+      return { ok: true };
     }
   } catch (e) {
     console.error("Grocery Run: Google sign-in redirect failed", e);
+    return { ok: false, code: e && e.code };
   }
   if (isSignInWithEmailLink(auth, window.location.href)) {
     let email = null;
@@ -448,7 +454,7 @@ export async function completePendingSignIn() {
     // Cross-device: the link was opened somewhere that never sent it, so
     // there's nothing in localStorage to read back.
     if (!email) email = window.prompt("Confirm your email to finish signing in:");
-    if (!email) return;
+    if (!email) return { ok: true }; // declined the prompt — not a failure to report
     try {
       const result = await signInWithEmailLink(auth, email, window.location.href);
       try {
@@ -459,10 +465,13 @@ export async function completePendingSignIn() {
       // Drop the sign-in params from the URL so a refresh doesn't retry it.
       window.history.replaceState({}, "", window.location.pathname);
       if (result && result.user) await writeUserRecord(result.user);
+      return { ok: true };
     } catch (e) {
       console.error("Grocery Run: email link sign-in failed", e);
+      return { ok: false, code: e && e.code };
     }
   }
+  return { ok: true };
 }
 
 export async function signOutUser() {

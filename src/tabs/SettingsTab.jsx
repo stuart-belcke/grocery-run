@@ -10,7 +10,7 @@ import { Btn, ConfirmDialog, AlertDialog, Section, Seg } from "../ui";
 import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, normalizeIngredient, norm } from "../lib";
 import { syncEnabled, cleanCode } from "../sync";
 
-export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, syncStatus, user, signInWithGoogle, sendEmailSignInLink, signOutUser }) {
+export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, syncStatus, user, authError, signInWithGoogle, sendEmailSignInLink, signOutUser }) {
   const prefs = data.prefs;
   const setPref = (patch) => updateCatalog((c) => ({ ...c, prefs: { ...c.prefs, ...patch } }));
   const [importOpen, setImportOpen] = useState(false);
@@ -309,6 +309,11 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
             <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 12px" }}>
               Optional, and doesn't change anything yet — the household code above is still what actually shares your list. This is early groundwork for accounts.
             </p>
+            {authError && (
+              <div style={{ fontSize: 13, fontWeight: 500, color: C.tomato, margin: "0 0 12px", padding: "8px 10px", background: C.tomatoSoft, borderRadius: 8 }}>
+                Your last sign-in attempt didn't finish ({authError}). On an iPhone, Safari sometimes blocks the sign-in flow like this — try again, and if it keeps happening let me know the code above.
+              </div>
+            )}
             <Btn kind="primary" onClick={startGoogleSignIn} disabled={googleStarting}>
               {googleStarting ? "Opening Google…" : "Sign in with Google"}
             </Btn>

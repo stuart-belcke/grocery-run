@@ -101,6 +101,11 @@ export default function App() {
   // Signed-in identity (item 37, first half). Purely informational today —
   // nothing reads this to decide access; the household code still does.
   const [user, setUser] = useState(null);
+  // Set only when a redirect/email-link sign-in WAS pending on load and
+  // failed to complete — e.g. Safari's storage restrictions are known to
+  // break a redirect-based sign-in silently. Without this, that failure had
+  // nowhere to go but a console.error nobody on a phone can read.
+  const [authError, setAuthError] = useState(null);
   const [catalogNote, setCatalogNote] = useState("");
   // The build the site is serving, when it differs from the one running here.
   // Stored as the build id rather than a boolean so that dismissing it can be
@@ -219,7 +224,9 @@ export default function App() {
   // back here, if either did. completePendingSignIn is a no-op otherwise.
   useEffect(() => watchAuthUser(setUser), []);
   useEffect(() => {
-    completePendingSignIn();
+    completePendingSignIn().then((result) => {
+      if (result && !result.ok) setAuthError(result.code || "unknown error");
+    });
   }, []);
 
   // Fetch the latest catalog from the site, and while we're there notice
@@ -517,6 +524,7 @@ export default function App() {
             setCode={setCode}
             syncStatus={syncStatus}
             user={user}
+            authError={authError}
             signInWithGoogle={signInWithGoogle}
             sendEmailSignInLink={sendEmailSignInLink}
             signOutUser={signOutUser}
