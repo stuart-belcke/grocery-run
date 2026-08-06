@@ -67,7 +67,14 @@
     "users": {
       "$uid": {
         ".read": "auth != null && auth.uid == $uid",
-        ".write": "auth != null && auth.uid == $uid"
+        ".write": "auth != null && auth.uid == $uid",
+        // Same shallow-validate style as the households rules above: catch
+        // an obviously malformed write (writeUserRecord always sends a real
+        // timestamp) without constraining the rest of the node, so a future
+        // field can still be added here without a rules change first.
+        "updatedAt": {
+          ".validate": "newData.isNumber()"
+        }
       }
     }
   }

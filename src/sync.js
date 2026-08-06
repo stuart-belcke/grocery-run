@@ -434,7 +434,13 @@ export async function sendEmailSignInLink(email) {
   if (!auth) return;
   const { sendSignInLinkToEmail } = await import("firebase/auth");
   await sendSignInLinkToEmail(auth, email, {
-    url: window.location.href,
+    // origin + pathname, not the full href: whatever query string or hash
+    // happens to be on the page at the moment this is clicked has no reason
+    // to ride along into an emailed link. completePendingSignIn() reads the
+    // ACTUAL url the browser lands back on when the link is clicked (which
+    // carries Firebase's own auth params), not this sent value, so trimming
+    // it doesn't affect completion.
+    url: window.location.origin + window.location.pathname,
     handleCodeInApp: true,
   });
   try {
