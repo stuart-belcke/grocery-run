@@ -55,6 +55,27 @@
           }
         }
       }
+    },
+
+    // Item 37, first half: a signed-in identity, purely additive alongside
+    // everything above — this grants nothing extra under "households", and
+    // nothing under "households" grants anything here. A signed-in user can
+    // read and write ONLY their own record, checked against their real
+    // Firebase Auth identity (auth.uid) rather than a string anyone could
+    // type — the first rule in this file that can actually verify WHO is
+    // asking, not just whether they know a secret.
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid",
+        // Same shallow-validate style as the households rules above: catch
+        // an obviously malformed write (writeUserRecord always sends a real
+        // timestamp) without constraining the rest of the node, so a future
+        // field can still be added here without a rules change first.
+        "updatedAt": {
+          ".validate": "newData.isNumber()"
+        }
+      }
     }
   }
 }

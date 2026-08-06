@@ -53,6 +53,21 @@ function sequencer() {
   };
 }
 
+// Shared by getDb() and getAuthInstance() — Firebase throws if you call
+// initializeApp() twice for the same config, so both derive from this one
+// cached promise rather than each initializing their own app.
+let appPromise = null;
+async function getApp() {
+  if (!syncEnabled) return null;
+  if (!appPromise) {
+    appPromise = (async () => {
+      const { initializeApp } = await import("firebase/app");
+      return initializeApp(firebaseConfig);
+    })();
+  }
+  return appPromise;
+}
+
 let dbPromise = null;
 
 // Lazy-load the Firebase SDK only when sync is actually on, so the
@@ -61,9 +76,9 @@ async function getDb() {
   if (!syncEnabled) return null;
   if (!dbPromise) {
     dbPromise = (async () => {
-      const { initializeApp } = await import("firebase/app");
+      const app = await getApp();
+      if (!app) return null;
       const { getDatabase } = await import("firebase/database");
-      const app = initializeApp(firebaseConfig);
       return getDatabase(app);
     })();
   }
@@ -328,5 +343,186 @@ async function doFlush(code, state) {
     // the last state that actually landed, so a rejected edit is retried
     // rather than silently dropped from every future diff.
     reportWriteError(e);
+  }
+}
+
+/* --------------------------- authentication --------------------------- *
+ *  Item 37, first half. Purely additive: signing in writes a users/{uid}
+ *  record and nothing else. It does NOT change how a household is
+ *  accessed — that's still the code, same as before, same security rules.
+ *  Re-parenting a household under an account is a later, separate step.
+ *
+ *  signInWithPopup over signInWithRedirect, reversing an earlier decision
+ *  here. The original reasoning — popups are unreliable on mobile PWAs —
+ *  was never actually tested against this app; redirect was chosen on that
+ *  assumption. What got verified instead, real testing on a real phone: the
+ *  Google REDIRECT round trip completes in the browser (Google approves,
+ *  the browser genuinely comes back) but getRedirectResult() resolves to
+ *  nothing, no error, in both Safari AND Chrome — the pending-redirect state
+ *  Firebase persists in IndexedDB across the navigation away and back isn't
+ *  surviving the round trip. A theoretical popup problem lost to a
+ *  reproducible redirect one. Popup sidesteps the whole class of failure —
+ *  the tab never navigates away, so there's no state to lose. It isn't
+ *  failure-proof either (a popup CAN still be blocked), so redirect stays
+ *  as the fallback for exactly that case rather than being removed
+ *  outright.                                                              */
+
+let authPromise = null;
+async function getAuthInstance() {
+  if (!syncEnabled) return null;
+  if (!authPromise) {
+    authPromise = (async () => {
+      const app = await getApp();
+      if (!app) return null;
+      const { getAuth } = await import("firebase/auth");
+      return getAuth(app);
+    })();
+  }
+  return authPromise;
+}
+
+// cb(userOrNull), where user is { uid, email, displayName }. Fires
+// immediately with the current state, then on every sign-in / sign-out.
+export function watchAuthUser(cb) {
+  if (!syncEnabled) {
+    cb(null);
+    return () => {};
+  }
+  let live = true;
+  let off = () => {};
+  getAuthInstance().then(async (auth) => {
+    if (!auth || !live) return;
+    const { onAuthStateChanged } = await import("firebase/auth");
+    off = onAuthStateChanged(auth, (u) => cb(u ? { uid: u.uid, email: u.email, displayName: u.displayName } : null));
+  });
+  return () => {
+    live = false;
+    off();
+  };
+}
+
+export async function signInWithGoogle() {
+  const auth = await getAuthInstance();
+  if (!auth) return;
+  const { GoogleAuthProvider, signInWithPopup, signInWithRedirect } = await import("firebase/auth");
+  const provider = new GoogleAuthProvider();
+  try {
+    const result = await signInWithPopup(auth, provider);
+    if (result && result.user) await writeUserRecord(result.user);
+  } catch (e) {
+    // Only fall back for the cases where a popup genuinely couldn't run —
+    // NOT auth/popup-closed-by-user, which is someone deciding not to sign
+    // in, and shouldn't silently retry a different way behind their back.
+    if (e && (e.code === "auth/popup-blocked" || e.code === "auth/operation-not-supported-in-this-environment")) {
+      await signInWithRedirect(auth, provider);
+      return;
+    }
+    throw e;
+  }
+}
+
+// Firebase's email-link sign-in needs the SAME email back to complete the
+// link — it isn't encoded in the link itself, since the link is the actual
+// one-time secret and the email is what proves the same person is
+// finishing what they started. Stashed here on send, read back in
+// completePendingSignIn(). Cross-device (a different browser/device than
+// the one that sent it) falls back to asking, below.
+const EMAIL_FOR_SIGNIN_KEY = "grocery-run-email-for-signin";
+
+export async function sendEmailSignInLink(email) {
+  const auth = await getAuthInstance();
+  if (!auth) return;
+  const { sendSignInLinkToEmail } = await import("firebase/auth");
+  await sendSignInLinkToEmail(auth, email, {
+    // origin + pathname, not the full href: whatever query string or hash
+    // happens to be on the page at the moment this is clicked has no reason
+    // to ride along into an emailed link. completePendingSignIn() reads the
+    // ACTUAL url the browser lands back on when the link is clicked (which
+    // carries Firebase's own auth params), not this sent value, so trimming
+    // it doesn't affect completion.
+    url: window.location.origin + window.location.pathname,
+    handleCodeInApp: true,
+  });
+  try {
+    localStorage.setItem(EMAIL_FOR_SIGNIN_KEY, email);
+  } catch (e) {
+    /* ignore */
+  }
+}
+
+// Call once when the app loads. Completes whichever sign-in — a Google
+// redirect, or a clicked email link — sent the browser back here, if either
+// did. Returns { ok: true } when there was nothing pending or it completed
+// fine, { ok: false, code } when something WAS pending and failed — Safari's
+// storage restrictions in particular are known to break a redirect-based
+// sign-in silently. Without a return value here, that failure had nowhere to
+// go but a console.error nobody on a phone can read; the caller surfaces
+// this in the UI instead.
+export async function completePendingSignIn() {
+  const auth = await getAuthInstance();
+  if (!auth) return { ok: true };
+  const { getRedirectResult, isSignInWithEmailLink, signInWithEmailLink } = await import("firebase/auth");
+  try {
+    const result = await getRedirectResult(auth);
+    if (result && result.user) {
+      await writeUserRecord(result.user);
+      return { ok: true };
+    }
+  } catch (e) {
+    console.error("Grocery Run: Google sign-in redirect failed", e);
+    return { ok: false, code: e && e.code };
+  }
+  if (isSignInWithEmailLink(auth, window.location.href)) {
+    let email = null;
+    try {
+      email = localStorage.getItem(EMAIL_FOR_SIGNIN_KEY);
+    } catch (e) {
+      /* ignore */
+    }
+    // Cross-device: the link was opened somewhere that never sent it, so
+    // there's nothing in localStorage to read back.
+    if (!email) email = window.prompt("Confirm your email to finish signing in:");
+    if (!email) return { ok: true }; // declined the prompt — not a failure to report
+    try {
+      const result = await signInWithEmailLink(auth, email, window.location.href);
+      try {
+        localStorage.removeItem(EMAIL_FOR_SIGNIN_KEY);
+      } catch (e) {
+        /* ignore */
+      }
+      // Drop the sign-in params from the URL so a refresh doesn't retry it.
+      window.history.replaceState({}, "", window.location.pathname);
+      if (result && result.user) await writeUserRecord(result.user);
+      return { ok: true };
+    } catch (e) {
+      console.error("Grocery Run: email link sign-in failed", e);
+      return { ok: false, code: e && e.code };
+    }
+  }
+  return { ok: true };
+}
+
+export async function signOutUser() {
+  const auth = await getAuthInstance();
+  if (!auth) return;
+  const { signOut } = await import("firebase/auth");
+  await signOut(auth);
+}
+
+// The one write this whole feature makes today: a record of who signed in,
+// at their own uid. Nothing reads it yet — this is the additive half of
+// item 37, laying the identity down before anything is built on top of it.
+async function writeUserRecord(user) {
+  const db = await getDb();
+  if (!db) return;
+  const { ref, set } = await import("firebase/database");
+  try {
+    await set(ref(db, `users/${user.uid}`), {
+      email: user.email || null,
+      displayName: user.displayName || null,
+      updatedAt: Date.now(),
+    });
+  } catch (e) {
+    console.error("Grocery Run: writing user record failed", e);
   }
 }

@@ -16,6 +16,11 @@ import {
   subscribeCatalog,
   writeCatalog,
   markCatalogSynced,
+  watchAuthUser,
+  signInWithGoogle,
+  sendEmailSignInLink,
+  completePendingSignIn,
+  signOutUser,
 } from "./sync";
 import { C, fontDisplay, fontBody } from "./theme";
 import { Stripe, Btn, ChoiceDialog } from "./ui";
@@ -93,6 +98,14 @@ export default function App() {
   // NOT offline, which the SDK handles by queuing and never surfaces here.
   // Self-correcting: cleared the moment any write succeeds again.
   const [writeError, setWriteError] = useState(false);
+  // Signed-in identity (item 37, first half). Purely informational today —
+  // nothing reads this to decide access; the household code still does.
+  const [user, setUser] = useState(null);
+  // Set only when a redirect/email-link sign-in WAS pending on load and
+  // failed to complete — e.g. Safari's storage restrictions are known to
+  // break a redirect-based sign-in silently. Without this, that failure had
+  // nowhere to go but a console.error nobody on a phone can read.
+  const [authError, setAuthError] = useState(null);
   const [catalogNote, setCatalogNote] = useState("");
   // The build the site is serving, when it differs from the one running here.
   // Stored as the build id rather than a boolean so that dismissing it can be
@@ -205,6 +218,16 @@ export default function App() {
   // on a phone is nowhere. sync.js reports it here the moment it happens, and
   // clears it the moment a write lands again.
   useEffect(() => watchWriteErrors(setWriteError), []);
+
+  // Item 37, first half: track the signed-in identity, and finish whichever
+  // sign-in (a Google redirect, or a clicked email link) sent the browser
+  // back here, if either did. completePendingSignIn is a no-op otherwise.
+  useEffect(() => watchAuthUser(setUser), []);
+  useEffect(() => {
+    completePendingSignIn().then((result) => {
+      if (result && !result.ok) setAuthError(result.code || "unknown error");
+    });
+  }, []);
 
   // Fetch the latest catalog from the site, and while we're there notice
   // whether the site is serving a build newer than this one.
@@ -500,6 +523,11 @@ export default function App() {
             code={code}
             setCode={setCode}
             syncStatus={syncStatus}
+            user={user}
+            authError={authError}
+            signInWithGoogle={signInWithGoogle}
+            sendEmailSignInLink={sendEmailSignInLink}
+            signOutUser={signOutUser}
           />
         )}
       </div>

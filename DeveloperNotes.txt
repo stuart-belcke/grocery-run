@@ -422,10 +422,10 @@ rather than saving them for a cleanup that never gets scheduled.
     overlap this item was about.
     Done together with item 20 — same file, same theme.
 
-34. [RULES WRITTEN, NOT YET DEPLOYED] Put the Firebase security rules in the
-    repo. There was no rules file under version control — README.md carried
-    an inline copy instead, which is not diffable and can quietly drift from
-    whatever is actually live on the console.
+34. [DONE] Put the Firebase security rules in the repo, and published them.
+    There was no rules file under version control — README.md carried an
+    inline copy instead, which is not diffable and could quietly drift from
+    whatever was actually live on the console.
 
     database.rules.json is now that source of truth, with firebase.json and
     .firebaserc alongside it so `firebase deploy --only database` targets the
@@ -447,19 +447,18 @@ rather than saving them for a cleanup that never gets scheduled.
     that same guarantee from underneath the app, rejecting a legitimate
     future field the app itself is built to tolerate.
 
-    STILL TO DO, and NOT something this session could do: actually publish the
-    rules. That means either pasting database.rules.json into the Firebase
-    console's Rules tab, or running `firebase deploy --only database` with the
-    CLI authenticated — both require reaching Firebase directly, which this
-    sandboxed environment cannot. STRONGLY test in the console's Rules
-    Playground against the real household code first; a mistake here can
-    lock both phones out of their own data, which is exactly the failure mode
-    item 20 was built to make visible rather than prevent.
-
-    UNVERIFIED ASSUMPTION: these rules are believed compatible with whatever
-    is currently live, on the strength of the README's prior inline snippet
-    (`$code.length >= 8`) presumably matching it — nobody could confirm
-    against the actual Firebase console from here.
+    PUBLISHED via the console's Rules tab (pasted from database.rules.json),
+    not the CLI. Nothing in the build or CI touches the deployed rules — the
+    committed file and the live database are two separate things kept in sync
+    by hand, same as before this item except now there is a diffable copy to
+    paste FROM. If the rules ever need to change again, that's still a manual
+    republish, not something a merge triggers automatically.
+    STILL NOT INDEPENDENTLY VERIFIED FROM THIS SIDE: nothing in this session
+    can reach the Firebase console, so whether the deployed rules exactly
+    match database.rules.json rests on the paste having gone cleanly. Worth
+    a quick real check next time both phones are open — sync still working
+    confirms it; item 20's write-error signal would surface it immediately if
+    something in the paste was off.
 
     Real fix is auth — see FutureProjects.md and item 37.
 
@@ -493,25 +492,82 @@ MEASURED AND DELIBERATELY NOT PROBLEMS
       - the catalog moved out of the repo and into the database per household
       - the override layer — configOverrides, recipeOverrides, localRecipes,
         extraStores, removedStores — deleted outright
+      - the security rules committed and published (item 34) — the
+        prerequisite this item itself named
     That override layer existed ONLY because catalog.json couldn't be written,
     and it is where almost every bug in this app lived: `false` as a "hidden"
     marker, compactCfg stamping "staple": false onto 114 ingredients,
     reconcileToCatalog guessing which local edits a new catalog now reflected.
     All of it is gone. Nothing below is blocked on it any more.
 
+    [DONE — FIRST SLICE] Sign-in, purely additive. Google and email-link both
+    land in sync.js, watched via watchAuthUser and completed on load via
+    completePendingSignIn (covers both a returning Google flow and a clicked
+    email link). Success writes a single users/{uid} record — email,
+    displayName, updatedAt — and nothing else. Deliberately does NOT touch
+    how a household is accessed: the code is still the whole story there,
+    unchanged. The Settings "Account" section says as much, so signing in
+    doesn't read as having done more than it has.
+    Needed a users/{uid} rule added to database.rules.json — additive
+    alongside the households rules, gated on `auth.uid == $uid`, the first
+    rule in the file that checks a real identity rather than a shared secret.
+    STILL A MANUAL STEP, same shape as item 34: Google and Email-link sign-in
+    providers need enabling in the Firebase console (Authentication ->
+    Sign-in method), the app's real domain needs adding under Authentication
+    -> Settings -> Authorized domains (GitHub Pages, not a Firebase-hosted
+    domain, so it isn't there by default), and the updated rules file needs
+    re-pasting.
+
+    VERIFIED ON A REAL PHONE, WHICH IS WHAT CAUGHT THE ACTUAL BUG. This
+    sandbox has no path to Google's or Firebase's auth endpoints, so this was
+    always going to need someone testing it for real — and it was worth it:
+      - Email-link: worked cleanly once sent, and proved the whole rest of
+        the pipeline correct in one shot — writeUserRecord, the users/{uid}
+        rule, watchAuthUser, the "Signed in as ___" UI all fire off this one
+        path too.
+      - Google via signInWithRedirect DID NOT, and the failure was quiet in
+        exactly the way item 20 exists to catch: the browser round trip
+        through Google genuinely completed (approved, came back to the app)
+        but getRedirectResult() resolved to nothing — no error, no user,
+        nothing to catch — in BOTH Safari and Chrome. The pending-redirect
+        state Firebase persists in IndexedDB across the navigation away and
+        back wasn't surviving the round trip on this deployment. Never fully
+        root-caused; not worth chasing once the fix below sidestepped the
+        whole failure class.
+      - FIX: signInWithGoogle now tries signInWithPopup first — the tab never
+        navigates away, so there's no cross-navigation state to lose — and
+        falls back to signInWithRedirect ONLY for auth/popup-blocked and
+        auth/operation-not-supported-in-this-environment, not for
+        auth/popup-closed-by-user (someone deciding not to sign in isn't a
+        reason to silently retry a different way). Popup verified working on
+        a real phone afterward.
+      - HONEST GAP: that redirect fallback is UNVERIFIED and probably still
+        broken, since the thing that broke it was never diagnosed, only
+        avoided. It's harmless dead-weight to leave in — if it ever fires it
+        likely fails the same silent way — but it is not a proven safety net
+        and shouldn't be described as one. If a popup-blocked user ever
+        reports being stuck, this is where to look first.
+      - Also from this round of testing: completePendingSignIn used to only
+        console.error a failed completion — invisible on a phone. It now
+        returns { ok, code } and App.jsx surfaces a real failure as a banner
+        in the Account section, same "make the failure visible" instinct as
+        item 20. And the send/sign-in feedback messages were upgraded from
+        identical small gray text for success AND failure (which is what
+        made the redirect failure read as "nothing happened" in the first
+        place) to colored, weighted text that includes Firebase's actual
+        error code — so the NEXT silent-looking failure won't be silent.
+
     WHAT'S LEFT
-      - Sign-in, users/{uid}, and re-parenting the household under a real
-        account. The household code already IS a tenant key — a bearer secret
-        with no recovery, which is exactly what auth fixes. That's why the
-        catalog move did NOT need to wait for auth, and an earlier version of
-        this plan got that backwards.
+      - Re-parenting the household under a real account. The household code
+        is still the whole tenant key today — a bearer secret with no
+        recovery. This is the step that actually changes that, and it's
+        where care matters: it means adding a members list and rules that
+        check membership, not just presence of an account.
       - Narrow listeners: item 21's read half. Still deliberately deferred,
         and the catalog move made the case WEAKER rather than stronger, since
         the growth landed on its own node instead of on `state`.
       - Invites, roles, billing, a landing page. Ordinary product work once
-        sign-in exists, and none of it is a foundation question.
-      - Commit the security rules first — item 34. Auth without reviewable
-        rules is a login screen in front of an open door.
+        re-parenting exists, and none of it is a foundation question.
 
     Firestore is not a step here. It becomes worth adopting when one of its
     advantages actually binds — most likely offline persistence, or history

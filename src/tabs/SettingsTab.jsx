@@ -10,7 +10,7 @@ import { Btn, ConfirmDialog, AlertDialog, Section, Seg } from "../ui";
 import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, normalizeIngredient, norm } from "../lib";
 import { syncEnabled, cleanCode } from "../sync";
 
-export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, syncStatus }) {
+export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, syncStatus, user, authError, signInWithGoogle, sendEmailSignInLink, signOutUser }) {
   const prefs = data.prefs;
   const setPref = (patch) => updateCatalog((c) => ({ ...c, prefs: { ...c.prefs, ...patch } }));
   const [importOpen, setImportOpen] = useState(false);
@@ -22,6 +22,52 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
   const [askImport, setAskImport] = useState(null);   // parsed backup pending confirmation
   const [askReset, setAskReset] = useState(false);    // reset-to-catalog confirmation
   const [copyFallback, setCopyFallback] = useState(null); // text to copy when the clipboard is blocked
+  // { text, ok } rather than a plain string, so the message can be styled
+  // distinctly (green/red) instead of the same faint gray for both a success
+  // and a failure — that similarity is what made a real failure read as "no
+  // indication anything happened" the first time this was tried.
+  const [emailInput, setEmailInput] = useState("");
+  const [emailMsg, setEmailMsg] = useState(null);
+  const [emailSending, setEmailSending] = useState(false);
+
+  const sendLink = async () => {
+    const email = emailInput.trim();
+    if (!email) {
+      setEmailMsg({ text: "Enter an email first.", ok: false });
+      return;
+    }
+    setEmailSending(true);
+    setEmailMsg(null);
+    try {
+      await sendEmailSignInLink(email);
+      setEmailMsg({ text: `Sent to ${email} — check your inbox (and spam folder).`, ok: true });
+    } catch (e) {
+      // Firebase's SDK errors carry a `.code` (e.g. "auth/unauthorized-
+      // continue-uri") — surfacing it turns "didn't work" into something
+      // actually diagnosable instead of a dead end.
+      setEmailMsg({ text: `Couldn't send the link${e && e.code ? ` (${e.code})` : ""} — try again in a moment.`, ok: false });
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
+  // signInWithGoogle navigates the page away on success, so there's nothing
+  // to show for that case — only a failure (blocked, offline, cancelled)
+  // ever reaches this catch, and it deserves the same visible feedback the
+  // email path gets rather than an unhandled rejection.
+  const [googleMsg, setGoogleMsg] = useState("");
+  const [googleStarting, setGoogleStarting] = useState(false);
+  const startGoogleSignIn = async () => {
+    setGoogleStarting(true);
+    setGoogleMsg("");
+    try {
+      await signInWithGoogle();
+    } catch (e) {
+      setGoogleMsg(`Couldn't start Google sign-in${e && e.code ? ` (${e.code})` : ""} — try again in a moment.`);
+    } finally {
+      setGoogleStarting(false);
+    }
+  };
 
   useEffect(() => setCodeInput(code), [code]);
 
@@ -236,6 +282,57 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
             <p style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
               Keep this code private — anyone who knows it can see and edit your list. Joining a different code makes this phone adopt that household's data (this phone's current list is replaced, so export a backup first if you need it).
             </p>
+          </>
+        )}
+      </Section>
+
+      <Section
+        title="Account"
+        aside={user ? <span style={{ fontSize: 12, fontWeight: 400, color: C.faint }}>{user.displayName || user.email}</span> : null}
+      >
+        {!syncEnabled ? (
+          <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 0" }}>
+            Sign-in needs the phone-to-phone sync setup above turned on first.
+          </p>
+        ) : user ? (
+          <>
+            <p style={{ fontSize: 13, color: C.ink, margin: "8px 0 4px" }}>
+              Signed in as <b>{user.displayName || user.email}</b>.
+            </p>
+            <p style={{ fontSize: 12, color: C.faint, margin: "0 0 12px" }}>
+              This doesn't change how the household is shared — that's still the code above. It's early groundwork for accounts eventually replacing that.
+            </p>
+            <Btn onClick={signOutUser}>Sign out</Btn>
+          </>
+        ) : (
+          <>
+            <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 12px" }}>
+              Optional, and doesn't change anything yet — the household code above is still what actually shares your list. This is early groundwork for accounts.
+            </p>
+            {authError && (
+              <div style={{ fontSize: 13, fontWeight: 500, color: C.tomato, margin: "0 0 12px", padding: "8px 10px", background: C.tomatoSoft, borderRadius: 8 }}>
+                Your last sign-in attempt didn't finish ({authError}). On an iPhone, Safari sometimes blocks the sign-in flow like this — try again, and if it keeps happening let me know the code above.
+              </div>
+            )}
+            <Btn kind="primary" onClick={startGoogleSignIn} disabled={googleStarting}>
+              {googleStarting ? "Opening Google…" : "Sign in with Google"}
+            </Btn>
+            {googleMsg && <div style={{ fontSize: 13, fontWeight: 500, color: C.tomato, marginTop: 8 }}>{googleMsg}</div>}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 12 }}>
+              <input
+                type="email"
+                placeholder="you@example.com"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                spellCheck={false}
+                autoCapitalize="none"
+                style={{ ...inputStyle, flex: 1, minWidth: 180 }}
+              />
+              <Btn onClick={sendLink} disabled={emailSending}>{emailSending ? "Sending…" : "Email me a sign-in link"}</Btn>
+            </div>
+            {emailMsg && (
+              <div style={{ fontSize: 13, fontWeight: 500, color: emailMsg.ok ? C.green : C.tomato, marginTop: 8 }}>{emailMsg.text}</div>
+            )}
           </>
         )}
       </Section>
