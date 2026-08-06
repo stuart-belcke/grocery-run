@@ -10,7 +10,7 @@ import { Btn, ConfirmDialog, AlertDialog, Section, Seg } from "../ui";
 import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, normalizeIngredient, norm } from "../lib";
 import { syncEnabled, cleanCode } from "../sync";
 
-export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, syncStatus }) {
+export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, syncStatus, user, signInWithGoogle, sendEmailSignInLink, signOutUser }) {
   const prefs = data.prefs;
   const setPref = (patch) => updateCatalog((c) => ({ ...c, prefs: { ...c.prefs, ...patch } }));
   const [importOpen, setImportOpen] = useState(false);
@@ -22,6 +22,36 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
   const [askImport, setAskImport] = useState(null);   // parsed backup pending confirmation
   const [askReset, setAskReset] = useState(false);    // reset-to-catalog confirmation
   const [copyFallback, setCopyFallback] = useState(null); // text to copy when the clipboard is blocked
+  const [emailInput, setEmailInput] = useState("");
+  const [emailMsg, setEmailMsg] = useState("");
+
+  const sendLink = async () => {
+    const email = emailInput.trim();
+    if (!email) {
+      setEmailMsg("Enter an email first.");
+      return;
+    }
+    try {
+      await sendEmailSignInLink(email);
+      setEmailMsg("Check your email for a sign-in link.");
+    } catch (e) {
+      setEmailMsg("Couldn't send the link — try again in a moment.");
+    }
+  };
+
+  // signInWithGoogle navigates the page away on success, so there's nothing
+  // to show for that case — only a failure (blocked, offline, cancelled)
+  // ever reaches this catch, and it deserves the same visible feedback the
+  // email path gets rather than an unhandled rejection.
+  const [googleMsg, setGoogleMsg] = useState("");
+  const startGoogleSignIn = async () => {
+    setGoogleMsg("");
+    try {
+      await signInWithGoogle();
+    } catch (e) {
+      setGoogleMsg("Couldn't start Google sign-in — try again in a moment.");
+    }
+  };
 
   useEffect(() => setCodeInput(code), [code]);
 
@@ -236,6 +266,48 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
             <p style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
               Keep this code private — anyone who knows it can see and edit your list. Joining a different code makes this phone adopt that household's data (this phone's current list is replaced, so export a backup first if you need it).
             </p>
+          </>
+        )}
+      </Section>
+
+      <Section
+        title="Account"
+        aside={user ? <span style={{ fontSize: 12, fontWeight: 400, color: C.faint }}>{user.displayName || user.email}</span> : null}
+      >
+        {!syncEnabled ? (
+          <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 0" }}>
+            Sign-in needs the phone-to-phone sync setup above turned on first.
+          </p>
+        ) : user ? (
+          <>
+            <p style={{ fontSize: 13, color: C.ink, margin: "8px 0 4px" }}>
+              Signed in as <b>{user.displayName || user.email}</b>.
+            </p>
+            <p style={{ fontSize: 12, color: C.faint, margin: "0 0 12px" }}>
+              This doesn't change how the household is shared — that's still the code above. It's early groundwork for accounts eventually replacing that.
+            </p>
+            <Btn onClick={signOutUser}>Sign out</Btn>
+          </>
+        ) : (
+          <>
+            <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 12px" }}>
+              Optional, and doesn't change anything yet — the household code above is still what actually shares your list. This is early groundwork for accounts.
+            </p>
+            <Btn kind="primary" onClick={startGoogleSignIn}>Sign in with Google</Btn>
+            {googleMsg && <div style={{ fontSize: 12, color: C.faint, marginTop: 8 }}>{googleMsg}</div>}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 12 }}>
+              <input
+                type="email"
+                placeholder="you@example.com"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                spellCheck={false}
+                autoCapitalize="none"
+                style={{ ...inputStyle, flex: 1, minWidth: 180 }}
+              />
+              <Btn onClick={sendLink}>Email me a sign-in link</Btn>
+            </div>
+            {emailMsg && <div style={{ fontSize: 12, color: C.faint, marginTop: 8 }}>{emailMsg}</div>}
           </>
         )}
       </Section>
