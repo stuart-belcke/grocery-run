@@ -22,20 +22,32 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
   const [askImport, setAskImport] = useState(null);   // parsed backup pending confirmation
   const [askReset, setAskReset] = useState(false);    // reset-to-catalog confirmation
   const [copyFallback, setCopyFallback] = useState(null); // text to copy when the clipboard is blocked
+  // { text, ok } rather than a plain string, so the message can be styled
+  // distinctly (green/red) instead of the same faint gray for both a success
+  // and a failure — that similarity is what made a real failure read as "no
+  // indication anything happened" the first time this was tried.
   const [emailInput, setEmailInput] = useState("");
-  const [emailMsg, setEmailMsg] = useState("");
+  const [emailMsg, setEmailMsg] = useState(null);
+  const [emailSending, setEmailSending] = useState(false);
 
   const sendLink = async () => {
     const email = emailInput.trim();
     if (!email) {
-      setEmailMsg("Enter an email first.");
+      setEmailMsg({ text: "Enter an email first.", ok: false });
       return;
     }
+    setEmailSending(true);
+    setEmailMsg(null);
     try {
       await sendEmailSignInLink(email);
-      setEmailMsg("Check your email for a sign-in link.");
+      setEmailMsg({ text: `Sent to ${email} — check your inbox (and spam folder).`, ok: true });
     } catch (e) {
-      setEmailMsg("Couldn't send the link — try again in a moment.");
+      // Firebase's SDK errors carry a `.code` (e.g. "auth/unauthorized-
+      // continue-uri") — surfacing it turns "didn't work" into something
+      // actually diagnosable instead of a dead end.
+      setEmailMsg({ text: `Couldn't send the link${e && e.code ? ` (${e.code})` : ""} — try again in a moment.`, ok: false });
+    } finally {
+      setEmailSending(false);
     }
   };
 
@@ -44,12 +56,16 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
   // ever reaches this catch, and it deserves the same visible feedback the
   // email path gets rather than an unhandled rejection.
   const [googleMsg, setGoogleMsg] = useState("");
+  const [googleStarting, setGoogleStarting] = useState(false);
   const startGoogleSignIn = async () => {
+    setGoogleStarting(true);
     setGoogleMsg("");
     try {
       await signInWithGoogle();
     } catch (e) {
-      setGoogleMsg("Couldn't start Google sign-in — try again in a moment.");
+      setGoogleMsg(`Couldn't start Google sign-in${e && e.code ? ` (${e.code})` : ""} — try again in a moment.`);
+    } finally {
+      setGoogleStarting(false);
     }
   };
 
@@ -293,8 +309,10 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
             <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 12px" }}>
               Optional, and doesn't change anything yet — the household code above is still what actually shares your list. This is early groundwork for accounts.
             </p>
-            <Btn kind="primary" onClick={startGoogleSignIn}>Sign in with Google</Btn>
-            {googleMsg && <div style={{ fontSize: 12, color: C.faint, marginTop: 8 }}>{googleMsg}</div>}
+            <Btn kind="primary" onClick={startGoogleSignIn} disabled={googleStarting}>
+              {googleStarting ? "Opening Google…" : "Sign in with Google"}
+            </Btn>
+            {googleMsg && <div style={{ fontSize: 13, fontWeight: 500, color: C.tomato, marginTop: 8 }}>{googleMsg}</div>}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 12 }}>
               <input
                 type="email"
@@ -305,9 +323,11 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                 autoCapitalize="none"
                 style={{ ...inputStyle, flex: 1, minWidth: 180 }}
               />
-              <Btn onClick={sendLink}>Email me a sign-in link</Btn>
+              <Btn onClick={sendLink} disabled={emailSending}>{emailSending ? "Sending…" : "Email me a sign-in link"}</Btn>
             </div>
-            {emailMsg && <div style={{ fontSize: 12, color: C.faint, marginTop: 8 }}>{emailMsg}</div>}
+            {emailMsg && (
+              <div style={{ fontSize: 13, fontWeight: 500, color: emailMsg.ok ? C.green : C.tomato, marginTop: 8 }}>{emailMsg.text}</div>
+            )}
           </>
         )}
       </Section>
