@@ -509,9 +509,9 @@ export async function signOutUser() {
   await signOut(auth);
 }
 
-// The one write this whole feature makes today: a record of who signed in,
-// at their own uid. Nothing reads it yet — this is the additive half of
-// item 37, laying the identity down before anything is built on top of it.
+// A record of who signed in, at their own uid. Nothing reads it yet — this
+// is the additive half of item 37, laying the identity down before anything
+// is built on top of it.
 async function writeUserRecord(user) {
   const db = await getDb();
   if (!db) return;
@@ -524,5 +524,40 @@ async function writeUserRecord(user) {
     });
   } catch (e) {
     console.error("Grocery Run: writing user record failed", e);
+  }
+}
+
+/* ------------------------- household membership -------------------------
+   Re-parenting a household under real accounts, EXPAND phase only (item 37's
+   "what's left"). Deliberately does NOT change access: households/$code
+   still grants full read/write to anyone who knows the code, exactly as
+   before. This only starts accumulating households/{code}/members/{uid} —
+   the record a LATER, separate step needs before it can safely require
+   membership instead of (or alongside) the code. Written whenever a signed-
+   in account is actively using a household it already has the code for,
+   which is the whole of "membership" this phase means: not an invite, just
+   a fact recorded about who's already here.
+
+   database.rules.json gates the WRITE side of this with a .validate
+   (auth.uid == $uid) rather than a .write grant, because .write/.read only
+   ever ADD permission as rules get deeper — households/$code already grants
+   blanket write access, so nothing at members/$uid could narrow that back
+   down. .validate is the mechanism that actually constrains WHAT gets
+   written there: a member record can only ever be written by the account it
+   claims to represent, never forged for someone else, even though the
+   broader household tree remains as open as it always was.                */
+export async function recordHouseholdMembership(code, user) {
+  const db = await getDb();
+  if (!db) return;
+  const { ref, set } = await import("firebase/database");
+  try {
+    await set(ref(db, `households/${code}/members/${user.uid}`), {
+      email: user.email || null,
+      displayName: user.displayName || null,
+      updatedAt: Date.now(),
+    });
+    reportWriteOk();
+  } catch (e) {
+    reportWriteError(e);
   }
 }

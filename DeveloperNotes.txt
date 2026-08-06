@@ -557,12 +557,39 @@ MEASURED AND DELIBERATELY NOT PROBLEMS
         place) to colored, weighted text that includes Firebase's actual
         error code — so the NEXT silent-looking failure won't be silent.
 
+    [DONE — EXPAND PHASE] Household membership, re-parenting step 1 of 3.
+    Re-parenting the household under a real account is being done as EXPAND
+    then VERIFY then CONTRACT (same discipline as the catalog move), because
+    it's an access change two people's phones both have to survive. This is
+    only the EXPAND phase.
+      - Whenever a signed-in account is looking at a household it already has
+        the code for, App.jsx now calls recordHouseholdMembership(code, user)
+        (src/sync.js), which writes households/{code}/members/{uid}: {email,
+        displayName, updatedAt}. Re-fires on sign-in/sign-out and on switching
+        households — the two ways the pairing can change.
+      - Grants NOTHING new. Access is still the code alone, exactly as
+        before — households/$code keeps its blanket .read/.write. The new
+        database.rules.json block is a .validate, not a .write, because
+        .write/.read only ever ADD permission as the rule tree goes deeper;
+        a broad ancestor grant can't be narrowed by a rule underneath it.
+        .validate is the mechanism that actually constrains WHAT gets
+        written there regardless: auth.uid == $uid, so a member record can
+        only ever be written by the account it claims to represent, never
+        forged for someone else.
+      - Nothing reads this yet. It exists purely to start accumulating, for
+        real, the record that VERIFY and CONTRACT need before requiring
+        membership can be safe. Doing that on day one of using the app would
+        mean requiring membership before anyone had one.
+
     WHAT'S LEFT
-      - Re-parenting the household under a real account. The household code
-        is still the whole tenant key today — a bearer secret with no
-        recovery. This is the step that actually changes that, and it's
-        where care matters: it means adding a members list and rules that
-        check membership, not just presence of an account.
+      - VERIFY: once both phones have signed in and used their household for
+        a while, confirm households/{code}/members has the expected two
+        entries before trusting it for anything.
+      - CONTRACT: change the rules so access requires membership (or the
+        code, during a transition window), not the code alone. This is the
+        step that actually closes the "bearer secret with no recovery" gap —
+        deliberately not done yet, and not safe to do until VERIFY has run
+        for real.
       - Narrow listeners: item 21's read half. Still deliberately deferred,
         and the catalog move made the case WEAKER rather than stronger, since
         the growth landed on its own node instead of on `state`.
