@@ -518,6 +518,38 @@ MEASURED AND DELIBERATELY NOT PROBLEMS
     outgrowing what a client-side slice can page through. Item 21 covers what
     keeps that door open.
 
+38. A nicer URL than stuart-belcke.github.io/grocery-run/. Came up while
+    walking through Authorized domains for item 37 — the current URL works
+    fine but looks like a personal project tucked under an account, not
+    something you'd hand to someone else.
+    DECIDED: not worth a purchased custom domain right now. A domain is
+    ~$10-15/year for something purely cosmetic today; only actually buy one
+    if some future distribution requirement forces it — e.g. listing this
+    somewhere (an app store, a share link that has to look legitimate) that
+    itself demands a real registered domain. Revisit if that happens, not
+    before.
+    THE FREE OPTION, if/when the current URL is worth improving without
+    paying: a GitHub Organization (not a second personal account — no extra
+    login to manage) named grocery-run gets grocery-run.github.io for free,
+    the same way any account's own `<name>.github.io`-named repo does.
+    What that would actually take, so it isn't underestimated as a five-
+    minute change:
+      - create the free org, transfer this repo into it, rename the repo to
+        grocery-run.github.io (the exact name is what unlocks the root URL
+        instead of a subpath).
+      - .github/workflows/deploy.yml builds URLs assuming a PROJECT site
+        (`<owner>.github.io/<repo>/`) today — both the live-site verification
+        curl and the PR-preview mechanism need checking against a root-served
+        user/org site instead.
+      - add grocery-run.github.io to Firebase Auth's Authorized domains
+        (additive — stuart-belcke.github.io doesn't need removing, in case
+        anything still points at the old URL during the switch).
+      - the app itself needs NO changes — vite.config.js's `base: "./"` was
+        already deliberately built to work at any URL depth, checked when
+        this question came up.
+    Not scheduled. Written down so the org-vs-domain tradeoff doesn't need
+    re-deriving next time the URL feels worth fixing.
+
 Refactor notes
 --------------
 [DONE] The catalog move was done as EXPAND then CONTRACT, and it's the pattern
