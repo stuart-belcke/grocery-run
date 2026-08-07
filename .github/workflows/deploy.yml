@@ -1,5 +1,14 @@
 name: Build and deploy to GitHub Pages
 
+# workflow_dispatch is not decoration — it is the recovery path when a merge
+# does not deploy. GitHub can drop the push event outright: on 2026-08-06 the
+# merge of #73 produced NO workflow run at all, so main moved forward while
+# gh-pages kept serving the previous build. Nothing was red, because a run that
+# is never created cannot fail — which is also why the live-site check at the
+# bottom of this file can't catch it. Recovery: Actions -> this workflow ->
+# "Run workflow" on main. Re-running the PR's own check does NOT work; the
+# production steps below are gated on push/workflow_dispatch, so a
+# pull_request run only ever rebuilds the pr-preview/ copy.
 on:
   push:
     branches: [main]
