@@ -296,8 +296,14 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
           </p>
         ) : user ? (
           <>
+            {/* The EMAIL is the identity, so it always shows. displayName is
+                not unique — two Google accounts belonging to the same person
+                carry the same name, which made "Signed in as Stuart Belcke"
+                identical for both and left no way to tell which one was
+                active. */}
             <p style={{ fontSize: 13, color: C.ink, margin: "8px 0 4px" }}>
-              Signed in as <b>{user.displayName || user.email}</b>.
+              Signed in as <b>{user.email || user.displayName || "an account with no email"}</b>
+              {user.displayName && user.email ? ` (${user.displayName})` : ""}.
             </p>
             <p style={{ fontSize: 12, color: C.faint, margin: "0 0 12px" }}>
               This doesn't change how the household is shared — that's still the code above. It's early groundwork for accounts eventually replacing that.

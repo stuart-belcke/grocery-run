@@ -406,6 +406,13 @@ export async function signInWithGoogle() {
   if (!auth) return;
   const { GoogleAuthProvider, signInWithPopup, signInWithRedirect } = await import("firebase/auth");
   const provider = new GoogleAuthProvider();
+  // Always ask WHICH Google account. Without this, Google silently reuses the
+  // browser's existing session, so signing out and back in lands on the same
+  // account with no way to choose — and since both accounts here carry the
+  // same displayName, there was nothing on screen to reveal which one you got.
+  // "select_account" shows the chooser every time; it does NOT force a
+  // password re-entry, so an already-authenticated account is still one tap.
+  provider.setCustomParameters({ prompt: "select_account" });
   try {
     const result = await signInWithPopup(auth, provider);
     if (result && result.user) await writeUserRecord(result.user);
