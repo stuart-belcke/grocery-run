@@ -1,5 +1,5 @@
 {
-  "catalogVersion": 10,
+  "catalogVersion": 11,
   "stores": ["Grocery store", "Costco", "Aldi", "Sams", "Schnucks"],
   "recipes": [
     {
