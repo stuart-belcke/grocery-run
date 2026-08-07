@@ -589,15 +589,57 @@ MEASURED AND DELIBERATELY NOT PROBLEMS
         membership can be safe. Doing that on day one of using the app would
         mean requiring membership before anyone had one.
 
+    [DONE — VERIFY] Confirmed against the live database, not by reasoning.
+    The real household (home-cx2ur9zg) carries a members record for each of
+    the two accounts, and each holds exactly the three fields
+    recordHouseholdMembership writes. Timestamps are the useful part:
+      - 2026-08-06 23:57:49 UTC, one account. That is 28 minutes after the
+        build carrying this code went live, which is what proves the write
+        came from deployed code rather than something left over from
+        testing.
+      - 2026-08-07 18:38:44 and 18:38:54 UTC, both accounts.
+    THE SECOND ACCOUNT DID NOT DISTURB THE FIRST, which was the actual risk
+    worth checking. The write is set() on members/{uid}, not on members, so
+    a second account adds a sibling instead of replacing the node. Both uids
+    coexist, and the first one's record survived intact.
+
+    SIGNING IN DOES NOT ADD AN ACCOUNT TO EVERY HOUSEHOLD. Checked
+    deliberately, because two separate households ended up holding both
+    accounts and that looks exactly like a fan-out bug. It isn't one, and
+    four independent things prevent it:
+      - there is ONE write to any members path in the whole codebase.
+      - it has ONE caller, which passes the single currently-selected
+        `code` — a scalar, never a collection.
+      - no code anywhere references `households` without a `${code}`
+        segment, so nothing can enumerate them, which a fan-out needs.
+      - /households itself has no `.read`, so the database refuses to list
+        households even if a client tried.
+    Empirically: six of the eight households have no members node at all.
+    A fan-out would have written to all eight. What actually happened is
+    that one browser session moved between two household codes and two
+    accounts inside 76 seconds, and each write recorded the (code, account)
+    pair that was active at that moment — which is the intended behaviour.
+    The extra households are test litter, mostly from browser-driven
+    verification: firebase-config.js commits a real databaseURL and
+    syncEnabled is just Boolean(databaseURL), so ANY browser loading ANY
+    build talks to the production database and mints a code on first run.
+    Worth deleting them from the console before CONTRACT, since after it
+    the two that hold both accounts would otherwise read as real
+    households.
+
     WHAT'S LEFT
-      - VERIFY: once both phones have signed in and used their household for
-        a while, confirm households/{code}/members has the expected two
-        entries before trusting it for anything.
       - CONTRACT: change the rules so access requires membership (or the
         code, during a transition window), not the code alone. This is the
         step that actually closes the "bearer secret with no recovery" gap —
-        deliberately not done yet, and not safe to do until VERIFY has run
-        for real.
+        deliberately not done yet. VERIFY is no longer what blocks it.
+      - Show who is in the household. Settings can list
+        households/{code}/members directly — the denormalized email and
+        displayName exist precisely so this never needs users/{uid}, which
+        the rules deliberately keep unreadable across accounts. It reads a
+        node that already exists, so it could ship either side of CONTRACT,
+        but it earns its place after: once membership is what grants
+        access, the list stops being decoration and becomes the thing you
+        check when someone can't get in.
       - Narrow listeners: item 21's read half. Still deliberately deferred,
         and the catalog move made the case WEAKER rather than stronger, since
         the growth landed on its own node instead of on `state`.
