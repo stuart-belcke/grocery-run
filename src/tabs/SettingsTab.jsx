@@ -7,7 +7,7 @@
 import { useState, useEffect } from "react";
 import { C, fontBody, inputStyle } from "../theme";
 import { Btn, ConfirmDialog, AlertDialog, Section, Seg } from "../ui";
-import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, normalizeIngredient, norm } from "../lib";
+import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, catalogConfigKey, catalogNameCollisions } from "../lib";
 import { syncEnabled, cleanCode } from "../sync";
 
 export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, syncStatus, user, authError, signInWithGoogle, sendEmailSignInLink, signOutUser }) {
@@ -134,9 +134,12 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
     // in it would mean inventing one and matching it across two sections just
     // to add a recipe. So ids are resolved back to names on the way out, and
     // minted again on the way in by seedCatalog.
+    // catalogConfigKey is shared with the collision check below — see lib.js.
+    // Deriving the key here independently is exactly how a guard stops
+    // guarding the thing it was written for.
     const config = {};
     for (const [id, cfg] of Object.entries(data.config)) {
-      config[norm(normalizeIngredient(cfg, id).name) || id] = compactCfg(cfg);
+      config[catalogConfigKey(cfg, id)] = compactCfg(cfg);
     }
     const out = {
       catalogVersion: (Number(catalog.catalogVersion) || 0) + 1,
@@ -183,6 +186,12 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
   // "unpublished" — the export exists for history and backup, not to make an
   // edit real. What's worth showing is simply how big it is.
   const catalogSize = data.recipes.length + Object.keys(data.config).length;
+
+  // Ingredients that would collapse into one entry in the exported file. The
+  // export is BLOCKED while any exist rather than quietly shipping a catalog
+  // one entry short — the file is what "Restore starter catalog" reads back,
+  // so a silent loss here becomes a permanent one later.
+  const collisions = catalogNameCollisions(data.config);
 
   // The escape hatch: throw away this household's catalog and start again from
   // the one shipped with the app. Destructive, hence the confirmation.
@@ -357,9 +366,31 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         <p style={{ fontSize: 12, color: C.faint, margin: "0 0 8px" }}>
           Take a copy of this household's catalog in <b>catalog.json</b> format. Commit it on GitHub to keep a dated, diffable history — and to update the starter catalog a brand-new household begins from.
         </p>
+        {collisions.length > 0 && (
+          <div style={{ border: `1px solid ${C.tomato}`, borderRadius: 8, padding: "10px 12px", marginBottom: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.tomato, marginBottom: 6 }}>
+              Export blocked: {collisions.length === 1 ? "two ingredients share a name" : `${collisions.length} names are used more than once`}
+            </div>
+            {/* Names are shown once, not per entry: they cap and trim for
+                display, so duplicates usually render identically and listing
+                them twice reads like a rendering bug. The STORES are what
+                differ, and what the export would throw away. */}
+            <ul style={{ fontSize: 13, color: C.ink, margin: "0 0 8px", paddingLeft: 18 }}>
+              {collisions.map((c) => (
+                <li key={c.key} style={{ marginBottom: 2 }}>
+                  <b>{c.entries[0].name}</b> — {c.entries.length} separate entries, at{" "}
+                  {c.entries.map((e) => e.store || "no store").join(" and ")}
+                </li>
+              ))}
+            </ul>
+            <div style={{ fontSize: 12, color: C.faint }}>
+              The catalog file is keyed by name, so exporting would keep only one of each pair and silently drop the other&apos;s store and aisle. Fix it on the <b>Ingredients</b> tab: open one of them and rename it to exactly the other&apos;s name — they merge into a single ingredient, and every recipe using either one follows automatically.
+            </div>
+          </div>
+        )}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
-          <Btn kind="primary" onClick={() => copyText(catalogJson(), "Catalog copied.")}>Export catalog (copy)</Btn>
-          <Btn onClick={() => download("catalog.json", catalogJson())}>Export catalog (file)</Btn>
+          <Btn kind="primary" disabled={collisions.length > 0} onClick={() => copyText(catalogJson(), "Catalog copied.")}>Export catalog (copy)</Btn>
+          <Btn disabled={collisions.length > 0} onClick={() => download("catalog.json", catalogJson())}>Export catalog (file)</Btn>
           <Btn kind="danger" onClick={() => setAskReset(true)}>Restore starter catalog</Btn>
         </div>
         <p style={{ fontSize: 12, color: C.faint, margin: "0 0 16px" }}>

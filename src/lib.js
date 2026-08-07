@@ -714,6 +714,46 @@ export function ingredientIdByName(ingredients, name, exceptId) {
   return null;
 }
 
+/* ---------------- export keys, and the collisions they can hide -------------
+   The catalog FILE is name-keyed while the live catalog is id-keyed, so every
+   ingredient has to be given a name-derived key on the way out. That mapping
+   is many-to-one: two ids whose names normalize to the same string land on the
+   same key and the second silently overwrites the first, taking its store and
+   aisles with it. Nothing surfaced that — the export just came out one entry
+   short, and since the file is also what "Restore starter catalog" reads back,
+   the loss would become permanent on the next restore.
+
+   catalogConfigKey is the single definition of that key. The export and the
+   collision check MUST derive it identically or the check is worthless — a
+   guard that computes a different key than the thing it guards will happily
+   pass an export that still loses data. One function, two callers.           */
+export function catalogConfigKey(cfg, id) {
+  return norm(normalizeIngredient(cfg, id).name) || id;
+}
+
+// Every group of ingredients that would collapse into one key on export.
+// Returns [] when the catalog is safe to export, so callers can treat a
+// non-empty result as "refuse, and show the user exactly what to fix".
+//
+// Each entry carries its STORE as well as its name, because the names are
+// usually no help: normalizeIngredient caps and trims for display, so
+// "applesaucer " and "Applesaucer" both render as "Applesaucer" and the
+// duplicates look identical on screen. The store is both what actually
+// distinguishes them and what the collision would throw away.
+export function catalogNameCollisions(config) {
+  const byKey = new Map();
+  for (const [id, cfg] of Object.entries(asObject(config))) {
+    const key = catalogConfigKey(cfg, id);
+    const ing = normalizeIngredient(cfg, id);
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push({ id, name: ing.name, store: ing.store });
+  }
+  return [...byKey.entries()]
+    .filter(([, entries]) => entries.length > 1)
+    .map(([key, entries]) => ({ key, entries }))
+    .sort((a, b) => a.key.localeCompare(b.key));
+}
+
 // Fold one ingredient into another: repoint every recipe line, then delete the
 // loser. The SURVIVOR's store and aisles win, matching what renaming onto an
 // existing name did back when the name was the key.
