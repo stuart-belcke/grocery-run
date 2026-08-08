@@ -1265,7 +1265,15 @@ export function aggregateItems(data) {
       }
     }
   }
-  for (const [key, ex] of Object.entries(data.list.extras)) addPart(key, ex.name, Number(ex.qty) || 0, ex.unit, "Added by hand", "Added by hand on the shopping list");
+  // ingredientNameFor, not ex.name: the extra stores the name it was ADDED
+  // under, which goes stale the moment the ingredient is renamed. The catalog
+  // is the live source, so the list follows a rename; a genuinely ad-hoc item
+  // has no catalog entry and falls back to its stored name.
+  //
+  // Only visible when a hand-added entry is the item's SOLE source — if a
+  // recipe wants it too, addRecipe runs first (above) and its resolved name
+  // wins, which is what hid this.
+  for (const [key, ex] of Object.entries(data.list.extras)) addPart(key, ingredientNameFor(data, key), Number(ex.qty) || 0, ex.unit, "Added by hand", "Added by hand on the shopping list");
 
   // Home staples. A staple you have is dropped even when a recipe calls for
   // it — that's the whole point: you already own the olive oil, so it shouldn't

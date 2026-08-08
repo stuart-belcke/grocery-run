@@ -1478,3 +1478,37 @@ test("an unknown ad-hoc item is still allowed, and doesn't pretend to be an ingr
   assert.deepEqual(rows.map((r) => r.name).sort(), ["Orzo", "Sparklers"]);
   assert.equal(needsIngredientIds({ ingredients: config }), false);
 });
+
+test("the shopping list follows a rename, not the name an item was added under", () => {
+  // list.extras stores the name the item was added under. After a rename that
+  // string is stale, and the list is what you read in the shop — two names
+  // for one thing is how you buy it twice.
+  const id = "ing_broc0001";
+  const data = {
+    recipes: [],
+    config: { [id]: { name: "Broccoli florets", store: "Aldi", aisles: {} } },
+    list: {
+      selections: {},
+      overrides: {},
+      checked: {},
+      bought: {},
+      extras: { [id]: { name: "Broccoli", qty: 2, unit: "cup" } }, // added before the rename
+    },
+    plan: {},
+    stapleNeeds: {},
+  };
+  const items = aggregateItems(data);
+  assert.deepEqual(items.map((i) => i.name), ["Broccoli florets"]);
+});
+
+test("an ad-hoc list item with no catalog entry keeps the name it was typed as", () => {
+  // The fallback the fix must not break: nothing in the catalog to resolve.
+  const data = {
+    recipes: [],
+    config: {},
+    list: { selections: {}, overrides: {}, checked: {}, bought: {}, extras: { "birthday candles": { name: "Birthday candles", qty: 1, unit: "" } } },
+    plan: {},
+    stapleNeeds: {},
+  };
+  assert.deepEqual(aggregateItems(data).map((i) => i.name), ["Birthday candles"]);
+});

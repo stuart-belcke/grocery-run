@@ -49,6 +49,33 @@ test here has already been softened to get green (see `renaming onto an
 existing name…` below). When a correct assertion fails, the options are fix
 the code, or mark the test pending with the reason — never quietly weaken it.
 
+### What that turned up
+
+`behaviour.spec.mjs` was written from intended behaviour without reading the
+implementation first. Six assertions, four failed:
+
+| Failed assertion | Verdict |
+|---|---|
+| the list shows the new name after a rename | **REAL BUG — fixed** |
+| doubling servings doubles the list amounts | test skipped "Start planning" |
+| a skipped meal contributes nothing | test skipped "Start planning" |
+| clearing a slot empties the list | assertion too strict (`plan === {}`) |
+
+**The real one:** `aggregateItems` took a hand-added item's display name from
+`list.extras[key].name` — the name it was ADDED under — so the shopping list
+kept showing the old name after a rename. It only surfaced when a hand-added
+entry was the item's SOLE source; with a recipe also wanting it, `addRecipe`
+runs first and its resolved name won, which is what hid it. Now resolved via
+`ingredientNameFor`, which prefers the catalog and falls back to the stored
+name for genuinely ad-hoc items. Covered by unit tests and one e2e case, both
+mutation-checked.
+
+The three non-bugs are worth recording too: two were the suite not following
+the app's own flow (`planStageOf` reports "shopping" the moment a meal
+exists, and per-slot controls are then deliberately behind the Edit toggle),
+and one was an over-strict assertion. Distinguishing those from real holes is
+the actual work — a failing test is a question, not a verdict.
+
 ---
 
 ## Fixtures
