@@ -19,5 +19,23 @@ export const firebaseConfig = {
   appId: "1:1068831481481:web:847663add77665cc73f058"
 };
 
-// Sync switches on automatically once a databaseURL is present.
-export const syncEnabled = Boolean(firebaseConfig.databaseURL);
+/* Sync switches on automatically once a databaseURL is present — UNLESS the
+   build was made local-only on purpose.
+
+   VITE_LOCAL_ONLY=1 exists because the databaseURL above is the REAL, shared
+   household database. Any browser that loads any build of this app talks to
+   it and mints itself a household on first run, which is how a pile of junk
+   `home-xxxxxxxx` nodes accumulated during browser-driven testing. The
+   integration tests build with this set, so they drive the actual UI without
+   being able to reach — or corrupt — the data two phones depend on.
+
+   Also useful by hand: `VITE_LOCAL_ONLY=1 npm run dev` gives a throwaway
+   local-only app to experiment in. Vite inlines this at BUILD time, so a
+   normal build is unaffected and cannot be flipped at runtime.
+
+   Stronger than it looks: because the flag is a build-time constant, a
+   local-only build tree-shakes the config away entirely — the production
+   databaseURL is not even present in that bundle. Verified by grepping both
+   builds. So a test run cannot reach the real database even by accident.  */
+const localOnly = import.meta.env.VITE_LOCAL_ONLY === "1";
+export const syncEnabled = !localOnly && Boolean(firebaseConfig.databaseURL);
