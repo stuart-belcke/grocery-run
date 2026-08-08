@@ -25,6 +25,31 @@ wasted trip or a duplicate purchase rather than a support ticket.
 `npm test` (node --test), `npm run lint`, `npm run build`. CI runs all three
 before deploying, in that order.
 
+`npm run test:e2e` drives the real build in a real browser (`tests/e2e/`).
+CI runs it too, between `npm test` and the build — a failure stops the deploy.
+
+**It must run BEFORE the build.** It compiles its own bundle with
+`VITE_LOCAL_ONLY=1`, so sync is stripped out and no test can reach the real
+household database. Deploying that bundle would give an app that looks fine
+and silently syncs nothing, so the runner also deletes the local-only `dist/`
+when it finishes — the step order is the second guard, not the only one.
+
+**The unit tests cannot catch the bugs that actually shipped.** Every one of
+them lived in the wiring, not in a function: a store change that erased an
+ingredient's name, an export that silently dropped an entry, a hand-added
+item that came back as a second store-less row. Two rules make the e2e layer
+worth trusting:
+
+- **Assert on what was persisted, not on what's rendered.** `page.readCatalog()`
+  / `page.readState()` read what the app actually wrote — which is what the
+  other phone receives. A screen-only assertion passed on a build losing data.
+- **Round-trip the state.** `normalizeLocal` runs when state is read BACK, not
+  on the tap. A test that checked straight after clicking passed on a broken
+  build; the same test with `page.roundTrip()` failed.
+
+And prove the suite fails: check out the broken version of the file, run it,
+confirm red. A suite that stays green either way is worse than none.
+
 ## Conventions that came from real bugs
 
 **Branch from `main`. Never stack branches.** The repo squash-merges, so a

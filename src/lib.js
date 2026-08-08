@@ -450,9 +450,18 @@ export function asKeyed(v, keyOf) {
   if (!v || typeof v !== "object") return {};
   for (const [k, item] of Object.entries(v)) {
     if (!item || typeof item !== "object") continue;
-    // Prefer the item's own identity; fall back to the stored key for
-    // index-keyed data whose item can't produce one.
-    out[keyOf(item) || k] = item;
+    // A NUMERIC key is Firebase having turned an array back into an object —
+    // "0", "1" carry no identity, so one has to be derived from the item.
+    //
+    // ANY OTHER KEY IS ALREADY AN IDENTITY AND MUST BE KEPT. This used to
+    // prefer keyOf(item) unconditionally, which re-derived the key from the
+    // item's NAME every time state was normalized. For list.extras that undid
+    // the ingredient-id migration on every single load: setListQty writes
+    // extras[ing_abc123], normalizeLocal rewrote it to extras["orzo"], and
+    // since the catalog is id-keyed nothing matched it any more — so the
+    // shopping list grew a second, store-less "Orzo" beside the real one, and
+    // the ingredient's own row stopped showing its list quantity.
+    out[/^\d+$/.test(k) ? keyOf(item) || k : k] = item;
   }
   return out;
 }
@@ -1256,7 +1265,15 @@ export function aggregateItems(data) {
       }
     }
   }
-  for (const [key, ex] of Object.entries(data.list.extras)) addPart(key, ex.name, Number(ex.qty) || 0, ex.unit, "Added by hand", "Added by hand on the shopping list");
+  // ingredientNameFor, not ex.name: the extra stores the name it was ADDED
+  // under, which goes stale the moment the ingredient is renamed. The catalog
+  // is the live source, so the list follows a rename; a genuinely ad-hoc item
+  // has no catalog entry and falls back to its stored name.
+  //
+  // Only visible when a hand-added entry is the item's SOLE source — if a
+  // recipe wants it too, addRecipe runs first (above) and its resolved name
+  // wins, which is what hid this.
+  for (const [key, ex] of Object.entries(data.list.extras)) addPart(key, ingredientNameFor(data, key), Number(ex.qty) || 0, ex.unit, "Added by hand", "Added by hand on the shopping list");
 
   // Home staples. A staple you have is dropped even when a recipe calls for
   // it — that's the whole point: you already own the olive oil, so it shouldn't
