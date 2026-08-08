@@ -97,15 +97,12 @@ test("renaming onto an existing name never leaves two ingredients with one name"
   }
 });
 
-/* THE INTENDED BEHAVIOUR, written down rather than left as a note.
-
-   Against a name that is already taken there should be NO way to keep both:
-   two ingredients sharing a name cannot be represented in the name-keyed
-   export, so one is silently dropped. PR #77 removes the escape hatch. Until
-   it merges this is pending, not weakened — the assertion above it checks the
-   outcome (no duplicate results), which holds either way, and THIS one states
-   what the UI should actually offer. Delete the skip when #77 lands. */
-test("renaming onto an existing name offers no way to keep both", { skip: "pending PR #77" }, async () => {
+/* Against a name that is already taken there is NO way to keep both: two
+   ingredients sharing a name cannot be represented in the name-keyed export,
+   so one would be silently dropped. The assertion above checks the OUTCOME
+   (no duplicate results); this one checks what the UI actually offers, which
+   is the part a future change is most likely to undo. */
+test("renaming onto an existing name offers no way to keep both", async () => {
   const page = await openApp(BASE, { catalog: cleanCatalog() });
   try {
     await page.tab("Ingredients");

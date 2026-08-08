@@ -31,12 +31,11 @@ test("SHOULD: the entry count reflects what the catalog actually holds", async (
   }
 });
 
-test("SHOULD: export is refused while two ingredients share a name", { skip: "pending PR #77" }, async () => {
-  /* THE INTENDED BEHAVIOUR. The catalog file is name-keyed, so exporting a
-     catalog with a duplicate name silently drops one entry — and that file is
-     what "Restore starter catalog" reads back, making the loss permanent.
-     PR #77 blocks the export and names the offender. Pending until it merges;
-     written now so the requirement is recorded rather than remembered. */
+test("SHOULD: export is refused while two ingredients share a name", async () => {
+  /* The catalog file is name-keyed, so exporting a catalog with a duplicate
+     name silently drops one entry — and that file is what "Restore starter
+     catalog" reads back, making the loss permanent. So the export is refused
+     while a collision exists, and says which ingredient is at fault. */
   const { catalog } = withDuplicateName(smallCatalog(), "Broccoli");
   const page = await openApp(BASE, { catalog });
   try {

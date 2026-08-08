@@ -44,10 +44,15 @@ running; drop one and it goes back to being decoration.
 
 ## The standing question
 
-**Write the test against what the code SHOULD do, not what it does.** One
-test here has already been softened to get green (see `renaming onto an
-existing name…` below). When a correct assertion fails, the options are fix
-the code, or mark the test pending with the reason — never quietly weaken it.
+**Write the test against what the code SHOULD do, not what it does.** When a
+correct assertion fails, the options are fix the code, or mark the test
+pending with the reason — never quietly weaken it.
+
+This has now been through the full cycle once. Two tests were written against
+behaviour PR #77 had not yet merged, marked `skip` with the reason rather
+than softened. When #77 landed the skips came off and both passed, and each
+was then mutation-checked to prove it detects the behaviour rather than
+passing incidentally. That is the shape to repeat.
 
 ### What that turned up
 
@@ -131,10 +136,10 @@ keeping it stable.
 
 ### `ingredients`  [DONE, one softened]
 - [DONE] setting a store keeps the name; setting an aisle keeps the name
-- [SOFTENED] `renaming onto an existing name never leaves two ingredients
-  with one name` — asserts the outcome, not the buttons, so it passes both
-  with and without PR #77. **Restore the strict version** (only "Combine
-  them" is offered) once #77 is merged.
+- [DONE] `renaming onto an existing name never leaves two ingredients with
+  one name` — asserts the OUTCOME, so it holds however the dialog changes
+- [DONE] `…offers no way to keep both` — asserts what the UI offers. Was
+  pending while #77 was open; un-skipped and mutation-checked once it merged
 - [DONE] renaming to a free name still offers "keep separate"
 - [DONE] "+ List" doesn't create a second row
 - [DONE] adding a new item keeps the catalog id-keyed
@@ -170,8 +175,8 @@ deliberately replaced by "Start a new plan".
 
 ### `settings`  [MOSTLY DONE]
 - [DONE] the entry count reflects what the catalog actually holds
-- [PENDING #77] export is refused while two ingredients share a name —
-  written and skipped, not weakened
+- [DONE] export is refused while two ingredients share a name — was pending
+  while #77 was open, now un-skipped and mutation-checked
 - [DONE] restore brings back the shipped catalog, id-keyed with names intact
 - [DONE] a backup round-trips without losing the list
 - [DONE] a MALFORMED backup is refused rather than wiping the list
