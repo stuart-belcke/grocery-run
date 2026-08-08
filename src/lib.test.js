@@ -11,6 +11,7 @@ import {
   diffPaths,
   planWrite,
   asKeyed,
+  ingredientNames,
   needsKeyMigration,
   ingredientMatches,
   filterIngredients,
@@ -1372,4 +1373,42 @@ test("no rename a user can ask for leaves the catalog un-exportable", () => {
   assert.deepEqual(Object.keys(draft.ingredients), ["ing_a"]);
   // The recipe followed the merge rather than being orphaned.
   assert.deepEqual(draft.recipes.r1.ingredients, [{ ingredientId: "ing_a", qty: 1, unit: "cup" }]);
+});
+
+test("adding an ingredient to the list doesn't clone it without a store", () => {
+  // THE BUG, exactly as reported: tap "+ List" on Orzo in the Ingredients tab
+  // and a second store-less "Orzo" appears. setListQty writes extras under the
+  // ingredient's ID, but normalizeLocal re-derived the key from the NAME, so
+  // the entry detached from the id-keyed catalog and rendered as its own row.
+  const id = "ing_orzo1234";
+  const local = normalizeLocal({
+    list: { extras: { [id]: { name: "Orzo", qty: 2, unit: "cup" } } },
+  });
+  assert.deepEqual(Object.keys(local.list.extras), [id]);
+
+  const data = {
+    ...local,
+    config: { [id]: { name: "Orzo", store: "Aldi", aisles: { Aldi: 6 } } },
+    list: local.list,
+  };
+  // One row, carrying the store — not two, one of them store-less.
+  const rows = ingredientNames(data);
+  assert.deepEqual(rows.filter((r) => norm(r.name) === "orzo").map((r) => r.key), [id]);
+  assert.equal(storeFor(data, id), "Aldi");
+});
+
+test("a legacy name-keyed extra is left alone rather than re-keyed", () => {
+  // Written before ids existed. Tolerant reads handle it; normalizing must not
+  // invent a different key for it either way.
+  const local = normalizeLocal({ list: { extras: { orzo: { name: "Orzo", qty: 1, unit: "cup" } } } });
+  assert.deepEqual(Object.keys(local.list.extras), ["orzo"]);
+});
+
+test("index-keyed extras still get a real key derived", () => {
+  // Firebase hands a stored array back as {0: …, 1: …}. Those keys carry no
+  // identity, so deriving one from the item is still correct.
+  const local = normalizeLocal({
+    list: { extras: { 0: { name: "Orzo", qty: 1, unit: "cup" }, 1: { name: "Milk", qty: 2, unit: "l" } } },
+  });
+  assert.deepEqual(Object.keys(local.list.extras).sort(), ["milk", "orzo"]);
 });
