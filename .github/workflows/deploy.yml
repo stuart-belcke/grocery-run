@@ -68,9 +68,41 @@ jobs:
         if: github.event.action != 'closed'
         run: npm test
 
+      # The unit tests cannot catch the bugs that actually shipped — every one
+      # lived in the wiring, not in a function (see tests/e2e/PLAN.md). These
+      # drive the real build in a real browser.
+      #
+      # Cached because the download is ~130 MB and otherwise runs every time.
+      # Keyed on the lockfile, so bumping playwright-core fetches a matching
+      # browser instead of reusing a stale one.
+      - name: Cache Chromium
+        if: github.event.action != 'closed'
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Chromium
+        if: github.event.action != 'closed' && steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright-core install --with-deps chromium
+
+      # MUST RUN BEFORE THE BUILD BELOW. This builds its own bundle with
+      # VITE_LOCAL_ONLY=1 — sync compiled out — so that a test can never reach
+      # the real household database. Deploying that bundle would leave an app
+      # that looks fine and silently syncs nothing. run.mjs deletes the
+      # local-only dist/ afterwards for the same reason, so the ordering here
+      # is a second guard rather than the only one.
+      - name: Integration tests
+        if: github.event.action != 'closed'
+        run: npm run test:e2e
+
       # BUILD_SHA is the commit a human can actually look up. On a pull request
       # the checkout is a temporary merge commit, so without this the stamp
       # shown in Settings names something that exists only inside this run.
+      #
+      # Also the step that produces the REAL bundle: whatever the integration
+      # tests left behind is gone by now, and this is what gets deployed.
       - name: Build
         if: github.event.action != 'closed'
         env:

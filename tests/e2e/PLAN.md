@@ -219,11 +219,19 @@ two-person app. Two options, neither free:
 
 Until one is chosen, treat "does it sync" as unverified by CI.
 
-**Not in CI.** It needs a Chromium; the pinned path here won't exist on a
-GitHub runner. Gating deploys on a browser suite is a deliberate decision —
-a flaky e2e run blocking a shopping-list fix on a Saturday is a real cost.
-Suggested shape: a separate non-blocking job first, promoted to required
-once it has been stable for a few weeks.
+**In CI, and blocking.** Runs between `npm test` and the build, so a failure
+stops the deploy. Chromium comes from `playwright-core install`, cached on the
+lockfile hash so a version bump fetches a matching browser rather than reusing
+a stale one; the harness resolves it from `~/.cache/ms-playwright`, this
+environment's `/opt/pw-browsers`, or `$GROCERY_RUN_CHROME`.
+
+Verified before wiring it up: a deliberately broken build makes `run.mjs` exit
+1, which is what actually stops the deploy. Green CI meaning nothing would be
+the same failure as an unrun suite, one level up.
+
+The cost is real and was accepted knowingly: a flaky run can block a fix on a
+Saturday. If that starts happening, move the step to its own non-blocking job
+rather than deleting assertions to make it pass.
 
 ## Safety
 

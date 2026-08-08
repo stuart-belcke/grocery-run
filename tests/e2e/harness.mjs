@@ -72,16 +72,21 @@ export async function serveDist() {
    knows about. Explicit so a missing browser fails with a real message
    rather than a download attempt in the middle of a test run. */
 function chromePath() {
+  // An explicit override always wins — CI can point at whatever it has.
   if (process.env.GROCERY_RUN_CHROME) return process.env.GROCERY_RUN_CHROME;
-  const base = process.env.PLAYWRIGHT_BROWSERS_PATH || "/opt/pw-browsers";
-  if (existsSync(base)) {
+  const roots = [
+    process.env.PLAYWRIGHT_BROWSERS_PATH,
+    "/opt/pw-browsers",                                   // this dev environment
+    join(process.env.HOME || "", ".cache", "ms-playwright"), // `playwright install`
+  ].filter(Boolean);
+  for (const base of roots) {
+    if (!existsSync(base)) continue;
     const dir = readdirSync(base).filter((d) => /^chromium-\d+$/.test(d)).sort().pop();
-    if (dir) {
-      const exe = join(base, dir, "chrome-linux", "chrome");
-      if (existsSync(exe)) return exe;
-    }
+    if (!dir) continue;
+    const exe = join(base, dir, "chrome-linux", "chrome");
+    if (existsSync(exe)) return exe;
   }
-  return undefined; // let Playwright resolve its own install
+  return undefined; // fall back to Playwright's own resolution
 }
 
 const DEVICE_KEY = "grocery-run-device-v1";

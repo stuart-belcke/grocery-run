@@ -26,8 +26,13 @@ wasted trip or a duplicate purchase rather than a support ticket.
 before deploying, in that order.
 
 `npm run test:e2e` drives the real build in a real browser (`tests/e2e/`).
-Not in CI yet — it needs a Chromium, and gating deploys on it is a separate
-decision. Run it before merging anything that touches state or the catalog.
+CI runs it too, between `npm test` and the build — a failure stops the deploy.
+
+**It must run BEFORE the build.** It compiles its own bundle with
+`VITE_LOCAL_ONLY=1`, so sync is stripped out and no test can reach the real
+household database. Deploying that bundle would give an app that looks fine
+and silently syncs nothing, so the runner also deletes the local-only `dist/`
+when it finishes — the step order is the second guard, not the only one.
 
 **The unit tests cannot catch the bugs that actually shipped.** Every one of
 them lived in the wiring, not in a function: a store change that erased an
