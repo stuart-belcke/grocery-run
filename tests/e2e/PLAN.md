@@ -85,6 +85,9 @@ the actual work — a failing test is a question, not a verdict.
 
 ## Fixtures
 
+- [DONE] **`sidesCatalog()`** — `smallCatalog` plus a recipe actually tagged
+  `side`, kept separate so a third recipe doesn't change the exact list and
+  entry-count assertions in suites that have nothing to do with sides.
 - [DONE] `cleanCatalog()` — the real shipped catalog via the app's own
   `seedCatalog`, so a fixture cannot drift from the real shape.
 - [DONE] `withNamelessEntry` / `withDuplicateName` — damaged-state builders.
@@ -98,7 +101,7 @@ the actual work — a failing test is a question, not a verdict.
 
 ## Suites
 
-### `journey` — one continuous session  [DONE, minus sides]
+### `journey` — one continuous session  [DONE]
 The highest-value suite: every bug this month appeared *between* steps, not
 inside one.
 
@@ -111,15 +114,18 @@ inside one.
 - [DONE] rename afterwards: id stays stable, no second ingredient, the
         banked purchase and the recipe line both still resolve
 - [DONE] the catalog is sound at the end of the whole session
-- [ ] **add a side to the planned slot.** "Add a side for Mon Dinner" did
-      not appear for the fixture's second recipe — sides likely need the
-      recipe's `side` flag (item 27). Worth doing: sides were the last
-      feature added and have no coverage.
+- [DONE] **add a side to the planned slot**, and shop it with the rest. The
+        button was never missing: per-slot controls live behind Edit once a
+        meal exists, and the first sketch of this step never pressed it. The
+        recipe's `side` flag turned out to order the picker, not gate it —
+        any recipe can be added as a side.
 - [ ] set servings on the slot and assert quantities scale on the list
+      (the `sides` suite does this for a side's own servings; the main's is
+      covered from a clean slate by `meals`, not mid-session)
 
-**Proven to fail:** two mutations, each caught by this spec alone — "Done
-shopping" not banking purchases, and a rename minting a new id instead of
-keeping it stable.
+**Proven to fail:** three mutations, each caught by this spec alone — "Done
+shopping" not banking purchases, a rename minting a new id instead of keeping
+it stable, and `slotDishes` dropping the sides loop.
 
 ### `list` — the shopping list  [PARTLY DONE]
 - [DONE] adding a known ingredient doesn't ask to remember it
@@ -155,7 +161,37 @@ keeping it stable.
 - [DONE] the same meal twice totals on ONE row rather than listing twice
 - [DONE] deleting a recipe leaves no phantom demand behind
 - [DONE] the list uses the ingredient's current name, not the recipe's wording
-- [ ] adding a side; the side's servings default to the main's
+- [COVERED by `sides`] adding a side; the side's servings default to the
+  main's. Sides can only be ADDED on the Week tab — the Meals tab shows them
+  read-only — so the whole feature lives in one suite rather than two.
+
+### `sides` — a slot's main plus its sides  [DONE]
+Item 27, the last feature built and the last to get coverage. The risk here
+is identity and lifetime rather than arithmetic: a side is pinned to the main
+it was chosen beside, and stops existing when that main does.
+
+- [DONE] a side is stored on the slot and its ingredients reach the list
+- [DONE] a new side takes the MAIN's servings, not its own recipe's
+- [DONE] a side's servings can then be set independently of the main's
+- [DONE] the picker puts 🥗-tagged recipes first and drops anything already
+        in the slot — the main included, so a dish can't be its own side
+- [DONE] removing a side takes only its own ingredients off, and leaves no
+        empty `sides` array behind
+- [DONE] replacing the main clears the sides that were paired with it
+- [DONE] "Already have the ingredients" silences the sides too — one gate for
+        the slot, since a side without its main is not a meal
+- [DONE] the Meals tab shows a recipe planned as a side, and its ✕ removes
+        just that side rather than the whole slot
+
+Uses `sidesCatalog()`, whose numbers are chosen so the two plausible answers
+for a new side's servings DIFFER (its own 6 against the main's 4). Equal
+numbers would have passed either way, which is the exact failure this suite
+exists to prevent.
+
+**Proven to fail:** four mutations, each caught by the matching case alone —
+a side defaulting to its own recipe's servings, `slotFeedsList` no longer
+gating the slot, `assignFromPicker` keeping the old main's sides, and the
+picker no longer filtering out what the slot already holds.
 
 ### `week`  [DONE]
 - [DONE] a meal can be planned onto any day and meal type

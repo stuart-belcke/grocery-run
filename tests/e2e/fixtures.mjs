@@ -104,3 +104,66 @@ export function smallCatalog() {
   cat.updatedAt = Date.now();
   return cat;
 }
+
+/* smallCatalog plus a recipe that is actually TAGGED as a side.
+
+   Kept separate rather than added to smallCatalog: several suites assert the
+   exact contents of the list and the exact entry count, and a third recipe
+   would change both for tests that have nothing to do with sides.
+
+   The numbers are chosen so the two ways of picking a side's servings give
+   DIFFERENT answers. Green beans serves 6 on its own; put beside a main
+   cooked for 4, "the main's headcount" and "the recipe's own batch size"
+   disagree, so a test can tell which one the app used. Equal numbers would
+   pass either way — which is the whole failure mode this suite exists to
+   avoid. 3 lb over 6 servings also divides cleanly at 2 and 4 sv. */
+export function sidesCatalog() {
+  const file = {
+    catalogVersion: 1,
+    stores: ["Aldi", "Costco"],
+    recipes: [
+      {
+        id: "r-stirfry",
+        name: "Stir-fry",
+        mealTypes: ["Dinner"],
+        easy: true,
+        servings: 2,
+        notes: "",
+        ingredients: [
+          { name: "Chicken breast", qty: 1, unit: "lb" },
+          { name: "Broccoli", qty: 2, unit: "cup" },
+          { name: "Soy sauce", qty: 2, unit: "tbsp" },
+        ],
+      },
+      {
+        id: "r-greenbeans",
+        name: "Green beans",
+        mealTypes: [],
+        side: true,
+        servings: 6,
+        notes: "",
+        ingredients: [{ name: "Green beans", qty: 3, unit: "lb" }],
+      },
+      {
+        // Not tagged as a side, so it proves an untagged recipe can still be
+        // added as one — the tag orders the picker, it doesn't gate it.
+        id: "r-riceside",
+        name: "Rice bowl",
+        mealTypes: ["Dinner"],
+        servings: 2,
+        notes: "",
+        ingredients: [{ name: "Jasmine rice", qty: 1, unit: "cup" }],
+      },
+    ],
+    config: {
+      "chicken breast": { store: "Aldi", aisles: { Aldi: 3 } },
+      broccoli: { store: "Aldi", aisles: { Aldi: 1 } },
+      "soy sauce": { store: "Costco", aisles: { Costco: 7 } },
+      "jasmine rice": { store: "Costco", aisles: { Costco: 5 } },
+      "green beans": { store: "Aldi", aisles: { Aldi: 1 } },
+    },
+  };
+  const cat = seedCatalog(file);
+  cat.updatedAt = Date.now();
+  return cat;
+}
