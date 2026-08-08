@@ -53,3 +53,54 @@ export function stateWith(patch) {
   const s = emptyState();
   return { ...s, ...patch, list: { ...s.list, ...(patch.list || {}) } };
 }
+
+/* A SMALL catalog: two recipes, six ingredients, two stores.
+
+   Built for readable assertions. Against the real 126-ingredient catalog a
+   list assertion can only say "contains", which passes just as happily when
+   the list has thirty wrong items in it. Here the whole list can be stated
+   exactly, so an extra or missing row fails loudly.
+
+   Shaped by seedCatalog like every other fixture, so it carries real ids
+   and cannot drift from the shape the app actually stores. */
+export function smallCatalog() {
+  const file = {
+    catalogVersion: 1,
+    stores: ["Aldi", "Costco"],
+    recipes: [
+      {
+        id: "r-stirfry",
+        name: "Stir-fry",
+        mealTypes: ["Dinner"],
+        easy: true,
+        servings: 2,
+        notes: "",
+        ingredients: [
+          { name: "Chicken breast", qty: 1, unit: "lb" },
+          { name: "Broccoli", qty: 2, unit: "cup" },
+          { name: "Soy sauce", qty: 2, unit: "tbsp" },
+        ],
+      },
+      {
+        id: "r-riceside",
+        name: "Rice side",
+        mealTypes: ["Dinner"],
+        easy: true,
+        servings: 2,
+        notes: "",
+        ingredients: [{ name: "Jasmine rice", qty: 1, unit: "cup" }],
+      },
+    ],
+    config: {
+      "chicken breast": { store: "Aldi", aisles: { Aldi: 3 } },
+      broccoli: { store: "Aldi", aisles: { Aldi: 1 } },
+      "soy sauce": { store: "Costco", aisles: { Costco: 7 } },
+      "jasmine rice": { store: "Costco", aisles: { Costco: 5 } },
+      butter: { store: "Aldi", aisles: { Aldi: 2 }, staple: true },
+      "paper towels": { store: "Costco", aisles: {} },
+    },
+  };
+  const cat = seedCatalog(file);
+  cat.updatedAt = Date.now();
+  return cat;
+}

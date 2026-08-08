@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { openApp, assertNoPageErrors } from "../harness.mjs";
-import { cleanCatalog, idOf } from "../fixtures.mjs";
+import { cleanCatalog, smallCatalog, idOf } from "../fixtures.mjs";
 
 const BASE = process.env.E2E_BASE_URL;
 
@@ -117,6 +117,86 @@ test("checking an item off survives a round trip", async () => {
     await page.roundTrip();
     const state = await page.readState();
     assert.equal(state.list.checked[id], true, "the checked state didn't persist");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* ---- cases using the small catalog, so the list can be asserted exactly ---- */
+
+test("a recipe amount and a hand-added amount combine into one row", async () => {
+  // Two sources for one ingredient must total, not appear twice. Getting this
+  // wrong is a duplicate row in the shop and a second purchase.
+  const catalog = smallCatalog();
+  const page = await openApp(BASE, { catalog });
+  try {
+    await page.tab("Week plan");
+    await page.getByLabel("Choose a meal for Mon Dinner").click();
+    await page.waitForTimeout(400);
+    await page.locator("button").filter({ hasText: /Stir-fry/ }).first().click();
+    await page.waitForTimeout(500);
+
+    await addFromList(page, "Broccoli");   // already wanted by the recipe
+    await page.roundTrip();
+    await page.tab("List");
+
+    const rows = await page.evaluate(() =>
+      Array.from(document.querySelectorAll("[aria-label^='Bought ']"))
+        .map((e) => e.getAttribute("aria-label").replace(/^Bought /, ""))
+    );
+    assert.deepEqual(
+      rows.filter((n) => n === "Broccoli").length,
+      1,
+      `Broccoli should appear once, not once per source: ${JSON.stringify(rows)}`
+    );
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("putting a bought item back returns it to the list", async () => {
+  // "I don't actually have this" must stop the cupboard offsetting demand.
+  const catalog = smallCatalog();
+  const page = await openApp(BASE, { catalog });
+  try {
+    await page.tab("Week plan");
+    await page.getByLabel("Choose a meal for Mon Dinner").click();
+    await page.waitForTimeout(400);
+    await page.locator("button").filter({ hasText: /Stir-fry/ }).first().click();
+    await page.waitForTimeout(500);
+
+    await page.tab("List");
+    await page.getByLabel("Bought Broccoli").check();
+    await page.waitForTimeout(400);
+    await page.locator("button").filter({ hasText: /^Done shopping$/ }).first().click();
+    await page.waitForTimeout(400);
+    await page.locator("button").filter({ hasText: /^(Done|Finish|Confirm|Done shopping)$/ }).last().click();
+    await page.waitForTimeout(700);
+
+    await page.tab("List");
+    let names = await page.evaluate(() =>
+      Array.from(document.querySelectorAll("[aria-label^='Bought ']"))
+        .map((e) => e.getAttribute("aria-label").replace(/^Bought /, "")).sort()
+    );
+    assert.ok(!names.includes("Broccoli"), "a bought item should be off the list");
+
+    // Reveal the cupboard and put it back.
+    const review = page.locator("button").filter({ hasText: /already bought|cupboard|bought/i }).first();
+    assert.ok(await review.count(), "there should be a way to see what the cupboard is covering");
+    await review.click();
+    await page.waitForTimeout(500);
+    const putBack = page.locator("button").filter({ hasText: /put back|unbuy|back on the list/i }).first();
+    assert.ok(await putBack.count(), "a bought item should be reversible");
+    await putBack.click();
+    await page.waitForTimeout(600);
+
+    names = await page.evaluate(() =>
+      Array.from(document.querySelectorAll("[aria-label^='Bought ']"))
+        .map((e) => e.getAttribute("aria-label").replace(/^Bought /, "")).sort()
+    );
+    assert.ok(names.includes("Broccoli"), "putting it back should return it to the list");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
