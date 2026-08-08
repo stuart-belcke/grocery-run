@@ -46,10 +46,9 @@ test("a realistic session leaves the catalog sound", async () => {
     await page.searchIngredients("Bananas");
     await page.expandRow("Bananas");
     const staple = page.locator('input[type="checkbox"]').first();
-    if (await staple.count()) {
-      await staple.check();                                         // mark a staple
-      await page.waitForTimeout(400);
-    }
+    assert.equal(await staple.count(), 1, "the expanded row should have a staple checkbox");
+    await staple.check();                                           // mark a staple
+    await page.waitForTimeout(400);
 
     await page.roundTrip();
     assertCatalogSound(await page.readCatalog(), "after a normal session");

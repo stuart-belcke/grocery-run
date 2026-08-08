@@ -82,20 +82,20 @@ test("an ad-hoc item can still be added without being remembered", async () => {
   const page = await openApp(BASE, { catalog: cleanCatalog() });
   try {
     await addFromList(page, "Birthday candles");
-    const decline = page.locator("button").filter({ hasText: /just this once|no|not now/i }).first();
-    if (await decline.count()) {
-      await decline.click();
-      await page.waitForTimeout(500);
-      await page.roundTrip();
-      const cat = await page.readCatalog();
-      const hits = Object.values(cat.ingredients).filter((v) => /birthday candles/i.test(v.name || ""));
-      assert.equal(hits.length, 0, "declining to remember should not add a catalog ingredient");
-      const state = await page.readState();
-      assert.ok(
-        Object.values(state.list.extras).some((e) => /birthday candles/i.test(e.name || "")),
-        "the item should still be on the list"
-      );
-    }
+    const decline = page.locator("button").filter({ hasText: /^Just this list$/ }).first();
+    assert.equal(await decline.count(), 1, "an unknown item should offer 'Just this list'");
+    await decline.click();
+    await page.waitForTimeout(500);
+    await page.roundTrip();
+
+    const cat = await page.readCatalog();
+    const hits = Object.values(cat.ingredients).filter((v) => /birthday candles/i.test(v.name || ""));
+    assert.equal(hits.length, 0, "declining to remember should not add a catalog ingredient");
+    const state = await page.readState();
+    assert.ok(
+      Object.values(state.list.extras).some((e) => /birthday candles/i.test(e.name || "")),
+      "the item should still be on the list"
+    );
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
@@ -111,13 +111,12 @@ test("checking an item off survives a round trip", async () => {
     await page.tab("List");
     // The row's checkbox is the control named after the item.
     const box = page.locator('input[type="checkbox"]').first();
-    if (await box.count()) {
-      await box.check();
-      await page.waitForTimeout(500);
-      await page.roundTrip();
-      const state = await page.readState();
-      assert.equal(state.list.checked[id], true, "the checked state didn't persist");
-    }
+    assert.equal(await box.count(), 1, "the list row should have a checkbox");
+    await box.check();
+    await page.waitForTimeout(500);
+    await page.roundTrip();
+    const state = await page.readState();
+    assert.equal(state.list.checked[id], true, "the checked state didn't persist");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

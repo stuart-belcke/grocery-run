@@ -44,13 +44,16 @@ test("setting an aisle keeps the name too", async () => {
     await page.tab("Ingredients");
     await page.searchIngredients("Bananas");
     await page.expandRow("Bananas");
-    const aisle = page.locator('input[type="number"], input[inputmode="numeric"]').first();
-    if (await aisle.count()) {
-      await aisle.fill("9");
-      await page.waitForTimeout(600);
-      const entry = (await page.readCatalog()).ingredients[id];
-      assert.equal(entry.name, "Bananas", "the name was erased by an aisle change");
-    }
+    // No `if (count())` guard: a control this test can't find is a FAILURE,
+    // not a reason to pass silently. A conditional assertion is how a suite
+    // ends up green while testing nothing.
+    const aisle = page.getByLabel(/^Aisle for Bananas at /i).first();
+    assert.equal(await aisle.count(), 1, "the aisle input should be on the expanded row");
+    await aisle.fill("9");
+    await page.waitForTimeout(600);
+    const entry = (await page.readCatalog()).ingredients[id];
+    assert.equal(entry.name, "Bananas", "the name was erased by an aisle change");
+    assert.equal(entry.aisles[entry.store], 9, "the aisle didn't persist");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
