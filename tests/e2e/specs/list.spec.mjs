@@ -172,7 +172,7 @@ test("putting a bought item back returns it to the list", async () => {
     await page.waitForTimeout(400);
     await page.locator("button").filter({ hasText: /^Done shopping$/ }).first().click();
     await page.waitForTimeout(400);
-    await page.locator("button").filter({ hasText: /^(Done|Finish|Confirm|Done shopping)$/ }).last().click();
+    await page.locator("button").filter({ hasText: /^Done shopping$/ }).last().click();
     await page.waitForTimeout(700);
 
     await page.tab("List");
@@ -183,12 +183,13 @@ test("putting a bought item back returns it to the list", async () => {
     assert.ok(!names.includes("Broccoli"), "a bought item should be off the list");
 
     // Reveal the cupboard and put it back.
-    const review = page.locator("button").filter({ hasText: /already bought|cupboard|bought/i }).first();
+    // Exact labels, not a net of guesses: "Put back" is the real control.
+    const review = page.locator("button").filter({ hasText: /bought/i }).first();
     assert.ok(await review.count(), "there should be a way to see what the cupboard is covering");
     await review.click();
     await page.waitForTimeout(500);
-    const putBack = page.locator("button").filter({ hasText: /put back|unbuy|back on the list/i }).first();
-    assert.ok(await putBack.count(), "a bought item should be reversible");
+    const putBack = page.locator("button").filter({ hasText: /^Put back$/ }).first();
+    assert.equal(await putBack.count(), 1, "a bought item should be reversible with 'Put back'");
     await putBack.click();
     await page.waitForTimeout(600);
 

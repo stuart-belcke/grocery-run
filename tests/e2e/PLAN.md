@@ -142,24 +142,48 @@ keeping it stable.
 - [ ] the staple flag survives a store change (regression: `compactCfg`
       omits `staple` when false)
 
-### `meals`  [TODO]
-- [ ] select a meal; servings pill +/− and exact entry
-- [ ] a meal marked "we have the ingredients" stays off the list
+### `meals`  [DONE]
+- [DONE] adding an unplanned meal puts exactly its ingredients on the list
+- [DONE] removing it takes them back off
+- [DONE] an exact servings figure scales the quantities (6 servings of a
+        2-serving recipe wants 3 lb, not 1)
+- [DONE] the same meal twice totals on ONE row rather than listing twice
+- [DONE] deleting a recipe leaves no phantom demand behind
+- [DONE] the list uses the ingredient's current name, not the recipe's wording
 - [ ] adding a side; the side's servings default to the main's
-- [ ] deleting a recipe used by the week plan
 
-### `week`  [TODO]
-- [ ] assign a meal to a day and meal type; clear one slot
-- [ ] "Start planning" begins a cycle and resets purchases
-- [ ] servings per slot flow through to the list
-- [ ] "Clear week" empties the plan but not the catalog
+### `week`  [DONE]
+- [DONE] a meal can be planned onto any day and meal type
+- [DONE] two meals on different days both feed the list
+- [DONE] re-picking a slot REPLACES rather than adding
+- [DONE] the same meal on two days doubles amounts on one row
+- [DONE] "Start a new plan" empties the week AND ends the buying cycle,
+        without touching recipes or ingredients
+- [DONE] clearing a slot removes its ingredients (in `behaviour`)
 
-### `settings`  [TODO]
-- [ ] export is blocked while two ingredients share a name (PR #77)
-- [ ] restore starter catalog: names come back, recipe ids are stable,
-      id-keyed state is orphaned (documented, not a bug)
-- [ ] backup → import round trip preserves the list
+**Note for whoever comes next:** the cycle is `empty → Start planning →
+planning → Finish planning → shopping → Start a new plan`. Per-slot controls
+only exist in `planning` (or behind Edit); "Start a new plan" only exists in
+`shopping`. Skipping a stage is what made four of these fail first time —
+they were test errors, not bugs. **"Clear week" no longer exists**; it was
+deliberately replaced by "Start a new plan".
+
+### `settings`  [MOSTLY DONE]
+- [DONE] the entry count reflects what the catalog actually holds
+- [PENDING #77] export is refused while two ingredients share a name —
+  written and skipped, not weakened
+- [DONE] restore brings back the shipped catalog, id-keyed with names intact
+- [DONE] a backup round-trips without losing the list
+- [DONE] a MALFORMED backup is refused rather than wiping the list
 - [ ] joining another household code switches data and doesn't merge
+
+The import control is **"Restore…"** then **"Restore & replace"**, then an
+**"Import"** confirmation — not the "Import" button two of these tests
+originally guessed at.
+
+### `behaviour` — written from intent, holding area  [DONE]
+Cases graduate into their proper suite once settled. Found the one real bug
+so far (the list showing a pre-rename name).
 
 ### `invariants` — run after everything  [DONE]
 - [DONE] ids everywhere, no nameless entries, no duplicate names
@@ -168,6 +192,14 @@ keeping it stable.
 - [DONE] the shipped catalog is sound
 
 ---
+
+## Found by the suites, not yet fixed
+
+- **`Add unplanned meal`, `Edit` and `Add to week's plan` have no
+  recipe-specific accessible names.** Every Meals card renders the same three
+  labels, so nothing but DOM position distinguishes them. A screen reader hits
+  exactly the ambiguity the tests did. Everything else in the app is carefully
+  labelled, so this looks like an oversight rather than a decision.
 
 ## Known gaps
 

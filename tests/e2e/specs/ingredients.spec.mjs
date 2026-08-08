@@ -97,6 +97,35 @@ test("renaming onto an existing name never leaves two ingredients with one name"
   }
 });
 
+/* THE INTENDED BEHAVIOUR, written down rather than left as a note.
+
+   Against a name that is already taken there should be NO way to keep both:
+   two ingredients sharing a name cannot be represented in the name-keyed
+   export, so one is silently dropped. PR #77 removes the escape hatch. Until
+   it merges this is pending, not weakened — the assertion above it checks the
+   outcome (no duplicate results), which holds either way, and THIS one states
+   what the UI should actually offer. Delete the skip when #77 lands. */
+test("renaming onto an existing name offers no way to keep both", { skip: "pending PR #77" }, async () => {
+  const page = await openApp(BASE, { catalog: cleanCatalog() });
+  try {
+    await page.tab("Ingredients");
+    await page.searchIngredients("Garlic");
+    await page.expandRow("Garlic");
+    await page.clickText(/^Rename$/);
+    await page.getByLabel(/New name for Garlic/i).fill("Salt");
+    await page.clickText(/^Save$/);
+    const buttons = await page.getByRole("button").allTextContents();
+    assert.ok(buttons.some((t) => /Combine them/i.test(t)), "should offer to combine");
+    assert.ok(
+      !buttons.some((t) => /Keep as separate item/i.test(t)),
+      "keeping both would create two ingredients with one name"
+    );
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
 test("renaming to a free name still offers to keep it separate", async () => {
   const catalog = cleanCatalog();
   const page = await openApp(BASE, { catalog });

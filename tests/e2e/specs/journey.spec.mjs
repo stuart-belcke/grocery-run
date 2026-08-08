@@ -83,8 +83,11 @@ test("plan a meal, shop it, finish the trip, then rename an ingredient", async (
     /* --- 5. finish the trip ------------------------------------------- */
     await page.locator("button").filter({ hasText: /^Done shopping$/ }).first().click();
     await page.waitForTimeout(400);
-    // Confirmation dialog: take the confirming action.
-    const confirm = page.locator("button").filter({ hasText: /^(Done|Finish|Confirm|Done shopping)$/ }).last();
+    // The dialog's confirm button, by its real label. A regex net of guesses
+    // ("Done|Finish|Confirm") can match something incidental and pass by
+    // accident, which hides the flow changing underneath the test.
+    const confirm = page.locator("button").filter({ hasText: /^Done shopping$/ }).last();
+    assert.equal(await confirm.count() > 0, true, "the Done shopping dialog should have a confirm button");
     await confirm.click();
     await page.waitForTimeout(700);
     await page.roundTrip();
