@@ -754,6 +754,24 @@ export function catalogNameCollisions(config) {
     .sort((a, b) => a.key.localeCompare(b.key));
 }
 
+/* What a rename should actually DO, decided in one place.
+
+   TWO INGREDIENTS MAY NEVER SHARE A NAME. The exported catalog is name-keyed,
+   so a duplicate isn't a cosmetic annoyance — one entry silently overwrites
+   the other and its store and aisles are gone. The invariant lives here rather
+   than in the dialog, because "don't offer the wrong button" is not the same
+   guarantee as "the wrong thing cannot happen".
+
+   So a name that is already taken is ALWAYS a merge, whatever the caller asked
+   for. "duplicate" — the rename dialog's "Keep as separate item", which mints
+   a second ingredient and leaves recipes pointing at the original — stays
+   available, but only for a name nothing else is using.                     */
+export function planIngredientRename(config, oldId, newName, wantSeparate) {
+  const taken = ingredientIdByName(config, newName, oldId);
+  if (taken) return { action: "merge", into: taken };
+  return { action: wantSeparate ? "duplicate" : "rename" };
+}
+
 // Fold one ingredient into another: repoint every recipe line, then delete the
 // loser. The SURVIVOR's store and aisles win, matching what renaming onto an
 // existing name did back when the name was the key.

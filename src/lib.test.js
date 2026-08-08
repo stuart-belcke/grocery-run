@@ -37,6 +37,7 @@ import {
   normalizeIngredient,
   UNASSIGNED,
   catalogConfigKey,
+  planIngredientRename,
   catalogNameCollisions,
   ingredientNameFor,
   norm,
@@ -1332,4 +1333,43 @@ test("the shipped catalog.json exports without collisions", () => {
   // unable to export from its first day.
   const seeded = seedCatalog(JSON.parse(fs.readFileSync("public/catalog.json", "utf8")));
   assert.deepEqual(catalogNameCollisions(seeded.ingredients), []);
+});
+
+test("a taken name is always a merge, even when asked to keep it separate", () => {
+  const config = {
+    ing_a: { name: "Applesaucer", store: "Costco" },
+    ing_b: { name: "Butter", store: "Aldi" },
+  };
+  // The dialog's "Keep as separate item" is what used to mint a duplicate.
+  // Wanting it changes nothing when the name is already in use: two
+  // ingredients sharing a name cannot survive the name-keyed export.
+  assert.deepEqual(planIngredientRename(config, "ing_b", "Applesaucer", true), { action: "merge", into: "ing_a" });
+  assert.deepEqual(planIngredientRename(config, "ing_b", "applesaucer ", true), { action: "merge", into: "ing_a" });
+  assert.deepEqual(planIngredientRename(config, "ing_b", "APPLESAUCER", false), { action: "merge", into: "ing_a" });
+});
+
+test("a free name still allows keeping the old ingredient separate", () => {
+  const config = { ing_a: { name: "Applesaucer" }, ing_b: { name: "Butter" } };
+  // Nothing is called Cheddar, so both outcomes stay available — this is the
+  // legitimate use of "Keep as separate item" and must not be collateral.
+  assert.deepEqual(planIngredientRename(config, "ing_b", "Cheddar", true), { action: "duplicate" });
+  assert.deepEqual(planIngredientRename(config, "ing_b", "Cheddar", false), { action: "rename" });
+  // Renaming to its own name never counts as colliding with itself.
+  assert.deepEqual(planIngredientRename(config, "ing_b", "Butter", true), { action: "duplicate" });
+});
+
+test("no rename a user can ask for leaves the catalog un-exportable", () => {
+  // The invariant end to end: apply every plan and assert the result still
+  // has no collisions, which is the property the export actually depends on.
+  const draft = {
+    ingredients: { ing_a: { name: "Applesaucer" }, ing_b: { name: "Butter" } },
+    recipes: { r1: { id: "r1", ingredients: [{ ingredientId: "ing_b", qty: 1, unit: "cup" }] } },
+  };
+  const plan = planIngredientRename(draft.ingredients, "ing_b", "APPLESAUCER ", true);
+  assert.equal(plan.action, "merge");
+  mergeIngredients(draft, "ing_b", plan.into);
+  assert.deepEqual(catalogNameCollisions(draft.ingredients), []);
+  assert.deepEqual(Object.keys(draft.ingredients), ["ing_a"]);
+  // The recipe followed the merge rather than being orphaned.
+  assert.deepEqual(draft.recipes.r1.ingredients, [{ ingredientId: "ing_a", qty: 1, unit: "cup" }]);
 });

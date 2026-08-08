@@ -7,7 +7,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Btn, ConfirmDialog, ChoiceDialog, StickyBar } from "../ui";
-import { UNASSIGNED, norm, cap, r2, normalizeCfg, ingredientNames, unitSuggestions, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient, ensureIngredientId, ingredientIdByName, mergeIngredients, setIngredientCfg } from "../lib";
+import { UNASSIGNED, norm, cap, r2, normalizeCfg, ingredientNames, unitSuggestions, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient, ensureIngredientId, ingredientIdByName, mergeIngredients, setIngredientCfg, planIngredientRename } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
 // "how many of this on the list" reads the same everywhere in the app.
@@ -202,10 +202,15 @@ export function PantryTab({ data, update, updateCatalog }) {
     // name that already exists MERGES into it — the behaviour the old
     // key-moving version got for free, and whose loss produced two entries
     // both called "Applesaucer", only one carrying a store and aisle.
-    const mergeInto = asNew ? null : ingredientIdByName(data.config, newName, oldKey);
+    // planIngredientRename, not `asNew ? null : ...`: a taken name is a merge
+    // whatever was clicked. The dialog no longer offers "Keep as separate
+    // item" when the name exists, but the guarantee shouldn't depend on the
+    // dialog getting its buttons right.
+    const plan = planIngredientRename(data.config, oldKey, newName, asNew);
+    const mergeInto = plan.action === "merge" ? plan.into : null;
 
     updateCatalog((c) => {
-      if (asNew) {
+      if (plan.action === "duplicate") {
         // "Save as a separate item": a brand-new ingredient, leaving the
         // original and everything pointing at it exactly as they were.
         c.ingredients[mintIngredientId()] = { ...normalizeIngredient(c.ingredients[oldKey], newName), name: newName };
@@ -734,10 +739,19 @@ export function PantryTab({ data, update, updateCatalog }) {
         open={!!askRename}
         title={askRename && askRename.mergeInto ? "Combine with the existing one?" : "Rename inside recipes too?"}
         onCancel={() => setAskRename(null)}
-        choices={[
-          { label: "Keep as separate item", kind: "ghost", onClick: () => commitRename(askRename, true) },
-          { label: "Rename everywhere", kind: "primary", onClick: () => commitRename(askRename, false) },
-        ]}
+        choices={
+          // "Keep as separate item" is offered only when the new name is FREE.
+          // Against a name that already exists it was the one way to end up
+          // with two ingredients called the same thing, which the name-keyed
+          // export cannot represent — one would be silently dropped on the way
+          // out. Combining is then the only option besides backing out.
+          askRename && askRename.mergeInto
+            ? [{ label: "Combine them", kind: "primary", onClick: () => commitRename(askRename, false) }]
+            : [
+                { label: "Keep as separate item", kind: "ghost", onClick: () => commitRename(askRename, true) },
+                { label: "Rename everywhere", kind: "primary", onClick: () => commitRename(askRename, false) },
+              ]
+        }
       >
         {askRename && (
           <>
@@ -750,17 +764,25 @@ export function PantryTab({ data, update, updateCatalog }) {
               )}
               .
             </p>
-            {askRename.mergeInto && (
-              <p style={{ margin: "0 0 8px", color: C.tomato }}>
-                You already have an ingredient called <b>{askRename.newName}</b>. Renaming everywhere
-                COMBINES the two: recipes using this one switch over, and its store and aisle are
-                dropped in favour of the existing one&apos;s.
+            {askRename.mergeInto ? (
+              <>
+                <p style={{ margin: "0 0 8px", color: C.tomato }}>
+                  You already have an ingredient called <b>{askRename.newName}</b>. Combining them
+                  {askRename.affected.length > 0 ? " switches those recipes over and" : ""} drops this
+                  one&apos;s store and aisle in favour of the existing one&apos;s.
+                </p>
+                <p style={{ margin: 0 }}>
+                  There is no option to keep both: two ingredients with the same name can&apos;t be
+                  told apart in an exported catalog, so one would be silently lost. Cancel if you
+                  meant a different name.
+                </p>
+              </>
+            ) : (
+              <p style={{ margin: 0 }}>
+                Rename everywhere updates {askRename.affected.length === 1 ? "that recipe" : "those recipes"} too. Keeping it separate leaves them alone and saves{" "}
+                <b style={{ color: C.ink }}>{askRename.newName}</b> as its own ingredient.
               </p>
             )}
-            <p style={{ margin: 0 }}>
-              Rename everywhere updates {askRename.affected.length === 1 ? "that recipe" : "those recipes"} too. Keeping it separate leaves them alone and saves{" "}
-              <b style={{ color: C.ink }}>{askRename.newName}</b> as its own ingredient.
-            </p>
           </>
         )}
       </ChoiceDialog>
