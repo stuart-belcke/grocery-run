@@ -318,6 +318,11 @@ rather than saving them for a cleanup that never gets scheduled.
     needed nothing.
     Done AFTER the catalog move, deliberately — it changes the shape of a plan
     slot, and doing it first would have meant migrating that shape twice.
+    Covered by tests/e2e/specs/sides.spec.mjs, added later — it shipped with
+    no coverage at all, and the parts worth guarding turned out not to be the
+    arithmetic but a side's LIFETIME: it belongs to the main it was chosen
+    beside, dies with it, and is silenced with it by skipList. The 🥗 flag on
+    a recipe only orders the picker; any recipe can be added as a side.
 
 28. [DONE] Meals that don't feed the shopping list — leftovers, or a meal
     you're already stocked for. `skipList: true` on the slot, surfaced as

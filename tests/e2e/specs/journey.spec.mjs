@@ -31,6 +31,7 @@ test("plan a meal, shop it, finish the trip, then rename an ingredient", async (
   const chicken = idOf(catalog, "Chicken breast");
   const broccoli = idOf(catalog, "Broccoli");
   const soy = idOf(catalog, "Soy sauce");
+  const rice = idOf(catalog, "Jasmine rice");
   const page = await openApp(BASE, { catalog });
 
   try {
@@ -47,12 +48,35 @@ test("plan a meal, shop it, finish the trip, then rename an ingredient", async (
       "the planned meal didn't reach the shared state"
     );
 
-    /* --- 2. the list is exactly that meal's ingredients ---------------- */
+    /* --- 1b. add a side to that slot ----------------------------------- */
+    /* Per-slot controls live behind Edit once a meal exists (planStageOf
+       reports "shopping" from the first planned meal), which is the real way
+       in: you plan, then adjust. The side then rides through the whole trip
+       below like any other source of demand. */
+    await page.locator("button").filter({ hasText: /^Edit$/ }).first().click();
+    await page.waitForTimeout(400);
+    await page.getByRole("button", { name: "Add a side for Mon Dinner" }).click();
+    await page.waitForTimeout(400);
+    const sidePicker = page.getByRole("dialog", { name: "Add a side for Mon Dinner" });
+    await sidePicker.locator("button").filter({ hasText: /Rice side/ }).first().click();
+    await page.waitForTimeout(200);
+    await sidePicker.locator("button").filter({ hasText: /^Add 1 side$/ }).click();
+    await page.waitForTimeout(600);
+    await page.locator("button").filter({ hasText: /Done editing/ }).first().click();
+    await page.waitForTimeout(400);
+
+    assert.deepEqual(
+      (await page.readState()).plan.Mon.Dinner,
+      { recipeId: "r-stirfry", servings: 2, sides: [{ recipeId: "r-riceside", servings: 2 }] },
+      "the side should be stored on the slot, at the main's servings"
+    );
+
+    /* --- 2. the list is exactly that slot's ingredients ---------------- */
     await page.tab("List");
     assert.deepEqual(
       await listedNames(page),
-      ["Broccoli", "Chicken breast", "Soy sauce"],
-      "the list should be the planned meal's ingredients and nothing else"
+      ["Broccoli", "Chicken breast", "Jasmine rice", "Soy sauce"],
+      "the list should be the planned meal and its side, and nothing else"
     );
 
     /* --- 3. reroute one item for this trip only ----------------------- */
@@ -71,13 +95,17 @@ test("plan a meal, shop it, finish the trip, then rename an ingredient", async (
       "a one-trip reroute must not change where the ingredient usually lives"
     );
 
-    /* --- 4. buy two of the three -------------------------------------- */
+    /* --- 4. buy three of the four ------------------------------------- */
     await page.getByLabel("Bought Chicken breast").check();
     await page.getByLabel("Bought Broccoli").check();
+    // The side's ingredient is bought like any other — nothing about the list
+    // should remember that it came from a side rather than the main.
+    await page.getByLabel("Bought Jasmine rice").check();
     await page.waitForTimeout(500);
     let state = await page.readState();
     assert.equal(state.list.checked[chicken], true);
     assert.equal(state.list.checked[broccoli], true);
+    assert.equal(state.list.checked[rice], true);
     assert.ok(!state.list.checked[soy], "soy sauce wasn't checked and shouldn't be");
 
     /* --- 5. finish the trip ------------------------------------------- */
@@ -97,6 +125,7 @@ test("plan a meal, shop it, finish the trip, then rename an ingredient", async (
     // deleted — the recipe still wants it next week.
     assert.ok(state.list.bought[chicken], "a bought item should offset future demand");
     assert.ok(state.list.bought[broccoli], "a bought item should offset future demand");
+    assert.ok(state.list.bought[rice], "the side's ingredient should bank like the main's");
     assert.deepEqual(state.list.checked, {}, "the trip's tick marks should be cleared");
     // A reroute only meant something while its item was listed.
     assert.equal(state.list.overrides[broccoli], undefined, "the one-trip override should not survive the trip");
