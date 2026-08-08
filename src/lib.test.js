@@ -36,6 +36,9 @@ import {
   setIngredientCfg,
   normalizeIngredient,
   UNASSIGNED,
+  catalogConfigKey,
+  planIngredientRename,
+  catalogNameCollisions,
   ingredientNameFor,
   norm,
   daysInOrder,
@@ -1281,4 +1284,92 @@ test("setIngredientCfg still normalizes the store/aisle triple", () => {
   assert.deepEqual(setIngredientCfg({ name: "Eggs", store: "Aldi", aisle: 4 }, {}).aisles, { Aldi: 4 });
   // Nothing to patch onto is not a crash.
   assert.equal(setIngredientCfg(null, { store: "Aldi" }).store, "Aldi");
+});
+
+test("the export key is what collapses two ingredients into one", () => {
+  // The bug this guards: the live catalog is id-keyed, the file is name-keyed,
+  // and norm() folds case and surrounding whitespace — so these two distinct
+  // ingredients are one entry once exported.
+  const a = { name: "Applesaucer", store: "Costco", aisles: { Costco: 7 } };
+  const b = { name: "applesaucer ", store: "Aldi", aisles: { Aldi: 2 } };
+  assert.equal(catalogConfigKey(a, "ing_a"), catalogConfigKey(b, "ing_b"));
+  // An entry with no usable name falls back to its id rather than colliding
+  // with every other nameless entry on the empty string.
+  assert.equal(catalogConfigKey({ name: "  " }, "ing_c"), "ing_c");
+});
+
+test("catalogNameCollisions finds exactly the groups that would lose an entry", () => {
+  const config = {
+    ing_a: { name: "Applesaucer", store: "Costco" },
+    ing_b: { name: "applesaucer ", store: "Aldi" },
+    ing_c: { name: "Butter" },
+    ing_d: { name: "Eggs" },
+    ing_e: { name: "EGGS" },
+    ing_f: { name: "eggs " },
+  };
+  const found = catalogNameCollisions(config);
+  // Sorted by key, so this is stable to assert on.
+  assert.deepEqual(found.map((c) => c.key), ["applesaucer", "eggs"]);
+  assert.deepEqual(found[0].entries.map((e) => e.id), ["ing_a", "ing_b"]);
+  // Three-way collisions are reported as one group, not two pairs.
+  assert.equal(found[1].entries.length, 3);
+  // The DISPLAY names are no help: normalizeIngredient caps and trims, so
+  // "eggs " comes back as "Eggs" — identical to the first entry. This is the
+  // whole reason duplicates are invisible in the Ingredients tab, and why the
+  // store is carried too.
+  assert.deepEqual(found[1].entries.map((e) => e.name), ["Eggs", "EGGS", "Eggs"]);
+  assert.deepEqual(found[0].entries.map((e) => e.store), ["Costco", "Aldi"]);
+});
+
+test("a catalog with no duplicate names has nothing to report", () => {
+  assert.deepEqual(catalogNameCollisions({ ing_a: { name: "Butter" }, ing_b: { name: "Eggs" } }), []);
+  assert.deepEqual(catalogNameCollisions({}), []);
+  assert.deepEqual(catalogNameCollisions(null), []);
+});
+
+test("the shipped catalog.json exports without collisions", () => {
+  // Guards the starter catalog itself: seedCatalog mints an id per entry, and
+  // if two of its names ever normalized alike a brand-new household would be
+  // unable to export from its first day.
+  const seeded = seedCatalog(JSON.parse(fs.readFileSync("public/catalog.json", "utf8")));
+  assert.deepEqual(catalogNameCollisions(seeded.ingredients), []);
+});
+
+test("a taken name is always a merge, even when asked to keep it separate", () => {
+  const config = {
+    ing_a: { name: "Applesaucer", store: "Costco" },
+    ing_b: { name: "Butter", store: "Aldi" },
+  };
+  // The dialog's "Keep as separate item" is what used to mint a duplicate.
+  // Wanting it changes nothing when the name is already in use: two
+  // ingredients sharing a name cannot survive the name-keyed export.
+  assert.deepEqual(planIngredientRename(config, "ing_b", "Applesaucer", true), { action: "merge", into: "ing_a" });
+  assert.deepEqual(planIngredientRename(config, "ing_b", "applesaucer ", true), { action: "merge", into: "ing_a" });
+  assert.deepEqual(planIngredientRename(config, "ing_b", "APPLESAUCER", false), { action: "merge", into: "ing_a" });
+});
+
+test("a free name still allows keeping the old ingredient separate", () => {
+  const config = { ing_a: { name: "Applesaucer" }, ing_b: { name: "Butter" } };
+  // Nothing is called Cheddar, so both outcomes stay available — this is the
+  // legitimate use of "Keep as separate item" and must not be collateral.
+  assert.deepEqual(planIngredientRename(config, "ing_b", "Cheddar", true), { action: "duplicate" });
+  assert.deepEqual(planIngredientRename(config, "ing_b", "Cheddar", false), { action: "rename" });
+  // Renaming to its own name never counts as colliding with itself.
+  assert.deepEqual(planIngredientRename(config, "ing_b", "Butter", true), { action: "duplicate" });
+});
+
+test("no rename a user can ask for leaves the catalog un-exportable", () => {
+  // The invariant end to end: apply every plan and assert the result still
+  // has no collisions, which is the property the export actually depends on.
+  const draft = {
+    ingredients: { ing_a: { name: "Applesaucer" }, ing_b: { name: "Butter" } },
+    recipes: { r1: { id: "r1", ingredients: [{ ingredientId: "ing_b", qty: 1, unit: "cup" }] } },
+  };
+  const plan = planIngredientRename(draft.ingredients, "ing_b", "APPLESAUCER ", true);
+  assert.equal(plan.action, "merge");
+  mergeIngredients(draft, "ing_b", plan.into);
+  assert.deepEqual(catalogNameCollisions(draft.ingredients), []);
+  assert.deepEqual(Object.keys(draft.ingredients), ["ing_a"]);
+  // The recipe followed the merge rather than being orphaned.
+  assert.deepEqual(draft.recipes.r1.ingredients, [{ ingredientId: "ing_a", qty: 1, unit: "cup" }]);
 });
