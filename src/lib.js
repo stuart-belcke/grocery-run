@@ -325,6 +325,33 @@ export function compactCfg(cfg) {
   return n.staple ? { store: n.store, aisles: n.aisles, staple: true } : { store: n.store, aisles: n.aisles };
 }
 
+/* Change an ingredient's store / aisle / staple in the LIVE catalog without
+   losing anything else about it.
+
+   compactCfg returns ONLY that triple. That was right while the catalog was
+   name-keyed — the name WAS the key, so repeating it in the value was
+   redundant — and it is still right for the EXPORT and for seedCatalog, both
+   of which are name-keyed. It became data loss the moment ids became the key:
+   writing compactCfg's result straight back into an id-keyed catalog erased
+   the ingredient's `name`, which is the only place its identity now lives. The
+   entry survived with its store and aisles intact and no name, so it rendered
+   as "Ing_ublugf9x" and read as though setting a store had deleted the item.
+
+   Spreading the original first also honours the forward-compatibility rule:
+   a field this build doesn't know about rides through untouched instead of
+   being silently dropped by a store change.                                 */
+export function setIngredientCfg(ing, patch) {
+  const base = ing && typeof ing === "object" ? ing : {};
+  const n = normalizeCfg({ ...normalizeCfg(base), ...patch });
+  const out = { ...base, store: n.store, aisles: n.aisles };
+  // Assigned rather than spread from compactCfg: it OMITS staple when false,
+  // so spreading could never turn a staple back off — the old true would
+  // survive underneath.
+  if (n.staple) out.staple = true;
+  else delete out.staple;
+  return out;
+}
+
 // Aisle for a specific store, or "" if none set.
 export function aisleFor(cfg, store) {
   const n = normalizeCfg(cfg);

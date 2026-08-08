@@ -33,6 +33,9 @@ import {
   ensureIngredientId,
   ingredientIdByName,
   mergeIngredients,
+  setIngredientCfg,
+  normalizeIngredient,
+  UNASSIGNED,
   ingredientNameFor,
   norm,
   daysInOrder,
@@ -1238,4 +1241,44 @@ test("merging refuses the cases that would lose data", () => {
   mergeIngredients(draft, "ing_a", "ing_missing");
   mergeIngredients(draft, null, "ing_a");
   assert.deepEqual(Object.keys(draft.ingredients), ["ing_a"]);
+});
+
+test("changing the store keeps the ingredient's name", () => {
+  // THE BUG: compactCfg returns only { store, aisles, staple }. Writing that
+  // straight back into an id-keyed catalog erased `name` — the only place the
+  // ingredient's identity lives once the key is an id — so the row rendered as
+  // "Ing_ublugf9x" and read as though setting a store had deleted the item.
+  const before = { name: "Red onion", store: "Grocery store", aisles: { "Grocery store": 1 } };
+  const after = setIngredientCfg(before, { store: "Costco" });
+  assert.equal(after.name, "Red onion");
+  assert.equal(after.store, "Costco");
+  assert.equal(normalizeIngredient(after, "ing_ublugf9x").name, "Red onion");
+});
+
+test("a store change carries through a field this build doesn't know about", () => {
+  // Same hard rule normalizeLocal follows: an unrecognised field must survive
+  // a build that has never heard of it, rather than being dropped by an
+  // unrelated edit.
+  const after = setIngredientCfg({ name: "Butter", futureThing: { note: "keep me" } }, { store: "Aldi" });
+  assert.deepEqual(after.futureThing, { note: "keep me" });
+  assert.equal(after.name, "Butter");
+});
+
+test("setIngredientCfg can turn a staple back off", () => {
+  // compactCfg OMITS staple when false, so a patch built by spreading it over
+  // the original could never clear one — the old `true` would survive.
+  const staple = setIngredientCfg({ name: "Salt" }, { staple: true });
+  assert.equal(staple.staple, true);
+  const off = setIngredientCfg(staple, { staple: false });
+  assert.equal("staple" in off, false);
+  assert.equal(off.name, "Salt");
+});
+
+test("setIngredientCfg still normalizes the store/aisle triple", () => {
+  // The patch goes through normalizeCfg, so a missing store becomes
+  // UNASSIGNED and the legacy singular `aisle` is still understood.
+  assert.equal(setIngredientCfg({ name: "Eggs" }, {}).store, UNASSIGNED);
+  assert.deepEqual(setIngredientCfg({ name: "Eggs", store: "Aldi", aisle: 4 }, {}).aisles, { Aldi: 4 });
+  // Nothing to patch onto is not a crash.
+  assert.equal(setIngredientCfg(null, { store: "Aldi" }).store, "Aldi");
 });

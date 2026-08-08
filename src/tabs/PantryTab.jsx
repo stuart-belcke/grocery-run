@@ -7,7 +7,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Btn, ConfirmDialog, ChoiceDialog, StickyBar } from "../ui";
-import { UNASSIGNED, norm, cap, r2, normalizeCfg, compactCfg, ingredientNames, unitSuggestions, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient, ensureIngredientId, ingredientIdByName, mergeIngredients } from "../lib";
+import { UNASSIGNED, norm, cap, r2, normalizeCfg, ingredientNames, unitSuggestions, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient, ensureIngredientId, ingredientIdByName, mergeIngredients, setIngredientCfg } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
 // "how many of this on the list" reads the same everywhere in the app.
@@ -71,18 +71,16 @@ export function PantryTab({ data, update, updateCatalog }) {
 
   const setCfg = (key, patch) =>
     updateCatalog((c) => {
-      const base = normalizeCfg(c.ingredients[key]);
-      c.ingredients[key] = compactCfg({ ...base, ...patch });
+      c.ingredients[key] = setIngredientCfg(c.ingredients[key], patch);
       return c;
     });
 
   const setAisle = (key, store, value) =>
     updateCatalog((c) => {
-      const base = normalizeCfg(c.ingredients[key]);
-      const aisles = { ...base.aisles };
+      const aisles = { ...normalizeCfg(c.ingredients[key]).aisles };
       if (value === "") delete aisles[store];
       else aisles[store] = Number(value);
-      c.ingredients[key] = compactCfg({ ...base, aisles });
+      c.ingredients[key] = setIngredientCfg(c.ingredients[key], { aisles });
       return c;
     });
 
@@ -102,7 +100,7 @@ export function PantryTab({ data, update, updateCatalog }) {
     updateCatalog((c) => {
       c.stores = c.stores.filter((x) => x !== s);
       for (const [key, cfg] of Object.entries(c.ingredients)) {
-        if (normalizeCfg(cfg).store === s) c.ingredients[key] = compactCfg({ ...normalizeCfg(cfg), store: UNASSIGNED });
+        if (normalizeCfg(cfg).store === s) c.ingredients[key] = setIngredientCfg(cfg, { store: UNASSIGNED });
       }
       return c;
     });
@@ -253,10 +251,10 @@ export function PantryTab({ data, update, updateCatalog }) {
 
   const resetItemDefaults = ({ key }) => {
     updateCatalog((c) => {
-      // Writing the entry replaces it wholesale, so carry the staple flag over —
-      // "reset store & aisle" shouldn't quietly stop it being a home staple.
-      const staple = normalizeCfg(c.ingredients[key]).staple;
-      c.ingredients[key] = compactCfg({ store: UNASSIGNED, aisles: {}, staple });
+      // setIngredientCfg patches rather than replacing wholesale, so the
+      // staple flag stays put on its own — as does the name, and anything a
+      // newer build added. "Reset store & aisle" means exactly those two.
+      c.ingredients[key] = setIngredientCfg(c.ingredients[key], { store: UNASSIGNED, aisles: {} });
       return c;
     });
     setInUseNote(null);
@@ -638,8 +636,7 @@ export function PantryTab({ data, update, updateCatalog }) {
                               // trip state — one call to each, and only ever one
                               // per handler, since each snapshots its own ref.
                               updateCatalog((c) => {
-                                const base = normalizeCfg(c.ingredients[key]);
-                                c.ingredients[key] = compactCfg({ ...base, staple: on });
+                                c.ingredients[key] = setIngredientCfg(c.ingredients[key], { staple: on });
                                 return c;
                               });
                               if (!on) {
