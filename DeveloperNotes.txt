@@ -475,10 +475,17 @@ rather than saving them for a cleanup that never gets scheduled.
 
     Real fix is auth — see FutureProjects.md and item 37.
 
-35. Add an error boundary. A render throw currently gives a white screen, in a
-    shop, with no way back. About twenty lines for a "something went wrong,
-    reload" fallback that keeps the cached list reachable.
-    Cheap, and the failure it prevents is the worst-timed one this app has.
+35. [DONE] Add an error boundary. A render throw used to give a white screen,
+    in a shop, with no way back. A class component in main.jsx now wraps
+    <App/> and renders a "Something went wrong" fallback with a Reload
+    button on any render throw. Reload is enough to recover because state is
+    already on disk (loadCache) before anything renders — the boundary
+    doesn't need to hold or restore it itself.
+    Verified by mutation test: App() temporarily made to throw behind a
+    query param, confirmed in a real browser (playwright-core against
+    `vite preview`) that the fallback renders and Reload works, then
+    confirmed the normal build shows no trace of the fallback. Change
+    reverted before committing.
 
 36. Split lib.js WHEN IT MAKES A CHANGE HARD, not on principle. It is 1,222
     lines and has become a grab-bag: units, ingredient identity, aggregation,

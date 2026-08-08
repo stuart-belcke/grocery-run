@@ -1,7 +1,70 @@
+import { Component } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.jsx";
+import { C, fontBody, fontDisplay } from "./theme.js";
 
-createRoot(document.getElementById("root")).render(<App />);
+// Item 35: a render throw used to give a white screen with no way back — the
+// worst-timed failure this app has, since it happens mid-shop. State is
+// already on disk (loadCache) by the time anything renders, so a reload is
+// enough to recover; this just gives you a button instead of a blank page.
+class ErrorBoundary extends Component {
+  state = { error: null };
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error, info) {
+    console.error(error, info);
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+          background: C.paper,
+          fontFamily: fontBody,
+          color: C.ink,
+          textAlign: "center",
+        }}
+      >
+        <div>
+          <div style={{ fontFamily: fontDisplay, fontSize: 22, fontWeight: 700, marginBottom: 8 }}>
+            Something went wrong
+          </div>
+          <p style={{ color: C.faint, marginBottom: 16 }}>
+            Reloading keeps your list, week plan and meals exactly as they are.
+          </p>
+          <button
+            onClick={() => location.reload()}
+            style={{
+              fontFamily: fontBody,
+              fontWeight: 500,
+              fontSize: 14,
+              padding: "8px 14px",
+              borderRadius: 8,
+              border: "1px solid transparent",
+              cursor: "pointer",
+              background: C.green,
+              color: "#fff",
+            }}
+          >
+            Reload
+          </button>
+        </div>
+      </div>
+    );
+  }
+}
+
+createRoot(document.getElementById("root")).render(
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>
+);
 
 // Offline support: the service worker caches the app shell so it opens
 // with no signal once installed. Only runs on https (GitHub Pages is https).
