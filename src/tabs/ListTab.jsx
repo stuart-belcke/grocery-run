@@ -6,7 +6,7 @@
 import { useState, useMemo, useRef } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, StickyBar } from "../ui";
-import { UNASSIGNED, norm, r2, normalizeCfg, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor } from "../lib";
+import { UNASSIGNED, norm, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor } from "../lib";
 
 export function ListTab({ data, update, updateCatalog }) {
   const [view, setView] = useState("store");
@@ -143,14 +143,32 @@ export function ListTab({ data, update, updateCatalog }) {
   const addExtra = () => {
     const name = extra.name.trim();
     if (!name) return;
-    if (!data.config[norm(name)]) return setAskSave(name);
+    // config is id-keyed, so looking it up by norm(name) never matched — every
+    // add asked "remember this?" even for an ingredient you already have.
+    if (!ingredientIdByName(data.config, name)) return setAskSave(name);
     commitExtra(false);
   };
 
   const commitExtra = (saveToIngredients) => {
     const name = extra.name.trim();
     if (!name) return;
-    const key = norm(name);
+    // Key by the ingredient's ID whenever we can name one. A name-keyed entry
+    // does not match the id-keyed catalog, so it renders as a SECOND,
+    // store-less row beside the real ingredient instead of attaching to it.
+    // Only a genuinely ad-hoc item — one being added without being remembered
+    // — has no id to use, and falls back to its name.
+    let key = ingredientIdByName(data.config, name);
+    if (!key && saveToIngredients) {
+      // Mints an `ing_` id AND stores the name as a field. The old code wrote
+      // c.ingredients[norm(name)] = { store, aisles } — a name-keyed entry
+      // with no name in it, which showed up as a duplicate AND made
+      // needsIngredientIds true, re-triggering the whole id migration.
+      updateCatalog((c) => {
+        key = ensureIngredientId(c, name);
+        return c;
+      });
+    }
+    if (!key) key = norm(name);
     update((d) => {
       d.list.extras[key] = { name, qty: Number(extra.qty) || 1, unit: extra.unit.trim() };
       // "Save to Ingredients" only means "remember this name so it's suggested
@@ -160,14 +178,8 @@ export function ListTab({ data, update, updateCatalog }) {
       // depending on invisible state.
       return d;
     });
-    // "Save to Ingredients" means remember the name so it's suggested next
-    // time; where it lives is the Ingredients tab's job.
-    if (saveToIngredients && !data.config[key]) {
-      updateCatalog((c) => {
-        if (!c.ingredients[key]) c.ingredients[key] = { store: UNASSIGNED, aisles: {} };
-        return c;
-      });
-    }
+    // The catalog write happens above, through ensureIngredientId, so that the
+    // entry gets an id and a name rather than being keyed by its name.
     setExtra({ name: "", qty: "1", unit: "" });
     setAskSave(null);
   };
@@ -200,7 +212,10 @@ export function ListTab({ data, update, updateCatalog }) {
   const saveExtraEdit = (item) => {
     const name = editExtra.name.trim();
     if (!name) return;
-    const newKey = norm(name);
+    // Same rule as adding: attach to the ingredient's id when the name is one
+    // we know, so a renamed hand-added item merges into that row instead of
+    // becoming a store-less twin of it.
+    const newKey = ingredientIdByName(data.config, name) || norm(name);
     update((d) => {
       delete d.list.extras[item.key];
       d.list.extras[newKey] = { name, qty: Number(editExtra.qty) || 1, unit: editExtra.unit.trim() };

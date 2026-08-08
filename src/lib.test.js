@@ -1412,3 +1412,69 @@ test("index-keyed extras still get a real key derived", () => {
   });
   assert.deepEqual(Object.keys(local.list.extras).sort(), ["milk", "orzo"]);
 });
+
+/* ------------------------------------------------------------------------
+   THE ID INVARIANT. Every reference to an ingredient is its id. Three
+   separate bugs shipped from breaking this in three different places, all
+   with the same symptom — a duplicate row with no store — so these tests
+   assert the RULE rather than any one code path.                          */
+
+// The key an id-keyed catalog entry must have.
+const isId = (k) => /^ing_/.test(k);
+
+test("INVARIANT: every catalog entry is id-keyed and carries its own name", () => {
+  const seeded = seedCatalog(JSON.parse(fs.readFileSync("public/catalog.json", "utf8")));
+  const bad = Object.entries(seeded.ingredients).filter(([k, v]) => !isId(k) || !v.name);
+  assert.deepEqual(bad, [], "a name-keyed or name-less entry renders as a duplicate with no store");
+  // needsIngredientIds is what a non-id key trips, re-running the whole
+  // migration — so the invariant and that check must agree.
+  assert.equal(needsIngredientIds(seeded), false);
+});
+
+test("INVARIANT: an ingredient never appears twice in the rendered list", () => {
+  // The user-visible symptom of every one of these bugs. Whatever the cause,
+  // two rows with the same name means a reference stopped resolving.
+  const seeded = seedCatalog(JSON.parse(fs.readFileSync("public/catalog.json", "utf8")));
+  const data = { config: seeded.ingredients, list: { extras: {} } };
+  const names = ingredientNames(data).map((r) => norm(r.name));
+  assert.deepEqual(names.length, new Set(names).size, "duplicate ingredient rows");
+});
+
+test("a hand-added item attaches to the ingredient rather than shadowing it", () => {
+  // ListTab's commitExtra used to key extras by norm(name). The catalog is
+  // id-keyed, so the entry matched nothing and ingredientNames gave it its
+  // own row — "Orzo, no store set" beside the real Orzo.
+  const id = "ing_orzo0001";
+  const config = { [id]: { name: "Orzo", store: "Aldi", aisles: { Aldi: 6 } } };
+  // Resolving the typed name to the id is what the fixed code does.
+  assert.equal(ingredientIdByName(config, "orzo"), id);
+  assert.equal(ingredientIdByName(config, "ORZO "), id);
+  const data = { config, list: { extras: { [id]: { name: "Orzo", qty: 1, unit: "cup" } }, overrides: {} } };
+  assert.deepEqual(ingredientNames(data).map((r) => r.key), [id]);
+  assert.equal(storeFor(data, id), "Aldi");
+});
+
+test("remembering a new item mints an id, never a name key", () => {
+  // "Save to Ingredients" used to write c.ingredients[norm(name)] = {store,
+  // aisles} — no id, no name field. That showed as a duplicate AND flipped
+  // needsIngredientIds to true, re-triggering the id migration on load.
+  const draft = { ingredients: {} };
+  const id = ensureIngredientId(draft, "Paper towels");
+  assert.ok(isId(id));
+  assert.equal(draft.ingredients[id].name, "Paper towels");
+  assert.equal(needsIngredientIds(draft), false);
+  // Asking again for the same name returns the SAME id rather than a second entry.
+  assert.equal(ensureIngredientId(draft, "paper towels "), id);
+  assert.equal(Object.keys(draft.ingredients).length, 1);
+});
+
+test("an unknown ad-hoc item is still allowed, and doesn't pretend to be an ingredient", () => {
+  // Adding without remembering has no id to use — a name key is correct there,
+  // and it must not appear as a catalog ingredient.
+  const config = { ing_real0001: { name: "Orzo" } };
+  assert.equal(ingredientIdByName(config, "Sparklers"), null);
+  const data = { config, list: { extras: { sparklers: { name: "Sparklers", qty: 1, unit: "" } } } };
+  const rows = ingredientNames(data);
+  assert.deepEqual(rows.map((r) => r.name).sort(), ["Orzo", "Sparklers"]);
+  assert.equal(needsIngredientIds({ ingredients: config }), false);
+});
