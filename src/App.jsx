@@ -703,7 +703,7 @@ export default function App() {
             members={members}
             invites={invites}
             isGuest={isGuest}
-            createInvite={(ttl) => createInvite(code, user, ttl)}
+            createInvite={(opts) => createInvite(code, user, opts)}
             revokeInvite={(token) => revokeInvite(code, token)}
             joinWithInvite={joinWithInvite}
             removeMember={(uid) => removeMember(code, uid)}

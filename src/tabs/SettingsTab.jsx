@@ -149,9 +149,9 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
   const makeInvite = async (role) => {
     setInviting(true);
     setInviteMsg("");
-    const token = await createInvite(60, role);
+    const made = await createInvite({ ttlMinutes: 60, role });
     setInviting(false);
-    if (!token) {
+    if (!made) {
       setInviteMsg("Couldn't create an invite. You have to be a full member of this household to invite someone.");
       return;
     }
@@ -159,9 +159,11 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
     // which household it opens, and a code alone no longer opens anything.
     // The role rides along too, because the account redeeming it can't read
     // the invite to find out what it grants.
+    // made.role, not the `role` asked for: the link has to describe what the
+    // database actually stored, or it is a link that cannot be redeemed.
     copyText(
-      formatInvite(code, token, role),
-      role === "guest"
+      formatInvite(code, made.token, made.role),
+      made.role === "guest"
         ? "Guest link copied — they can shop the list, not change recipes or the week."
         : "Invite copied — paste it on the other phone within the hour."
     );

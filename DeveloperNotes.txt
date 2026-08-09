@@ -708,6 +708,26 @@ MEASURED AND DELIBERATELY NOT PROBLEMS
     the listener is allowed again. So signing in flushes what the phone did
     while it couldn't reach the database.
 
+    A BUG FOUND BY READING THE SCREEN, not by any test: "Invite another
+    phone" and "Guest link" did the same thing. The wrapper App passed down
+    was `(ttl) => createInvite(code, user, ttl)` — one parameter — so the
+    second positional `role` was silently swallowed and every invite was a
+    FULL one. The guest button still labelled its link "~g", so the link
+    claimed guest while the stored invite said member, and the rules
+    correctly refuse a redemption where those disagree. The result was a
+    guest link that could never be redeemed, produced by a button that
+    looked like it worked.
+    NO TEST WOULD HAVE CAUGHT IT, and it is worth being honest about why:
+    creating an invite needs a database, so the e2e build (sync compiled
+    out) cannot reach the call at all, and the rules tests exercise the
+    RULES, which were right — they refused exactly as designed. The failure
+    lived in the four inches of prop wiring between them.
+    FIXED STRUCTURALLY RATHER THAN BY A TEST. createInvite takes an options
+    object, because one argument cannot be half-forwarded; and it returns
+    the role it actually wrote, with the link built from THAT, so a caller
+    can no longer describe an invite the database didn't store. Both changes
+    make the bug unexpressible instead of merely detected.
+
     ALSO SHIPPED: the member list (was listed below as the natural follow-on
     to CONTRACT, and it earns its place now that access can actually fail).
     Settings shows households/{code}/members, read via a prop from App.jsx
