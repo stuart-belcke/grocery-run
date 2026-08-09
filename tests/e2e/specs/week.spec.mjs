@@ -6,7 +6,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { openApp, assertNoPageErrors } from "../harness.mjs";
-import { smallCatalog } from "../fixtures.mjs";
+import { smallCatalog, stateWith } from "../fixtures.mjs";
 
 const BASE = process.env.E2E_BASE_URL;
 
@@ -182,6 +182,60 @@ test("SHOULD: the same meal on two days doubles the amounts on one row", async (
     );
     const text = await page.textContent("body");
     assert.ok(/2\s*lb/.test(text), "the same meal twice should want 2 lb of chicken");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* ---------------- unplanned meals ----------------
+   "Add unplanned meal" on the Meals tab puts a recipe on the shopping list
+   with no day/slot — previously visible only by scrolling the Meals tab for
+   a card showing an "Unplanned" pill. The Week tab now surfaces the same
+   thing in a dropdown, since the week plan is where "what's actually
+   happening this week" already lives. */
+
+test("SHOULD: an unplanned meal shows in the Week tab's dropdown, and is removable from there", async () => {
+  const catalog = smallCatalog();
+  const state = stateWith({ list: { selections: { "r-stirfry": 2 } } });
+  const page = await openApp(BASE, { catalog, state });
+  try {
+    await page.tab("Week plan");
+
+    const toggle = page.getByRole("button", { name: /Unplanned meals/ });
+    assert.equal(await toggle.count(), 1, "the dropdown should appear while something is unplanned");
+    await toggle.click();
+    await page.waitForTimeout(300);
+    assert.ok((await page.textContent("body")).includes("Stir-fry"), "the unplanned recipe's name should be listed");
+
+    await page.getByLabel(/^Remove unplanned Stir-fry$/).click();
+    await page.waitForTimeout(500);
+    await page.roundTrip();
+
+    await page.tab("Week plan");
+    assert.equal(
+      await page.getByRole("button", { name: /Unplanned meals/ }).count(),
+      0,
+      "the dropdown should disappear once nothing is unplanned"
+    );
+    assert.deepEqual((await page.readState()).list.selections, {}, "removing it here should clear the underlying selection");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: a meal already on the plan doesn't also show as unplanned", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await startPlanning(page);
+    await pick(page, "Mon Dinner", "Stir-fry");
+
+    assert.equal(
+      await page.getByRole("button", { name: /Unplanned meals/ }).count(),
+      0,
+      "a meal that's only on the plan (never added unplanned) shouldn't show in the dropdown"
+    );
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

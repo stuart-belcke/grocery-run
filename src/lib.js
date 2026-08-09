@@ -1385,6 +1385,19 @@ export function servingsByRecipe(data) {
   return totals;
 }
 
+// Recipes sitting on the shopping list with no day/slot in the week plan —
+// added via the Meals tab's "Add unplanned meal", not a picker here. Used by
+// the Week tab so one of these is visible without switching tabs to notice
+// it. A selection pointing at a deleted recipe is dropped rather than shown
+// as a mystery row — MealsTab's delete already clears it, but an older
+// build's edit might not have.
+export function unplannedMeals(data) {
+  return Object.entries(asObject(data && data.list && data.list.selections))
+    .map(([id, servings]) => ({ id, servings: Number(servings) || 0, recipe: data.recipes.find((r) => r.id === id) }))
+    .filter((u) => u.servings > 0 && u.recipe)
+    .sort((a, b) => a.recipe.name.localeCompare(b.recipe.name));
+}
+
 export function aggregateItems(data) {
   const map = new Map();
   // Items are keyed by INGREDIENT ID now, with the name carried alongside for

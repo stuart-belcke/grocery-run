@@ -7,7 +7,7 @@
 import { useMemo, useState } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, ConfirmDialog } from "../ui";
-import { MEAL_TYPES, norm, planStageOf, plannedMealCount, daysInOrder, asArray } from "../lib";
+import { MEAL_TYPES, norm, planStageOf, plannedMealCount, daysInOrder, asArray, unplannedMeals, r2 } from "../lib";
 
 export function WeekTab({ data, update }) {
   // Presentation order only. Plan data stays keyed by day name, so a meal
@@ -22,6 +22,7 @@ export function WeekTab({ data, update }) {
   const [sidePicks, setSidePicks] = useState([]);
   const [editing, setEditing] = useState(false); // whole-plan edit mode: reveals per-slot change + clear
   const [confirmClear, setConfirmClear] = useState(false);
+  const [unplannedOpen, setUnplannedOpen] = useState(false); // "Unplanned meals" disclosure
 
   // Where the week is in its cycle, and what each stage lets you do.
   const stage = planStageOf(data);
@@ -150,6 +151,15 @@ export function WeekTab({ data, update }) {
   };
 
   const plannedCount = plannedMealCount(data);
+  // Meals added straight to the shopping list on the Meals tab ("Add
+  // unplanned meal"), with no day assigned here — otherwise only visible by
+  // scrolling the Meals tab and noticing which cards show an "Unplanned" pill.
+  const unplanned = useMemo(() => unplannedMeals(data), [data]);
+  const removeUnplanned = (id) =>
+    update((d) => {
+      delete d.list.selections[id];
+      return d;
+    });
 
   // Recipes offered in the open picker, narrowed by the search box (name or
   // ingredient) and grouped differently per role:
@@ -216,6 +226,58 @@ export function WeekTab({ data, update }) {
           </>
         )}
       </div>
+
+      {unplanned.length > 0 && (
+        <div style={{ marginBottom: 10 }}>
+          <button
+            onClick={() => setUnplannedOpen((v) => !v)}
+            aria-expanded={unplannedOpen}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              fontFamily: fontBody,
+              fontSize: 13,
+              fontWeight: 500,
+              padding: "6px 12px",
+              borderRadius: 8,
+              cursor: "pointer",
+              border: `1px solid ${C.line}`,
+              background: "#fff",
+              color: C.ink,
+            }}
+          >
+            <span aria-hidden style={{ fontSize: 10 }}>{unplannedOpen ? "▾" : "▸"}</span>
+            Unplanned meals
+            <span style={{ background: C.green, color: "#fff", borderRadius: 999, fontSize: 11, fontWeight: 700, minWidth: 16, textAlign: "center", padding: "1px 5px" }}>
+              {unplanned.length}
+            </span>
+          </button>
+          {unplannedOpen && (
+            <div style={{ marginTop: 6, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: 8 }}>
+              <p style={{ margin: "0 0 6px", fontSize: 12, color: C.faint, padding: "0 4px" }}>
+                On the shopping list without a day here — added from the Meals tab's "Add unplanned meal".
+              </p>
+              {unplanned.map((u) => (
+                <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 7, background: C.paper, marginBottom: 4 }}>
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, fontWeight: 500, color: C.ink }}>
+                    {u.recipe.easy ? "⚡ " : ""}{u.recipe.name}
+                  </span>
+                  <span style={{ fontSize: 12, color: C.faint, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{r2(u.servings)} sv</span>
+                  <button
+                    onClick={() => removeUnplanned(u.id)}
+                    aria-label={`Remove unplanned ${u.recipe.name}`}
+                    title="Remove from the shopping list"
+                    style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 2, lineHeight: 1, flexShrink: 0 }}
+                  >
+                    🗑
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {recipesSorted.length === 0 ? (
         <div style={{ textAlign: "center", padding: "48px 16px", color: C.faint, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12 }}>
