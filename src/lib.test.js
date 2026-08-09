@@ -58,6 +58,7 @@ import {
   normalizeCatalog,
   parseIngredientLine,
   parseRecipeText,
+  unplannedMeals,
 } from "./lib.js";
 
 /* ---------------- forward compatibility ----------------
@@ -591,6 +592,47 @@ test("skipList on the only planned meal leaves the list empty", () => {
   });
   assert.deepEqual(aggregateItems(d), []);
   assert.equal(plannedMealCount(d), 1);
+});
+
+/* ---------------- unplanned meals (Week tab) ----------------
+   "Add unplanned meal" on the Meals tab writes straight to list.selections
+   with no day/slot — the only way to see one used to be scrolling the Meals
+   tab for a card showing an "Unplanned" pill. unplannedMeals is what the
+   Week tab's dropdown reads instead. */
+
+test("unplannedMeals lists recipes added to the list with no day assigned", () => {
+  const d = aggData({
+    recipes: [recipe("r1", "Chili", 4, []), recipe("r2", "Tacos", 4, [])],
+    list: { ...aggData().list, selections: { r1: 2, r2: 4 } },
+  });
+  assert.deepEqual(unplannedMeals(d), [
+    { id: "r1", servings: 2, recipe: d.recipes[0] },
+    { id: "r2", servings: 4, recipe: d.recipes[1] },
+  ]);
+});
+
+test("unplannedMeals sorts by recipe name", () => {
+  const d = aggData({
+    recipes: [recipe("r1", "Zucchini Bread", 4, []), recipe("r2", "Apple Pie", 4, [])],
+    list: { ...aggData().list, selections: { r1: 1, r2: 1 } },
+  });
+  assert.deepEqual(unplannedMeals(d).map((u) => u.id), ["r2", "r1"]);
+});
+
+test("unplannedMeals excludes a planned meal that has no separate unplanned batch", () => {
+  const d = aggData({
+    recipes: [recipe("r1", "Chili", 4, [])],
+    plan: { Mon: { Dinner: { recipeId: "r1", servings: 4 } } },
+  });
+  assert.deepEqual(unplannedMeals(d), []);
+});
+
+test("unplannedMeals drops a zero/negative selection and a reference to a deleted recipe", () => {
+  const d = aggData({
+    recipes: [recipe("r1", "Chili", 4, [])],
+    list: { ...aggData().list, selections: { r1: 0, "gone-id": 3 } },
+  });
+  assert.deepEqual(unplannedMeals(d), []);
 });
 
 test("slotFeedsList reads a slot the same way both aggregation walks do", () => {
