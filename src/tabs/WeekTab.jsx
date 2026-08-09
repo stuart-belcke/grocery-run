@@ -9,7 +9,7 @@ import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, ConfirmDialog } from "../ui";
 import { MEAL_TYPES, norm, planStageOf, plannedMealCount, daysInOrder, asArray, unplannedMeals, r2 } from "../lib";
 
-export function WeekTab({ data, update }) {
+export function WeekTab({ data, update, isGuest }) {
   // Presentation order only. Plan data stays keyed by day name, so a meal
   // planned for Sunday is on Sunday whichever end of the week it's drawn at.
   const days = useMemo(() => daysInOrder(data.prefs), [data.prefs]);
@@ -29,7 +29,11 @@ export function WeekTab({ data, update }) {
   // While planning, every slot is editable without a separate toggle — that IS
   // the activity. Once shopping, editing is deliberate, so it stays behind the
   // button and a stray tap can't drop a meal you're buying for.
-  const slotsEditable = stage === "planning" || editing;
+  // A guest reads the week but never edits it: plan and planStage are the
+  // two state fields the rules deliberately do NOT re-grant them. Folding it
+  // into slotsEditable means every slot control follows automatically,
+  // including any added later.
+  const slotsEditable = (stage === "planning" || editing) && !isGuest;
 
   // Entering "planning" starts a fresh buying cycle. This is the boundary that
   // was missing: `bought` used to persist until someone happened to press
@@ -209,15 +213,15 @@ export function WeekTab({ data, update }) {
           {stage === "shopping" &&
             `${plannedCount} meal${plannedCount === 1 ? "" : "s"} planned. Adjust with Edit; anything you've already bought stays bought.`}
         </p>
-        {stage === "empty" && (
+        {stage === "empty" && !isGuest && (
           <Btn kind="primary" onClick={startPlanning}>Start planning</Btn>
         )}
-        {stage === "planning" && (
+        {stage === "planning" && !isGuest && (
           <Btn kind="primary" onClick={finishPlanning} disabled={plannedCount === 0}>
             Finish planning
           </Btn>
         )}
-        {stage === "shopping" && (
+        {stage === "shopping" && !isGuest && (
           <>
             <Btn kind={editing ? "primary" : "ghost"} onClick={() => setEditing((v) => !v)}>
               {editing ? "✓ Done editing" : "Edit"}
@@ -318,7 +322,11 @@ export function WeekTab({ data, update }) {
                   <div key={type} style={{ padding: "5px 0" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 12, color: C.faint, width: 70, flexShrink: 0 }}>{type}</span>
-                      {!recipe ? (
+                      {!recipe && isGuest ? (
+                        // A guest cannot fill a slot, so an empty one is a fact
+                        // rather than an invitation.
+                        <span style={{ flex: 1, fontSize: 13, color: C.faint, padding: "7px 10px" }}>—</span>
+                      ) : !recipe ? (
                         // Empty slot — addable in either mode.
                         <button
                           onClick={() => openPicker(day, type)}

@@ -12,6 +12,16 @@ export const LOCAL_KEY = "grocery-run-local-v1";
 // shown twice. An existing install is treated as onboarded by its cached
 // household rather than by this flag — see App.
 export const ONBOARDED_KEY = "grocery-run-onboarded-v1";
+
+/* Forces the guest view in a LOCAL-ONLY build, for the e2e suite.
+   Guest-ness comes from a members/{uid} record in the database, so a build
+   with sync compiled out can never produce one and the guest UI would be
+   untestable — which for UI that HIDES things is the worst kind of untested,
+   since the failure is something silently still on screen.
+   Only read when syncEnabled is false. A production build takes the real
+   branch and never looks at this key, so it is a test seam and not a way in;
+   the rules would refuse the writes regardless of what any client believes. */
+export const GUEST_PREVIEW_KEY = "grocery-run-e2e-guest-preview";
 export const CATALOG_KEY = "grocery-run-catalog-cache-v1";
 // The household's own catalog, cached so the app opens offline before the
 // database listener has said anything.

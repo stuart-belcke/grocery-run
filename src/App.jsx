@@ -35,6 +35,7 @@ import { Stripe, Btn, ChoiceDialog } from "./ui";
 import {
   LOCAL_KEY,
   ONBOARDED_KEY,
+  GUEST_PREVIEW_KEY,
   CATALOG_KEY,
   storageOk,
   FALLBACK_CATALOG,
@@ -187,7 +188,9 @@ export default function App() {
      guessing wrong here costs a refused write and a message, never access;
      guessing the other way would make a real member's app read-only every
      time it started. */
-  const isGuest = !!(user && members && members[user.uid] && members[user.uid].role === "guest");
+  const isGuest = syncEnabled
+    ? !!(user && members && members[user.uid] && members[user.uid].role === "guest")
+    : loadJSON(GUEST_PREVIEW_KEY) === true; // local-only builds: see GUEST_PREVIEW_KEY
   const isGuestRef = useRef(isGuest);
   isGuestRef.current = isGuest;
 
@@ -683,9 +686,9 @@ export default function App() {
         )}
 
         {tab === "list" && <ListTab data={data} update={update} updateCatalog={updateCatalog} />}
-        {tab === "meals" && <MealsTab data={data} update={update} updateCatalog={updateCatalog} />}
-        {tab === "week" && <WeekTab data={data} update={update} />}
-        {tab === "pantry" && <PantryTab data={data} update={update} updateCatalog={updateCatalog} />}
+        {tab === "meals" && <MealsTab data={data} update={update} updateCatalog={updateCatalog} isGuest={isGuest} />}
+        {tab === "week" && <WeekTab data={data} update={update} isGuest={isGuest} />}
+        {tab === "pantry" && <PantryTab data={data} update={update} updateCatalog={updateCatalog} isGuest={isGuest} />}
         {tab === "settings" && (
           <SettingsTab
             data={data}

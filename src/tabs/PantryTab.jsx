@@ -21,7 +21,7 @@ const segBtn = { padding: "4px 10px", border: "none", cursor: "pointer", fontFam
 // Section heading inside the expanded row panel.
 const groupLabel = { fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: C.faint, marginBottom: 6 };
 
-export function PantryTab({ data, update, updateCatalog }) {
+export function PantryTab({ data, update, updateCatalog, isGuest }) {
   const [newStore, setNewStore] = useState("");
   const [newItem, setNewItem] = useState("");
   const [editItem, setEditItem] = useState(null); // { key, name } while renaming an ingredient
@@ -283,6 +283,10 @@ export function PantryTab({ data, update, updateCatalog }) {
 
   return (
     <div>
+      {/* The whole stores card is catalog editing. A guest still sees which
+          store each ingredient belongs to on its own row, which is what they
+          need in a shop — they just can't change the store list itself. */}
+      {!isGuest && (
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
         <h3 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 10px" }}>Your stores</h3>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
@@ -298,19 +302,27 @@ export function PantryTab({ data, update, updateCatalog }) {
           <Btn kind="primary" onClick={addStore}>Add store</Btn>
         </div>
       </div>
+      )}
 
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
         <h3 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 2px" }}>Your ingredients</h3>
         <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
-          Everything you buy. Tap ⚙ on a row to set where it lives, its aisle (lower = earlier in your walk), and whether it's a home staple.
+          {isGuest
+            ? "Everything the household buys. Tap \u2699 on a row to see where it lives and which meals use it \u2014 changing any of it belongs to the household's own accounts."
+            : "Everything you buy. Tap \u2699 on a row to set where it lives, its aisle (lower = earlier in your walk), and whether it's a home staple."}
         </p>
         {/* Adding a new ingredient and searching the existing ones are different
             jobs that both start with typing into a box, so they're kept in
-            separate bands with a rule between them. */}
+            separate bands with a rule between them.
+            Adding an ingredient mints a catalog entry, so it goes for a guest —
+            unlike adding something to the LIST, which stays available on the
+            List tab. */}
+        {!isGuest && (
         <div style={{ display: "flex", gap: 8, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 10, padding: 10 }}>
           <input placeholder="Add an item (e.g. coffee, paper towels)" value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addItem()} style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
           <Btn kind="primary" onClick={addItem}>Add item</Btn>
         </div>
+        )}
         {keys.length > 0 && (
           <>
             <div style={{ borderTop: `1px dashed ${C.line}`, margin: "20px 0 14px" }} />
@@ -572,6 +584,10 @@ export function PantryTab({ data, update, updateCatalog }) {
                         {/* Grouped rather than one flat stack: where the item lives
                             (store + aisles) is a different question from what it is
                             (staple, name). */}
+                        {/* Store and aisles are catalog writes. A guest keeps the
+                            read-only footer below ("used in ...", "on the list"),
+                            which is the part that helps in a shop. */}
+                        {!isGuest && (<>
                         <div style={groupLabel}>Where it lives</div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                           <label style={{ fontSize: 11, color: C.faint }}>Usually at</label>
@@ -628,9 +644,13 @@ export function PantryTab({ data, update, updateCatalog }) {
                           </div>
                         )}
 
+                        </>)}
+                        {!isGuest && (<>
                         <div style={{ ...groupLabel, marginTop: 14 }}>On the shopping list</div>
                         {/* Staple designation lives here rather than on the collapsed
-                            row: it's a set-once property, unlike the have/need state. */}
+                            row: it's a set-once property, unlike the have/need state.
+                            It writes the catalog, so it goes for a guest — saying a
+                            staple has RUN OUT is a state write and stays. */}
                         <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: C.ink, cursor: "pointer" }}>
                           <input
                             type="checkbox"
@@ -658,6 +678,7 @@ export function PantryTab({ data, update, updateCatalog }) {
                             <span style={{ color: C.faint }}> — listed only when we run out</span>
                           </span>
                         </label>
+                        </>)}
                         {/* Not part of a group — usage context plus the rename
                             action, kept as a footer under a rule. */}
                         <div style={{ display: "flex", alignItems: "flex-end", gap: 8, marginTop: 12, paddingTop: 10, borderTop: `1px dashed ${C.line}` }}>
@@ -676,8 +697,8 @@ export function PantryTab({ data, update, updateCatalog }) {
                           {/* Remove lives here, not on the collapsed row: it used to
                               sit 9px from the Have/Need buttons with a 17px tap
                               target, so a near-miss destroyed the item's settings. */}
-                          <Btn small onClick={() => setEditItem({ key, name })} style={{ flexShrink: 0 }}>Rename</Btn>
-                          <Btn small kind="danger" onClick={() => removeItem(key, name)} style={{ flexShrink: 0 }}>Remove</Btn>
+                          {!isGuest && <Btn small onClick={() => setEditItem({ key, name })} style={{ flexShrink: 0 }}>Rename</Btn>}
+                          {!isGuest && <Btn small kind="danger" onClick={() => removeItem(key, name)} style={{ flexShrink: 0 }}>Remove</Btn>}
                         </div>
                       </div>
                     )}
