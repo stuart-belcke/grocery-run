@@ -847,9 +847,33 @@ MEASURED AND DELIBERATELY NOT PROBLEMS
     centrally, since the whole catalog is full-members-only.
     A refused edit gets a sentence naming what's off limits, not the generic
     "Sync error" a rejected write produces.
-    STILL NOT DONE: the buttons a guest can't use are not hidden in Meals,
-    Week and Ingredients — they explain themselves when tapped instead.
-    Worth doing, not urgent, and deliberately not faked by hiding the tabs.
+    [DONE] THE BUTTONS A GUEST CAN'T USE ARE NOW HIDDEN, not disabled — a
+    greyed-out "Clear week" asks how to un-grey it, and the answer isn't
+    something a guest can do. What goes: creating and editing recipes,
+    everything on the week plan, the stores card, adding an ingredient, and
+    a row's store/aisle/staple/rename/remove. What STAYS, because it is a
+    list write or a read: adding a meal to the list, the whole List tab, the
+    "used in / on the list" footer, and every tab remains visible — a guest
+    needs the recipes and the week to know what the list is for.
+    Settings' Preferences and Restore go too; saving a backup is a read and
+    stays.
+    TESTABLE AT ALL ONLY VIA A SEAM: guest-ness comes from a members/{uid}
+    record, which a sync-stripped build can never hold, so the guest UI would
+    have been unreachable in the e2e suite. GUEST_PREVIEW_KEY is read ONLY
+    when syncEnabled is false — a production build takes the real branch and
+    never looks at it, and the rules refuse the writes regardless of what any
+    client believes.
+    EVERY CASE ASSERTS BOTH DIRECTIONS, because hiding too much is the easier
+    mistake and the harder one to spot: the thing a guest must not see is
+    absent AND a full member still sees it. Mutation-tested both ways —
+    showing the editors to a guest fails the guest case, hiding them from
+    everyone fails "a full member still sees everything".
+    A TEST BUG WORTH REMEMBERING: Playwright's `has-text` is a
+    case-insensitive SUBSTRING match, so `button:has-text("Edit")` matched a
+    recipe called "M-edit-erranean Baked Crispy Chicken" and reported a guest
+    being offered two Edit buttons that did not exist. Use `text-is` for an
+    exact button label. The member control is what made this legible as a
+    selector fault rather than an app fault.
 
     Rules coverage went 24 -> 38 cases, all against the real emulator.
     Mutation-tested: removing role immutability fails exactly the two

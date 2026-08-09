@@ -17,7 +17,7 @@ const pillLabel = { fontSize: 11, fontWeight: 600, color: C.faint, padding: "0 2
 const pillCount = { minWidth: 26, textAlign: "center", fontWeight: 700, fontVariantNumeric: "tabular-nums", fontSize: 14 };
 const planSelect = { fontSize: 13, padding: "6px 8px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", fontFamily: fontBody };
 
-export function MealsTab({ data, update, updateCatalog }) {
+export function MealsTab({ data, update, updateCatalog, isGuest }) {
   const [draft, setDraft] = useState(null);
   const [mealView, setMealView] = useState("az");
   const [easyOnly, setEasyOnly] = useState(false);
@@ -301,7 +301,7 @@ export function MealsTab({ data, update, updateCatalog }) {
               <Btn small kind="primary" onClick={() => setServings(r.id, base)}>Add unplanned meal</Btn>
             )}
             <div style={{ flex: 1 }} />
-            <Btn small onClick={() => startEdit(r)}>Edit</Btn>
+            {!isGuest && <Btn small onClick={() => startEdit(r)}>Edit</Btn>}
           </div>
 
           {/* Planned meals = week-plan slots. A live summary of every slot this
@@ -454,7 +454,11 @@ export function MealsTab({ data, update, updateCatalog }) {
             </>
           )}
         </div>
-        <Btn kind="primary" onClick={startNew} style={{ flexShrink: 0 }}>Add</Btn>
+        {/* Creating and editing a recipe are catalog writes, which a guest
+            cannot make. Hidden rather than disabled: a greyed-out button asks
+            "how do I un-grey it?", and the answer isn't something they can do.
+            Adding a meal to the LIST stays — that is a list write. */}
+        {!isGuest && <Btn kind="primary" onClick={startNew} style={{ flexShrink: 0 }}>Add</Btn>}
       </div>
       </StickyBar>
       <p style={{ margin: "0 0 12px", fontSize: 13, color: C.faint }}>

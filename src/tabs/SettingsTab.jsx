@@ -285,9 +285,9 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
     <div>
       <Section title="Preferences">
         <p style={{ fontSize: 12, color: C.faint, margin: "8px 0 4px" }}>
-          Shared by the whole household, so both phones agree. These change how
-          things are SHOWN — nothing is rewritten, so you can switch back at any
-          time.
+          {isGuest
+            ? "Units and week start are the household's own settings, shared by everyone in it. You can see what they are; changing them belongs to the household's accounts."
+            : "Shared by the whole household, so both phones agree. These change how things are SHOWN \u2014 nothing is rewritten, so you can switch back at any time."}
         </p>
 
         <div style={{ ...row, borderTop: `1px dashed ${C.line}` }}>
@@ -547,7 +547,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
           <Btn kind="primary" disabled={collisions.length > 0} onClick={() => copyText(catalogJson(), "Catalog copied.")}>Export catalog (copy)</Btn>
           <Btn disabled={collisions.length > 0} onClick={() => download("catalog.json", catalogJson())}>Export catalog (file)</Btn>
-          <Btn kind="danger" onClick={() => setAskReset(true)}>Restore starter catalog</Btn>
+          {!isGuest && <Btn kind="danger" onClick={() => setAskReset(true)}>Restore starter catalog</Btn>}
         </div>
         <p style={{ fontSize: 12, color: C.faint, margin: "0 0 16px" }}>
           Exporting changes nothing — your edits are already saved and shared. "Restore starter catalog" is the way back if this household's catalog ever gets into a state you don't want.
@@ -563,7 +563,9 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             <Btn onClick={() => download(`grocery-run-backup-${new Date().toISOString().slice(0, 10)}.json`, backupJson())}>Save backup (file)</Btn>
             <Btn onClick={() => copyText(backupJson(), "Backup copied — paste it into Restore on the other device.")}>Save backup (copy)</Btn>
-            <Btn onClick={() => setImportOpen(!importOpen)}>{importOpen ? "Close restore" : "Restore…"}</Btn>
+            {/* Saving a backup is a read; restoring one replaces the whole
+                household, so it is full-members-only. */}
+            {!isGuest && <Btn onClick={() => setImportOpen(!importOpen)}>{importOpen ? "Close restore" : "Restore…"}</Btn>}
           </div>
         </div>
 
