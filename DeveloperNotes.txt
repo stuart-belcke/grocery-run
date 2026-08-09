@@ -639,11 +639,49 @@ MEASURED AND DELIBERATELY NOT PROBLEMS
     the two that hold both accounts would otherwise read as real
     households.
 
+    [DRAFTED, NOT DEPLOYED] CONTRACT. database.rules.json now requires a
+    signed-in account to hold a members/{uid} record to read or write a
+    household; an unauthenticated device still gets in on the code alone,
+    unchanged — the transition window, kept because not every device is
+    known to always be signed in and there is no anonymous-auth fallback, so
+    requiring auth outright would lock one out with no warning.
+    members/$uid picked up its own ".write" (previously only ".validate"),
+    without which a signed-in, not-yet-a-member account could never write
+    the record that makes it one — the $code-level ".write" no longer covers
+    that write once it requires membership.
+    HONEST ABOUT WHAT THIS DOES AND DOESN'T CLOSE: self-service joining
+    (any signed-in account that knows the code becomes a member
+    automatically, via the same recordHouseholdMembership from EXPAND) is
+    unchanged. So this makes membership REQUIRED and identifies who's using
+    the household, but doesn't make it revocable out from under someone who
+    still knows the code and can sign back in — that needs invites/roles,
+    still deferred future work. Next real step once both phones are
+    confirmed to always be signed in: drop the `auth == null` branch and
+    require membership outright.
+    A NEW APP-CODE BUG THIS SURFACED, FIXED ALONGSIDE THE RULES DRAFT: the
+    household/catalog subscribe effect in App.jsx only re-ran on `code`
+    changing, never on `user` — so a device that signs in AFTER that effect's
+    first run (the common case; Firebase auth restores async, after mount)
+    would have its listener silently denied and never retried once these
+    rules require membership, since onValue has no cancelCallback here and
+    nothing else resubscribes. Fixed by bumping a `membershipTick` once
+    recordHouseholdMembership's write actually lands and adding it to that
+    effect's dependency array, so the resubscribe happens once membership is
+    confirmed, not the instant sign-in state changes (which would still race
+    the write). UNVERIFIED against a real Firebase project — this sandbox
+    has no path to Firebase's endpoints, same limitation as the rest of item
+    37's auth work. Needs checking on a real phone before or right after the
+    rules go live: sign out, sign back in mid-session, confirm the list
+    keeps updating rather than going stale.
+
     WHAT'S LEFT
-      - CONTRACT: change the rules so access requires membership (or the
-        code, during a transition window), not the code alone. This is the
-        step that actually closes the "bearer secret with no recovery" gap —
-        deliberately not done yet. VERIFY is no longer what blocks it.
+      - PASTE the updated database.rules.json into the console (same manual
+        step as item 34), after deleting the throwaway home-* households —
+        both yours. Verify sync still works signed-in AND signed-out on both
+        phones afterward; item 20's write-error signal will surface it if a
+        paste went wrong.
+      - Once both phones are confirmed to always be signed in: drop the
+        `auth == null` branch, making membership the sole gate.
       - Show who is in the household. Settings can list
         households/{code}/members directly — the denormalized email and
         displayName exist precisely so this never needs users/{uid}, which

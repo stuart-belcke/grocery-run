@@ -99,9 +99,18 @@ export default function App() {
   // NOT offline, which the SDK handles by queuing and never surfaces here.
   // Self-correcting: cleared the moment any write succeeds again.
   const [writeError, setWriteError] = useState(false);
-  // Signed-in identity (item 37, first half). Purely informational today —
-  // nothing reads this to decide access; the household code still does.
+  // Signed-in identity (item 37).
   const [user, setUser] = useState(null);
+  // Bumped once recordHouseholdMembership's write actually lands. The
+  // household/catalog subscribe effect below depends on it so a device that
+  // signs in AFTER it's already subscribed (the common case — auth restores
+  // async, after the subscribe effect's first run) re-subscribes once the
+  // rules can actually see it as a member, instead of the listener dying to
+  // a permission-denied the moment auth stops being null and staying dead —
+  // onValue takes no cancelCallback here, so Firebase wouldn't retry on its
+  // own and neither does React, since the subscribe effect only reruns on
+  // dependency change.
+  const [membershipTick, setMembershipTick] = useState(0);
   // Set only when a redirect/email-link sign-in WAS pending on load and
   // failed to complete — e.g. Safari's storage restrictions are known to
   // break a redirect-based sign-in silently. Without this, that failure had
@@ -238,7 +247,7 @@ export default function App() {
   // sign-out and on switching households, which is exactly the two ways
   // this pairing can change.
   useEffect(() => {
-    if (user && code) recordHouseholdMembership(code, user);
+    if (user && code) recordHouseholdMembership(code, user).then(() => setMembershipTick((n) => n + 1));
   }, [user, code]);
 
   // Fetch the latest catalog from the site, and while we're there notice
@@ -394,7 +403,12 @@ export default function App() {
       unsubCat();
       unwatch();
     };
-  }, [code]);
+    // membershipTick, not user: re-subscribing the instant sign-in state
+    // changes would still race recordHouseholdMembership's write (a listener
+    // that reopens before the membership record lands just gets denied
+    // again). Waiting for the tick means this only reruns once the write is
+    // actually confirmed.
+  }, [code, membershipTick]);
 
   /* ------- effective data -------
      The household catalog IS the data now: one layer, nothing to reconcile.

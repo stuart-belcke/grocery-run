@@ -10,13 +10,27 @@
     // specific $code branch below is ever granted anything.
     "households": {
       "$code": {
-        // Grants read/write access to households/{code} and everything under
-        // it. This is the WHOLE security model today: the code IS the
-        // password — anyone who has ever seen it (a URL, Settings, a text
-        // message) has permanent access, because there's no sign-in yet to
-        // check WHO is asking. Item 37 (auth) is what actually fixes that.
-        ".read": true,
-        ".write": true,
+        // Item 37, CONTRACT phase. Grants read/write to households/{code} and
+        // everything under it, but no longer unconditionally:
+        //   - a SIGNED-IN account must have a members/{uid} record here —
+        //     the record recordHouseholdMembership (sync.js) already writes
+        //     on every sign-in, verified against the live database.
+        //   - a device that ISN'T signed in still gets in on the code alone,
+        //     exactly as before. That's the deliberate transition window:
+        //     not every device is known to always be signed in yet, and
+        //     there's no anonymous-auth fallback, so requiring auth outright
+        //     here would lock out any device that isn't. Once both phones
+        //     are confirmed to always be signed in, drop the `auth == null`
+        //     branch and this becomes a hard membership requirement.
+        // Self-service joining (any signed-in account that knows the code
+        // becomes a member automatically) is UNCHANGED by this — that's
+        // still what recordHouseholdMembership does. So this step makes
+        // membership REQUIRED and identifies who's using the household; it
+        // does not yet make membership revocable out from under someone who
+        // still knows the code and can sign back in. Invites/roles (item
+        // 37's deferred future work) are what closes that.
+        ".read": "auth == null || root.child('households').child($code).child('members').child(auth.uid).exists()",
+        ".write": "auth == null || root.child('households').child($code).child('members').child(auth.uid).exists()",
 
         // Runs on every write to this branch or anything below it. $code is
         // the household code itself (the wildcard segment's value) — this
@@ -55,18 +69,18 @@
           }
         },
 
-        // Item 37, re-parenting EXPAND phase. Grants nothing new — households
-        // already has blanket .write above, and .write/.read can only ever
-        // ADD permission as rules go deeper, never narrow one back down — so
-        // this can't be a .write grant. It's a .validate instead, which DOES
-        // constrain what gets written regardless of the broader grant above:
-        // a member record can only ever be written by the account it claims
-        // to represent (auth.uid == $uid), never forged for someone else.
-        // Nothing reads this yet, and access is still the code alone — this
-        // only starts accumulating the record a LATER, separate step needs
-        // before requiring membership can be safe.
+        // Item 37. Membership records: an account can only ever write the
+        // record that names itself (auth.uid == $uid), never forge one for
+        // someone else. This now needs its own explicit ".write", not just
+        // ".validate" — the $code-level ".write" above no longer grants
+        // access to a signed-in account that ISN'T a member yet, which is
+        // exactly the account that needs to write ITS OWN first membership
+        // record to become one. Without this, joining a household while
+        // signed in would be impossible: the write that makes you a member
+        // would itself require already being one.
         "members": {
           "$uid": {
+            ".write": "auth != null && auth.uid == $uid",
             ".validate": "auth != null && auth.uid == $uid"
           }
         }
