@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "test": "node --test \"src/**/*.test.js\"",
     "lint": "eslint .",
-    "test:e2e": "node tests/e2e/run.mjs"
+    "test:e2e": "node tests/e2e/run.mjs",
+    "test:rules": "node --test tests/rules/rules.test.mjs",
+    "emulator:fetch": "firebase setup:emulators:database"
   },
   "dependencies": {
     "firebase": "^11.0.0",
@@ -21,6 +23,7 @@
     "eslint": "^9.39.5",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "firebase-tools": "^15.26.0",
     "globals": "^17.9.0",
     "playwright-core": "^1.56.1",
     "vite": "^5.4.11"

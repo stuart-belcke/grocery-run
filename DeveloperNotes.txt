@@ -168,7 +168,9 @@ rather than saving them for a cleanup that never gets scheduled.
 
 21. Keep the database seam narrow. Every database call lives in sync.js, and
     App.jsx is the only component that touches sync at all (SettingsTab
-    imports syncEnabled and cleanCode — a boolean and a string helper). That
+    imports syncEnabled, and nothing else — cleanCode moved to lib.js when
+    parseInvite needed the same alphabet, which narrowed this further; the
+    invite and member calls it needs arrive as props). That
     property, not any clever abstraction, is why RTDB could be swapped for
     Firestore in days rather than weeks. Defend it deliberately as usage
     grows and the right database stops being obvious:
@@ -475,10 +477,17 @@ rather than saving them for a cleanup that never gets scheduled.
 
     Real fix is auth — see FutureProjects.md and item 37.
 
-35. Add an error boundary. A render throw currently gives a white screen, in a
-    shop, with no way back. About twenty lines for a "something went wrong,
-    reload" fallback that keeps the cached list reachable.
-    Cheap, and the failure it prevents is the worst-timed one this app has.
+35. [DONE] Add an error boundary. A render throw used to give a white screen,
+    in a shop, with no way back. A class component in main.jsx now wraps
+    <App/> and renders a "Something went wrong" fallback with a Reload
+    button on any render throw. Reload is enough to recover because state is
+    already on disk (loadCache) before anything renders — the boundary
+    doesn't need to hold or restore it itself.
+    Verified by mutation test: App() temporarily made to throw behind a
+    query param, confirmed in a real browser (playwright-core against
+    `vite preview`) that the fallback renders and Reload works, then
+    confirmed the normal build shows no trace of the fallback. Change
+    reverted before committing.
 
 36. Split lib.js WHEN IT MAKES A CHANGE HARD, not on principle. It is 1,222
     lines and has become a grab-bag: units, ingredient identity, aggregation,
@@ -632,24 +641,308 @@ MEASURED AND DELIBERATELY NOT PROBLEMS
     the two that hold both accounts would otherwise read as real
     households.
 
+    [BUILT, NOT YET DEPLOYED] CONTRACT. database.rules.json now requires
+    BOTH a real identity and a membership record to read or write a
+    household. There is deliberately no unauthenticated fallback: a device
+    that isn't signed in reads and writes nothing. Done as one step rather
+    than a transition window with an `auth == null` branch, because the
+    second phone is being signed in as part of delivering this — a window
+    nobody needs is two pastes and two rounds of app changes for nothing.
+    members/$uid needed its own ".write" (it had only ".validate"). The
+    $code-level ".write" now requires membership, so the account that needs
+    that write is precisely the one that isn't a member yet; without a
+    deeper grant, joining is impossible by construction — the write that
+    makes you a member would require already being one. That deeper grant is
+    the one door into a household, and it opens only at the caller's own uid.
+    Access is now identified and enumerable. Self-service joining is GONE
+    as of the invite work below, so removal actually sticks.
+
+    REQUIRING AUTH FORCED APP WORK, and it is the more interesting half.
+    Once a signed-out phone is refused everything, the app had three ways to
+    lie about it:
+      - THE GREEN DOT. syncStatus comes from watchConnection, which reads
+        .info/connected — a client-side path NO security rule gates. It
+        reports "synced" perfectly happily while every read is refused, so
+        a signed-out phone would have shown "Synced" over a dead listener.
+        That is precisely the "looks fine, syncs nothing" failure this
+        codebase keeps paying for. The precedence now lives in
+        syncIndicator() in lib.js: sign-in state and authorization both
+        outrank connection state, and connection is LAST because it's the
+        one the database can contradict. Each case is the CAUSE of the ones
+        under it — "Sign in to sync" says what to do, where "No access",
+        equally true at that moment, leaves you guessing.
+      - A SILENT DENIAL. onValue had no cancel callback, so permission_denied
+        did nothing at all — indistinguishable from "connected, nothing has
+        changed yet". subscribeHousehold/subscribeCatalog/subscribeMembers
+        now take onError. Two properties matter: Firebase REMOVES a listener
+        it cancels, so a denial is terminal and only a resubscribe recovers;
+        and cb is never called on a denial, so a refused read can't arrive
+        as `null` — which would read as "no household here, seed it" and
+        turn a permissions problem into a write.
+      - THE COPY. Settings still said sign-in was "optional, and doesn't
+        change anything yet". It is now the thing that grants access.
+    IT IS IN lib.js, NOT App.jsx, FOR A SPECIFIC REASON: the case that
+    matters most — a socket genuinely CONNECTED while reads are refused —
+    cannot be reproduced in a browser here, because this sandbox can't reach
+    Firebase at all and the socket just reads offline. A pure function takes
+    no network. Six tests cover it, and both mutations were confirmed:
+    moving the "synced" check above the authorization checks fails exactly
+    the three tests about precedence, and dropping the authReady guard fails
+    exactly the one about not claiming "signed out" before auth has
+    answered.
+    authReady exists because `user === null` means two opposite things —
+    "don't know yet" before Firebase answers, "nobody" after. Auth restores
+    asynchronously, so treating the initial null as signed-out would flash
+    "Sign in to sync" on every launch of a signed-in phone.
+
+    THE RESUBSCRIBE RACE, found while reasoning about the rules and fixed
+    with them: the household/catalog subscribe effect only re-ran on `code`,
+    never on `user`. A device signing in AFTER that effect's first run — the
+    common case, since auth restores after mount — would have its listener
+    denied and never retried. It now depends on a `membershipTick` bumped
+    once recordHouseholdMembership's write actually LANDS, not the instant
+    sign-in state changes, which would still race the write and just get
+    denied again.
+    Work done while signed out is not lost: updateCatalog and setLocal still
+    write to localStorage, and pickState pushes whichever copy is newer once
+    the listener is allowed again. So signing in flushes what the phone did
+    while it couldn't reach the database.
+
+    ALSO SHIPPED: the member list (was listed below as the natural follow-on
+    to CONTRACT, and it earns its place now that access can actually fail).
+    Settings shows households/{code}/members, read via a prop from App.jsx
+    rather than importing sync into SettingsTab — item 21's seam holds.
+    Reads the denormalized email/displayName exactly as intended, never
+    users/{uid}, which the rules keep private per account.
+
+    STILL UNVERIFIED AND NEEDS A REAL PHONE: everything above about the
+    rules themselves. This sandbox has no path to Firebase, same limitation
+    as the rest of item 37. Confirmed in a real browser only that a
+    signed-out device says "Sign in to sync" rather than "Synced", that the
+    stale "doesn't change anything yet" copy is gone, and that the member
+    list renders its signed-out state.
+
+    [BUILT, NOT YET DEPLOYED] INVITES — the step that makes removing
+    somebody mean something. Before it, membership was self-service: any
+    signed-in account holding the code wrote its own record, so taking a
+    member out was decoration — they knew the code, so they rejoined.
+    An account now becomes a member exactly three ways, all concentrated in
+    the members/$uid ".write":
+      1. it already has a record (refreshing it, or deleting it to leave)
+      2. the household has NO members — first claim, which a brand new code
+         needs and which no occupied household can be turned into
+      3. it presents an unexpired invite token created by an existing member
+    Plus one exception that only ever TAKES access away: a member may DELETE
+    another member's record, never create or edit one.
+    An invite is households/{code}/invites/{token} = { by, byEmail,
+    createdAt, exp }, created only by a member, expiring in an hour.
+    THE REDEEMER DELETES IT AS A SECOND WRITE, not atomically with joining.
+    At the moment of redeeming they aren't a member yet, and letting a
+    non-member delete invites would let anyone holding the code burn every
+    outstanding one — a denial of service on joining. Doing it immediately
+    after works because by then they ARE a member; if that write is lost the
+    invite just expires.
+    THE CODE STILL SWITCHES HOUSEHOLDS for an account that is ALREADY a
+    member. That is the recovery path — a reinstalled phone mints a new
+    device code and has to get back to the real household — and it is safe
+    precisely because it grants nothing: the rules check membership, not the
+    code. One field in Settings takes either, since a user handed a string
+    shouldn't have to classify it.
+
+    RULES ARE NOW TESTED, which is the part that makes any of the above
+    trustworthy. tests/rules/ runs the REAL Firebase database emulator
+    against the REAL database.rules.json — 24 cases covering the stranger
+    who knows the code, forged records, expired and revoked and reused
+    invites, removal sticking, first claim, and the pre-existing guarantees
+    (no enumerating /households, updatedAt must be a number, users/{uid}
+    private). `npm run test:rules`, wired into CI before the build, skipping
+    rather than failing where there's no JVM or emulator jar.
+    Mutation-tested both ways: restoring self-service join fails exactly 7
+    cases including "a stranger cannot make herself a member" and "removal
+    sticks"; opening invite creation to non-members fails exactly 2.
+    THE CLI DOESN'T WORK HERE and the harness deliberately doesn't use it:
+    `firebase emulators:start` routes its own rules upload through this
+    sandbox's HTTP proxy even for 127.0.0.1, which answers "denied by ..."
+    and fails before any test runs. The harness drives the emulator jar and
+    its REST API directly, minting unsigned "alg":"none" JWTs the way
+    @firebase/rules-unit-testing does.
+    THIS DOES NOT PROVE THE CONSOLE MATCHES THE FILE. That is still a manual
+    paste. It proves the thing being pasted is right before it goes, which
+    is the half that was previously pure reasoning.
+
+    A BUG THE BROWSER FOUND AND THE UNIT TESTS DIDN'T: a truncated invite
+    ("home-cx2ur9zg~short") parses as no invite, and the join field then
+    fell through to treating it as a household CODE — cleanCode strips the
+    `~`, leaving "home-cx2ur9zgshort", a different household, which the app
+    cheerfully offered to switch to. Switching replaces this phone's list,
+    so silently resolving a bad paste to the wrong household is the most
+    expensive possible reading of it. The decision moved into lib.js as
+    classifyJoinInput (code / invite / broken / short) with tests: a `~`
+    present at all means an invite was intended, and if it doesn't parse
+    that is broken, never a code. parseInvite alone had passing tests the
+    whole time — the hole was in what the component did with a null.
+
+    [BUILT, NOT YET DEPLOYED] THE GUEST ROLE. Someone you hand a link to so
+    they can do the shop: reads everything, writes only the List tab.
+    Reading the whole household is deliberate — a list of names with no
+    recipes behind it isn't shoppable, you can't tell what a thing is for.
+    members/{uid}.role is "guest", or absent/"member" for full. ABSENT MEANS
+    FULL, which is what makes this backward compatible: the records written
+    during EXPAND have no role and belong to the two people who own the
+    household.
+    HOW IT'S ENFORCED, and the shape is worth remembering: households/$code
+    ".write" became full-members-only, and the guest's permissions are
+    re-granted BENEATH it at state/list, state/stapleNeeds and
+    state/updatedAt. A deeper ".write" adds permission where a shallower one
+    denied, so denying at $code and re-granting narrowly is what produces
+    "everything except these paths is read-only". updatedAt has to be in the
+    list because every narrow write carries it; without it a guest's write
+    would be half-refused and the other phone would never see the change.
+    NOT re-granted, deliberately: plan and planStage. Planning the week and
+    starting or ending a trip belong to the household.
+
+    THE ESCALATION THAT ALMOST SHIPPED, caught by a test. Every member
+    rewrites its own record on each load, so a guest could simply write
+    role: "member" and promote itself. The fix is role immutability — but
+    the FIRST attempt put that check in members/$uid ".write", where it
+    silently did nothing for the people it mattered least about and
+    everything for the people it mattered most about... backwards: the
+    $code-level ".write" grants a FULL member everything beneath it, and a
+    deeper ".write" can only ADD permission, never take it back. So the
+    check constrained guests and strangers but did not apply to full members
+    at all. It lives in ".validate" now, the only rule kind that always
+    runs. A second test caught the corollary: ".validate" doesn't run on
+    deletes, which is what lets a guest still leave.
+    A knock-on: the membership refresh had to move from set() to update(),
+    because a set() that drops `role` reads as CHANGING it and is refused.
+
+    THE ROLE RIDES IN THE INVITE STRING ("code~token~g"), because the
+    account redeeming an invite cannot read it — invites are members-only
+    and a joiner isn't one yet. That is not where it's enforced: the rules
+    require the record written to match the STORED invite, so editing the
+    "~g" off a link is refused rather than upgraded. Tested both ways round,
+    including the quieter direction — omitting the role entirely, which
+    would otherwise default to full.
+    parseInvite got stricter with it: a third segment that isn't exactly "g"
+    is now refused outright rather than folded into the token, so a mangled
+    guest link can't resolve to a full membership.
+
+    THE APP MIRRORS THE RULES RATHER THAN LISTING TABS. guestBlockedFields
+    (lib.js) says "everything except list, stapleNeeds and updatedAt is off
+    limits", checked against the RESULT of an edit in App's update(). That
+    catches every route into a forbidden field, including ones that don't
+    exist yet — a new top-level field is denied to a guest by default,
+    exactly as the rules do. Gating per tab would have meant auditing four
+    tabs and re-auditing on every feature. updateCatalog is stopped once,
+    centrally, since the whole catalog is full-members-only.
+    A refused edit gets a sentence naming what's off limits, not the generic
+    "Sync error" a rejected write produces.
+    STILL NOT DONE: the buttons a guest can't use are not hidden in Meals,
+    Week and Ingredients — they explain themselves when tapped instead.
+    Worth doing, not urgent, and deliberately not faked by hiding the tabs.
+
+    Rules coverage went 24 -> 38 cases, all against the real emulator.
+    Mutation-tested: removing role immutability fails exactly the two
+    promotion/demotion cases; giving guests the full $code write fails seven.
+
+    [BUILT, NOT YET DEPLOYED] FIRST RUN, AND GUEST LINKS THAT DON'T NEED AN
+    ACCOUNT. Two problems, one cause: nothing on screen ever told a new
+    browser what to do. It minted its own household code and landed on a
+    working list seeded from catalog.json — which LOOKS fine, and that is
+    the trap. Someone handed an invite ended up in a private household of
+    their own, staring at a list that wasn't the shared one, with nothing
+    suggesting anything was wrong. The app was answering a question they
+    hadn't asked.
+      - src/Onboarding.jsx: three ways in, the one most people arrive with
+        (a link somebody sent) first, then signing in, then "start my own
+        list". Shown ONLY to a browser with no household data and nobody
+        signed in, so neither of the two existing installs ever meets it.
+        Gated on authReady for the same reason the sync indicator is: `user`
+        is null before Firebase answers, so without it a signed-in phone
+        would flash the first-run screen at every launch.
+      - ANONYMOUS AUTH for guest links. A guest link now signs the browser in
+        anonymously and asks for a name, so being handed a link is the whole
+        flow — no account to make. Chosen over requiring a real sign-in
+        because a guest is inherently a one-off: the friction of an account
+        is most of the cost of asking someone to do the shop.
+        THE COST, stated plainly: the identity lives in that browser's
+        storage and dies with it, so clearing site data means asking for a
+        new link. The typed name is what keeps the member list answerable —
+        without it a guest shows as a bare anonymous id, which would undo
+        most of what CONTRACT was for.
+        NEEDS THE ANONYMOUS PROVIDER ENABLED in the console, same manual
+        step as Google and email-link.
+      - THE RULES CAP IT HARD, and this is the part worth keeping:
+        auth.token.firebase.sign_in_provider != 'anonymous' now guards case 2
+        (first claim) and full-invite redemption. An anonymous identity may
+        be a guest and nothing else — it can't own a household and can't hold
+        one as an equal, because both should mean an account that can be
+        recovered and named. Mutation-tested: dropping the guard fails
+        exactly the two cases that assert it.
+      - A KNOCK-ON WORTH REMEMBERING: recordHouseholdMembership refreshes the
+        member record on every load, and it used to send email/displayName as
+        `|| null`. For an anonymous guest both are null on the auth user —
+        the name exists ONLY in the member record — so the refresh would have
+        wiped the typed name on the next load. It now sends only the fields
+        it actually has.
+
+    SETTINGS SAYS "HOUSEHOLD" NOW, not "Phone-to-phone sync". That name was
+    the old model — a shared code WAS the whole story, and hasn't been since
+    membership landed. Members and invites were buried underneath it, which
+    is exactly backwards: they are what the section is for now, so they come
+    first and the code drops to the bottom as the detail it has become.
+    Opens by default, because it is the thing you go to Settings for.
+
+    THE E2E HARNESS NEEDED A CONCEPT IT DIDN'T HAVE. openApp seeds a device
+    code but no state, so with the first-run screen live every existing spec
+    suddenly landed on it and timed out looking for a tab bar. It now seeds
+    the onboarded flag by default (these specs test the APP), with
+    onboarded:false to opt out. The WAIT TARGET mirrors the app's own rule —
+    cached state counts as onboarded there, so seeding `state` means the app
+    screen even with the flag withheld. Deriving it any other way makes the
+    harness disagree with the thing it is testing, which is how a harness
+    starts lying.
+
     WHAT'S LEFT
-      - CONTRACT: change the rules so access requires membership (or the
-        code, during a transition window), not the code alone. This is the
-        step that actually closes the "bearer secret with no recovery" gap —
-        deliberately not done yet. VERIFY is no longer what blocks it.
-      - Show who is in the household. Settings can list
-        households/{code}/members directly — the denormalized email and
-        displayName exist precisely so this never needs users/{uid}, which
-        the rules deliberately keep unreadable across accounts. It reads a
-        node that already exists, so it could ship either side of CONTRACT,
-        but it earns its place after: once membership is what grants
-        access, the list stops being decoration and becomes the thing you
-        check when someone can't get in.
+      - ENABLE THE ANONYMOUS PROVIDER in the Firebase console (Authentication
+        -> Sign-in method), or guest links fail at the sign-in step with a
+        message rather than working.
+      - DELETE the throwaway home-* households in the console FIRST. After
+        CONTRACT the two holding both accounts would read as real ones.
+      - SIGN BOTH PHONES IN **BEFORE** PASTING, and check each shows up in
+        Settings' member list. Both accounts already have member records
+        from the EXPAND phase, so nobody is locked out by the paste — but a
+        phone that is signed OUT when the rules land stops syncing on the
+        spot. Nothing is lost when that happens (edits keep saving locally
+        and push once it's allowed again), it just looks broken.
+      - PASTE database.rules.json (same manual step as item 34).
+      - VERIFY ON BOTH PHONES afterward. Three things, none of which this
+        sandbox could check because it has no path to Firebase:
+          * sign out and back in mid-session — the list must resume
+            updating rather than going quietly stale (the resubscribe path).
+          * invite the other account end to end, from a real Settings
+            screen. Two browsers and two emails is enough — an invite is
+            accepted for an ACCOUNT, not a device, so two profiles signed
+            in as different accounts exercises the real path.
+          * hand a GUEST link to the second account and confirm the shape
+            of it: the list works, and recipes / ingredients / the week
+            plan refuse with the guest banner rather than failing silently.
+          * remove an account and confirm the code alone does NOT let it
+            back in. That is the whole point, and the only proof that
+            matters is the live database.
       - Narrow listeners: item 21's read half. Still deliberately deferred,
         and the catalog move made the case WEAKER rather than stronger, since
         the growth landed on its own node instead of on `state`.
-      - Invites, roles, billing, a landing page. Ordinary product work once
-        re-parenting exists, and none of it is a foundation question.
+      - Hide the controls a guest can't use (Meals, Week, Ingredients).
+        They explain themselves when tapped today, which is honest but not
+        as good as not offering them.
+      - Billing, a landing page. Ordinary product work, no foundation
+        questions left in them.
+        On roles: guest/member is now the whole ladder, and every FULL
+        member is equal — anyone can remove anyone, including the account
+        that created the household. Fine for two people who live together;
+        an owner who can't be removed is the next rung if a third full
+        member is ever in one.
 
     Firestore is not a step here. It becomes worth adopting when one of its
     advantages actually binds — most likely offline persistence, or history
@@ -720,6 +1013,44 @@ App.jsx itself is now ~265 lines, just wiring the tabs together.
 inline copies of `data.recipes.filter/some((r) => r.ingredients.some((i) =>
 norm(i.name) === key))` — the rename-affected-recipes check, the remove-item
 safety check, and the item 9 "used in" display — all call it now.
+
+[DONE] Back to top on List, Ingredients and Meals. Both lists outgrow what anyone
+will scroll back through by hand — the real catalog makes the Ingredients tab
+about 8,500px — and search doesn't help: you search to FIND something, and are
+then left wherever the list left you.
+  A corner button, not a fourth control in the StickyBar. That row was cut down
+  to search + one Filter button + the primary action precisely so it holds one
+  line at 390px, and the bottom-right corner is under a thumb where the top of
+  a phone screen is not.
+  A scroll listener rather than StickyBar's IntersectionObserver, and the
+  difference is the question each asks: the bar wants "has this element reached
+  the top", which is what an observer reports, and this wants "how far down are
+  we" — a distance an observer can only fake with sentinels at guessed depths.
+  Passive, coalesced to one requestAnimationFrame.
+  THREE THINGS ONLY A BROWSER SETTLES, all covered by
+  tests/e2e/specs/backtotop.spec.mjs and all mutation-tested (never showing it,
+  always showing it, and z-index above the dialog each fail exactly the right
+  cases): it renders only past a scroll depth; it is position:fixed inside a
+  page that already has a position:sticky bar creating a stacking context, so
+  it can be painted but not tappable; and at z-index 20 it must lose to the
+  dialogs at 70. The spec hit-tests the corner with elementFromPoint rather
+  than trusting visibility, because "visible but something else owns that
+  pixel" is exactly the failure that looks like a dead click handler.
+  Unusually for that suite there is nothing persisted to assert on — this is
+  pure UI, so the read-back rule doesn't apply.
+  IT SHIPPED READING THE SIX LITERAL CHARACTERS \u2191, and the first version
+  of this spec did not notice. JSX does NOT interpret a \uXXXX escape in a
+  text child — only inside braces, which is why Section's chevrons were fine
+  — so the button rendered gibberish while working perfectly. The test
+  asserted the aria-label, the appear/disappear threshold, the hit test and
+  the scroll, every one of which passed. THE LESSON IS NARROW AND WORTH
+  KEEPING: behaviour assertions do not see the label, so anything a user
+  READS needs asserting as text. The spec now checks the rendered glyph, and
+  reintroducing the bug fails all three tabs.
+  The List tab needed a fixture to be worth testing at all: it is empty in
+  every other one, so the scroll test would have passed by never scrolling.
+  longListState() in fixtures.mjs fills it with hand-added extras, which need
+  no catalog, plan or recipes.
 
 UI density — Ingredients row [DONE], List row still open.
 The Ingredients gear panel had become a flat pile of unrelated concerns, and

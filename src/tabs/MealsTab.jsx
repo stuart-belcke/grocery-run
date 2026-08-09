@@ -5,7 +5,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
-import { Stripe, Btn, Seg, ConfirmDialog, StickyBar } from "../ui";
+import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop } from "../ui";
 import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, unitSuggestions, ingredientNames, normalizeCfg, ingredientMatches, ensureIngredientId, asArray, planSlotsFor } from "../lib";
 import { RecipeDetail } from "../RecipeDetail";
 
@@ -736,6 +736,8 @@ export function MealsTab({ data, update, updateCatalog }) {
           </>
         )}
       </ConfirmDialog>
+
+      <BackToTop />
     </div>
   );
 }

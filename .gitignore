@@ -1,2 +1,6 @@
 node_modules/
 dist/
+
+# The database emulator writes this next to wherever it is started from.
+database-debug.log
+firebase-debug.log

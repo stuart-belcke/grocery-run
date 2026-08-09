@@ -28,6 +28,19 @@ before deploying, in that order.
 `npm run test:e2e` drives the real build in a real browser (`tests/e2e/`).
 CI runs it too, between `npm test` and the build — a failure stops the deploy.
 
+`npm run test:rules` runs the real Firebase database emulator against the real
+`database.rules.json` (`tests/rules/`). Needs a JVM and the emulator jar
+(`npm run emulator:fetch`); it SKIPS rather than fails without them. It does
+not use the `firebase` CLI — the CLI routes its own rules upload through this
+sandbox's HTTP proxy even for `127.0.0.1` and dies before any test runs, so the
+harness drives the jar and its REST API directly.
+
+**The rules file is the one thing here nothing else executes** — it is pasted
+into the Firebase console by hand, so a mistake in it is invisible until it
+locks a phone out of the shopping list or lets a stranger read it. Test any
+change to it. Passing tests still don't prove the console matches the file;
+that's a manual paste either way.
+
 **It must run BEFORE the build.** It compiles its own bundle with
 `VITE_LOCAL_ONLY=1`, so sync is stripped out and no test can reach the real
 household database. Deploying that bundle would give an app that looks fine

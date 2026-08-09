@@ -5,7 +5,7 @@
 
 import { useState, useMemo, useRef } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
-import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, StickyBar } from "../ui";
+import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop } from "../ui";
 import { UNASSIGNED, norm, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor } from "../lib";
 
 export function ListTab({ data, update, updateCatalog }) {
@@ -712,6 +712,8 @@ export function ListTab({ data, update, updateCatalog }) {
       >
         Removes the hand-added <b style={{ color: C.ink }}>{confirmRemove?.name}</b> from this list. Any amount a meal calls for stays.
       </ConfirmDialog>
+
+      <BackToTop />
     </div>
   );
 }

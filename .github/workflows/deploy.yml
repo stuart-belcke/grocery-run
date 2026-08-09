@@ -68,6 +68,34 @@ jobs:
         if: github.event.action != 'closed'
         run: npm test
 
+      # database.rules.json is the one file here that nothing else executes —
+      # it's pasted into the Firebase console by hand — so until these existed
+      # every claim about what it permits was reasoning. A rules mistake either
+      # locks both phones out of the shopping list or lets a stranger read it,
+      # and neither shows up in a unit test or on screen. These run the real
+      # database emulator against the real file.
+      #
+      # This does NOT prove the console matches the file; that stays a manual
+      # paste. It proves the thing being pasted is right before it goes.
+      #
+      # ubuntu-latest already has a JVM. The emulator jar is cached because it
+      # is ~35 MB; the fetch is skipped entirely on a hit.
+      - name: Cache database emulator
+        if: github.event.action != 'closed'
+        id: emu-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Fetch database emulator
+        if: github.event.action != 'closed' && steps.emu-cache.outputs.cache-hit != 'true'
+        run: npm run emulator:fetch
+
+      - name: Security rules tests
+        if: github.event.action != 'closed'
+        run: npm run test:rules
+
       # The unit tests cannot catch the bugs that actually shipped — every one
       # lived in the wiring, not in a function (see tests/e2e/PLAN.md). These
       # drive the real build in a real browser.

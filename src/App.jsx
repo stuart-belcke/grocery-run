@@ -14,6 +14,12 @@ import {
   flushHousehold,
   markSynced,
   subscribeCatalog,
+  subscribeMembers,
+  subscribeInvites,
+  createInvite,
+  revokeInvite,
+  joinWithInvite,
+  removeMember,
   writeCatalog,
   markCatalogSynced,
   watchAuthUser,
@@ -21,12 +27,14 @@ import {
   sendEmailSignInLink,
   completePendingSignIn,
   signOutUser,
+  signInAnonymouslyForGuest,
   recordHouseholdMembership,
 } from "./sync";
-import { C, fontDisplay, fontBody } from "./theme";
+import { C, fontDisplay, fontBody, syncTone } from "./theme";
 import { Stripe, Btn, ChoiceDialog } from "./ui";
 import {
   LOCAL_KEY,
+  ONBOARDED_KEY,
   CATALOG_KEY,
   storageOk,
   FALLBACK_CATALOG,
@@ -47,7 +55,10 @@ import {
   isBuildTooOld,
   APP_DATA_VERSION,
   normalizeCatalog,
+  syncIndicator,
+  guestBlockedFields,
 } from "./lib";
+import { Onboarding } from "./Onboarding";
 import { ListTab } from "./tabs/ListTab";
 import { MealsTab } from "./tabs/MealsTab";
 import { WeekTab } from "./tabs/WeekTab";
@@ -99,9 +110,50 @@ export default function App() {
   // NOT offline, which the SDK handles by queuing and never surfaces here.
   // Self-correcting: cleared the moment any write succeeds again.
   const [writeError, setWriteError] = useState(false);
-  // Signed-in identity (item 37, first half). Purely informational today —
-  // nothing reads this to decide access; the household code still does.
+  // Signed-in identity (item 37). Since CONTRACT this is what grants access
+  // to the household, not just a label on it.
   const [user, setUser] = useState(null);
+  // Whether Firebase has ANSWERED the question of who's signed in. Distinct
+  // from `user` being null, which before the first answer means "don't know
+  // yet" and after it means "nobody" — two states that need opposite UI.
+  // Auth restores asynchronously, so treating the initial null as "signed
+  // out" would flash "Sign in to sync" at every signed-in launch.
+  const [authReady, setAuthReady] = useState(false);
+  // Set when the database REFUSES a read (not signed in, or signed in
+  // without a membership record). Its own state rather than a syncStatus
+  // value, because it's orthogonal: the socket is connected and healthy —
+  // watchConnection would happily keep reporting "synced" — and it's the
+  // authorization on top of it that failed.
+  const [accessDenied, setAccessDenied] = useState(false);
+  // households/{code}/members and .../invites, for the Settings list.
+  const [members, setMembers] = useState(null);
+  const [invites, setInvites] = useState(null);
+  // Set when a guest tries an edit their role doesn't cover. The rules would
+  // refuse it anyway; catching it here means a clear sentence instead of the
+  // generic "Sync error" a rejected write produces.
+  const [guestBlocked, setGuestBlocked] = useState(null);
+  /* First run. Treated as already onboarded when this browser has household
+     data of its own, so nobody who already uses the app is ever shown the
+     screen — the explicit flag only has to cover someone who chose "start my
+     own list" and therefore has nothing cached yet. */
+  const [onboarded, setOnboarded] = useState(() => {
+    if (loadJSON(ONBOARDED_KEY)) return true;
+    return !!loadCache(loadDeviceCode()) || validLocal(loadJSON(LOCAL_KEY));
+  });
+  const finishOnboarding = () => {
+    saveJSON(ONBOARDED_KEY, true);
+    setOnboarded(true);
+  };
+  // Bumped once recordHouseholdMembership's write actually lands. The
+  // household/catalog subscribe effect below depends on it so a device that
+  // signs in AFTER it's already subscribed (the common case — auth restores
+  // async, after the subscribe effect's first run) re-subscribes once the
+  // rules can actually see it as a member, instead of the listener dying to
+  // a permission-denied the moment auth stops being null and staying dead —
+  // onValue takes no cancelCallback here, so Firebase wouldn't retry on its
+  // own and neither does React, since the subscribe effect only reruns on
+  // dependency change.
+  const [membershipTick, setMembershipTick] = useState(0);
   // Set only when a redirect/email-link sign-in WAS pending on load and
   // failed to complete — e.g. Safari's storage restrictions are known to
   // break a redirect-based sign-in silently. Without this, that failure had
@@ -129,6 +181,16 @@ export default function App() {
     return isBuildTooOld(cached && cached.appDataVersion, APP_DATA_VERSION);
   });
 
+  /* Item 37: a guest reads everything and writes only the shopping list.
+     Unknown until the members node arrives, and treated as a FULL member
+     until then — optimistic on purpose. The rules are the enforcement, so
+     guessing wrong here costs a refused write and a message, never access;
+     guessing the other way would make a real member's app read-only every
+     time it started. */
+  const isGuest = !!(user && members && members[user.uid] && members[user.uid].role === "guest");
+  const isGuestRef = useRef(isGuest);
+  isGuestRef.current = isGuest;
+
   const localRef = useRef(local);
   localRef.current = local;
   const catalogRef = useRef(catalog);
@@ -154,7 +216,19 @@ export default function App() {
   // update's changes. Make several edits in one fn instead.
   const update = (fn) => {
     if (tooOldRef.current) return; // a newer build owns this data — see the banner
-    setLocal(fn(structuredClone(localRef.current)));
+    const next = fn(structuredClone(localRef.current));
+    // Checked against the RESULT rather than per tab, so every route into a
+    // forbidden field is covered — including ones added later. Mirrors the
+    // rules exactly (see guestBlockedFields), so the app never accepts an
+    // edit the database is about to refuse.
+    if (isGuestRef.current) {
+      const blocked = guestBlockedFields(localRef.current, next);
+      if (blocked.length) {
+        setGuestBlocked(blocked.includes("plan") || blocked.includes("planStage") ? "the week plan" : "that");
+        return;
+      }
+    }
+    setLocal(next);
   };
 
   // Edit the household catalog. Same one-call-per-handler rule as update() and
@@ -162,6 +236,13 @@ export default function App() {
   // recipe and the shopping list calls each of these once.
   const updateCatalog = (fn) => {
     if (tooOldRef.current) return; // as update(): writing would mean writing a shape we don't know
+    // The catalog is recipes, ingredients, stores and preferences — all of it
+    // full-members-only in the rules, so a guest is stopped once here rather
+    // than in each of the four tabs that can reach it.
+    if (isGuestRef.current) {
+      setGuestBlocked("recipes, ingredients and settings");
+      return;
+    }
     const base = hCatalogRef.current || seedCatalog(catalogRef.current);
     // Stamped on every edit, and only on an edit. This is what tells the
     // listener below that an offline change is real work rather than a stale
@@ -223,7 +304,14 @@ export default function App() {
   // Item 37, first half: track the signed-in identity, and finish whichever
   // sign-in (a Google redirect, or a clicked email link) sent the browser
   // back here, if either did. completePendingSignIn is a no-op otherwise.
-  useEffect(() => watchAuthUser(setUser), []);
+  useEffect(
+    () =>
+      watchAuthUser((u) => {
+        setUser(u);
+        setAuthReady(true);
+      }),
+    []
+  );
   useEffect(() => {
     completePendingSignIn().then((result) => {
       if (result && !result.ok) setAuthError(result.code || "unknown error");
@@ -238,7 +326,7 @@ export default function App() {
   // sign-out and on switching households, which is exactly the two ways
   // this pairing can change.
   useEffect(() => {
-    if (user && code) recordHouseholdMembership(code, user);
+    if (user && code) recordHouseholdMembership(code, user).then(() => setMembershipTick((n) => n + 1));
   }, [user, code]);
 
   // Fetch the latest catalog from the site, and while we're there notice
@@ -314,7 +402,13 @@ export default function App() {
       return;
     }
     setSyncStatus("connecting");
+    // A denial is terminal for the listener that hit it (Firebase removes it),
+    // so this both records the fact and is the reason the effect re-runs on
+    // membershipTick — that resubscribe is the only recovery.
+    const denied = () => setAccessDenied(true);
     const unsub = subscribeHousehold(code, (remote) => {
+      // Anything arriving at all proves the read was allowed.
+      setAccessDenied(false);
       const { use, push } = pickState(localRef.current, remote);
       if (use === "remote") {
         // Shared state is ahead of us (or level): adopt it, and don't re-push,
@@ -338,7 +432,7 @@ export default function App() {
         // never received — seed/repair it rather than losing the local copy.
         writeHousehold(code, localRef.current);
       }
-    });
+    }, denied);
     // The catalog has its own node and its own listener, so a checkbox tick on
     // the state node never re-reads seventeen recipes.
     const unsubCat = subscribeCatalog(code, (remote) => {
@@ -387,14 +481,26 @@ export default function App() {
       saveCatalogCache(code, ours);
       markCatalogSynced(code, null); // no baseline: send it with one full write
       writeCatalog(code, ours);
-    });
+    }, denied);
+    // Deliberately NOT gated on the catalog listener: this is the view you
+    // reach for when someone can't get in, which is exactly when the other
+    // listeners are the ones failing.
+    const unsubMembers = subscribeMembers(code, setMembers, () => setMembers(null));
+    const unsubInvites = subscribeInvites(code, setInvites, () => setInvites(null));
     const unwatch = watchConnection(setSyncStatus);
     return () => {
       unsub();
       unsubCat();
+      unsubMembers();
+      unsubInvites();
       unwatch();
     };
-  }, [code]);
+    // membershipTick, not user: re-subscribing the instant sign-in state
+    // changes would still race recordHouseholdMembership's write (a listener
+    // that reopens before the membership record lands just gets denied
+    // again). Waiting for the tick means this only reruns once the write is
+    // actually confirmed.
+  }, [code, membershipTick]);
 
   /* ------- effective data -------
      The household catalog IS the data now: one layer, nothing to reconcile.
@@ -428,6 +534,61 @@ export default function App() {
     };
   }, [catalog, local, hCatalog]);
 
+  // In lib.js, and unit-tested there: the case this exists to prevent — a
+  // connected socket over a refused read — is the one case a browser in this
+  // sandbox can't reproduce, so it needs coverage that doesn't need a network.
+  const sync = syncIndicator({ syncEnabled, authReady, signedIn: !!user, accessDenied, writeError, syncStatus });
+
+  /* Redeem an invite from the first-run screen. A GUEST link signs the
+     browser in anonymously first — that is the whole point of the choice: you
+     are handed a link and you shop, with no account to make. A FULL invite
+     needs a real account, which the rules enforce and this refuses early so
+     the failure is a sentence rather than a permission error. */
+  const joinFromOnboarding = async (parsed, typedName) => {
+    let who = user;
+    if (!who) {
+      if (parsed.role !== "guest") {
+        return { ok: false, message: "That's a full invite, so it needs an account. Sign in below first, then paste it again." };
+      }
+      try {
+        who = await signInAnonymouslyForGuest();
+      } catch (e) {
+        return { ok: false, message: `Couldn't start a guest session${e && e.code ? ` (${e.code})` : ""}. Ask for a link again, or sign in instead.` };
+      }
+      if (!who) return { ok: false, message: "Guest sessions aren't available on this build." };
+    }
+    const res = await joinWithInvite(parsed.code, parsed.token, who, parsed.role, typedName);
+    if (!res.ok) {
+      return { ok: false, message: "That link didn't work — it may have expired or already been used. Ask for a new one." };
+    }
+    setCode(parsed.code);
+    finishOnboarding();
+    return { ok: true };
+  };
+
+  /* Shown only to a browser with nothing of its own AND nobody signed in.
+     Deliberately gated on authReady: `user` is null before Firebase answers,
+     so without it a signed-in phone would flash the first-run screen on every
+     launch — the same trap authReady exists for in the sync indicator. */
+  if (!onboarded && authReady && !user) {
+    return (
+      <Onboarding
+        authError={authError}
+        onJoin={joinFromOnboarding}
+        onGoogle={() => signInWithGoogle().catch(() => {})}
+        onEmailLink={async (email) => {
+          try {
+            await sendEmailSignInLink(email);
+            return { ok: true };
+          } catch (e) {
+            return { ok: false, message: `Couldn't send the link${e && e.code ? ` (${e.code})` : ""} — try again in a moment.` };
+          }
+        }}
+        onSkip={finishOnboarding}
+      />
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: C.paper, color: C.ink, fontFamily: fontBody, fontSize: 15 }}>
       <style>{`
@@ -440,27 +601,11 @@ export default function App() {
         <header style={{ marginBottom: 18 }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
             <h1 style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 30, margin: 0 }}>Grocery Run</h1>
-            <span style={{ fontSize: 12, color: writeError || syncStatus === "offline" ? C.tomato : C.faint, display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <span style={{ fontSize: 12, color: sync.tone === "bad" || sync.tone === "warn" ? syncTone[sync.tone] : C.faint, display: "inline-flex", alignItems: "center", gap: 5 }}>
               {syncEnabled && (
-                <span
-                  aria-hidden
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: "50%",
-                    background: writeError ? C.tomato : syncStatus === "synced" ? C.green : syncStatus === "offline" ? C.tomato : C.faint,
-                  }}
-                />
+                <span aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: syncTone[sync.tone] }} />
               )}
-              {!syncEnabled
-                ? "Saved on this device"
-                : writeError
-                ? "Sync error — changes may not be saved"
-                : syncStatus === "synced"
-                ? "Synced"
-                : syncStatus === "offline"
-                ? "Offline — will sync"
-                : "Connecting…"}
+              {sync.text}
             </span>
           </div>
           <div style={{ marginTop: 10 }}>
@@ -519,6 +664,24 @@ export default function App() {
           </div>
         )}
 
+        {/* Not a modal: unlike an update prompt, this isn't asking for a
+            decision — it explains why a button did nothing, and it should be
+            dismissible and out of the way. Clears itself on the next try. */}
+        {guestBlocked && (
+          <div
+            role="alert"
+            style={{ background: C.goldSoft, border: `1px solid ${C.gold}`, borderRadius: 10, padding: "12px 14px", marginBottom: 12, fontSize: 13, color: C.ink }}
+          >
+            <b style={{ color: C.gold }}>You&apos;re a guest in this household.</b> You can tick
+            things off, add items and say when a staple has run out — but{" "}
+            {guestBlocked} {guestBlocked === "that" ? "is" : "are"} only editable by
+            the people who own it.
+            <div style={{ marginTop: 8 }}>
+              <Btn small onClick={() => setGuestBlocked(null)}>OK</Btn>
+            </div>
+          </div>
+        )}
+
         {tab === "list" && <ListTab data={data} update={update} updateCatalog={updateCatalog} />}
         {tab === "meals" && <MealsTab data={data} update={update} updateCatalog={updateCatalog} />}
         {tab === "week" && <WeekTab data={data} update={update} />}
@@ -534,8 +697,16 @@ export default function App() {
             setLocal={setLocal}
             code={code}
             setCode={setCode}
-            syncStatus={syncStatus}
+            sync={sync}
             user={user}
+            accessDenied={accessDenied}
+            members={members}
+            invites={invites}
+            isGuest={isGuest}
+            createInvite={(ttl) => createInvite(code, user, ttl)}
+            revokeInvite={(token) => revokeInvite(code, token)}
+            joinWithInvite={joinWithInvite}
+            removeMember={(uid) => removeMember(code, uid)}
             authError={authError}
             signInWithGoogle={signInWithGoogle}
             sendEmailSignInLink={sendEmailSignInLink}

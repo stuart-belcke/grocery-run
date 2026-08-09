@@ -8,6 +8,10 @@ import { APP_DATA_VERSION } from "./version.js";
 export { APP_DATA_VERSION };
 
 export const LOCAL_KEY = "grocery-run-local-v1";
+// Set once a browser has been through the first-run screen, so it is never
+// shown twice. An existing install is treated as onboarded by its cached
+// household rather than by this flag — see App.
+export const ONBOARDED_KEY = "grocery-run-onboarded-v1";
 export const CATALOG_KEY = "grocery-run-catalog-cache-v1";
 // The household's own catalog, cached so the app opens offline before the
 // database listener has said anything.
@@ -1321,4 +1325,131 @@ export function qtyLabel(parts) {
     .filter(([, q]) => q > 0)
     .map(([u, q]) => (u ? `${r2(q)} ${u}` : `${r2(q)}`))
     .join(" + ");
+}
+
+/* What the sync indicator should say. Pure so it can be tested, because the
+   one case that matters most cannot be reproduced in a browser here: a socket
+   that is genuinely CONNECTED while every read is refused.
+
+   That case is the whole reason this function exists. watchConnection reads
+   .info/connected, a client-side path no security rule gates, so it reports
+   "synced" perfectly happily while the database is refusing everything —
+   which is how a green dot ends up sitting over a listener that will never
+   deliver another byte. Once item 37's rules require membership, that stops
+   being a hypothetical and becomes the normal state of any signed-out phone.
+
+   ORDER IS THE RULE, and each case is the CAUSE of the ones under it. Naming
+   the cause is what makes the label actionable: "Sign in to sync" says what
+   to do, where "No access", equally true at that moment, leaves you guessing.
+   Connection state is LAST precisely because it is the one the database can
+   contradict. */
+export function syncIndicator({ syncEnabled, authReady, signedIn, accessDenied, writeError, syncStatus }) {
+  if (!syncEnabled) return { text: "Saved on this device", tone: "faint" };
+  if (authReady && !signedIn) return { text: "Sign in to sync", tone: "warn" };
+  if (accessDenied) return { text: "No access to this household", tone: "bad" };
+  if (writeError) return { text: "Sync error — changes may not be saved", tone: "bad" };
+  if (syncStatus === "synced") return { text: "Synced", tone: "good" };
+  if (syncStatus === "offline") return { text: "Offline — will sync", tone: "bad" };
+  return { text: "Connecting…", tone: "faint" };
+}
+
+/* ---------------------- invites (item 37) ----------------------------
+   An invite is a household code and a one-time token travelling together,
+   because a token alone doesn't say which household it opens and a code
+   alone is no longer enough to join anything.
+
+   `~` separates them: codes are [a-z0-9-] and tokens are [a-z0-9], so the
+   separator can't occur inside either half and splitting is unambiguous
+   however either side is mangled by a messaging app.
+
+   Kept here, pure, so the join field can tell an invite from a plain code
+   without a network round trip — and so the parsing has tests, since this
+   is the one string a user retypes by hand. */
+
+export function cleanCode(s) {
+  return (s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "")
+    .slice(0, 40);
+}
+
+// The role rides in the STRING, because the account redeeming an invite
+// cannot read it: households/{code}/invites is members-only, and a joiner
+// isn't one yet. So the link has to say what it grants. A trailing "~g"
+// marks a guest link; nothing marks a full one.
+// This is not where the role is ENFORCED — the rules compare what gets
+// written against the stored invite, so editing "~g" off a link buys
+// nothing. It's here so an honest client knows what to write.
+export function formatInvite(code, token, role) {
+  return role === "guest" ? `${code}~${token}~g` : `${code}~${token}`;
+}
+
+// Returns { code, token }, or null for anything that isn't an invite —
+// including a bare household code, which the caller treats as "switch to a
+// household I'm already in" rather than as a malformed invite.
+export function parseInvite(s) {
+  const raw = String(s == null ? "" : s).trim();
+  const parts = raw.split("~");
+  if (parts.length < 2 || parts.length > 3) return null;
+  const code = cleanCode(parts[0]);
+  const token = parts[1].toLowerCase().replace(/[^a-z0-9]/g, "");
+  // Both halves have to be long enough to be real. A short one means a
+  // truncated paste, and guessing at it would join the wrong household.
+  if (code.length < 8 || token.length < 8) return null;
+  let role = "member";
+  if (parts.length === 3) {
+    // Anything in the third slot that isn't the guest marker is a mangled
+    // paste, not a link to interpret generously.
+    if (parts[2].toLowerCase().replace(/[^a-z]/g, "") !== "g") return null;
+    role = "guest";
+  }
+  return { code, token, role };
+}
+
+// An invite is dead once it expires; the rules enforce the same bound with
+// server time, so this is only for what the UI shows.
+export function inviteLive(invite, nowMs = Date.now()) {
+  return !!invite && typeof invite.exp === "number" && invite.exp > nowMs;
+}
+
+/* What the user typed into the one join field. A separate decision from
+   parseInvite because of a bug found by driving the real UI: a TRUNCATED
+   invite ("home-cx2ur9zg~short") parses as no invite, and the old code then
+   fell through to treating it as a household code — cleanCode strips the
+   `~`, leaving "home-cx2ur9zgshort", a different and almost certainly
+   non-existent household, which the app then offered to switch to. Joining
+   a household replaces this phone's list, so silently resolving a bad paste
+   to the WRONG household is the most expensive possible reading of it.
+
+   A `~` present at all means an invite was intended. If it doesn't parse,
+   that is broken, never a code. */
+export function classifyJoinInput(s) {
+  const raw = String(s == null ? "" : s).trim();
+  if (raw.includes("~")) {
+    const invite = parseInvite(raw);
+    return invite ? { kind: "invite", ...invite } : { kind: "broken" };
+  }
+  const code = cleanCode(raw);
+  return code.length >= 8 ? { kind: "code", code } : { kind: "short" };
+}
+
+/* What a guest may change in the shared state — the app-side mirror of the
+   rules' state/list + state/stapleNeeds grants.
+
+   Expressed as "everything EXCEPT these keys is off limits" rather than as
+   a list of the tabs that plan the week, so it catches every path into a
+   forbidden field including ones that don't exist yet. A new top-level
+   field is denied to guests by default, which is what the rules do too — if
+   the two disagreed, the app would let a guest make an edit the database
+   then silently refused. Returns the field names that changed and mustn't
+   have, so the message can name them. */
+const GUEST_WRITABLE = new Set(["list", "stapleNeeds", "updatedAt"]);
+
+export function guestBlockedFields(prev, next) {
+  const out = [];
+  for (const key of new Set([...Object.keys(prev || {}), ...Object.keys(next || {})])) {
+    if (GUEST_WRITABLE.has(key)) continue;
+    if (JSON.stringify((prev || {})[key]) !== JSON.stringify((next || {})[key])) out.push(key);
+  }
+  return out;
 }

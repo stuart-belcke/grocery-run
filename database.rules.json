@@ -10,13 +10,41 @@
     // specific $code branch below is ever granted anything.
     "households": {
       "$code": {
-        // Grants read/write access to households/{code} and everything under
-        // it. This is the WHOLE security model today: the code IS the
-        // password — anyone who has ever seen it (a URL, Settings, a text
-        // message) has permanent access, because there's no sign-in yet to
-        // check WHO is asking. Item 37 (auth) is what actually fixes that.
-        ".read": true,
-        ".write": true,
+        // Item 37, CONTRACT. Access now requires a real identity AND a
+        // membership record — the code alone is no longer sufficient, and
+        // there is deliberately no unauthenticated fallback. A device that
+        // isn't signed in reads and writes NOTHING here; it still opens and
+        // works entirely from its localStorage cache, and the app says so
+        // rather than showing a green "Synced" dot over a dead connection.
+        //
+        // This is the step that closes the gap the whole sequence exists
+        // for: before it, anyone who had ever seen the code had permanent
+        // access with no way to tell who they were or to take it away.
+        //
+        // Knowing the code is NO LONGER ENOUGH TO JOIN. An account becomes
+        // a member one of three ways, all under "members" below: it claims
+        // an unclaimed household, it redeems an unexpired invite created by
+        // an existing member, or it already had a record. That is what makes
+        // removal actually stick — a removed account still knows the code,
+        // and now the code buys it nothing.
+        //
+        // READ is for any member, guest included — a guest shopping from the
+        // list needs to see the recipes and the week behind it, or the list
+        // is a row of names with no way to tell what a thing is for.
+        //
+        // WRITE here is FULL members only, and that asymmetry is the guest
+        // role: this ".write" is the one that reaches the catalog (recipes,
+        // ingredients, stores, preferences) and the week plan, so denying it
+        // denies all of those at once. What a guest CAN write is granted
+        // further down, at state/list and state/stapleNeeds — narrower paths,
+        // where a deeper grant overrides this denial. Everything not
+        // explicitly re-granted there stays read-only for them.
+        //
+        // A member with no `role` field is FULL: records written before guests
+        // existed have no role, and they belong to the two people who own the
+        // household. Only the literal string "guest" takes anything away.
+        ".read": "auth != null && root.child('households').child($code).child('members').child(auth.uid).exists()",
+        ".write": "auth != null && root.child('households').child($code).child('members').child(auth.uid).exists() && root.child('households').child($code).child('members').child(auth.uid).child('role').val() != 'guest'",
 
         // Runs on every write to this branch or anything below it. $code is
         // the household code itself (the wildcard segment's value) — this
@@ -34,13 +62,32 @@
         // through untouched on purpose, so an older build can still write a
         // household a newer build already extended. A strict schema here
         // would silently defeat that same forward-compatibility guarantee
-        // from underneath the app. Only checked: updatedAt, present on every
-        // single write (setLocal stamps it), must actually be a number — the
-        // one thing a malformed payload (item 20's whole reason for
-        // existing) would most obviously get wrong.
+        // from underneath the app. The only thing checked is that updatedAt
+        // is a number: it rides on every single write (setLocal stamps it),
+        // and is what a malformed payload — item 20's whole reason for
+        // existing — would most obviously get wrong.
+        //
+        // This block is ALSO WHAT A GUEST MAY WRITE, and the only place
+        // below the full-members-only ".write" above. These are exactly the
+        // paths the List tab touches: list.checked / .bought / .extras /
+        // .overrides / .selections, and stapleNeeds (running out of a staple
+        // is something the person actually in the shop discovers).
+        // `updatedAt` is included because every narrow write carries it —
+        // without it a guest's write would be half-refused and the other
+        // phone would never notice the change.
+        // NOT re-granted, deliberately: `plan` and `planStage`. Planning the
+        // week and starting or ending a shopping trip are the household's,
+        // not the guest's.
         "state": {
           "updatedAt": {
+            ".write": "auth != null && root.child('households').child($code).child('members').child(auth.uid).exists()",
             ".validate": "newData.isNumber()"
+          },
+          "list": {
+            ".write": "auth != null && root.child('households').child($code).child('members').child(auth.uid).exists()"
+          },
+          "stapleNeeds": {
+            ".write": "auth != null && root.child('households').child($code).child('members').child(auth.uid).exists()"
           }
         },
         // Recipes, ingredients and stores. Same reasoning and same
@@ -55,19 +102,91 @@
           }
         },
 
-        // Item 37, re-parenting EXPAND phase. Grants nothing new — households
-        // already has blanket .write above, and .write/.read can only ever
-        // ADD permission as rules go deeper, never narrow one back down — so
-        // this can't be a .write grant. It's a .validate instead, which DOES
-        // constrain what gets written regardless of the broader grant above:
-        // a member record can only ever be written by the account it claims
-        // to represent (auth.uid == $uid), never forged for someone else.
-        // Nothing reads this yet, and access is still the code alone — this
-        // only starts accumulating the record a LATER, separate step needs
-        // before requiring membership can be safe.
+        // Item 37. THE ONLY DOOR INTO A HOUSEHOLD. This needs its own
+        // ".write" because the $code-level one above requires membership,
+        // and the account that needs this write is precisely the one that
+        // isn't a member yet — without a deeper grant, joining would be
+        // impossible by construction. A deeper ".write" grants where a
+        // shallower one denied, so everything that decides who may join is
+        // concentrated in this one expression, on purpose.
+        //
+        // Four cases, and nothing else is permitted:
+        //   1. data.exists() — I already have a record here. Covers both
+        //      refreshing it on every load and deleting it to leave.
+        //   2. the household has NO members at all — first claim. A brand
+        //      new code has to become somebody's somehow, and every real
+        //      household already has members, so this can't be turned on an
+        //      occupied one. (A household whose last member leaves becomes
+        //      claimable again. That is abandonment, not a back door.)
+        //   3. an unexpired invite, presented as `invite` in the record
+        //      being written. `now` is server time, so a device with a wrong
+        //      clock can't extend its own window. isString() guards the
+        //      lookup: child(null) on a missing field is not a valid path.
+        //
+        // ANONYMOUS IDENTITIES MAY ONLY EVER BE GUESTS. A guest link signs the
+        // browser in anonymously so someone can be handed a link and just
+        // shop — that identity is real enough to be a member (it has a uid the
+        // rules can check) but it has no account behind it and dies with the
+        // browser's storage. So it is barred from case 2 and from redeeming a
+        // FULL invite: owning a household, or holding one as an equal, has to
+        // mean an account that can be recovered and named. Guests it allows,
+        // which is the entire point.
+        //   4. a deletion by an existing member — removing somebody else.
+        //      Deletion only; a member can never CREATE or edit another
+        //      account's record, which is what keeps a member record honest
+        //      about who wrote it.
+        //
+        // Cases 1-3 all require auth.uid == $uid, so no account can ever
+        // forge a record for another. Case 4 is the sole exception and is
+        // limited to taking one away — and is full-members-only, so a guest
+        // can't remove the people who let them in.
+        // Case 2 may not mint a guest: a household's first member is the
+        // person who owns it. Case 3 takes the role FROM THE INVITE, so the
+        // inviter decides whether a link is a guest link.
+        //
+        // ROLE IS IMMUTABLE ONCE SET, and that is what makes the guest role
+        // mean anything: a member rewrites its own record on every load, so
+        // without this a guest would simply write role: "member" and promote
+        // itself, leaving every other guest rule decorative.
+        // IT LIVES IN ".validate", NOT ".write", and that placement is the
+        // whole point — learned from a test that failed. The $code-level
+        // ".write" above grants a FULL member everything beneath it, and a
+        // deeper ".write" can only ADD permission, never take it back. So a
+        // role check in ".write" here would have constrained guests and
+        // strangers while quietly not applying to full members at all.
+        // ".validate" is the only kind of rule that always runs.
+        // A consequence worth knowing: the refresh must PRESERVE the field,
+        // which is why the app refreshes with update() rather than set() — a
+        // set() dropping `role` reads as changing it, and is refused.
+        // Deletes skip ".validate" entirely, so leaving still works.
+        // To change somebody's role, remove them and invite them again.
         "members": {
           "$uid": {
-            ".validate": "auth != null && auth.uid == $uid"
+            ".write": "auth != null && ((auth.uid == $uid && (data.exists() || (!root.child('households').child($code).child('members').exists() && newData.child('role').val() != 'guest' && auth.token.firebase.sign_in_provider != 'anonymous') || (newData.child('invite').isString() && root.child('households').child($code).child('invites').child(newData.child('invite').val()).child('exp').val() > now && newData.child('role').val() == root.child('households').child($code).child('invites').child(newData.child('invite').val()).child('role').val() && (newData.child('role').val() == 'guest' || auth.token.firebase.sign_in_provider != 'anonymous')))) || (!newData.exists() && root.child('households').child($code).child('members').child(auth.uid).exists() && root.child('households').child($code).child('members').child(auth.uid).child('role').val() != 'guest'))",
+            ".validate": "auth != null && auth.uid == $uid && newData.hasChild('updatedAt') && (!newData.hasChild('role') || newData.child('role').val() == 'guest' || newData.child('role').val() == 'member') && (!data.exists() || newData.child('role').val() == data.child('role').val())"
+          }
+        },
+
+        // Item 37. Invites. Only a member can create or revoke one, so the
+        // right to let somebody in belongs to the people already in.
+        // Redemption does NOT delete the invite here — the redeemer isn't a
+        // member at the moment they redeem, and opening deletion to
+        // non-members would let anyone holding the code burn every
+        // outstanding invite. The app deletes it immediately AFTER joining,
+        // by which point it IS a member and this rule allows it; if that
+        // second write is lost the invite simply expires on its own.
+        //
+        // Creating and revoking is FULL members only — a guest can't let
+        // anyone else in, nor hand on their own access.
+        // `role` on an invite is what makes it a guest link; absent means a
+        // full member. members/$uid case 3 requires the two to agree, so the
+        // link's power is fixed when it's created and can't be talked up
+        // when it's redeemed.
+        "invites": {
+          ".read": "auth != null && root.child('households').child($code).child('members').child(auth.uid).exists()",
+          "$token": {
+            ".write": "auth != null && root.child('households').child($code).child('members').child(auth.uid).exists() && root.child('households').child($code).child('members').child(auth.uid).child('role').val() != 'guest'",
+            ".validate": "newData.hasChildren(['by', 'exp']) && newData.child('exp').isNumber() && newData.child('by').val() == auth.uid && (!newData.hasChild('role') || newData.child('role').val() == 'guest' || newData.child('role').val() == 'member')"
           }
         }
       }

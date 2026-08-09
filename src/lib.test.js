@@ -6,6 +6,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
+  guestBlockedFields,
+  classifyJoinInput,
+  parseInvite,
+  formatInvite,
+  inviteLive,
+  syncIndicator,
   normalizeLocal,
   emptyLocal,
   diffPaths,
@@ -1511,4 +1517,163 @@ test("an ad-hoc list item with no catalog entry keeps the name it was typed as",
     stapleNeeds: {},
   };
   assert.deepEqual(aggregateItems(data).map((i) => i.name), ["Birthday candles"]);
+});
+
+/* ---------------- the sync indicator ----------------
+   These exist because the failure they describe is invisible in a browser
+   without a real, reachable database that is actively REFUSING reads — which
+   is exactly what a sandbox can't produce. */
+
+const base = { syncEnabled: true, authReady: true, signedIn: true, accessDenied: false, writeError: false, syncStatus: "synced" };
+
+test("a connected socket must not read as Synced when the database is refusing reads", () => {
+  // THE WHOLE POINT. syncStatus comes from .info/connected, which no security
+  // rule gates, so it says "synced" while every read is denied. If this ever
+  // returns "Synced" again, the app is lying in the exact way item 37's rules
+  // made possible and this app has already shipped once.
+  const out = syncIndicator({ ...base, syncStatus: "synced", accessDenied: true });
+  assert.notEqual(out.text, "Synced");
+  assert.equal(out.tone, "bad");
+});
+
+test("being signed out beats every connection state, and names the fix", () => {
+  for (const syncStatus of ["synced", "offline", "connecting"]) {
+    const out = syncIndicator({ ...base, syncStatus, signedIn: false, accessDenied: true });
+    assert.equal(out.text, "Sign in to sync");
+  }
+});
+
+test("signed out is not claimed until auth has actually answered", () => {
+  // user===null means "don't know yet" until authReady. Getting this wrong
+  // flashes "Sign in to sync" on every launch of a signed-in phone.
+  const out = syncIndicator({ ...base, authReady: false, signedIn: false });
+  assert.notEqual(out.text, "Sign in to sync");
+});
+
+test("a signed-in member on a healthy connection still reads as Synced", () => {
+  // The control: none of the above may swallow the ordinary good state.
+  assert.deepEqual(syncIndicator(base), { text: "Synced", tone: "good" });
+});
+
+test("local-only builds never mention signing in", () => {
+  // VITE_LOCAL_ONLY strips sync entirely; auth is meaningless there.
+  const out = syncIndicator({ ...base, syncEnabled: false, signedIn: false, accessDenied: true });
+  assert.equal(out.text, "Saved on this device");
+});
+
+test("a refused read outranks a refused write, because it explains it", () => {
+  const out = syncIndicator({ ...base, accessDenied: true, writeError: true });
+  assert.equal(out.text, "No access to this household");
+});
+
+/* ------------------- invites (item 37) ------------------- */
+
+test("an invite round-trips through the string a user actually pastes", () => {
+  const full = formatInvite("home-cx2ur9zg", "abcdefgh1234");
+  assert.deepEqual(parseInvite(full), { code: "home-cx2ur9zg", token: "abcdefgh1234", role: "member" });
+  const g = formatInvite("home-cx2ur9zg", "abcdefgh1234", "guest");
+  assert.deepEqual(parseInvite(g), { code: "home-cx2ur9zg", token: "abcdefgh1234", role: "guest" });
+});
+
+test("a guest link and a full link are different strings", () => {
+  // If these ever collided, handing someone a guest link would silently make
+  // them a full member — the rules would allow it, since the record would
+  // match the invite.
+  assert.notEqual(
+    formatInvite("home-cx2ur9zg", "abcdefgh1234", "guest"),
+    formatInvite("home-cx2ur9zg", "abcdefgh1234")
+  );
+});
+
+test("a bare household code is not an invite", () => {
+  // It must parse as null, not as a malformed invite: the join field treats
+  // null as "switch to a household I'm already in", which is the recovery
+  // path for a reinstalled phone and has to keep working.
+  assert.equal(parseInvite("home-cx2ur9zg"), null);
+});
+
+test("a truncated invite is refused rather than guessed at", () => {
+  // Half a paste must never resolve to a household — joining the wrong one
+  // replaces this phone's list.
+  assert.equal(parseInvite("home-cx2ur9zg~short"), null);
+  assert.equal(parseInvite("short~abcdefgh1234"), null);
+  assert.equal(parseInvite("~abcdefgh1234"), null);
+  assert.equal(parseInvite("home-cx2ur9zg~"), null);
+});
+
+test("an invite survives being mangled by a messaging app", () => {
+  // Whitespace, a capitalised first letter, a trailing full stop.
+  assert.deepEqual(parseInvite("  Home-CX2UR9ZG~ABCDEFGH1234.  "), {
+    code: "home-cx2ur9zg",
+    token: "abcdefgh1234",
+    role: "member",
+  });
+});
+
+test("a third segment that isn't the guest marker is refused, not reinterpreted", () => {
+  // The third slot means exactly one thing. Treating junk there as part of
+  // the token would let a mangled guest link resolve to a FULL membership.
+  assert.equal(parseInvite("home-cx2ur9zg~aaaabbbb1234~x"), null);
+  assert.equal(parseInvite("home-cx2ur9zg~aaaabbbb1234~guest"), null);
+  assert.equal(parseInvite("home-cx2ur9zg~aaaa~bbbb1234"), null);
+  assert.equal(parseInvite("home-cx2ur9zg~aaaabbbb1234~g~g"), null);
+});
+
+test("parseInvite never throws on junk", () => {
+  for (const junk of [null, undefined, "", "~", "~~~", 42, {}]) {
+    assert.equal(parseInvite(junk), null);
+  }
+});
+
+test("an expired invite is not live", () => {
+  const now = 1_000_000;
+  assert.equal(inviteLive({ exp: now + 1 }, now), true);
+  assert.equal(inviteLive({ exp: now - 1 }, now), false);
+  assert.equal(inviteLive({ exp: now }, now), false); // exactly expired is expired
+  assert.equal(inviteLive({}, now), false);
+  assert.equal(inviteLive(null, now), false);
+});
+
+test("a truncated invite is never resolved to a household code", () => {
+  // THE BUG THIS EXISTS FOR, found in a browser and not by reasoning:
+  // cleanCode strips the `~`, so "home-cx2ur9zg~short" used to become the
+  // code "home-cx2ur9zgshort" and the app offered to switch to it —
+  // replacing this phone's list with a different household's.
+  assert.deepEqual(classifyJoinInput("home-cx2ur9zg~short"), { kind: "broken" });
+  assert.deepEqual(classifyJoinInput("home-cx2ur9zg~"), { kind: "broken" });
+  assert.deepEqual(classifyJoinInput("~abcdefgh1234"), { kind: "broken" });
+});
+
+test("the join field still tells a code from an invite", () => {
+  assert.deepEqual(classifyJoinInput("home-cx2ur9zg"), { kind: "code", code: "home-cx2ur9zg" });
+  assert.deepEqual(classifyJoinInput("home-cx2ur9zg~abcdefgh1234"), {
+    kind: "invite",
+    code: "home-cx2ur9zg",
+    token: "abcdefgh1234",
+    role: "member",
+  });
+  assert.deepEqual(classifyJoinInput("home-cx2ur9zg~abcdefgh1234~g"), {
+    kind: "invite",
+    code: "home-cx2ur9zg",
+    token: "abcdefgh1234",
+    role: "guest",
+  });
+  assert.deepEqual(classifyJoinInput("tiny"), { kind: "short" });
+});
+
+test("a guest may change the list and staples, and nothing else", () => {
+  const base = { list: { checked: {} }, stapleNeeds: {}, plan: { Sun: {} }, planStage: "shopping", updatedAt: 1 };
+  assert.deepEqual(guestBlockedFields(base, { ...base, list: { checked: { milk: true } } }), []);
+  assert.deepEqual(guestBlockedFields(base, { ...base, stapleNeeds: { salt: true } }), []);
+  assert.deepEqual(guestBlockedFields(base, { ...base, updatedAt: 2 }), []);
+  assert.deepEqual(guestBlockedFields(base, { ...base, plan: { Mon: {} } }), ["plan"]);
+  assert.deepEqual(guestBlockedFields(base, { ...base, planStage: "planning" }), ["planStage"]);
+});
+
+test("a field nobody has invented yet is off limits to a guest by default", () => {
+  // Mirrors the rules, which only re-grant state/list and state/stapleNeeds.
+  // If this allowed unknown fields, the app would let a guest make an edit
+  // the database then silently refused.
+  const base = { list: {}, stapleNeeds: {}, updatedAt: 1 };
+  assert.deepEqual(guestBlockedFields(base, { ...base, somethingNew: 1 }), ["somethingNew"]);
 });
