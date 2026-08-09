@@ -21,3 +21,9 @@ export const fontDisplay = "'Fraunces', Georgia, serif";
 export const fontBody = "'Space Grotesk', system-ui, -apple-system, sans-serif";
 
 export const inputStyle = { padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.line}`, fontFamily: fontBody, fontSize: 14 };
+
+// The sync indicator's four tones. Here rather than next to the logic that
+// picks one, because two places draw that indicator (the header and the
+// Settings section header) and they must never disagree about what a colour
+// means.
+export const syncTone = { good: C.green, bad: C.tomato, warn: C.gold, faint: C.faint };

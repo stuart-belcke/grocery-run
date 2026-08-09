@@ -1322,3 +1322,29 @@ export function qtyLabel(parts) {
     .map(([u, q]) => (u ? `${r2(q)} ${u}` : `${r2(q)}`))
     .join(" + ");
 }
+
+/* What the sync indicator should say. Pure so it can be tested, because the
+   one case that matters most cannot be reproduced in a browser here: a socket
+   that is genuinely CONNECTED while every read is refused.
+
+   That case is the whole reason this function exists. watchConnection reads
+   .info/connected, a client-side path no security rule gates, so it reports
+   "synced" perfectly happily while the database is refusing everything —
+   which is how a green dot ends up sitting over a listener that will never
+   deliver another byte. Once item 37's rules require membership, that stops
+   being a hypothetical and becomes the normal state of any signed-out phone.
+
+   ORDER IS THE RULE, and each case is the CAUSE of the ones under it. Naming
+   the cause is what makes the label actionable: "Sign in to sync" says what
+   to do, where "No access", equally true at that moment, leaves you guessing.
+   Connection state is LAST precisely because it is the one the database can
+   contradict. */
+export function syncIndicator({ syncEnabled, authReady, signedIn, accessDenied, writeError, syncStatus }) {
+  if (!syncEnabled) return { text: "Saved on this device", tone: "faint" };
+  if (authReady && !signedIn) return { text: "Sign in to sync", tone: "warn" };
+  if (accessDenied) return { text: "No access to this household", tone: "bad" };
+  if (writeError) return { text: "Sync error — changes may not be saved", tone: "bad" };
+  if (syncStatus === "synced") return { text: "Synced", tone: "good" };
+  if (syncStatus === "offline") return { text: "Offline — will sync", tone: "bad" };
+  return { text: "Connecting…", tone: "faint" };
+}

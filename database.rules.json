@@ -10,27 +10,28 @@
     // specific $code branch below is ever granted anything.
     "households": {
       "$code": {
-        // Item 37, CONTRACT phase. Grants read/write to households/{code} and
-        // everything under it, but no longer unconditionally:
-        //   - a SIGNED-IN account must have a members/{uid} record here —
-        //     the record recordHouseholdMembership (sync.js) already writes
-        //     on every sign-in, verified against the live database.
-        //   - a device that ISN'T signed in still gets in on the code alone,
-        //     exactly as before. That's the deliberate transition window:
-        //     not every device is known to always be signed in yet, and
-        //     there's no anonymous-auth fallback, so requiring auth outright
-        //     here would lock out any device that isn't. Once both phones
-        //     are confirmed to always be signed in, drop the `auth == null`
-        //     branch and this becomes a hard membership requirement.
-        // Self-service joining (any signed-in account that knows the code
-        // becomes a member automatically) is UNCHANGED by this — that's
-        // still what recordHouseholdMembership does. So this step makes
-        // membership REQUIRED and identifies who's using the household; it
-        // does not yet make membership revocable out from under someone who
-        // still knows the code and can sign back in. Invites/roles (item
-        // 37's deferred future work) are what closes that.
-        ".read": "auth == null || root.child('households').child($code).child('members').child(auth.uid).exists()",
-        ".write": "auth == null || root.child('households').child($code).child('members').child(auth.uid).exists()",
+        // Item 37, CONTRACT. Access now requires a real identity AND a
+        // membership record — the code alone is no longer sufficient, and
+        // there is deliberately no unauthenticated fallback. A device that
+        // isn't signed in reads and writes NOTHING here; it still opens and
+        // works entirely from its localStorage cache, and the app says so
+        // rather than showing a green "Synced" dot over a dead connection.
+        //
+        // This is the step that closes the gap the whole sequence exists
+        // for: before it, anyone who had ever seen the code had permanent
+        // access with no way to tell who they were or to take it away.
+        //
+        // Self-service joining is UNCHANGED and still deliberate: any
+        // signed-in account that knows the code writes its own membership
+        // record (see "members" below) and is in. So this makes access
+        // identified and enumerable — you can see exactly which accounts
+        // hold a household — but not yet revocable, since a removed account
+        // that still knows the code can sign in and rejoin. Making removal
+        // stick means replacing self-service join with invites, which is
+        // item 37's remaining future work and a product decision, not a
+        // rules one.
+        ".read": "auth != null && root.child('households').child($code).child('members').child(auth.uid).exists()",
+        ".write": "auth != null && root.child('households').child($code).child('members').child(auth.uid).exists()",
 
         // Runs on every write to this branch or anything below it. $code is
         // the household code itself (the wildcard segment's value) — this
@@ -71,13 +72,16 @@
 
         // Item 37. Membership records: an account can only ever write the
         // record that names itself (auth.uid == $uid), never forge one for
-        // someone else. This now needs its own explicit ".write", not just
-        // ".validate" — the $code-level ".write" above no longer grants
-        // access to a signed-in account that ISN'T a member yet, which is
-        // exactly the account that needs to write ITS OWN first membership
-        // record to become one. Without this, joining a household while
-        // signed in would be impossible: the write that makes you a member
-        // would itself require already being one.
+        // someone else. This needs its own explicit ".write", not just
+        // ".validate" — the $code-level ".write" above now requires
+        // membership, and the account that needs this write is precisely
+        // the one that ISN'T a member yet. Without a deeper grant, joining
+        // would be impossible by construction: the write that makes you a
+        // member would itself require already being one. A deeper ".write"
+        // grants where a shallower one denied, which is what makes this the
+        // one door into a household.
+        // It is also the ONLY thing a non-member may write here, and only
+        // at its own uid — so this opens joining, not the household.
         "members": {
           "$uid": {
             ".write": "auth != null && auth.uid == $uid",

@@ -639,62 +639,110 @@ MEASURED AND DELIBERATELY NOT PROBLEMS
     the two that hold both accounts would otherwise read as real
     households.
 
-    [DRAFTED, NOT DEPLOYED] CONTRACT. database.rules.json now requires a
-    signed-in account to hold a members/{uid} record to read or write a
-    household; an unauthenticated device still gets in on the code alone,
-    unchanged — the transition window, kept because not every device is
-    known to always be signed in and there is no anonymous-auth fallback, so
-    requiring auth outright would lock one out with no warning.
-    members/$uid picked up its own ".write" (previously only ".validate"),
-    without which a signed-in, not-yet-a-member account could never write
-    the record that makes it one — the $code-level ".write" no longer covers
-    that write once it requires membership.
-    HONEST ABOUT WHAT THIS DOES AND DOESN'T CLOSE: self-service joining
-    (any signed-in account that knows the code becomes a member
-    automatically, via the same recordHouseholdMembership from EXPAND) is
-    unchanged. So this makes membership REQUIRED and identifies who's using
-    the household, but doesn't make it revocable out from under someone who
-    still knows the code and can sign back in — that needs invites/roles,
-    still deferred future work. Next real step once both phones are
-    confirmed to always be signed in: drop the `auth == null` branch and
-    require membership outright.
-    A NEW APP-CODE BUG THIS SURFACED, FIXED ALONGSIDE THE RULES DRAFT: the
-    household/catalog subscribe effect in App.jsx only re-ran on `code`
-    changing, never on `user` — so a device that signs in AFTER that effect's
-    first run (the common case; Firebase auth restores async, after mount)
-    would have its listener silently denied and never retried once these
-    rules require membership, since onValue has no cancelCallback here and
-    nothing else resubscribes. Fixed by bumping a `membershipTick` once
-    recordHouseholdMembership's write actually lands and adding it to that
-    effect's dependency array, so the resubscribe happens once membership is
-    confirmed, not the instant sign-in state changes (which would still race
-    the write). UNVERIFIED against a real Firebase project — this sandbox
-    has no path to Firebase's endpoints, same limitation as the rest of item
-    37's auth work. Needs checking on a real phone before or right after the
-    rules go live: sign out, sign back in mid-session, confirm the list
-    keeps updating rather than going stale.
+    [BUILT, NOT YET DEPLOYED] CONTRACT. database.rules.json now requires
+    BOTH a real identity and a membership record to read or write a
+    household. There is deliberately no unauthenticated fallback: a device
+    that isn't signed in reads and writes nothing. Done as one step rather
+    than a transition window with an `auth == null` branch, because the
+    second phone is being signed in as part of delivering this — a window
+    nobody needs is two pastes and two rounds of app changes for nothing.
+    members/$uid needed its own ".write" (it had only ".validate"). The
+    $code-level ".write" now requires membership, so the account that needs
+    that write is precisely the one that isn't a member yet; without a
+    deeper grant, joining is impossible by construction — the write that
+    makes you a member would require already being one. That deeper grant is
+    the one door into a household, and it opens only at the caller's own uid.
+    WHAT IT CLOSES: access is now identified and enumerable. What it does
+    NOT close: self-service joining is unchanged, so any signed-in account
+    that knows the code still joins itself. Removal therefore doesn't stick
+    — a removed account that still has the code signs in and rejoins. Real
+    revocation means replacing self-service join with invites, which is a
+    product decision, not a rules one.
+
+    REQUIRING AUTH FORCED APP WORK, and it is the more interesting half.
+    Once a signed-out phone is refused everything, the app had three ways to
+    lie about it:
+      - THE GREEN DOT. syncStatus comes from watchConnection, which reads
+        .info/connected — a client-side path NO security rule gates. It
+        reports "synced" perfectly happily while every read is refused, so
+        a signed-out phone would have shown "Synced" over a dead listener.
+        That is precisely the "looks fine, syncs nothing" failure this
+        codebase keeps paying for. The precedence now lives in
+        syncIndicator() in lib.js: sign-in state and authorization both
+        outrank connection state, and connection is LAST because it's the
+        one the database can contradict. Each case is the CAUSE of the ones
+        under it — "Sign in to sync" says what to do, where "No access",
+        equally true at that moment, leaves you guessing.
+      - A SILENT DENIAL. onValue had no cancel callback, so permission_denied
+        did nothing at all — indistinguishable from "connected, nothing has
+        changed yet". subscribeHousehold/subscribeCatalog/subscribeMembers
+        now take onError. Two properties matter: Firebase REMOVES a listener
+        it cancels, so a denial is terminal and only a resubscribe recovers;
+        and cb is never called on a denial, so a refused read can't arrive
+        as `null` — which would read as "no household here, seed it" and
+        turn a permissions problem into a write.
+      - THE COPY. Settings still said sign-in was "optional, and doesn't
+        change anything yet". It is now the thing that grants access.
+    IT IS IN lib.js, NOT App.jsx, FOR A SPECIFIC REASON: the case that
+    matters most — a socket genuinely CONNECTED while reads are refused —
+    cannot be reproduced in a browser here, because this sandbox can't reach
+    Firebase at all and the socket just reads offline. A pure function takes
+    no network. Six tests cover it, and both mutations were confirmed:
+    moving the "synced" check above the authorization checks fails exactly
+    the three tests about precedence, and dropping the authReady guard fails
+    exactly the one about not claiming "signed out" before auth has
+    answered.
+    authReady exists because `user === null` means two opposite things —
+    "don't know yet" before Firebase answers, "nobody" after. Auth restores
+    asynchronously, so treating the initial null as signed-out would flash
+    "Sign in to sync" on every launch of a signed-in phone.
+
+    THE RESUBSCRIBE RACE, found while reasoning about the rules and fixed
+    with them: the household/catalog subscribe effect only re-ran on `code`,
+    never on `user`. A device signing in AFTER that effect's first run — the
+    common case, since auth restores after mount — would have its listener
+    denied and never retried. It now depends on a `membershipTick` bumped
+    once recordHouseholdMembership's write actually LANDS, not the instant
+    sign-in state changes, which would still race the write and just get
+    denied again.
+    Work done while signed out is not lost: updateCatalog and setLocal still
+    write to localStorage, and pickState pushes whichever copy is newer once
+    the listener is allowed again. So signing in flushes what the phone did
+    while it couldn't reach the database.
+
+    ALSO SHIPPED: the member list (was listed below as the natural follow-on
+    to CONTRACT, and it earns its place now that access can actually fail).
+    Settings shows households/{code}/members, read via a prop from App.jsx
+    rather than importing sync into SettingsTab — item 21's seam holds.
+    Reads the denormalized email/displayName exactly as intended, never
+    users/{uid}, which the rules keep private per account.
+
+    STILL UNVERIFIED AND NEEDS A REAL PHONE: everything above about the
+    rules themselves. This sandbox has no path to Firebase, same limitation
+    as the rest of item 37. Confirmed in a real browser only that a
+    signed-out device says "Sign in to sync" rather than "Synced", that the
+    stale "doesn't change anything yet" copy is gone, and that the member
+    list renders its signed-out state.
 
     WHAT'S LEFT
-      - PASTE the updated database.rules.json into the console (same manual
-        step as item 34), after deleting the throwaway home-* households —
-        both yours. Verify sync still works signed-in AND signed-out on both
-        phones afterward; item 20's write-error signal will surface it if a
-        paste went wrong.
-      - Once both phones are confirmed to always be signed in: drop the
-        `auth == null` branch, making membership the sole gate.
-      - Show who is in the household. Settings can list
-        households/{code}/members directly — the denormalized email and
-        displayName exist precisely so this never needs users/{uid}, which
-        the rules deliberately keep unreadable across accounts. It reads a
-        node that already exists, so it could ship either side of CONTRACT,
-        but it earns its place after: once membership is what grants
-        access, the list stops being decoration and becomes the thing you
-        check when someone can't get in.
+      - DELETE the throwaway home-* households in the console FIRST. After
+        CONTRACT the two holding both accounts would read as real ones.
+      - SIGN THE SECOND PHONE IN, then PASTE the updated
+        database.rules.json (same manual step as item 34). Order matters:
+        paste before both phones are signed in and the un-signed-in one
+        stops syncing immediately.
+      - VERIFY ON BOTH PHONES afterward, and specifically: sign out and back
+        in mid-session and confirm the list resumes updating rather than
+        going quietly stale. That is the resubscribe path above, and it is
+        the one piece of this that reasoning has not been able to check.
       - Narrow listeners: item 21's read half. Still deliberately deferred,
         and the catalog move made the case WEAKER rather than stronger, since
         the growth landed on its own node instead of on `state`.
       - Invites, roles, billing, a landing page. Ordinary product work once
         re-parenting exists, and none of it is a foundation question.
+        Invites are the one with a reason to happen: until an account is
+        added by an existing member rather than by knowing the code,
+        removing someone can't stick.
 
     Firestore is not a step here. It becomes worth adopting when one of its
     advantages actually binds — most likely offline persistence, or history

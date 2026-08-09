@@ -172,7 +172,21 @@ export function saveCatalogCache(code, catalog) {
 // Subscribe to a household's shared state. cb(remoteStateOrNull) fires
 // immediately with the local cache value, then on every remote change.
 // Returns an unsubscribe function.
-export function subscribeHousehold(code, cb) {
+//
+// onError exists because item 37's rules made a DENIED read a normal event,
+// not a broken-install one: a device that isn't signed in, or is signed in
+// without a membership record, gets permission_denied here. Without this
+// callback that denial is completely silent — onValue simply never fires —
+// which is indistinguishable from "connected, nothing has changed yet" and
+// would leave the app showing a green Synced dot over a dead listener.
+//
+// TWO THINGS THE CALLER MUST KNOW. Firebase REMOVES the listener when it
+// cancels one, so this is terminal: nothing arrives afterwards, and only a
+// resubscribe recovers. And cb is never called on a denial, so a denied read
+// can't be mistaken for `null` — which matters because null means "no
+// household here yet, seed it" and would otherwise turn a permissions
+// problem into a write that overwrites nothing with a fresh seed.
+export function subscribeHousehold(code, cb, onError) {
   if (!syncEnabled) return () => {};
   let live = true;
   let off = () => {};
@@ -180,7 +194,13 @@ export function subscribeHousehold(code, cb) {
     if (!db || !live) return;
     const { ref, onValue } = await import("firebase/database");
     const r = ref(db, `households/${code}/state`);
-    off = onValue(r, (snap) => cb(snap.val()));
+    off = onValue(
+      r,
+      (snap) => cb(snap.val()),
+      (e) => {
+        if (live && onError) onError(e);
+      }
+    );
   });
   return () => {
     live = false;
@@ -214,14 +234,52 @@ export function watchConnection(cb) {
  *  list/plan changes constantly, so a separate node means each can get its own
  *  listener — ticking a checkbox should never re-read thirty recipes.        */
 
-export function subscribeCatalog(code, cb) {
+// onError as subscribeHousehold — see the note there. The catalog's denial
+// case is if anything the more important of the two: its callback is what
+// sets catalogReady, and catalogReady is what releases catalog writes. A
+// silent denial therefore doesn't just stop reads, it quietly freezes every
+// recipe and ingredient edit at the point of writing them.
+export function subscribeCatalog(code, cb, onError) {
   if (!syncEnabled) return () => {};
   let live = true;
   let off = () => {};
   getDb().then(async (db) => {
     if (!db || !live) return;
     const { ref, onValue } = await import("firebase/database");
-    off = onValue(ref(db, `households/${code}/catalog`), (snap) => cb(snap.val()));
+    off = onValue(
+      ref(db, `households/${code}/catalog`),
+      (snap) => cb(snap.val()),
+      (e) => {
+        if (live && onError) onError(e);
+      }
+    );
+  });
+  return () => {
+    live = false;
+    off();
+  };
+}
+
+// The household's member list, for Settings. Reads a node that already
+// exists — recordHouseholdMembership has been writing it since the EXPAND
+// phase — and deliberately reads it here rather than users/{uid}, which the
+// rules keep unreadable across accounts. The email and displayName are
+// denormalized onto each member record precisely so this view never needs
+// to cross that line.
+export function subscribeMembers(code, cb, onError) {
+  if (!syncEnabled) return () => {};
+  let live = true;
+  let off = () => {};
+  getDb().then(async (db) => {
+    if (!db || !live) return;
+    const { ref, onValue } = await import("firebase/database");
+    off = onValue(
+      ref(db, `households/${code}/members`),
+      (snap) => cb(snap.val()),
+      (e) => {
+        if (live && onError) onError(e);
+      }
+    );
   });
   return () => {
     live = false;

@@ -4,15 +4,28 @@
     tab stays focused on stores and ingredient defaults.               */
 /* ------------------------------------------------------------------ */
 
-import { useState, useEffect } from "react";
-import { C, fontBody, inputStyle } from "../theme";
+import { useState, useEffect, useMemo } from "react";
+import { C, fontBody, inputStyle, syncTone } from "../theme";
 import { Btn, ConfirmDialog, AlertDialog, Section, Seg } from "../ui";
 import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, catalogConfigKey, catalogNameCollisions } from "../lib";
 import { syncEnabled, cleanCode } from "../sync";
 
-export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, syncStatus, user, authError, signInWithGoogle, sendEmailSignInLink, signOutUser }) {
+export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, sync, user, accessDenied, members, authError, signInWithGoogle, sendEmailSignInLink, signOutUser }) {
   const prefs = data.prefs;
   const setPref = (patch) => updateCatalog((c) => ({ ...c, prefs: { ...c.prefs, ...patch } }));
+  // The members node as written: { uid: { email, displayName, updatedAt } }.
+  // Sorted by email so two phones show the same order and it doesn't shuffle
+  // as records update. Falls back to the uid so a record missing both an
+  // email and a name still renders as SOMETHING identifiable rather than a
+  // blank row — which, on the screen you open when access is broken, would
+  // be the least helpful possible output.
+  const memberList = useMemo(
+    () =>
+      Object.entries(members || {})
+        .map(([uid, m]) => ({ uid, ...(m || {}) }))
+        .sort((a, b) => String(a.email || a.uid).localeCompare(String(b.email || b.uid))),
+    [members]
+  );
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
   const [msg, setMsg] = useState("");
@@ -258,9 +271,9 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         title="Phone-to-phone sync"
         aside={
           syncEnabled ? (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontFamily: fontBody, fontWeight: 400, color: syncStatus === "offline" ? C.tomato : C.faint }}>
-              <span aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: syncStatus === "synced" ? C.green : syncStatus === "offline" ? C.tomato : C.faint }} />
-              {syncStatus === "synced" ? "Synced" : syncStatus === "offline" ? "Offline" : "Connecting…"}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontFamily: fontBody, fontWeight: 400, color: sync.tone === "bad" || sync.tone === "warn" ? syncTone[sync.tone] : C.faint }}>
+              <span aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: syncTone[sync.tone] }} />
+              {sync.text}
             </span>
           ) : null
         }
@@ -289,8 +302,35 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
             </div>
             {codeMsg && <div style={{ fontSize: 12, color: C.faint, marginTop: 8 }}>{codeMsg}</div>}
             <p style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
-              Keep this code private — anyone who knows it can see and edit your list. Joining a different code makes this phone adopt that household's data (this phone's current list is replaced, so export a backup first if you need it).
+              Keep this code private — anyone <b>signed in</b> who knows it can join this household and edit your list. Joining a different code makes this phone adopt that household&apos;s data (this phone&apos;s current list is replaced, so export a backup first if you need it).
             </p>
+
+            {/* Item 37: the list you check when someone can't get in. Reads
+                households/{code}/members, whose email and displayName are
+                denormalized onto each record exactly so this never has to
+                read users/{uid} — which the rules keep private per account. */}
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
+              <div style={{ fontSize: 12, color: C.faint, marginBottom: 6 }}>Who can open this household</div>
+              {!user ? (
+                <p style={{ fontSize: 13, color: C.faint, margin: 0 }}>Sign in below to see who else is in this household.</p>
+              ) : memberList.length ? (
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+                  {memberList.map((m) => (
+                    <li key={m.uid} style={{ fontSize: 13, color: C.ink, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "baseline" }}>
+                      <span>{m.email || m.displayName || m.uid}</span>
+                      {m.uid === user.uid && <span style={{ fontSize: 11, color: C.green, fontWeight: 500 }}>this phone</span>}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p style={{ fontSize: 13, color: C.faint, margin: 0 }}>
+                  {accessDenied ? "Can't read the member list from here — this account doesn't have access to this household yet." : "Nobody yet."}
+                </p>
+              )}
+              <p style={{ fontSize: 12, color: C.faint, margin: "8px 0 0" }}>
+                Signing in on a phone that has this code adds that account here automatically. Removing someone isn&apos;t built yet — the code is still what lets an account join.
+              </p>
+            </div>
           </>
         )}
       </Section>
@@ -317,14 +357,19 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
               {user.displayName && user.email ? ` (${user.email})` : ""}.
             </p>
             <p style={{ fontSize: 12, color: C.faint, margin: "0 0 12px" }}>
-              This doesn't change how the household is shared — that's still the code above. It's early groundwork for accounts eventually replacing that.
+              This account is what lets this phone sync. Signing out keeps everything already on this phone and stops it sending or receiving changes until you sign back in.
             </p>
+            {accessDenied && (
+              <div style={{ fontSize: 13, fontWeight: 500, color: C.tomato, margin: "0 0 12px", padding: "8px 10px", background: C.tomatoSoft, borderRadius: 8 }}>
+                Signed in, but this account can&apos;t open household <b>{code}</b>. Check the code above matches the other phone exactly.
+              </div>
+            )}
             <Btn onClick={signOutUser}>Sign out</Btn>
           </>
         ) : (
           <>
             <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 12px" }}>
-              Optional, and doesn't change anything yet — the household code above is still what actually shares your list. This is early groundwork for accounts.
+              <b style={{ color: C.ink }}>Sign in to sync.</b> This phone keeps working and saving on its own, but it won&apos;t send or receive changes from your other phone until an account is signed in here.
             </p>
             {authError && (
               <div style={{ fontSize: 13, fontWeight: 500, color: C.tomato, margin: "0 0 12px", padding: "8px 10px", background: C.tomatoSoft, borderRadius: 8 }}>

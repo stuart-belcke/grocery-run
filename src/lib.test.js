@@ -6,6 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
+  syncIndicator,
   normalizeLocal,
   emptyLocal,
   diffPaths,
@@ -1511,4 +1512,51 @@ test("an ad-hoc list item with no catalog entry keeps the name it was typed as",
     stapleNeeds: {},
   };
   assert.deepEqual(aggregateItems(data).map((i) => i.name), ["Birthday candles"]);
+});
+
+/* ---------------- the sync indicator ----------------
+   These exist because the failure they describe is invisible in a browser
+   without a real, reachable database that is actively REFUSING reads — which
+   is exactly what a sandbox can't produce. */
+
+const base = { syncEnabled: true, authReady: true, signedIn: true, accessDenied: false, writeError: false, syncStatus: "synced" };
+
+test("a connected socket must not read as Synced when the database is refusing reads", () => {
+  // THE WHOLE POINT. syncStatus comes from .info/connected, which no security
+  // rule gates, so it says "synced" while every read is denied. If this ever
+  // returns "Synced" again, the app is lying in the exact way item 37's rules
+  // made possible and this app has already shipped once.
+  const out = syncIndicator({ ...base, syncStatus: "synced", accessDenied: true });
+  assert.notEqual(out.text, "Synced");
+  assert.equal(out.tone, "bad");
+});
+
+test("being signed out beats every connection state, and names the fix", () => {
+  for (const syncStatus of ["synced", "offline", "connecting"]) {
+    const out = syncIndicator({ ...base, syncStatus, signedIn: false, accessDenied: true });
+    assert.equal(out.text, "Sign in to sync");
+  }
+});
+
+test("signed out is not claimed until auth has actually answered", () => {
+  // user===null means "don't know yet" until authReady. Getting this wrong
+  // flashes "Sign in to sync" on every launch of a signed-in phone.
+  const out = syncIndicator({ ...base, authReady: false, signedIn: false });
+  assert.notEqual(out.text, "Sign in to sync");
+});
+
+test("a signed-in member on a healthy connection still reads as Synced", () => {
+  // The control: none of the above may swallow the ordinary good state.
+  assert.deepEqual(syncIndicator(base), { text: "Synced", tone: "good" });
+});
+
+test("local-only builds never mention signing in", () => {
+  // VITE_LOCAL_ONLY strips sync entirely; auth is meaningless there.
+  const out = syncIndicator({ ...base, syncEnabled: false, signedIn: false, accessDenied: true });
+  assert.equal(out.text, "Saved on this device");
+});
+
+test("a refused read outranks a refused write, because it explains it", () => {
+  const out = syncIndicator({ ...base, accessDenied: true, writeError: true });
+  assert.equal(out.text, "No access to this household");
 });

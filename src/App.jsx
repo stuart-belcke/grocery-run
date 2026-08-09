@@ -14,6 +14,7 @@ import {
   flushHousehold,
   markSynced,
   subscribeCatalog,
+  subscribeMembers,
   writeCatalog,
   markCatalogSynced,
   watchAuthUser,
@@ -23,7 +24,7 @@ import {
   signOutUser,
   recordHouseholdMembership,
 } from "./sync";
-import { C, fontDisplay, fontBody } from "./theme";
+import { C, fontDisplay, fontBody, syncTone } from "./theme";
 import { Stripe, Btn, ChoiceDialog } from "./ui";
 import {
   LOCAL_KEY,
@@ -47,6 +48,7 @@ import {
   isBuildTooOld,
   APP_DATA_VERSION,
   normalizeCatalog,
+  syncIndicator,
 } from "./lib";
 import { ListTab } from "./tabs/ListTab";
 import { MealsTab } from "./tabs/MealsTab";
@@ -99,8 +101,23 @@ export default function App() {
   // NOT offline, which the SDK handles by queuing and never surfaces here.
   // Self-correcting: cleared the moment any write succeeds again.
   const [writeError, setWriteError] = useState(false);
-  // Signed-in identity (item 37).
+  // Signed-in identity (item 37). Since CONTRACT this is what grants access
+  // to the household, not just a label on it.
   const [user, setUser] = useState(null);
+  // Whether Firebase has ANSWERED the question of who's signed in. Distinct
+  // from `user` being null, which before the first answer means "don't know
+  // yet" and after it means "nobody" — two states that need opposite UI.
+  // Auth restores asynchronously, so treating the initial null as "signed
+  // out" would flash "Sign in to sync" at every signed-in launch.
+  const [authReady, setAuthReady] = useState(false);
+  // Set when the database REFUSES a read (not signed in, or signed in
+  // without a membership record). Its own state rather than a syncStatus
+  // value, because it's orthogonal: the socket is connected and healthy —
+  // watchConnection would happily keep reporting "synced" — and it's the
+  // authorization on top of it that failed.
+  const [accessDenied, setAccessDenied] = useState(false);
+  // households/{code}/members, for the Settings list.
+  const [members, setMembers] = useState(null);
   // Bumped once recordHouseholdMembership's write actually lands. The
   // household/catalog subscribe effect below depends on it so a device that
   // signs in AFTER it's already subscribed (the common case — auth restores
@@ -232,7 +249,14 @@ export default function App() {
   // Item 37, first half: track the signed-in identity, and finish whichever
   // sign-in (a Google redirect, or a clicked email link) sent the browser
   // back here, if either did. completePendingSignIn is a no-op otherwise.
-  useEffect(() => watchAuthUser(setUser), []);
+  useEffect(
+    () =>
+      watchAuthUser((u) => {
+        setUser(u);
+        setAuthReady(true);
+      }),
+    []
+  );
   useEffect(() => {
     completePendingSignIn().then((result) => {
       if (result && !result.ok) setAuthError(result.code || "unknown error");
@@ -323,7 +347,13 @@ export default function App() {
       return;
     }
     setSyncStatus("connecting");
+    // A denial is terminal for the listener that hit it (Firebase removes it),
+    // so this both records the fact and is the reason the effect re-runs on
+    // membershipTick — that resubscribe is the only recovery.
+    const denied = () => setAccessDenied(true);
     const unsub = subscribeHousehold(code, (remote) => {
+      // Anything arriving at all proves the read was allowed.
+      setAccessDenied(false);
       const { use, push } = pickState(localRef.current, remote);
       if (use === "remote") {
         // Shared state is ahead of us (or level): adopt it, and don't re-push,
@@ -347,7 +377,7 @@ export default function App() {
         // never received — seed/repair it rather than losing the local copy.
         writeHousehold(code, localRef.current);
       }
-    });
+    }, denied);
     // The catalog has its own node and its own listener, so a checkbox tick on
     // the state node never re-reads seventeen recipes.
     const unsubCat = subscribeCatalog(code, (remote) => {
@@ -396,11 +426,16 @@ export default function App() {
       saveCatalogCache(code, ours);
       markCatalogSynced(code, null); // no baseline: send it with one full write
       writeCatalog(code, ours);
-    });
+    }, denied);
+    // Deliberately NOT gated on the catalog listener: this is the view you
+    // reach for when someone can't get in, which is exactly when the other
+    // listeners are the ones failing.
+    const unsubMembers = subscribeMembers(code, setMembers, () => setMembers(null));
     const unwatch = watchConnection(setSyncStatus);
     return () => {
       unsub();
       unsubCat();
+      unsubMembers();
       unwatch();
     };
     // membershipTick, not user: re-subscribing the instant sign-in state
@@ -442,6 +477,11 @@ export default function App() {
     };
   }, [catalog, local, hCatalog]);
 
+  // In lib.js, and unit-tested there: the case this exists to prevent — a
+  // connected socket over a refused read — is the one case a browser in this
+  // sandbox can't reproduce, so it needs coverage that doesn't need a network.
+  const sync = syncIndicator({ syncEnabled, authReady, signedIn: !!user, accessDenied, writeError, syncStatus });
+
   return (
     <div style={{ minHeight: "100vh", background: C.paper, color: C.ink, fontFamily: fontBody, fontSize: 15 }}>
       <style>{`
@@ -454,27 +494,11 @@ export default function App() {
         <header style={{ marginBottom: 18 }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
             <h1 style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 30, margin: 0 }}>Grocery Run</h1>
-            <span style={{ fontSize: 12, color: writeError || syncStatus === "offline" ? C.tomato : C.faint, display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <span style={{ fontSize: 12, color: sync.tone === "bad" || sync.tone === "warn" ? syncTone[sync.tone] : C.faint, display: "inline-flex", alignItems: "center", gap: 5 }}>
               {syncEnabled && (
-                <span
-                  aria-hidden
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: "50%",
-                    background: writeError ? C.tomato : syncStatus === "synced" ? C.green : syncStatus === "offline" ? C.tomato : C.faint,
-                  }}
-                />
+                <span aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: syncTone[sync.tone] }} />
               )}
-              {!syncEnabled
-                ? "Saved on this device"
-                : writeError
-                ? "Sync error — changes may not be saved"
-                : syncStatus === "synced"
-                ? "Synced"
-                : syncStatus === "offline"
-                ? "Offline — will sync"
-                : "Connecting…"}
+              {sync.text}
             </span>
           </div>
           <div style={{ marginTop: 10 }}>
@@ -548,8 +572,10 @@ export default function App() {
             setLocal={setLocal}
             code={code}
             setCode={setCode}
-            syncStatus={syncStatus}
+            sync={sync}
             user={user}
+            accessDenied={accessDenied}
+            members={members}
             authError={authError}
             signInWithGoogle={signInWithGoogle}
             sendEmailSignInLink={sendEmailSignInLink}
