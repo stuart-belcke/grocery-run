@@ -684,7 +684,18 @@ function newToken() {
 
 // Create an invite. Only a member can, which the rules enforce — the right
 // to let somebody in belongs to the people already in.
-export async function createInvite(code, user, ttlMinutes = 60, role = "member") {
+/* Takes an OPTIONS OBJECT rather than positional arguments, and returns the
+   role it actually wrote. Both of those are scar tissue from the same bug: a
+   wrapper in App.jsx read as `(ttl) => createInvite(code, user, ttl)`, which
+   silently swallowed a second positional `role` and made every invite a full
+   one. The guest button still LABELLED its link "~g", so the link claimed
+   guest while the stored invite said member — and the rules, correctly,
+   refuse a redemption where those two disagree. A guest link that cannot be
+   redeemed, from a button that looked like it worked.
+   One argument cannot be half-forwarded, and a caller that builds the link
+   from the RETURNED role cannot describe an invite the database didn't
+   store. */
+export async function createInvite(code, user, { ttlMinutes = 60, role = "member" } = {}) {
   const db = await getDb();
   if (!db) return null;
   const { ref, set } = await import("firebase/database");
@@ -700,7 +711,7 @@ export async function createInvite(code, user, ttlMinutes = 60, role = "member")
       ...(role === "guest" ? { role: "guest" } : {}),
     });
     reportWriteOk();
-    return token;
+    return { token, role };
   } catch (e) {
     reportWriteError(e);
     return null;
