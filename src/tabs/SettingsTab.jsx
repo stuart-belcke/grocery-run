@@ -7,10 +7,10 @@
 import { useState, useEffect, useMemo } from "react";
 import { C, fontBody, inputStyle, syncTone } from "../theme";
 import { Btn, ConfirmDialog, AlertDialog, Section, Seg } from "../ui";
-import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, catalogConfigKey, catalogNameCollisions } from "../lib";
-import { syncEnabled, cleanCode } from "../sync";
+import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, catalogConfigKey, catalogNameCollisions, classifyJoinInput, formatInvite, inviteLive } from "../lib";
+import { syncEnabled } from "../sync";
 
-export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, sync, user, accessDenied, members, authError, signInWithGoogle, sendEmailSignInLink, signOutUser }) {
+export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, sync, user, accessDenied, members, invites, createInvite, revokeInvite, joinWithInvite, removeMember, authError, signInWithGoogle, sendEmailSignInLink, signOutUser }) {
   const prefs = data.prefs;
   const setPref = (patch) => updateCatalog((c) => ({ ...c, prefs: { ...c.prefs, ...patch } }));
   // The members node as written: { uid: { email, displayName, updatedAt } }.
@@ -84,23 +84,77 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
 
   useEffect(() => setCodeInput(code), [code]);
 
-  const joinCode = () => {
-    const c = cleanCode(codeInput);
-    if (c.length < 8) {
+  /* One field, two meanings, decided by whether the text parses as an invite.
+     A bare code is "switch to a household I'm ALREADY in" — the recovery path
+     for a reinstalled phone, which still works because the account is already
+     a member. An invite is "let me into one I'm not in", and since item 37's
+     rules that is the only way in. Splitting these into two inputs would mean
+     asking the user to classify a string they were just handed. */
+  const joinCode = async () => {
+    const parsed = classifyJoinInput(codeInput);
+    if (parsed.kind === "broken") {
+      setCodeMsg("That invite looks incomplete — paste the whole thing, including the part after the ~.");
+      return;
+    }
+    if (parsed.kind === "short") {
       setCodeMsg("Use at least 8 letters/numbers so the code stays private.");
       return;
     }
-    if (c === code) {
+    if (parsed.kind === "invite") {
+      if (!user) {
+        setCodeMsg("Sign in first — an invite is accepted for an account, not a phone.");
+        return;
+      }
+      setCodeMsg("Joining…");
+      const res = await joinWithInvite(parsed.code, parsed.token, user);
+      if (!res.ok) {
+        setCodeMsg("That invite didn't work — it may have expired or already been used. Ask for a new one.");
+        return;
+      }
+      setAskJoin(parsed.code);
+      setCodeMsg("");
+      return;
+    }
+    if (parsed.code === code) {
       setCodeMsg("Already using that code.");
       return;
     }
-    setAskJoin(c);
+    setAskJoin(parsed.code);
   };
 
   const commitJoin = (c) => {
     setCode(c);
     setCodeMsg("Joined — this phone now syncs with that household.");
     setAskJoin(null);
+  };
+
+  /* ---------- invites ---------- */
+
+  const [inviteMsg, setInviteMsg] = useState("");
+  const [inviting, setInviting] = useState(false);
+  const [askRemove, setAskRemove] = useState(null); // member pending removal
+
+  const inviteList = useMemo(
+    () =>
+      Object.entries(invites || {})
+        .map(([token, v]) => ({ token, ...(v || {}) }))
+        .filter((i) => inviteLive(i))
+        .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)),
+    [invites]
+  );
+
+  const makeInvite = async () => {
+    setInviting(true);
+    setInviteMsg("");
+    const token = await createInvite(60);
+    setInviting(false);
+    if (!token) {
+      setInviteMsg("Couldn't create an invite. You have to be a member of this household to invite someone.");
+      return;
+    }
+    // Hand over ONE string carrying both halves: a token alone doesn't say
+    // which household it opens, and a code alone no longer opens anything.
+    copyText(formatInvite(code, token), "Invite copied — paste it on the other phone within the hour.");
   };
 
   /* ---------- backup / catalog export ---------- */
@@ -287,7 +341,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
             <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 12px" }}>
               Both phones using the <b>same household code</b> share one live shopping list, week plan, and store choices. Set the same code on each phone once; after that, changes appear on both whenever you're online (and queue up when you're not).
             </p>
-            <label htmlFor="household-code" style={{ fontSize: 12, color: C.faint, display: "block", marginBottom: 4 }}>Household code</label>
+            <label htmlFor="household-code" style={{ fontSize: 12, color: C.faint, display: "block", marginBottom: 4 }}>Household code, or an invite</label>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <input
                 id="household-code"
@@ -302,7 +356,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
             </div>
             {codeMsg && <div style={{ fontSize: 12, color: C.faint, marginTop: 8 }}>{codeMsg}</div>}
             <p style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
-              Keep this code private — anyone <b>signed in</b> who knows it can join this household and edit your list. Joining a different code makes this phone adopt that household&apos;s data (this phone&apos;s current list is replaced, so export a backup first if you need it).
+              The code alone no longer lets anyone in — joining a household you&apos;re not already in needs an invite from someone who is. Switching household makes this phone adopt that household&apos;s data (this phone&apos;s current list is replaced, so export a backup first if you need it).
             </p>
 
             {/* Item 37: the list you check when someone can't get in. Reads
@@ -316,9 +370,13 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
               ) : memberList.length ? (
                 <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
                   {memberList.map((m) => (
-                    <li key={m.uid} style={{ fontSize: 13, color: C.ink, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "baseline" }}>
-                      <span>{m.email || m.displayName || m.uid}</span>
-                      {m.uid === user.uid && <span style={{ fontSize: 11, color: C.green, fontWeight: 500 }}>this phone</span>}
+                    <li key={m.uid} style={{ fontSize: 13, color: C.ink, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                      <span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>{m.email || m.displayName || m.uid}</span>
+                      {m.uid === user.uid ? (
+                        <span style={{ fontSize: 11, color: C.green, fontWeight: 500 }}>this phone</span>
+                      ) : (
+                        <Btn small kind="danger" onClick={() => setAskRemove(m)}>Remove</Btn>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -327,9 +385,30 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                   {accessDenied ? "Can't read the member list from here — this account doesn't have access to this household yet." : "Nobody yet."}
                 </p>
               )}
-              <p style={{ fontSize: 12, color: C.faint, margin: "8px 0 0" }}>
-                Signing in on a phone that has this code adds that account here automatically. Removing someone isn&apos;t built yet — the code is still what lets an account join.
-              </p>
+
+              {user && !accessDenied && (
+                <div style={{ marginTop: 12 }}>
+                  <Btn onClick={makeInvite} disabled={inviting}>{inviting ? "Creating…" : "Invite another phone"}</Btn>
+                  {inviteMsg && <div style={{ fontSize: 13, fontWeight: 500, color: C.tomato, marginTop: 8 }}>{inviteMsg}</div>}
+                  {inviteList.length > 0 && (
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ fontSize: 12, color: C.faint, marginBottom: 4 }}>Unused invites</div>
+                      <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+                        {inviteList.map((i) => (
+                          <li key={i.token} style={{ fontSize: 12, color: C.faint, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                            <span style={{ flex: 1, minWidth: 0, fontFamily: "ui-monospace, Menlo, monospace", wordBreak: "break-all" }}>{i.token.slice(0, 6)}…</span>
+                            <Btn small onClick={() => copyText(formatInvite(code, i.token), "Invite copied.")}>Copy</Btn>
+                            <Btn small kind="danger" onClick={() => revokeInvite(i.token)}>Revoke</Btn>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <p style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
+                    An invite is one link that expires in an hour. Paste it into this same box on the other phone, signed in. Removing someone here takes their access away for good — the code alone won&apos;t let them back in.
+                  </p>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -488,6 +567,24 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         onCancel={() => setAskJoin(null)}
       >
         This phone will start showing household <b style={{ color: C.ink }}>{askJoin}</b>'s synced list, meals and settings instead of the current one.
+      </ConfirmDialog>
+
+      {/* Removal is the whole point of invites existing, so it says plainly
+          that it actually holds — the previous design let a removed account
+          walk straight back in with the code. */}
+      <ConfirmDialog
+        open={!!askRemove}
+        title="Remove this account?"
+        confirmLabel="Remove"
+        onConfirm={() => {
+          removeMember(askRemove.uid);
+          setAskRemove(null);
+        }}
+        onCancel={() => setAskRemove(null)}
+      >
+        <b style={{ color: C.ink }}>{askRemove && (askRemove.email || askRemove.displayName || askRemove.uid)}</b> will
+        lose access to this household&apos;s list, meals and settings. Knowing the
+        household code won&apos;t get them back in — they&apos;d need a new invite.
       </ConfirmDialog>
 
       <ConfirmDialog

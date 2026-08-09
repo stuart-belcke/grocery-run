@@ -21,15 +21,12 @@
         // for: before it, anyone who had ever seen the code had permanent
         // access with no way to tell who they were or to take it away.
         //
-        // Self-service joining is UNCHANGED and still deliberate: any
-        // signed-in account that knows the code writes its own membership
-        // record (see "members" below) and is in. So this makes access
-        // identified and enumerable — you can see exactly which accounts
-        // hold a household — but not yet revocable, since a removed account
-        // that still knows the code can sign in and rejoin. Making removal
-        // stick means replacing self-service join with invites, which is
-        // item 37's remaining future work and a product decision, not a
-        // rules one.
+        // Knowing the code is NO LONGER ENOUGH TO JOIN. An account becomes
+        // a member one of three ways, all under "members" below: it claims
+        // an unclaimed household, it redeems an unexpired invite created by
+        // an existing member, or it already had a record. That is what makes
+        // removal actually stick — a removed account still knows the code,
+        // and now the code buys it nothing.
         ".read": "auth != null && root.child('households').child($code).child('members').child(auth.uid).exists()",
         ".write": "auth != null && root.child('households').child($code).child('members').child(auth.uid).exists()",
 
@@ -70,22 +67,54 @@
           }
         },
 
-        // Item 37. Membership records: an account can only ever write the
-        // record that names itself (auth.uid == $uid), never forge one for
-        // someone else. This needs its own explicit ".write", not just
-        // ".validate" — the $code-level ".write" above now requires
-        // membership, and the account that needs this write is precisely
-        // the one that ISN'T a member yet. Without a deeper grant, joining
-        // would be impossible by construction: the write that makes you a
-        // member would itself require already being one. A deeper ".write"
-        // grants where a shallower one denied, which is what makes this the
-        // one door into a household.
-        // It is also the ONLY thing a non-member may write here, and only
-        // at its own uid — so this opens joining, not the household.
+        // Item 37. THE ONLY DOOR INTO A HOUSEHOLD. This needs its own
+        // ".write" because the $code-level one above requires membership,
+        // and the account that needs this write is precisely the one that
+        // isn't a member yet — without a deeper grant, joining would be
+        // impossible by construction. A deeper ".write" grants where a
+        // shallower one denied, so everything that decides who may join is
+        // concentrated in this one expression, on purpose.
+        //
+        // Four cases, and nothing else is permitted:
+        //   1. data.exists() — I already have a record here. Covers both
+        //      refreshing it on every load and deleting it to leave.
+        //   2. the household has NO members at all — first claim. A brand
+        //      new code has to become somebody's somehow, and every real
+        //      household already has members, so this can't be turned on an
+        //      occupied one. (A household whose last member leaves becomes
+        //      claimable again. That is abandonment, not a back door.)
+        //   3. an unexpired invite, presented as `invite` in the record
+        //      being written. `now` is server time, so a device with a wrong
+        //      clock can't extend its own window. isString() guards the
+        //      lookup: child(null) on a missing field is not a valid path.
+        //   4. a deletion by an existing member — removing somebody else.
+        //      Deletion only; a member can never CREATE or edit another
+        //      account's record, which is what keeps a member record honest
+        //      about who wrote it.
+        //
+        // Cases 1-3 all require auth.uid == $uid, so no account can ever
+        // forge a record for another. Case 4 is the sole exception and is
+        // limited to taking one away.
         "members": {
           "$uid": {
-            ".write": "auth != null && auth.uid == $uid",
-            ".validate": "auth != null && auth.uid == $uid"
+            ".write": "auth != null && ((auth.uid == $uid && (data.exists() || !root.child('households').child($code).child('members').exists() || (newData.child('invite').isString() && root.child('households').child($code).child('invites').child(newData.child('invite').val()).child('exp').val() > now))) || (!newData.exists() && root.child('households').child($code).child('members').child(auth.uid).exists()))",
+            ".validate": "auth != null && auth.uid == $uid && newData.hasChild('updatedAt')"
+          }
+        },
+
+        // Item 37. Invites. Only a member can create or revoke one, so the
+        // right to let somebody in belongs to the people already in.
+        // Redemption does NOT delete the invite here — the redeemer isn't a
+        // member at the moment they redeem, and opening deletion to
+        // non-members would let anyone holding the code burn every
+        // outstanding invite. The app deletes it immediately AFTER joining,
+        // by which point it IS a member and this rule allows it; if that
+        // second write is lost the invite simply expires on its own.
+        "invites": {
+          ".read": "auth != null && root.child('households').child($code).child('members').child(auth.uid).exists()",
+          "$token": {
+            ".write": "auth != null && root.child('households').child($code).child('members').child(auth.uid).exists()",
+            ".validate": "newData.hasChildren(['by', 'exp']) && newData.child('exp').isNumber() && newData.child('by').val() == auth.uid"
           }
         }
       }

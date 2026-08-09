@@ -168,7 +168,9 @@ rather than saving them for a cleanup that never gets scheduled.
 
 21. Keep the database seam narrow. Every database call lives in sync.js, and
     App.jsx is the only component that touches sync at all (SettingsTab
-    imports syncEnabled and cleanCode — a boolean and a string helper). That
+    imports syncEnabled, and nothing else — cleanCode moved to lib.js when
+    parseInvite needed the same alphabet, which narrowed this further; the
+    invite and member calls it needs arrive as props). That
     property, not any clever abstraction, is why RTDB could be swapped for
     Firestore in days rather than weeks. Defend it deliberately as usage
     grows and the right database stops being obvious:
@@ -652,12 +654,8 @@ MEASURED AND DELIBERATELY NOT PROBLEMS
     deeper grant, joining is impossible by construction — the write that
     makes you a member would require already being one. That deeper grant is
     the one door into a household, and it opens only at the caller's own uid.
-    WHAT IT CLOSES: access is now identified and enumerable. What it does
-    NOT close: self-service joining is unchanged, so any signed-in account
-    that knows the code still joins itself. Removal therefore doesn't stick
-    — a removed account that still has the code signs in and rejoins. Real
-    revocation means replacing self-service join with invites, which is a
-    product decision, not a rules one.
+    Access is now identified and enumerable. Self-service joining is GONE
+    as of the invite work below, so removal actually sticks.
 
     REQUIRING AUTH FORCED APP WORK, and it is the more interesting half.
     Once a signed-out phone is refused everything, the app had three ways to
@@ -724,25 +722,93 @@ MEASURED AND DELIBERATELY NOT PROBLEMS
     stale "doesn't change anything yet" copy is gone, and that the member
     list renders its signed-out state.
 
+    [BUILT, NOT YET DEPLOYED] INVITES — the step that makes removing
+    somebody mean something. Before it, membership was self-service: any
+    signed-in account holding the code wrote its own record, so taking a
+    member out was decoration — they knew the code, so they rejoined.
+    An account now becomes a member exactly three ways, all concentrated in
+    the members/$uid ".write":
+      1. it already has a record (refreshing it, or deleting it to leave)
+      2. the household has NO members — first claim, which a brand new code
+         needs and which no occupied household can be turned into
+      3. it presents an unexpired invite token created by an existing member
+    Plus one exception that only ever TAKES access away: a member may DELETE
+    another member's record, never create or edit one.
+    An invite is households/{code}/invites/{token} = { by, byEmail,
+    createdAt, exp }, created only by a member, expiring in an hour.
+    THE REDEEMER DELETES IT AS A SECOND WRITE, not atomically with joining.
+    At the moment of redeeming they aren't a member yet, and letting a
+    non-member delete invites would let anyone holding the code burn every
+    outstanding one — a denial of service on joining. Doing it immediately
+    after works because by then they ARE a member; if that write is lost the
+    invite just expires.
+    THE CODE STILL SWITCHES HOUSEHOLDS for an account that is ALREADY a
+    member. That is the recovery path — a reinstalled phone mints a new
+    device code and has to get back to the real household — and it is safe
+    precisely because it grants nothing: the rules check membership, not the
+    code. One field in Settings takes either, since a user handed a string
+    shouldn't have to classify it.
+
+    RULES ARE NOW TESTED, which is the part that makes any of the above
+    trustworthy. tests/rules/ runs the REAL Firebase database emulator
+    against the REAL database.rules.json — 24 cases covering the stranger
+    who knows the code, forged records, expired and revoked and reused
+    invites, removal sticking, first claim, and the pre-existing guarantees
+    (no enumerating /households, updatedAt must be a number, users/{uid}
+    private). `npm run test:rules`, wired into CI before the build, skipping
+    rather than failing where there's no JVM or emulator jar.
+    Mutation-tested both ways: restoring self-service join fails exactly 7
+    cases including "a stranger cannot make herself a member" and "removal
+    sticks"; opening invite creation to non-members fails exactly 2.
+    THE CLI DOESN'T WORK HERE and the harness deliberately doesn't use it:
+    `firebase emulators:start` routes its own rules upload through this
+    sandbox's HTTP proxy even for 127.0.0.1, which answers "denied by ..."
+    and fails before any test runs. The harness drives the emulator jar and
+    its REST API directly, minting unsigned "alg":"none" JWTs the way
+    @firebase/rules-unit-testing does.
+    THIS DOES NOT PROVE THE CONSOLE MATCHES THE FILE. That is still a manual
+    paste. It proves the thing being pasted is right before it goes, which
+    is the half that was previously pure reasoning.
+
+    A BUG THE BROWSER FOUND AND THE UNIT TESTS DIDN'T: a truncated invite
+    ("home-cx2ur9zg~short") parses as no invite, and the join field then
+    fell through to treating it as a household CODE — cleanCode strips the
+    `~`, leaving "home-cx2ur9zgshort", a different household, which the app
+    cheerfully offered to switch to. Switching replaces this phone's list,
+    so silently resolving a bad paste to the wrong household is the most
+    expensive possible reading of it. The decision moved into lib.js as
+    classifyJoinInput (code / invite / broken / short) with tests: a `~`
+    present at all means an invite was intended, and if it doesn't parse
+    that is broken, never a code. parseInvite alone had passing tests the
+    whole time — the hole was in what the component did with a null.
+
     WHAT'S LEFT
       - DELETE the throwaway home-* households in the console FIRST. After
         CONTRACT the two holding both accounts would read as real ones.
-      - SIGN THE SECOND PHONE IN, then PASTE the updated
-        database.rules.json (same manual step as item 34). Order matters:
-        paste before both phones are signed in and the un-signed-in one
-        stops syncing immediately.
-      - VERIFY ON BOTH PHONES afterward, and specifically: sign out and back
-        in mid-session and confirm the list resumes updating rather than
-        going quietly stale. That is the resubscribe path above, and it is
-        the one piece of this that reasoning has not been able to check.
+      - SIGN BOTH PHONES IN **BEFORE** PASTING, and check each shows up in
+        Settings' member list. Both accounts already have member records
+        from the EXPAND phase, so nobody is locked out by the paste — but a
+        phone that is signed OUT when the rules land stops syncing on the
+        spot. Nothing is lost when that happens (edits keep saving locally
+        and push once it's allowed again), it just looks broken.
+      - PASTE database.rules.json (same manual step as item 34).
+      - VERIFY ON BOTH PHONES afterward. Three things, none of which this
+        sandbox could check because it has no path to Firebase:
+          * sign out and back in mid-session — the list must resume
+            updating rather than going quietly stale (the resubscribe path).
+          * invite the other phone end to end, from a real Settings screen.
+          * remove an account and confirm the code alone does NOT let it
+            back in. That is the whole point, and the only proof that
+            matters is the live database.
       - Narrow listeners: item 21's read half. Still deliberately deferred,
         and the catalog move made the case WEAKER rather than stronger, since
         the growth landed on its own node instead of on `state`.
-      - Invites, roles, billing, a landing page. Ordinary product work once
+      - Roles, billing, a landing page. Ordinary product work once
         re-parenting exists, and none of it is a foundation question.
-        Invites are the one with a reason to happen: until an account is
-        added by an existing member rather than by knowing the code,
-        removing someone can't stick.
+        Roles would be the next real one: today every member is equal, so
+        anyone in a household can remove anyone else, including the account
+        that created it. Fine for two people who live together; not fine
+        the moment a third party is ever in one.
 
     Firestore is not a step here. It becomes worth adopting when one of its
     advantages actually binds — most likely offline persistence, or history

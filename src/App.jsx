@@ -15,6 +15,11 @@ import {
   markSynced,
   subscribeCatalog,
   subscribeMembers,
+  subscribeInvites,
+  createInvite,
+  revokeInvite,
+  joinWithInvite,
+  removeMember,
   writeCatalog,
   markCatalogSynced,
   watchAuthUser,
@@ -116,8 +121,9 @@ export default function App() {
   // watchConnection would happily keep reporting "synced" — and it's the
   // authorization on top of it that failed.
   const [accessDenied, setAccessDenied] = useState(false);
-  // households/{code}/members, for the Settings list.
+  // households/{code}/members and .../invites, for the Settings list.
   const [members, setMembers] = useState(null);
+  const [invites, setInvites] = useState(null);
   // Bumped once recordHouseholdMembership's write actually lands. The
   // household/catalog subscribe effect below depends on it so a device that
   // signs in AFTER it's already subscribed (the common case — auth restores
@@ -431,11 +437,13 @@ export default function App() {
     // reach for when someone can't get in, which is exactly when the other
     // listeners are the ones failing.
     const unsubMembers = subscribeMembers(code, setMembers, () => setMembers(null));
+    const unsubInvites = subscribeInvites(code, setInvites, () => setInvites(null));
     const unwatch = watchConnection(setSyncStatus);
     return () => {
       unsub();
       unsubCat();
       unsubMembers();
+      unsubInvites();
       unwatch();
     };
     // membershipTick, not user: re-subscribing the instant sign-in state
@@ -576,6 +584,11 @@ export default function App() {
             user={user}
             accessDenied={accessDenied}
             members={members}
+            invites={invites}
+            createInvite={(ttl) => createInvite(code, user, ttl)}
+            revokeInvite={(token) => revokeInvite(code, token)}
+            joinWithInvite={joinWithInvite}
+            removeMember={(uid) => removeMember(code, uid)}
             authError={authError}
             signInWithGoogle={signInWithGoogle}
             sendEmailSignInLink={sendEmailSignInLink}

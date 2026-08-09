@@ -1348,3 +1348,72 @@ export function syncIndicator({ syncEnabled, authReady, signedIn, accessDenied, 
   if (syncStatus === "offline") return { text: "Offline — will sync", tone: "bad" };
   return { text: "Connecting…", tone: "faint" };
 }
+
+/* ---------------------- invites (item 37) ----------------------------
+   An invite is a household code and a one-time token travelling together,
+   because a token alone doesn't say which household it opens and a code
+   alone is no longer enough to join anything.
+
+   `~` separates them: codes are [a-z0-9-] and tokens are [a-z0-9], so the
+   separator can't occur inside either half and splitting is unambiguous
+   however either side is mangled by a messaging app.
+
+   Kept here, pure, so the join field can tell an invite from a plain code
+   without a network round trip — and so the parsing has tests, since this
+   is the one string a user retypes by hand. */
+
+export function cleanCode(s) {
+  return (s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "")
+    .slice(0, 40);
+}
+
+export function formatInvite(code, token) {
+  return `${code}~${token}`;
+}
+
+// Returns { code, token }, or null for anything that isn't an invite —
+// including a bare household code, which the caller treats as "switch to a
+// household I'm already in" rather than as a malformed invite.
+export function parseInvite(s) {
+  const raw = String(s == null ? "" : s).trim();
+  const at = raw.indexOf("~");
+  if (at < 0) return null;
+  const code = cleanCode(raw.slice(0, at));
+  const token = raw
+    .slice(at + 1)
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+  // Both halves have to be long enough to be real. A short one means a
+  // truncated paste, and guessing at it would join the wrong household.
+  if (code.length < 8 || token.length < 8) return null;
+  return { code, token };
+}
+
+// An invite is dead once it expires; the rules enforce the same bound with
+// server time, so this is only for what the UI shows.
+export function inviteLive(invite, nowMs = Date.now()) {
+  return !!invite && typeof invite.exp === "number" && invite.exp > nowMs;
+}
+
+/* What the user typed into the one join field. A separate decision from
+   parseInvite because of a bug found by driving the real UI: a TRUNCATED
+   invite ("home-cx2ur9zg~short") parses as no invite, and the old code then
+   fell through to treating it as a household code — cleanCode strips the
+   `~`, leaving "home-cx2ur9zgshort", a different and almost certainly
+   non-existent household, which the app then offered to switch to. Joining
+   a household replaces this phone's list, so silently resolving a bad paste
+   to the WRONG household is the most expensive possible reading of it.
+
+   A `~` present at all means an invite was intended. If it doesn't parse,
+   that is broken, never a code. */
+export function classifyJoinInput(s) {
+  const raw = String(s == null ? "" : s).trim();
+  if (raw.includes("~")) {
+    const invite = parseInvite(raw);
+    return invite ? { kind: "invite", ...invite } : { kind: "broken" };
+  }
+  const code = cleanCode(raw);
+  return code.length >= 8 ? { kind: "code", code } : { kind: "short" };
+}

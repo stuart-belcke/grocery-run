@@ -12,7 +12,7 @@
  * ------------------------------------------------------------------ */
 
 import { firebaseConfig, syncEnabled } from "./firebase-config";
-import { planWrite } from "./lib";
+import { planWrite, cleanCode } from "./lib";
 
 /* ------------------------- write failure signal ---------------------
    A rejected write (security rules, quota, a malformed payload) used to be
@@ -116,12 +116,10 @@ export function saveDeviceCode(code) {
 }
 
 // RTDB keys can't contain . # $ [ ] / — keep codes to a safe alphabet.
-export function cleanCode(s) {
-  return (s || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "")
-    .slice(0, 40);
-}
+// Lives in lib.js now (parseInvite needs the same alphabet, and two copies
+// of a charset rule is how they drift). Re-exported so callers importing it
+// from the sync seam keep working.
+export { cleanCode };
 
 /* ----------------------------- cache ------------------------------- */
 
@@ -611,9 +609,17 @@ async function writeUserRecord(user) {
    written there: a member record can only ever be written by the account it
    claims to represent, never forged for someone else, even though the
    broader household tree remains as open as it always was.                */
+// Refreshes the membership record for a household this account is ALREADY in.
+// Since invites landed it can no longer create one — the rules only accept
+// this write when a record already exists — so a denial here is the ordinary
+// answer for "signed in, looking at a household you were never in", not a
+// fault. That's why it doesn't reportWriteError: doing so would light the
+// "Sync error" indicator every time somebody typed a code they don't have,
+// which is precisely when a clear "you need an invite" message matters most.
+// Returns whether the refresh landed, which is what tells App it's a member.
 export async function recordHouseholdMembership(code, user) {
   const db = await getDb();
-  if (!db) return;
+  if (!db) return false;
   const { ref, set } = await import("firebase/database");
   try {
     await set(ref(db, `households/${code}/members/${user.uid}`), {
@@ -622,7 +628,134 @@ export async function recordHouseholdMembership(code, user) {
       updatedAt: Date.now(),
     });
     reportWriteOk();
+    return true;
+  } catch (e) {
+    if (e && e.code === "PERMISSION_DENIED") return false;
+    reportWriteError(e);
+    return false;
+  }
+}
+
+/* ----------------------------- invites -----------------------------
+   The mechanism that makes removing somebody actually stick. Before this,
+   membership was self-service — any signed-in account holding the code
+   wrote its own record — so taking a member out was decoration: they knew
+   the code, so they simply rejoined. Now the code addresses a household and
+   an invite is what authorises joining one.                              */
+
+// Long enough not to be guessable, and in the same [a-z0-9] alphabet the
+// database accepts as a key. crypto where it exists; Math.random is the
+// fallback and is never the only source on a real browser.
+function newToken() {
+  const rand = () => Math.random().toString(36).slice(2, 12);
+  try {
+    const b = new Uint8Array(16);
+    (globalThis.crypto || {}).getRandomValues?.(b);
+    if (b.some((x) => x !== 0)) return [...b].map((x) => x.toString(36)).join("").slice(0, 20);
+  } catch (e) {
+    /* fall through */
+  }
+  return (rand() + rand()).slice(0, 20);
+}
+
+// Create an invite. Only a member can, which the rules enforce — the right
+// to let somebody in belongs to the people already in.
+export async function createInvite(code, user, ttlMinutes = 60) {
+  const db = await getDb();
+  if (!db) return null;
+  const { ref, set } = await import("firebase/database");
+  const token = newToken();
+  try {
+    await set(ref(db, `households/${code}/invites/${token}`), {
+      by: user.uid,
+      byEmail: user.email || null,
+      createdAt: Date.now(),
+      exp: Date.now() + ttlMinutes * 60 * 1000,
+    });
+    reportWriteOk();
+    return token;
   } catch (e) {
     reportWriteError(e);
+    return null;
   }
+}
+
+export async function revokeInvite(code, token) {
+  const db = await getDb();
+  if (!db) return false;
+  const { ref, remove } = await import("firebase/database");
+  try {
+    await remove(ref(db, `households/${code}/invites/${token}`));
+    reportWriteOk();
+    return true;
+  } catch (e) {
+    reportWriteError(e);
+    return false;
+  }
+}
+
+// Redeem an invite: write our own member record carrying the token, which is
+// what the rule checks. THEN delete the invite — deliberately a second write,
+// because at the moment of redeeming we are not yet a member and the rules
+// keep invite deletion members-only so nobody holding the code can burn every
+// outstanding invite. If this second write is lost the invite just expires.
+export async function joinWithInvite(code, token, user) {
+  const db = await getDb();
+  if (!db) return { ok: false, code: "no-db" };
+  const { ref, set, remove } = await import("firebase/database");
+  try {
+    await set(ref(db, `households/${code}/members/${user.uid}`), {
+      email: user.email || null,
+      displayName: user.displayName || null,
+      updatedAt: Date.now(),
+      invite: token,
+    });
+  } catch (e) {
+    // The expected failure: expired, revoked, already used, or simply wrong.
+    return { ok: false, code: (e && e.code) || "denied" };
+  }
+  try {
+    await remove(ref(db, `households/${code}/invites/${token}`));
+  } catch (e) {
+    /* already in; the invite expires on its own */
+  }
+  reportWriteOk();
+  return { ok: true };
+}
+
+// Remove a member. The rules allow a member to DELETE another member's
+// record but never to create or edit one.
+export async function removeMember(code, uid) {
+  const db = await getDb();
+  if (!db) return false;
+  const { ref, remove } = await import("firebase/database");
+  try {
+    await remove(ref(db, `households/${code}/members/${uid}`));
+    reportWriteOk();
+    return true;
+  } catch (e) {
+    reportWriteError(e);
+    return false;
+  }
+}
+
+export function subscribeInvites(code, cb, onError) {
+  if (!syncEnabled) return () => {};
+  let live = true;
+  let off = () => {};
+  getDb().then(async (db) => {
+    if (!db || !live) return;
+    const { ref, onValue } = await import("firebase/database");
+    off = onValue(
+      ref(db, `households/${code}/invites`),
+      (snap) => cb(snap.val()),
+      (e) => {
+        if (live && onError) onError(e);
+      }
+    );
+  });
+  return () => {
+    live = false;
+    off();
+  };
 }

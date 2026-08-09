@@ -6,6 +6,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
+  classifyJoinInput,
+  parseInvite,
+  formatInvite,
+  inviteLive,
   syncIndicator,
   normalizeLocal,
   emptyLocal,
@@ -1559,4 +1563,77 @@ test("local-only builds never mention signing in", () => {
 test("a refused read outranks a refused write, because it explains it", () => {
   const out = syncIndicator({ ...base, accessDenied: true, writeError: true });
   assert.equal(out.text, "No access to this household");
+});
+
+/* ------------------- invites (item 37) ------------------- */
+
+test("an invite round-trips through the string a user actually pastes", () => {
+  const s = formatInvite("home-cx2ur9zg", "abcdefgh1234");
+  assert.deepEqual(parseInvite(s), { code: "home-cx2ur9zg", token: "abcdefgh1234" });
+});
+
+test("a bare household code is not an invite", () => {
+  // It must parse as null, not as a malformed invite: the join field treats
+  // null as "switch to a household I'm already in", which is the recovery
+  // path for a reinstalled phone and has to keep working.
+  assert.equal(parseInvite("home-cx2ur9zg"), null);
+});
+
+test("a truncated invite is refused rather than guessed at", () => {
+  // Half a paste must never resolve to a household — joining the wrong one
+  // replaces this phone's list.
+  assert.equal(parseInvite("home-cx2ur9zg~short"), null);
+  assert.equal(parseInvite("short~abcdefgh1234"), null);
+  assert.equal(parseInvite("~abcdefgh1234"), null);
+  assert.equal(parseInvite("home-cx2ur9zg~"), null);
+});
+
+test("an invite survives being mangled by a messaging app", () => {
+  // Whitespace, a capitalised first letter, a trailing full stop.
+  assert.deepEqual(parseInvite("  Home-CX2UR9ZG~ABCDEFGH1234.  "), {
+    code: "home-cx2ur9zg",
+    token: "abcdefgh1234",
+  });
+});
+
+test("only the first separator splits, so a token can't smuggle one in", () => {
+  assert.deepEqual(parseInvite("home-cx2ur9zg~aaaa~bbbb1234"), {
+    code: "home-cx2ur9zg",
+    token: "aaaabbbb1234",
+  });
+});
+
+test("parseInvite never throws on junk", () => {
+  for (const junk of [null, undefined, "", "~", "~~~", 42, {}]) {
+    assert.equal(parseInvite(junk), null);
+  }
+});
+
+test("an expired invite is not live", () => {
+  const now = 1_000_000;
+  assert.equal(inviteLive({ exp: now + 1 }, now), true);
+  assert.equal(inviteLive({ exp: now - 1 }, now), false);
+  assert.equal(inviteLive({ exp: now }, now), false); // exactly expired is expired
+  assert.equal(inviteLive({}, now), false);
+  assert.equal(inviteLive(null, now), false);
+});
+
+test("a truncated invite is never resolved to a household code", () => {
+  // THE BUG THIS EXISTS FOR, found in a browser and not by reasoning:
+  // cleanCode strips the `~`, so "home-cx2ur9zg~short" used to become the
+  // code "home-cx2ur9zgshort" and the app offered to switch to it —
+  // replacing this phone's list with a different household's.
+  assert.deepEqual(classifyJoinInput("home-cx2ur9zg~short"), { kind: "broken" });
+  assert.deepEqual(classifyJoinInput("home-cx2ur9zg~"), { kind: "broken" });
+  assert.deepEqual(classifyJoinInput("~abcdefgh1234"), { kind: "broken" });
+});
+
+test("the join field still tells a code from an invite", () => {
+  assert.deepEqual(classifyJoinInput("home-cx2ur9zg"), { kind: "code", code: "home-cx2ur9zg" });
+  assert.deepEqual(classifyJoinInput("home-cx2ur9zg~abcdefgh1234"), {
+    kind: "invite",
+    code: "home-cx2ur9zg",
+    token: "abcdefgh1234",
+  });
+  assert.deepEqual(classifyJoinInput("tiny"), { kind: "short" });
 });
