@@ -470,6 +470,166 @@ export function asKeyed(v, keyOf) {
   return out;
 }
 export const normalizeRecipe = (r) => ({ ...r, mealTypes: asArray(r.mealTypes), ingredients: asArray(r.ingredients) });
+
+/* --------------------------- recipe paste --------------------------
+   Turns text copied from a recipe site (or typed free-form) into a best-guess
+   { name, servings, notes, ingredients }. Assistive, not authoritative: every
+   field it returns lands in the draft editor's normal, editable inputs — this
+   never writes a recipe on its own, so a wrong guess costs a correction, not
+   corrupted data.
+
+   Built against the WP Recipe Maker layout most food-blog copy/pastes use
+   (title, then Author/Prep Time/Cook Time/Servings boilerplate, an
+   "Ingredients" heading with "▢"-bulleted lines, then "Instructions" — often
+   split into method sub-sections like CROCKPOT / INSTANT POT / STOVE-TOP, of
+   which only the first is kept, since the recipe belongs to one method here).
+   Falls back to scanning for bullet/quantity-led lines when that shape isn't
+   present, and degrades to leaving a field blank rather than guessing wrong
+   when nothing recognizable is found.                                       */
+
+const VULGAR_FRACTIONS = {
+  "¼": 0.25, "½": 0.5, "¾": 0.75, "⅓": 1 / 3, "⅔": 2 / 3,
+  "⅕": 0.2, "⅖": 0.4, "⅗": 0.6, "⅘": 0.8, "⅙": 1 / 6, "⅚": 5 / 6,
+  "⅛": 0.125, "⅜": 0.375, "⅝": 0.625, "⅞": 0.875,
+};
+const VULGAR_RE = "¼½¾⅓⅔⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞";
+
+function fracToNumber(s) {
+  if (VULGAR_FRACTIONS[s] !== undefined) return VULGAR_FRACTIONS[s];
+  const m = s.match(/^(\d+)\/(\d+)$/);
+  if (m) return Number(m[2]) ? Number(m[1]) / Number(m[2]) : 0;
+  return Number(s) || 0;
+}
+
+function qtyToNumber(raw) {
+  const s = raw.trim();
+  const mixed = s.match(new RegExp(`^(\\d+)\\s+(\\d+/\\d+|[${VULGAR_RE}])$`));
+  if (mixed) return Number(mixed[1]) + fracToNumber(mixed[2]);
+  const attached = s.match(new RegExp(`^(\\d+)([${VULGAR_RE}])$`));
+  if (attached) return Number(attached[1]) + fracToNumber(attached[2]);
+  return fracToNumber(s);
+}
+
+// Cooking measures that mark the "how much" / "what" boundary in a pasted
+// line but never convert (a "clove" has no ratio to a "cup") — on top of the
+// real conversion vocabulary in unitInfo, which already covers lb/oz/cup/etc
+// and their spelled-out plurals.
+const EXTRA_UNIT_WORDS = new Set([
+  "clove", "cloves", "sprig", "sprigs", "handful", "handfuls", "dash", "dashes",
+  "pinch", "pinches", "package", "packages", "container", "containers",
+  "bottle", "bottles", "stick", "sticks", "slice", "slices", "can", "cans",
+  "jar", "jars", "bag", "bags", "box", "boxes", "pack", "packs", "bunch", "bunches",
+  "head", "heads", "loaf", "loaves", "dozen",
+]);
+
+// The canonical unit a word names, or null if it isn't recognizable as one —
+// used only to find where a line's quantity ends and its name begins.
+function unitWordCanonical(word) {
+  const w = word.toLowerCase().replace(/[.,]$/, "");
+  if (!w) return null;
+  const known = unitInfo(w);
+  if (known) return known.unit;
+  return EXTRA_UNIT_WORDS.has(w) ? w : null;
+}
+
+const QTY_RE = new RegExp(`^(\\d+\\s+\\d+/\\d+|\\d+/\\d+|\\d+[${VULGAR_RE}]|\\d*\\.\\d+|\\d+|[${VULGAR_RE}])(?=\\s|$)`);
+
+// One pasted ingredient line -> { name, qty, unit }, or null for a blank /
+// heading-only line. Never throws on text it doesn't understand — worst case
+// the whole line becomes the name with qty 1, which is still a safe, editable
+// starting point rather than a dropped ingredient.
+export function parseIngredientLine(rawLine) {
+  const stripped = String(rawLine || "").replace(/^[\s▢☐☑✓•●○\-*·]+/, "").trim();
+  if (!stripped || /:$/.test(stripped)) return null; // blank, or a "For the sauce:" subheading
+  const m = stripped.match(QTY_RE);
+  let qty = 1;
+  let rest = stripped;
+  if (m) {
+    qty = qtyToNumber(m[1]) || 1;
+    rest = stripped.slice(m[0].length).trim();
+  }
+  const wm = rest.match(/^(\S+)\s*(.*)$/);
+  let unit = "";
+  if (wm) {
+    const canon = unitWordCanonical(wm[1]);
+    if (canon) {
+      unit = canon;
+      rest = wm[2].replace(/^of\s+/i, "");
+    }
+  }
+  const name = cap(rest.trim());
+  return name ? { name, qty, unit } : null;
+}
+
+// Section/metadata lines a food-blog copy/paste is full of — recognized so
+// they're never mistaken for the recipe's own title.
+const BOILERPLATE_RE = /^(cook mode|prevent your screen|author:|prep time|cook time|total time|servings?:?|serves\b|calories|ingredients?$|instructions?$|directions?$|notes?$|save$|print$|email$|nutritional information|us customary|metric)/i;
+const SERVINGS_RE = /^(?:serves|servings?)\s*:?\s*(\d+(?:\.\d+)?)/i;
+const SECTION_HEADING_RE = /^(ingredients?|instructions?|directions?)\s*$/i;
+// A short, punctuation-free, ALL-CAPS line reads as a method sub-heading
+// (CROCKPOT / INSTANT POT / STOVE-TOP) rather than an instruction step.
+const isMethodHeading = (l) => l.length > 0 && l === l.toUpperCase() && /^[A-Z][A-Z\s-]*$/.test(l) && l.split(/\s+/).length <= 4;
+
+export function parseRecipeText(text) {
+  const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n").map((l) => l.trim());
+
+  let name = "";
+  for (const l of lines) {
+    if (!l) continue;
+    if (BOILERPLATE_RE.test(l)) break;
+    name = l;
+    break;
+  }
+
+  let servings = null;
+  for (const l of lines) {
+    const m = l.match(SERVINGS_RE);
+    if (m) { servings = Number(m[1]); break; }
+  }
+
+  const ingredients = [];
+  const ingStart = lines.findIndex((l) => /^ingredients?\s*$/i.test(l));
+  if (ingStart !== -1) {
+    for (let i = ingStart + 1; i < lines.length; i++) {
+      const l = lines[i];
+      if (SECTION_HEADING_RE.test(l)) break;
+      if (!l || /^(us customary|metric)/i.test(l)) continue;
+      const parsed = parseIngredientLine(l);
+      if (parsed) ingredients.push(parsed);
+    }
+  } else {
+    // No "Ingredients" heading found — fall back to any line that looks like
+    // one (bulleted, or starting with a number) wherever it appears, rather
+    // than giving up on plain pasted lists that skip the heading entirely.
+    for (const l of lines) {
+      if (!l || !/^([▢☐☑✓•●○\-*·]|\d)/.test(l)) continue;
+      const parsed = parseIngredientLine(l);
+      if (parsed) ingredients.push(parsed);
+    }
+  }
+
+  let notes = "";
+  const insStart = lines.findIndex((l) => /^(instructions?|directions?)\s*$/i.test(l));
+  if (insStart !== -1) {
+    const steps = [];
+    let sawMethodHeading = false;
+    for (let i = insStart + 1; i < lines.length; i++) {
+      const l = lines[i];
+      if (!l) continue;
+      if (/^(nutrition|notes?)\s*$/i.test(l)) break;
+      if (isMethodHeading(l)) {
+        if (sawMethodHeading) break; // a second method's heading — stop, keep only the first
+        sawMethodHeading = true;
+        continue;
+      }
+      steps.push(l.replace(/^\d+[.)]\s*/, ""));
+    }
+    notes = steps.join(" ");
+  }
+
+  return { name, servings, notes, ingredients };
+}
+
 export function normalizeLocal(raw) {
   const d = raw && typeof raw === "object" ? raw : {};
   return {
