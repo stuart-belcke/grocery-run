@@ -715,12 +715,29 @@ MEASURED AND DELIBERATELY NOT PROBLEMS
     Reads the denormalized email/displayName exactly as intended, never
     users/{uid}, which the rules keep private per account.
 
-    STILL UNVERIFIED AND NEEDS A REAL PHONE: everything above about the
-    rules themselves. This sandbox has no path to Firebase, same limitation
-    as the rest of item 37. Confirmed in a real browser only that a
-    signed-out device says "Sign in to sync" rather than "Synced", that the
-    stale "doesn't change anything yet" copy is gone, and that the member
-    list renders its signed-out state.
+    VERIFIED AGAINST THE LIVE DATABASE, on the #81 preview, which is what
+    this could never be from a sandbox. All four flows reported working:
+    signing out and back in mid-session (the resubscribe path), a full
+    invite end to end, a guest link, and removal taking access away.
+    WHY THE PREVIEW COUNTED: a PR preview is an ordinary build — only the
+    e2e build strips sync — so it talks to the real household and the real
+    rules. That is the same reason it left real residue: an anonymous guest
+    persists as a members/{uid} record until removed, unused invites live
+    until they expire, and a fresh browser that chose "start my own list"
+    minted another home-* household.
+    Previously confirmed in a sandbox browser, and still true: a signed-out
+    device says "Sign in to sync" rather than "Synced", the stale "doesn't
+    change anything yet" copy is gone, and the member list renders its
+    signed-out state.
+    THE TWO WORTH RE-CHECKING IF ANYTHING EVER SEEMS OFF, because both fail
+    in ways that look like nothing happening:
+      - sign-out/sign-in mid-session. A denied listener is REMOVED by
+        Firebase, not retried, so a broken resubscribe shows as a list that
+        simply stops updating — no error, no dot change. Watching one phone
+        change and the other follow is the only real check.
+      - removal. It looks like it worked the moment the row disappears. The
+        actual property is that the removed account can't get back in with
+        the household CODE, which needs trying.
 
     [BUILT, NOT YET DEPLOYED] INVITES — the step that makes removing
     somebody mean something. Before it, membership was self-service: any
