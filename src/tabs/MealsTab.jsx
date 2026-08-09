@@ -6,7 +6,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop } from "../ui";
-import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, unitSuggestions, ingredientNames, normalizeCfg, ingredientMatches, ensureIngredientId, asArray, planSlotsFor } from "../lib";
+import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, unitSuggestions, ingredientNames, normalizeCfg, ingredientMatches, ensureIngredientId, asArray, planSlotsFor, parseRecipeText } from "../lib";
 import { RecipeDetail } from "../RecipeDetail";
 
 // Rounded "pill" grouping a remove / count / add cluster so the controls read
@@ -28,6 +28,8 @@ export function MealsTab({ data, update, updateCatalog }) {
   const [confirmDelete, setConfirmDelete] = useState(null); // recipe pending deletion
   const [filterOpen, setFilterOpen] = useState(false); // sort/filter popover
   const [ingSug, setIngSug] = useState(null); // { row, idx } — which draft-ingredient row's name suggestions are open
+  const [pasteOpen, setPasteOpen] = useState(false); // paste-a-recipe panel shown in the draft editor
+  const [pasteText, setPasteText] = useState("");
 
 
   const setServings = (id, servings) =>
@@ -76,8 +78,16 @@ export function MealsTab({ data, update, updateCatalog }) {
       return d;
     });
 
-  const startNew = () => setDraft({ id: null, name: "", mealTypes: [], easy: false, side: false, servings: "4", notes: "", ingredients: [{ name: "", qty: "1", unit: "" }] });
-  const startEdit = (r) =>
+  const closePaste = () => {
+    setPasteOpen(false);
+    setPasteText("");
+  };
+
+  const startNew = () => {
+    setDraft({ id: null, name: "", mealTypes: [], easy: false, side: false, servings: "4", notes: "", ingredients: [{ name: "", qty: "1", unit: "" }] });
+    closePaste();
+  };
+  const startEdit = (r) => {
     setDraft({
       id: r.id,
       name: r.name,
@@ -88,6 +98,30 @@ export function MealsTab({ data, update, updateCatalog }) {
       notes: r.notes || "",
       ingredients: r.ingredients.map((i) => ({ ...i, qty: String(i.qty) })),
     });
+    closePaste();
+  };
+
+  // Fills the open draft from pasted recipe text — never overwrites something
+  // already typed, so pasting mid-edit only adds to it rather than clobbering
+  // a manual correction. The blank starting ingredient row (name "" / qty "1"
+  // / unit "") is the one exception: it's what every new draft starts with,
+  // so a paste replaces it outright instead of leaving it as a stray blank row.
+  const applyParsedRecipe = () => {
+    const parsed = parseRecipeText(pasteText);
+    const isBlankIngredientRow = (i) => !i.name.trim() && i.qty === "1" && !i.unit.trim();
+    setDraft((d) => {
+      const parsedIngredients = parsed.ingredients.map((i) => ({ name: i.name, qty: String(i.qty), unit: i.unit }));
+      const startsBlank = d.ingredients.length === 1 && isBlankIngredientRow(d.ingredients[0]);
+      return {
+        ...d,
+        name: d.name.trim() ? d.name : parsed.name || d.name,
+        servings: d.servings === "4" && parsed.servings ? String(parsed.servings) : d.servings,
+        notes: !parsed.notes ? d.notes : d.notes.trim() ? `${d.notes}\n\n${parsed.notes}` : parsed.notes,
+        ingredients: !parsedIngredients.length ? d.ingredients : startsBlank ? parsedIngredients : [...d.ingredients, ...parsedIngredients],
+      };
+    });
+    closePaste();
+  };
 
   const toggleDraftType = (t) =>
     setDraft({ ...draft, mealTypes: draft.mealTypes.includes(t) ? draft.mealTypes.filter((x) => x !== t) : [...draft.mealTypes, t] });
@@ -126,6 +160,7 @@ export function MealsTab({ data, update, updateCatalog }) {
       return c;
     });
     setDraft(null);
+    closePaste();
   };
 
   const deleteRecipe = (r) => {
@@ -463,6 +498,35 @@ export function MealsTab({ data, update, updateCatalog }) {
 
       {draft && (
         <div style={{ background: C.card, border: `1px solid ${C.green}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
+          {!pasteOpen ? (
+            <button
+              onClick={() => setPasteOpen(true)}
+              style={{ display: "block", fontFamily: fontBody, fontSize: 12, fontWeight: 500, padding: "4px 10px", borderRadius: 999, cursor: "pointer", border: `1px solid ${C.line}`, background: "transparent", color: C.faint, marginBottom: 10 }}
+            >
+              📋 Paste a recipe to fill this in
+            </button>
+          ) : (
+            <div style={{ border: `1px dashed ${C.line}`, borderRadius: 8, padding: 10, marginBottom: 12 }}>
+              <p style={{ margin: "0 0 6px", fontSize: 12, color: C.faint }}>
+                Paste a recipe copied from a website or note — this fills in the name, servings, ingredients, and
+                instructions below. Check them over before saving; a paste is a starting point, not the final word.
+              </p>
+              <textarea
+                placeholder="Paste the whole recipe here…"
+                value={pasteText}
+                onChange={(e) => setPasteText(e.target.value)}
+                rows={8}
+                autoFocus
+                aria-label="Pasted recipe text"
+                style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 8, fontSize: 12 }}
+              />
+              <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ flex: 1 }} />
+                <Btn small onClick={closePaste}>Cancel</Btn>
+                <Btn small kind="primary" disabled={!pasteText.trim()} onClick={applyParsedRecipe}>Parse into fields</Btn>
+              </div>
+            </div>
+          )}
           <input
             placeholder="Meal name"
             value={draft.name}
@@ -675,7 +739,7 @@ export function MealsTab({ data, update, updateCatalog }) {
           />
           <div style={{ display: "flex", gap: 8 }}>
             <div style={{ flex: 1 }} />
-            <Btn small onClick={() => setDraft(null)}>Cancel</Btn>
+            <Btn small onClick={() => { setDraft(null); closePaste(); }}>Cancel</Btn>
             <Btn small kind="primary" onClick={saveDraft}>Save meal</Btn>
           </div>
         </div>

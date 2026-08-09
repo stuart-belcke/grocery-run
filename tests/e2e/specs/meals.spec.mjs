@@ -196,3 +196,59 @@ test("SHOULD: an ingredient's own name is what the list shows, not the recipe's 
     await page.done();
   }
 });
+
+test("SHOULD: pasting a recipe fills in the add-meal form, and the parsed ingredients persist", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await page.tab("Meals");
+    await page.getByRole("button", { name: /^Add$/ }).click();
+    await page.waitForTimeout(300);
+
+    await page.getByRole("button", { name: /Paste a recipe to fill this in/ }).click();
+    await page.getByLabel("Pasted recipe text").fill("Weeknight Rice Bowl\n- 2 cups rice\n- 1 lb chicken thighs\n- 1 bell pepper");
+    await page.getByRole("button", { name: /^Parse into fields$/ }).click();
+    await page.waitForTimeout(300);
+
+    // The parsed fields land in the SAME editable inputs manual entry uses —
+    // this is a starting point, not a second, separate save path.
+    assert.equal(await page.getByPlaceholder("Meal name").inputValue(), "Weeknight Rice Bowl");
+    assert.deepEqual(await page.getByPlaceholder("Ingredient", { exact: true }).evaluateAll((els) => els.map((e) => e.value)), ["Rice", "Chicken thighs", "Bell pepper"]);
+
+    await page.getByRole("button", { name: /^Save meal$/ }).click();
+    await page.waitForTimeout(500);
+    await page.roundTrip();
+
+    const cat = await page.readCatalog();
+    const recipe = Object.values(cat.recipes).find((r) => r.name === "Weeknight Rice Bowl");
+    assert.ok(recipe, "the pasted recipe should have been saved to the catalog");
+    assert.deepEqual(
+      recipe.ingredients.map((i) => cat.ingredients[i.ingredientId]?.name).sort(),
+      ["Bell pepper", "Chicken thighs", "Rice"]
+    );
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: pasting into a draft that already has a name and ingredients adds to it instead of overwriting", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await page.tab("Meals");
+    await page.getByRole("button", { name: /^Add$/ }).click();
+    await page.waitForTimeout(300);
+    await page.getByPlaceholder("Meal name").fill("My Custom Meal");
+    await page.getByPlaceholder("Ingredient", { exact: true }).first().fill("Butter");
+
+    await page.getByRole("button", { name: /Paste a recipe to fill this in/ }).click();
+    await page.getByLabel("Pasted recipe text").fill("Some Other Name\n- 2 cups rice");
+    await page.getByRole("button", { name: /^Parse into fields$/ }).click();
+    await page.waitForTimeout(300);
+
+    assert.equal(await page.getByPlaceholder("Meal name").inputValue(), "My Custom Meal", "a typed name should survive a paste");
+    assert.deepEqual(await page.getByPlaceholder("Ingredient", { exact: true }).evaluateAll((els) => els.map((e) => e.value)), ["Butter", "Rice"], "pasted ingredients should add to, not replace, a manually-started list");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});

@@ -56,6 +56,8 @@ import {
   pickState,
   FALLBACK_CATALOG,
   normalizeCatalog,
+  parseIngredientLine,
+  parseRecipeText,
 } from "./lib.js";
 
 /* ---------------- forward compatibility ----------------
@@ -1676,4 +1678,132 @@ test("a field nobody has invented yet is off limits to a guest by default", () =
   // the database then silently refused.
   const base = { list: {}, stapleNeeds: {}, updatedAt: 1 };
   assert.deepEqual(guestBlockedFields(base, { ...base, somethingNew: 1 }), ["somethingNew"]);
+});
+
+/* ---------------- recipe paste ----------------
+   Assistive parsing of a recipe copied from a food-blog page. Never the
+   source of truth — its output lands in the normal, editable draft fields —
+   but it has to actually save typing on the shapes people really paste, so
+   these are checked against real copy/paste text, not hand-simplified input. */
+
+test("parseIngredientLine splits quantity, unit, and name", () => {
+  assert.deepEqual(parseIngredientLine("2 cups cherry tomatoes"), { name: "Cherry tomatoes", qty: 2, unit: "cup" });
+  assert.deepEqual(parseIngredientLine("1 1/2 pounds ground chicken, pork, or turkey"), {
+    name: "Ground chicken, pork, or turkey",
+    qty: 1.5,
+    unit: "lb",
+  });
+  assert.deepEqual(parseIngredientLine("▢ 1/4 cup fresh oregano, chopped"), { name: "Fresh oregano, chopped", qty: 0.25, unit: "cup" });
+  assert.deepEqual(parseIngredientLine("8 cloves garlic, 2 chopped, 6 whole"), { name: "Garlic, 2 chopped, 6 whole", qty: 8, unit: "cloves" });
+});
+
+test("parseIngredientLine defaults to qty 1 with no unit when nothing is recognizable", () => {
+  assert.deepEqual(parseIngredientLine("kosher salt and black pepper"), { name: "Kosher salt and black pepper", qty: 1, unit: "" });
+  assert.deepEqual(parseIngredientLine("chili flakes"), { name: "Chili flakes", qty: 1, unit: "" });
+});
+
+test("parseIngredientLine returns null for blank lines and subheadings", () => {
+  assert.equal(parseIngredientLine(""), null);
+  assert.equal(parseIngredientLine("   "), null);
+  assert.equal(parseIngredientLine("For the sauce:"), null);
+});
+
+// The exact text pasted from Half Baked Harvest's site for the Greek chicken
+// meatball recipe — WP Recipe Maker's layout, with three method sections
+// (CROCKPOT / INSTANT POT / STOVE-TOP) under one Instructions heading. Only
+// the crockpot section belongs to this recipe.
+const PASTED_RECIPE = `Crockpot Greek Chicken Meatballs with Creamy Tomato Orzo
+
+
+Cook Mode
+Prevent your screen from going dark
+Author: Tieghan Gerard
+Prep Time
+20 minutes minutes
+Cook Time
+4 hours hours
+Total Time
+4 hours hours 20 minutes minutes
+Servings: 6
+Calories Per Serving: 684 kcal
+Nutritional information is only an estimate. The accuracy of the nutritional information for any recipe on this site is not guaranteed.
+
+Save
+Print
+Email
+Ingredients
+
+▢ 1 1/2 pounds ground chicken, pork, or turkey
+▢ 1/2 cup grated parmesan cheese
+▢ 1 shallot, chopped
+▢ 8 cloves garlic, 2 chopped, 6 whole
+▢ 1/4 cup fresh oregano, chopped
+▢ 2 teaspoons sweet or regular paprika
+▢ 1 tablespoon balsamic vinegar
+▢ kosher salt and black pepper
+▢ chili flakes
+▢ 2 tablespoons extra virgin olive oil
+▢ 1 1/2 cups cherry tomatoes
+▢ 1 cup dry white wine
+▢ 2 cups dry orzo pasta
+▢ 1/2 cup heavy cream or whole milk
+▢ 6 tablespoons salted butter
+▢ 1 sprig rosemary
+▢ 4 sprigs fresh thyme
+▢ 1/2 cup crumbled feta
+▢ fresh basil and dill, for serving
+US Customary - Metric
+Instructions
+
+CROCKPOT
+1. Add the chicken, parmesan, shallot, 2 chopped cloves of garlic, oregano, paprika, and balsamic vinegar to a bowl. Season with salt, pepper, and chili flakes. Mix to combine. Coat your hands with oil, and roll the meat into tablespoon-size balls (will make 15-16 meatballs). Drizzle with olive oil and place the meatballs in the bowl of your crockpot.
+2. Add the tomatoes. Pour over the wine and 1/2 cup water. Add the whole garlic cloves. Cover and cook on low for 3-4 hours or on high for 1-2 hours.
+3. Preheat the broiler to high. Remove the meatballs and garlic from the slow cooker and place on a baking sheet.
+4. Crank the heat on the slow cooker to high. Stir in the orzo, and 1 cup water. Cover and cook 20-30 minutes, or until the orzo is al dente. If the orzo needs more liquid, add additional water. Stir in the milk/cream.
+5. Arrange the butter, rosemary, and thyme, around the meatballs and garlic, then broil for 1-3 minutes, until crisp. Peel away the garlic skin, then chop and mix with the butter and herbs on the sheet pan. Toss the meatballs in the butter.
+6. Serve the meatballs over the orzo with feta cheese, fresh basil, and dill.
+INSTANT POT
+1. Add the chicken, parmesan, shallot, 2 chopped cloves of garlic, oregano, paprika, and balsamic vinegar to a bowl. Season with salt, pepper, and chili flakes. Mix to combine. Coat your hands with oil, and roll the meat into tablespoon-size balls (will make 15-16 meatballs).
+2. Set the instant pot to sauté. Add olive oil, then add the meatballs to the instant pot and sear until browned, about 5 minutes. Add the tomatoes. Pour in the wine and 1/2 cup water. Cook for 5 minutes, then add the butter, whole garlic cloves, rosemary, and thyme. Let the butter brown for another 2-3 minutes. Cover and cook on high pressure for 6 minutes.
+3. Once done cooking, release the steam. Set the Instant Pot to sauté. Remove the garlic. Stir in the orzo, and 1 cup water. Cook for 6-8 minutes, until the orzo is al dente. Stir in the milk.
+4. Mash the garlic and stir into the orzo. Discard the herb stems. Serve the meatballs over the orzo with feta cheese, fresh basil, and dill`;
+
+test("parseRecipeText pulls name, servings, and ingredients from a real food-blog paste", () => {
+  const result = parseRecipeText(PASTED_RECIPE);
+  assert.equal(result.name, "Crockpot Greek Chicken Meatballs with Creamy Tomato Orzo");
+  assert.equal(result.servings, 6);
+  assert.equal(result.ingredients.length, 19);
+  assert.deepEqual(result.ingredients[0], { name: "Ground chicken, pork, or turkey", qty: 1.5, unit: "lb" });
+  assert.deepEqual(result.ingredients[9], { name: "Extra virgin olive oil", qty: 2, unit: "tbsp" });
+  assert.deepEqual(result.ingredients[18], { name: "Fresh basil and dill, for serving", qty: 1, unit: "" });
+});
+
+test("parseRecipeText keeps only the first method's steps when a recipe lists several", () => {
+  const result = parseRecipeText(PASTED_RECIPE);
+  assert.ok(result.notes.includes("Drizzle with olive oil and place the meatballs"), "kept the crockpot steps");
+  assert.ok(result.notes.includes("Serve the meatballs over the orzo with feta cheese"), "kept the crockpot's final step");
+  assert.ok(!result.notes.includes("Set the instant pot to sauté"), "dropped the Instant Pot method");
+  assert.ok(!result.notes.includes("INSTANT POT"), "the method heading itself isn't left in the notes");
+});
+
+test("parseRecipeText leaves the name blank rather than guessing when the paste starts mid-boilerplate", () => {
+  const result = parseRecipeText("Cook Mode\nAuthor: Someone\nServings: 4\nIngredients\n▢ 1 cup rice");
+  assert.equal(result.name, "");
+  assert.equal(result.servings, 4);
+});
+
+test("parseRecipeText falls back to scanning bulleted lines with no Ingredients heading", () => {
+  const result = parseRecipeText("Weeknight Rice Bowl\n- 2 cups rice\n- 1 lb chicken thighs\n- 1 bell pepper");
+  assert.equal(result.name, "Weeknight Rice Bowl");
+  assert.deepEqual(result.ingredients, [
+    { name: "Rice", qty: 2, unit: "cup" },
+    { name: "Chicken thighs", qty: 1, unit: "lb" },
+    { name: "Bell pepper", qty: 1, unit: "" },
+  ]);
+});
+
+test("parseRecipeText returns empty ingredients and blank notes for text with neither", () => {
+  const result = parseRecipeText("just a name, no ingredient list at all");
+  assert.deepEqual(result.ingredients, []);
+  assert.equal(result.notes, "");
 });
