@@ -756,7 +756,17 @@ MEASURED AND DELIBERATELY NOT PROBLEMS
     invites, removal sticking, first claim, and the pre-existing guarantees
     (no enumerating /households, updatedAt must be a number, users/{uid}
     private). `npm run test:rules`, wired into CI before the build, skipping
-    rather than failing where there's no JVM or emulator jar.
+    rather than failing where there's no JVM or emulator jar — BUT ONLY
+    LOCALLY. In CI a skipped suite is indistinguishable from a passing one:
+    the step goes green having asserted nothing, which is worse than not
+    running it at all, and is the exact failure this suite exists to prevent
+    everywhere else. So `process.env.CI && !ready` throws instead.
+    FOUND BY TRYING TO CONFIRM IT, not by reasoning: the first real workflow
+    run went green, and the log tail could not show whether the step had RUN
+    or merely skipped. The only evidence was circumstantial — a 32 MB
+    emulator jar in the post-job cache — which is not a good enough basis
+    for the one thing standing between a rules mistake and a phone locked
+    out of the shopping list.
     Mutation-tested both ways: restoring self-service join fails exactly 7
     cases including "a stranger cannot make herself a member" and "removal
     sticks"; opening invite creation to non-members fails exactly 2.
