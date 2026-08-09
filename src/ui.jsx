@@ -128,7 +128,10 @@ export function BackToTop({ showAfter = 500 }) {
         boxShadow: "0 4px 14px -4px rgba(20,24,16,0.4)",
       }}
     >
-      <span aria-hidden>\u2191</span>
+      {/* In braces: JSX does NOT interpret a \uXXXX escape in a text child,
+          it prints the six characters. Matches how Section writes its
+          chevrons. */}
+      <span aria-hidden>{"\u2191"}</span>
     </button>
   );
 }

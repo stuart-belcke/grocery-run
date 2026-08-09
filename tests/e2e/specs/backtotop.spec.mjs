@@ -11,6 +11,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { openApp, assertNoPageErrors } from "../harness.mjs";
+import { longListState } from "../fixtures.mjs";
 
 const BASE = process.env.E2E_BASE_URL;
 const BTN = 'button[aria-label="Back to top"]';
@@ -27,9 +28,11 @@ const hitTest = (page) =>
     return b.contains(hit) ? "button" : `covered by ${hit ? hit.tagName : "nothing"}`;
   });
 
-for (const tab of ["Ingredients", "Meals"]) {
+for (const tab of ["List", "Ingredients", "Meals"]) {
   test(`${tab}: back to top appears once scrolled, and returns to the top`, async () => {
-    const page = await openApp(BASE);
+    // The List tab is empty unless something puts items on it; the other two
+    // are long from the catalog alone.
+    const page = await openApp(BASE, tab === "List" ? { state: longListState() } : {});
     try {
       await page.tab(tab);
       // The control is pointless on a page that doesn't scroll, so make sure
@@ -46,6 +49,15 @@ for (const tab of ["Ingredients", "Meals"]) {
       await page.waitForTimeout(350);
       assert.equal(await page.isVisible(BTN), true, "never appeared, however far down the page");
       assert.equal(await hitTest(page), "button", "rendered but something else owns that corner");
+
+      /* THE GLYPH ITSELF. This shipped reading the six literal characters
+         \u2191, because JSX does not interpret that escape in a text child —
+         and the first version of this test never looked, asserting only on
+         the aria-label and the scrolling, both of which were perfectly fine.
+         A control can work and still be gibberish on screen. */
+      const label = (await page.locator(BTN).innerText()).trim();
+      assert.equal(label, "\u2191", `the button reads ${JSON.stringify(label)}`);
+      assert.ok(!/\\u/.test(label), "an unescaped \\uXXXX is being printed literally");
 
       await page.click(BTN);
       await page.waitForTimeout(900); // smooth scroll

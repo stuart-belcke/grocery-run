@@ -1014,7 +1014,7 @@ inline copies of `data.recipes.filter/some((r) => r.ingredients.some((i) =>
 norm(i.name) === key))` — the rename-affected-recipes check, the remove-item
 safety check, and the item 9 "used in" display — all call it now.
 
-[DONE] Back to top on Ingredients and Meals. Both lists outgrow what anyone
+[DONE] Back to top on List, Ingredients and Meals. Both lists outgrow what anyone
 will scroll back through by hand — the real catalog makes the Ingredients tab
 about 8,500px — and search doesn't help: you search to FIND something, and are
 then left wherever the list left you.
@@ -1038,6 +1038,19 @@ then left wherever the list left you.
   pixel" is exactly the failure that looks like a dead click handler.
   Unusually for that suite there is nothing persisted to assert on — this is
   pure UI, so the read-back rule doesn't apply.
+  IT SHIPPED READING THE SIX LITERAL CHARACTERS \u2191, and the first version
+  of this spec did not notice. JSX does NOT interpret a \uXXXX escape in a
+  text child — only inside braces, which is why Section's chevrons were fine
+  — so the button rendered gibberish while working perfectly. The test
+  asserted the aria-label, the appear/disappear threshold, the hit test and
+  the scroll, every one of which passed. THE LESSON IS NARROW AND WORTH
+  KEEPING: behaviour assertions do not see the label, so anything a user
+  READS needs asserting as text. The spec now checks the rendered glyph, and
+  reintroducing the bug fails all three tabs.
+  The List tab needed a fixture to be worth testing at all: it is empty in
+  every other one, so the scroll test would have passed by never scrolling.
+  longListState() in fixtures.mjs fills it with hand-added extras, which need
+  no catalog, plan or recipes.
 
 UI density — Ingredients row [DONE], List row still open.
 The Ingredients gear panel had become a flat pile of unrelated concerns, and

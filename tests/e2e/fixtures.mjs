@@ -167,3 +167,18 @@ export function sidesCatalog() {
   cat.updatedAt = Date.now();
   return cat;
 }
+
+/* A shopping list long enough to actually scroll.
+
+   The List tab is empty in every other fixture, so a scrolling test against
+   it would pass by never scrolling — which is how a test ends up asserting
+   nothing. Hand-added extras are the cheapest way to get length: they need
+   no catalog entry, no plan and no recipes, so this stays independent of
+   whatever the catalog fixtures do next. */
+export function longListState(n = 60) {
+  const extras = {};
+  for (let i = 0; i < n; i++) {
+    extras[`scroll-filler-${i}`] = { name: `Filler item ${i}`, qty: 1, unit: "" };
+  }
+  return stateWith({ list: { ...emptyState().list, extras } });
+}
