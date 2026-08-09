@@ -953,6 +953,31 @@ inline copies of `data.recipes.filter/some((r) => r.ingredients.some((i) =>
 norm(i.name) === key))` — the rename-affected-recipes check, the remove-item
 safety check, and the item 9 "used in" display — all call it now.
 
+[DONE] Back to top on Ingredients and Meals. Both lists outgrow what anyone
+will scroll back through by hand — the real catalog makes the Ingredients tab
+about 8,500px — and search doesn't help: you search to FIND something, and are
+then left wherever the list left you.
+  A corner button, not a fourth control in the StickyBar. That row was cut down
+  to search + one Filter button + the primary action precisely so it holds one
+  line at 390px, and the bottom-right corner is under a thumb where the top of
+  a phone screen is not.
+  A scroll listener rather than StickyBar's IntersectionObserver, and the
+  difference is the question each asks: the bar wants "has this element reached
+  the top", which is what an observer reports, and this wants "how far down are
+  we" — a distance an observer can only fake with sentinels at guessed depths.
+  Passive, coalesced to one requestAnimationFrame.
+  THREE THINGS ONLY A BROWSER SETTLES, all covered by
+  tests/e2e/specs/backtotop.spec.mjs and all mutation-tested (never showing it,
+  always showing it, and z-index above the dialog each fail exactly the right
+  cases): it renders only past a scroll depth; it is position:fixed inside a
+  page that already has a position:sticky bar creating a stacking context, so
+  it can be painted but not tappable; and at z-index 20 it must lose to the
+  dialogs at 70. The spec hit-tests the corner with elementFromPoint rather
+  than trusting visibility, because "visible but something else owns that
+  pixel" is exactly the failure that looks like a dead click handler.
+  Unusually for that suite there is nothing persisted to assert on — this is
+  pure UI, so the read-back rule doesn't apply.
+
 UI density — Ingredients row [DONE], List row still open.
 The Ingredients gear panel had become a flat pile of unrelated concerns, and
 its aisle grid rendered one input per store (5, shown even where the item

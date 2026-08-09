@@ -54,6 +54,85 @@ export function StickyBar({ children, style }) {
   );
 }
 
+/* Jumps back to the top of a long list. The Ingredients and Meals tabs both
+   grow past what anyone will scroll back through by hand, and search doesn't
+   help with that — you search to FIND something, then you're left wherever
+   the list left you.
+
+   NOT folded into StickyBar, deliberately. That bar was cut down to search +
+   one Filter button + the primary action precisely so it holds one line at
+   390px, and a fourth control would break the thing that made it usable.
+   A corner button also lands under a thumb, where the top of the screen on a
+   phone does not.
+
+   A scroll listener rather than StickyBar's IntersectionObserver, and the
+   difference is deliberate: the bar answers "has this element reached the
+   top", which is exactly what an observer reports, while this needs "how far
+   down are we" — a distance, which an observer only fakes through sentinels
+   placed at guessed depths. The handler is passive and coalesced to one
+   requestAnimationFrame, so it costs a boolean compare per frame at most.
+
+   Hidden until you're actually deep enough to want it, so a short list looks
+   exactly as it did before. */
+export function BackToTop({ showAfter = 500 }) {
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    let frame = 0;
+    const read = () => {
+      frame = 0;
+      setShow(window.scrollY > showAfter);
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(read);
+    };
+    read();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [showAfter]);
+
+  if (!show) return null;
+  return (
+    <button
+      onClick={() => {
+        // Honour a reduced-motion preference: a long smooth scroll is a lot
+        // of movement, and this is the one control whose whole job is a big
+        // jump. matchMedia is guarded for older WebViews.
+        const reduce = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+      }}
+      aria-label="Back to top"
+      title="Back to top"
+      style={{
+        position: "fixed",
+        right: 16,
+        // Clears the home indicator on a notched phone; falls back to 16px
+        // where env() is unsupported.
+        bottom: "calc(16px + env(safe-area-inset-bottom, 0px))",
+        // Above the sticky bar (15) and the page, below the dialogs (70) —
+        // a modal must never have this floating over it.
+        zIndex: 20,
+        width: 44,
+        height: 44,
+        borderRadius: "50%",
+        border: `1px solid ${C.line}`,
+        background: C.card,
+        color: C.ink,
+        fontFamily: fontBody,
+        fontSize: 17,
+        lineHeight: 1,
+        cursor: "pointer",
+        boxShadow: "0 4px 14px -4px rgba(20,24,16,0.4)",
+      }}
+    >
+      <span aria-hidden>\u2191</span>
+    </button>
+  );
+}
+
 /* A settings card that opens on tap. Settings had grown into two always-open
    cards — one of them a wall of export, backup and restore controls you touch
    about never — so the thing you actually came for was always below the fold.

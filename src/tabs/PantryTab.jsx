@@ -6,7 +6,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
-import { Btn, ConfirmDialog, ChoiceDialog, StickyBar } from "../ui";
+import { Btn, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop } from "../ui";
 import { UNASSIGNED, norm, cap, r2, normalizeCfg, ingredientNames, unitSuggestions, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient, ensureIngredientId, ingredientIdByName, mergeIngredients, setIngredientCfg, planIngredientRename } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
@@ -786,6 +786,8 @@ export function PantryTab({ data, update, updateCatalog }) {
           </>
         )}
       </ChoiceDialog>
+
+      <BackToTop />
     </div>
   );
 }
