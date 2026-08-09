@@ -782,6 +782,69 @@ MEASURED AND DELIBERATELY NOT PROBLEMS
     that is broken, never a code. parseInvite alone had passing tests the
     whole time — the hole was in what the component did with a null.
 
+    [BUILT, NOT YET DEPLOYED] THE GUEST ROLE. Someone you hand a link to so
+    they can do the shop: reads everything, writes only the List tab.
+    Reading the whole household is deliberate — a list of names with no
+    recipes behind it isn't shoppable, you can't tell what a thing is for.
+    members/{uid}.role is "guest", or absent/"member" for full. ABSENT MEANS
+    FULL, which is what makes this backward compatible: the records written
+    during EXPAND have no role and belong to the two people who own the
+    household.
+    HOW IT'S ENFORCED, and the shape is worth remembering: households/$code
+    ".write" became full-members-only, and the guest's permissions are
+    re-granted BENEATH it at state/list, state/stapleNeeds and
+    state/updatedAt. A deeper ".write" adds permission where a shallower one
+    denied, so denying at $code and re-granting narrowly is what produces
+    "everything except these paths is read-only". updatedAt has to be in the
+    list because every narrow write carries it; without it a guest's write
+    would be half-refused and the other phone would never see the change.
+    NOT re-granted, deliberately: plan and planStage. Planning the week and
+    starting or ending a trip belong to the household.
+
+    THE ESCALATION THAT ALMOST SHIPPED, caught by a test. Every member
+    rewrites its own record on each load, so a guest could simply write
+    role: "member" and promote itself. The fix is role immutability — but
+    the FIRST attempt put that check in members/$uid ".write", where it
+    silently did nothing for the people it mattered least about and
+    everything for the people it mattered most about... backwards: the
+    $code-level ".write" grants a FULL member everything beneath it, and a
+    deeper ".write" can only ADD permission, never take it back. So the
+    check constrained guests and strangers but did not apply to full members
+    at all. It lives in ".validate" now, the only rule kind that always
+    runs. A second test caught the corollary: ".validate" doesn't run on
+    deletes, which is what lets a guest still leave.
+    A knock-on: the membership refresh had to move from set() to update(),
+    because a set() that drops `role` reads as CHANGING it and is refused.
+
+    THE ROLE RIDES IN THE INVITE STRING ("code~token~g"), because the
+    account redeeming an invite cannot read it — invites are members-only
+    and a joiner isn't one yet. That is not where it's enforced: the rules
+    require the record written to match the STORED invite, so editing the
+    "~g" off a link is refused rather than upgraded. Tested both ways round,
+    including the quieter direction — omitting the role entirely, which
+    would otherwise default to full.
+    parseInvite got stricter with it: a third segment that isn't exactly "g"
+    is now refused outright rather than folded into the token, so a mangled
+    guest link can't resolve to a full membership.
+
+    THE APP MIRRORS THE RULES RATHER THAN LISTING TABS. guestBlockedFields
+    (lib.js) says "everything except list, stapleNeeds and updatedAt is off
+    limits", checked against the RESULT of an edit in App's update(). That
+    catches every route into a forbidden field, including ones that don't
+    exist yet — a new top-level field is denied to a guest by default,
+    exactly as the rules do. Gating per tab would have meant auditing four
+    tabs and re-auditing on every feature. updateCatalog is stopped once,
+    centrally, since the whole catalog is full-members-only.
+    A refused edit gets a sentence naming what's off limits, not the generic
+    "Sync error" a rejected write produces.
+    STILL NOT DONE: the buttons a guest can't use are not hidden in Meals,
+    Week and Ingredients — they explain themselves when tapped instead.
+    Worth doing, not urgent, and deliberately not faked by hiding the tabs.
+
+    Rules coverage went 24 -> 38 cases, all against the real emulator.
+    Mutation-tested: removing role immutability fails exactly the two
+    promotion/demotion cases; giving guests the full $code write fails seven.
+
     WHAT'S LEFT
       - DELETE the throwaway home-* households in the console FIRST. After
         CONTRACT the two holding both accounts would read as real ones.
@@ -796,19 +859,29 @@ MEASURED AND DELIBERATELY NOT PROBLEMS
         sandbox could check because it has no path to Firebase:
           * sign out and back in mid-session — the list must resume
             updating rather than going quietly stale (the resubscribe path).
-          * invite the other phone end to end, from a real Settings screen.
+          * invite the other account end to end, from a real Settings
+            screen. Two browsers and two emails is enough — an invite is
+            accepted for an ACCOUNT, not a device, so two profiles signed
+            in as different accounts exercises the real path.
+          * hand a GUEST link to the second account and confirm the shape
+            of it: the list works, and recipes / ingredients / the week
+            plan refuse with the guest banner rather than failing silently.
           * remove an account and confirm the code alone does NOT let it
             back in. That is the whole point, and the only proof that
             matters is the live database.
       - Narrow listeners: item 21's read half. Still deliberately deferred,
         and the catalog move made the case WEAKER rather than stronger, since
         the growth landed on its own node instead of on `state`.
-      - Roles, billing, a landing page. Ordinary product work once
-        re-parenting exists, and none of it is a foundation question.
-        Roles would be the next real one: today every member is equal, so
-        anyone in a household can remove anyone else, including the account
-        that created it. Fine for two people who live together; not fine
-        the moment a third party is ever in one.
+      - Hide the controls a guest can't use (Meals, Week, Ingredients).
+        They explain themselves when tapped today, which is honest but not
+        as good as not offering them.
+      - Billing, a landing page. Ordinary product work, no foundation
+        questions left in them.
+        On roles: guest/member is now the whole ladder, and every FULL
+        member is equal — anyone can remove anyone, including the account
+        that created the household. Fine for two people who live together;
+        an owner who can't be removed is the next rung if a third full
+        member is ever in one.
 
     Firestore is not a step here. It becomes worth adopting when one of its
     advantages actually binds — most likely offline persistence, or history

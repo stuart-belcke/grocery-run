@@ -6,6 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
+  guestBlockedFields,
   classifyJoinInput,
   parseInvite,
   formatInvite,
@@ -1568,8 +1569,20 @@ test("a refused read outranks a refused write, because it explains it", () => {
 /* ------------------- invites (item 37) ------------------- */
 
 test("an invite round-trips through the string a user actually pastes", () => {
-  const s = formatInvite("home-cx2ur9zg", "abcdefgh1234");
-  assert.deepEqual(parseInvite(s), { code: "home-cx2ur9zg", token: "abcdefgh1234" });
+  const full = formatInvite("home-cx2ur9zg", "abcdefgh1234");
+  assert.deepEqual(parseInvite(full), { code: "home-cx2ur9zg", token: "abcdefgh1234", role: "member" });
+  const g = formatInvite("home-cx2ur9zg", "abcdefgh1234", "guest");
+  assert.deepEqual(parseInvite(g), { code: "home-cx2ur9zg", token: "abcdefgh1234", role: "guest" });
+});
+
+test("a guest link and a full link are different strings", () => {
+  // If these ever collided, handing someone a guest link would silently make
+  // them a full member — the rules would allow it, since the record would
+  // match the invite.
+  assert.notEqual(
+    formatInvite("home-cx2ur9zg", "abcdefgh1234", "guest"),
+    formatInvite("home-cx2ur9zg", "abcdefgh1234")
+  );
 });
 
 test("a bare household code is not an invite", () => {
@@ -1593,14 +1606,17 @@ test("an invite survives being mangled by a messaging app", () => {
   assert.deepEqual(parseInvite("  Home-CX2UR9ZG~ABCDEFGH1234.  "), {
     code: "home-cx2ur9zg",
     token: "abcdefgh1234",
+    role: "member",
   });
 });
 
-test("only the first separator splits, so a token can't smuggle one in", () => {
-  assert.deepEqual(parseInvite("home-cx2ur9zg~aaaa~bbbb1234"), {
-    code: "home-cx2ur9zg",
-    token: "aaaabbbb1234",
-  });
+test("a third segment that isn't the guest marker is refused, not reinterpreted", () => {
+  // The third slot means exactly one thing. Treating junk there as part of
+  // the token would let a mangled guest link resolve to a FULL membership.
+  assert.equal(parseInvite("home-cx2ur9zg~aaaabbbb1234~x"), null);
+  assert.equal(parseInvite("home-cx2ur9zg~aaaabbbb1234~guest"), null);
+  assert.equal(parseInvite("home-cx2ur9zg~aaaa~bbbb1234"), null);
+  assert.equal(parseInvite("home-cx2ur9zg~aaaabbbb1234~g~g"), null);
 });
 
 test("parseInvite never throws on junk", () => {
@@ -1634,6 +1650,30 @@ test("the join field still tells a code from an invite", () => {
     kind: "invite",
     code: "home-cx2ur9zg",
     token: "abcdefgh1234",
+    role: "member",
+  });
+  assert.deepEqual(classifyJoinInput("home-cx2ur9zg~abcdefgh1234~g"), {
+    kind: "invite",
+    code: "home-cx2ur9zg",
+    token: "abcdefgh1234",
+    role: "guest",
   });
   assert.deepEqual(classifyJoinInput("tiny"), { kind: "short" });
+});
+
+test("a guest may change the list and staples, and nothing else", () => {
+  const base = { list: { checked: {} }, stapleNeeds: {}, plan: { Sun: {} }, planStage: "shopping", updatedAt: 1 };
+  assert.deepEqual(guestBlockedFields(base, { ...base, list: { checked: { milk: true } } }), []);
+  assert.deepEqual(guestBlockedFields(base, { ...base, stapleNeeds: { salt: true } }), []);
+  assert.deepEqual(guestBlockedFields(base, { ...base, updatedAt: 2 }), []);
+  assert.deepEqual(guestBlockedFields(base, { ...base, plan: { Mon: {} } }), ["plan"]);
+  assert.deepEqual(guestBlockedFields(base, { ...base, planStage: "planning" }), ["planStage"]);
+});
+
+test("a field nobody has invented yet is off limits to a guest by default", () => {
+  // Mirrors the rules, which only re-grant state/list and state/stapleNeeds.
+  // If this allowed unknown fields, the app would let a guest make an edit
+  // the database then silently refused.
+  const base = { list: {}, stapleNeeds: {}, updatedAt: 1 };
+  assert.deepEqual(guestBlockedFields(base, { ...base, somethingNew: 1 }), ["somethingNew"]);
 });

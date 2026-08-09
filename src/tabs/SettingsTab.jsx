@@ -10,7 +10,7 @@ import { Btn, ConfirmDialog, AlertDialog, Section, Seg } from "../ui";
 import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, catalogConfigKey, catalogNameCollisions, classifyJoinInput, formatInvite, inviteLive } from "../lib";
 import { syncEnabled } from "../sync";
 
-export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, sync, user, accessDenied, members, invites, createInvite, revokeInvite, joinWithInvite, removeMember, authError, signInWithGoogle, sendEmailSignInLink, signOutUser }) {
+export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, sync, user, accessDenied, members, invites, isGuest, createInvite, revokeInvite, joinWithInvite, removeMember, authError, signInWithGoogle, sendEmailSignInLink, signOutUser }) {
   const prefs = data.prefs;
   const setPref = (patch) => updateCatalog((c) => ({ ...c, prefs: { ...c.prefs, ...patch } }));
   // The members node as written: { uid: { email, displayName, updatedAt } }.
@@ -106,7 +106,10 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         return;
       }
       setCodeMsg("Joining…");
-      const res = await joinWithInvite(parsed.code, parsed.token, user);
+      // parsed.role must go through: the rules compare the record written
+      // against the stored invite, so redeeming a guest link as a full
+      // member is refused outright rather than quietly downgraded.
+      const res = await joinWithInvite(parsed.code, parsed.token, user, parsed.role);
       if (!res.ok) {
         setCodeMsg("That invite didn't work — it may have expired or already been used. Ask for a new one.");
         return;
@@ -143,18 +146,25 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
     [invites]
   );
 
-  const makeInvite = async () => {
+  const makeInvite = async (role) => {
     setInviting(true);
     setInviteMsg("");
-    const token = await createInvite(60);
+    const token = await createInvite(60, role);
     setInviting(false);
     if (!token) {
-      setInviteMsg("Couldn't create an invite. You have to be a member of this household to invite someone.");
+      setInviteMsg("Couldn't create an invite. You have to be a full member of this household to invite someone.");
       return;
     }
     // Hand over ONE string carrying both halves: a token alone doesn't say
     // which household it opens, and a code alone no longer opens anything.
-    copyText(formatInvite(code, token), "Invite copied — paste it on the other phone within the hour.");
+    // The role rides along too, because the account redeeming it can't read
+    // the invite to find out what it grants.
+    copyText(
+      formatInvite(code, token, role),
+      role === "guest"
+        ? "Guest link copied — they can shop the list, not change recipes or the week."
+        : "Invite copied — paste it on the other phone within the hour."
+    );
   };
 
   /* ---------- backup / catalog export ---------- */
@@ -371,11 +381,16 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                 <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
                   {memberList.map((m) => (
                     <li key={m.uid} style={{ fontSize: 13, color: C.ink, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                      <span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>{m.email || m.displayName || m.uid}</span>
+                      <span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>
+                        {m.email || m.displayName || m.uid}
+                        {m.role === "guest" && (
+                          <span style={{ fontSize: 11, color: C.gold, fontWeight: 500, marginLeft: 6 }}>guest</span>
+                        )}
+                      </span>
                       {m.uid === user.uid ? (
                         <span style={{ fontSize: 11, color: C.green, fontWeight: 500 }}>this phone</span>
                       ) : (
-                        <Btn small kind="danger" onClick={() => setAskRemove(m)}>Remove</Btn>
+                        !isGuest && <Btn small kind="danger" onClick={() => setAskRemove(m)}>Remove</Btn>
                       )}
                     </li>
                   ))}
@@ -386,9 +401,19 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                 </p>
               )}
 
-              {user && !accessDenied && (
+              {user && !accessDenied && isGuest && (
+                <p style={{ fontSize: 12, color: C.faint, margin: "12px 0 0" }}>
+                  You&apos;re a guest here: you can shop the list, but inviting and
+                  removing people belongs to the household&apos;s own accounts.
+                </p>
+              )}
+
+              {user && !accessDenied && !isGuest && (
                 <div style={{ marginTop: 12 }}>
-                  <Btn onClick={makeInvite} disabled={inviting}>{inviting ? "Creating…" : "Invite another phone"}</Btn>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <Btn onClick={() => makeInvite("member")} disabled={inviting}>{inviting ? "Creating…" : "Invite another phone"}</Btn>
+                    <Btn onClick={() => makeInvite("guest")} disabled={inviting}>Guest link</Btn>
+                  </div>
                   {inviteMsg && <div style={{ fontSize: 13, fontWeight: 500, color: C.tomato, marginTop: 8 }}>{inviteMsg}</div>}
                   {inviteList.length > 0 && (
                     <div style={{ marginTop: 10 }}>
@@ -396,8 +421,11 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                       <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
                         {inviteList.map((i) => (
                           <li key={i.token} style={{ fontSize: 12, color: C.faint, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                            <span style={{ flex: 1, minWidth: 0, fontFamily: "ui-monospace, Menlo, monospace", wordBreak: "break-all" }}>{i.token.slice(0, 6)}…</span>
-                            <Btn small onClick={() => copyText(formatInvite(code, i.token), "Invite copied.")}>Copy</Btn>
+                            <span style={{ flex: 1, minWidth: 0, fontFamily: "ui-monospace, Menlo, monospace", wordBreak: "break-all" }}>
+                              {i.token.slice(0, 6)}…
+                              {i.role === "guest" && <span style={{ fontFamily: fontBody, color: C.gold, fontWeight: 500, marginLeft: 6 }}>guest</span>}
+                            </span>
+                            <Btn small onClick={() => copyText(formatInvite(code, i.token, i.role), "Invite copied.")}>Copy</Btn>
                             <Btn small kind="danger" onClick={() => revokeInvite(i.token)}>Revoke</Btn>
                           </li>
                         ))}
@@ -405,7 +433,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                     </div>
                   )}
                   <p style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
-                    An invite is one link that expires in an hour. Paste it into this same box on the other phone, signed in. Removing someone here takes their access away for good — the code alone won&apos;t let them back in.
+                    Either link expires in an hour and is pasted into the box above on the other phone, signed in. A <b>guest link</b> gives someone the shopping list — ticking off, adding items, flagging a staple as run out — but not recipes, ingredients or the week plan. Removing someone takes their access away for good; the code alone won&apos;t let them back in.
                   </p>
                 </div>
               )}

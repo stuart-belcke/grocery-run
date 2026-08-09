@@ -1369,8 +1369,15 @@ export function cleanCode(s) {
     .slice(0, 40);
 }
 
-export function formatInvite(code, token) {
-  return `${code}~${token}`;
+// The role rides in the STRING, because the account redeeming an invite
+// cannot read it: households/{code}/invites is members-only, and a joiner
+// isn't one yet. So the link has to say what it grants. A trailing "~g"
+// marks a guest link; nothing marks a full one.
+// This is not where the role is ENFORCED — the rules compare what gets
+// written against the stored invite, so editing "~g" off a link buys
+// nothing. It's here so an honest client knows what to write.
+export function formatInvite(code, token, role) {
+  return role === "guest" ? `${code}~${token}~g` : `${code}~${token}`;
 }
 
 // Returns { code, token }, or null for anything that isn't an invite —
@@ -1378,17 +1385,21 @@ export function formatInvite(code, token) {
 // household I'm already in" rather than as a malformed invite.
 export function parseInvite(s) {
   const raw = String(s == null ? "" : s).trim();
-  const at = raw.indexOf("~");
-  if (at < 0) return null;
-  const code = cleanCode(raw.slice(0, at));
-  const token = raw
-    .slice(at + 1)
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
+  const parts = raw.split("~");
+  if (parts.length < 2 || parts.length > 3) return null;
+  const code = cleanCode(parts[0]);
+  const token = parts[1].toLowerCase().replace(/[^a-z0-9]/g, "");
   // Both halves have to be long enough to be real. A short one means a
   // truncated paste, and guessing at it would join the wrong household.
   if (code.length < 8 || token.length < 8) return null;
-  return { code, token };
+  let role = "member";
+  if (parts.length === 3) {
+    // Anything in the third slot that isn't the guest marker is a mangled
+    // paste, not a link to interpret generously.
+    if (parts[2].toLowerCase().replace(/[^a-z]/g, "") !== "g") return null;
+    role = "guest";
+  }
+  return { code, token, role };
 }
 
 // An invite is dead once it expires; the rules enforce the same bound with
@@ -1416,4 +1427,25 @@ export function classifyJoinInput(s) {
   }
   const code = cleanCode(raw);
   return code.length >= 8 ? { kind: "code", code } : { kind: "short" };
+}
+
+/* What a guest may change in the shared state — the app-side mirror of the
+   rules' state/list + state/stapleNeeds grants.
+
+   Expressed as "everything EXCEPT these keys is off limits" rather than as
+   a list of the tabs that plan the week, so it catches every path into a
+   forbidden field including ones that don't exist yet. A new top-level
+   field is denied to guests by default, which is what the rules do too — if
+   the two disagreed, the app would let a guest make an edit the database
+   then silently refused. Returns the field names that changed and mustn't
+   have, so the message can name them. */
+const GUEST_WRITABLE = new Set(["list", "stapleNeeds", "updatedAt"]);
+
+export function guestBlockedFields(prev, next) {
+  const out = [];
+  for (const key of new Set([...Object.keys(prev || {}), ...Object.keys(next || {})])) {
+    if (GUEST_WRITABLE.has(key)) continue;
+    if (JSON.stringify((prev || {})[key]) !== JSON.stringify((next || {})[key])) out.push(key);
+  }
+  return out;
 }

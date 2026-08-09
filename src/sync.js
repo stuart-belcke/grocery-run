@@ -620,9 +620,13 @@ async function writeUserRecord(user) {
 export async function recordHouseholdMembership(code, user) {
   const db = await getDb();
   if (!db) return false;
-  const { ref, set } = await import("firebase/database");
+  // update(), NOT set(). The rules make `role` immutable by comparing the
+  // written record against the stored one, so a set() — which would drop a
+  // guest's role field — reads as CHANGING the role and is refused. update()
+  // merges, leaving role exactly as it was.
+  const { ref, update } = await import("firebase/database");
   try {
-    await set(ref(db, `households/${code}/members/${user.uid}`), {
+    await update(ref(db, `households/${code}/members/${user.uid}`), {
       email: user.email || null,
       displayName: user.displayName || null,
       updatedAt: Date.now(),
@@ -660,7 +664,7 @@ function newToken() {
 
 // Create an invite. Only a member can, which the rules enforce — the right
 // to let somebody in belongs to the people already in.
-export async function createInvite(code, user, ttlMinutes = 60) {
+export async function createInvite(code, user, ttlMinutes = 60, role = "member") {
   const db = await getDb();
   if (!db) return null;
   const { ref, set } = await import("firebase/database");
@@ -671,6 +675,9 @@ export async function createInvite(code, user, ttlMinutes = 60) {
       byEmail: user.email || null,
       createdAt: Date.now(),
       exp: Date.now() + ttlMinutes * 60 * 1000,
+      // Absent means a full member. Written only for a guest link, so the
+      // stored invite and the redeemed record agree — the rules compare them.
+      ...(role === "guest" ? { role: "guest" } : {}),
     });
     reportWriteOk();
     return token;
@@ -699,7 +706,7 @@ export async function revokeInvite(code, token) {
 // because at the moment of redeeming we are not yet a member and the rules
 // keep invite deletion members-only so nobody holding the code can burn every
 // outstanding invite. If this second write is lost the invite just expires.
-export async function joinWithInvite(code, token, user) {
+export async function joinWithInvite(code, token, user, role = "member") {
   const db = await getDb();
   if (!db) return { ok: false, code: "no-db" };
   const { ref, set, remove } = await import("firebase/database");
@@ -709,6 +716,10 @@ export async function joinWithInvite(code, token, user) {
       displayName: user.displayName || null,
       updatedAt: Date.now(),
       invite: token,
+      // Must match the stored invite exactly or the rules refuse the write,
+      // so a guest link can't be redeemed as a full membership by editing
+      // the "~g" off it.
+      ...(role === "guest" ? { role: "guest" } : {}),
     });
   } catch (e) {
     // The expected failure: expired, revoked, already used, or simply wrong.

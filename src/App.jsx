@@ -54,6 +54,7 @@ import {
   APP_DATA_VERSION,
   normalizeCatalog,
   syncIndicator,
+  guestBlockedFields,
 } from "./lib";
 import { ListTab } from "./tabs/ListTab";
 import { MealsTab } from "./tabs/MealsTab";
@@ -124,6 +125,10 @@ export default function App() {
   // households/{code}/members and .../invites, for the Settings list.
   const [members, setMembers] = useState(null);
   const [invites, setInvites] = useState(null);
+  // Set when a guest tries an edit their role doesn't cover. The rules would
+  // refuse it anyway; catching it here means a clear sentence instead of the
+  // generic "Sync error" a rejected write produces.
+  const [guestBlocked, setGuestBlocked] = useState(null);
   // Bumped once recordHouseholdMembership's write actually lands. The
   // household/catalog subscribe effect below depends on it so a device that
   // signs in AFTER it's already subscribed (the common case — auth restores
@@ -161,6 +166,16 @@ export default function App() {
     return isBuildTooOld(cached && cached.appDataVersion, APP_DATA_VERSION);
   });
 
+  /* Item 37: a guest reads everything and writes only the shopping list.
+     Unknown until the members node arrives, and treated as a FULL member
+     until then — optimistic on purpose. The rules are the enforcement, so
+     guessing wrong here costs a refused write and a message, never access;
+     guessing the other way would make a real member's app read-only every
+     time it started. */
+  const isGuest = !!(user && members && members[user.uid] && members[user.uid].role === "guest");
+  const isGuestRef = useRef(isGuest);
+  isGuestRef.current = isGuest;
+
   const localRef = useRef(local);
   localRef.current = local;
   const catalogRef = useRef(catalog);
@@ -186,7 +201,19 @@ export default function App() {
   // update's changes. Make several edits in one fn instead.
   const update = (fn) => {
     if (tooOldRef.current) return; // a newer build owns this data — see the banner
-    setLocal(fn(structuredClone(localRef.current)));
+    const next = fn(structuredClone(localRef.current));
+    // Checked against the RESULT rather than per tab, so every route into a
+    // forbidden field is covered — including ones added later. Mirrors the
+    // rules exactly (see guestBlockedFields), so the app never accepts an
+    // edit the database is about to refuse.
+    if (isGuestRef.current) {
+      const blocked = guestBlockedFields(localRef.current, next);
+      if (blocked.length) {
+        setGuestBlocked(blocked.includes("plan") || blocked.includes("planStage") ? "the week plan" : "that");
+        return;
+      }
+    }
+    setLocal(next);
   };
 
   // Edit the household catalog. Same one-call-per-handler rule as update() and
@@ -194,6 +221,13 @@ export default function App() {
   // recipe and the shopping list calls each of these once.
   const updateCatalog = (fn) => {
     if (tooOldRef.current) return; // as update(): writing would mean writing a shape we don't know
+    // The catalog is recipes, ingredients, stores and preferences — all of it
+    // full-members-only in the rules, so a guest is stopped once here rather
+    // than in each of the four tabs that can reach it.
+    if (isGuestRef.current) {
+      setGuestBlocked("recipes, ingredients and settings");
+      return;
+    }
     const base = hCatalogRef.current || seedCatalog(catalogRef.current);
     // Stamped on every edit, and only on an edit. This is what tells the
     // listener below that an offline change is real work rather than a stale
@@ -565,6 +599,24 @@ export default function App() {
           </div>
         )}
 
+        {/* Not a modal: unlike an update prompt, this isn't asking for a
+            decision — it explains why a button did nothing, and it should be
+            dismissible and out of the way. Clears itself on the next try. */}
+        {guestBlocked && (
+          <div
+            role="alert"
+            style={{ background: C.goldSoft, border: `1px solid ${C.gold}`, borderRadius: 10, padding: "12px 14px", marginBottom: 12, fontSize: 13, color: C.ink }}
+          >
+            <b style={{ color: C.gold }}>You&apos;re a guest in this household.</b> You can tick
+            things off, add items and say when a staple has run out — but{" "}
+            {guestBlocked} {guestBlocked === "that" ? "is" : "are"} only editable by
+            the people who own it.
+            <div style={{ marginTop: 8 }}>
+              <Btn small onClick={() => setGuestBlocked(null)}>OK</Btn>
+            </div>
+          </div>
+        )}
+
         {tab === "list" && <ListTab data={data} update={update} updateCatalog={updateCatalog} />}
         {tab === "meals" && <MealsTab data={data} update={update} updateCatalog={updateCatalog} />}
         {tab === "week" && <WeekTab data={data} update={update} />}
@@ -585,6 +637,7 @@ export default function App() {
             accessDenied={accessDenied}
             members={members}
             invites={invites}
+            isGuest={isGuest}
             createInvite={(ttl) => createInvite(code, user, ttl)}
             revokeInvite={(token) => revokeInvite(code, token)}
             joinWithInvite={joinWithInvite}
