@@ -18,6 +18,22 @@ const member = (email) => ({ email, displayName: null, updatedAt: Date.now() });
 // that can't run the emulator has not discovered anything about the rules.
 // `npm run emulator:fetch` downloads the jar.
 const ready = haveEmulator();
+
+/* SKIPPING IS ONLY EVER OK LOCALLY. In CI a skipped suite is indistinguishable
+   from a passing one — the step goes green having asserted nothing about the
+   rules, which is worse than not running it at all, and is exactly the failure
+   this file exists to prevent elsewhere. So on a runner, no emulator is a hard
+   failure: either the jar and the JVM are there and 40-odd real assertions
+   run, or the build stops and says why. */
+if (process.env.CI && !ready) {
+  throw new Error(
+    "Security rules tests cannot run: no database emulator jar or no JVM. " +
+      "In CI this is a failure, not a skip — a green step here would claim the " +
+      "rules were checked when nothing was. Ensure `npm run emulator:fetch` ran " +
+      "and a JVM is installed."
+  );
+}
+
 const skip = ready ? false : "no database emulator (run `npm run emulator:fetch`) or no java";
 // Node 22 has no test.skipIf, so the reason rides on each test's options.
 const t = (name, fn) => test(name, { skip }, fn);
