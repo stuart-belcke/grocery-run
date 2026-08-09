@@ -108,10 +108,37 @@ through untouched is not a reason.
 
 ## Communication
 
-Direct, no filler. Don't reach for analogies or sideways parallels — explain the
-thing itself. Expansion is welcome when it's an architectural improvement or
-keeps the app professional and efficient; not otherwise. Spell out an acronym or
-unfamiliar term in parentheses the first few times it appears.
+**Lead with the answer.** First sentence says what happened or what to do. Put
+reasoning after it, and only as much as changes a decision. Don't build up to a
+conclusion.
+
+**No jargon without the plain word first.** Write "the buttons a guest can't
+use", not "guest affordances". Spell out an acronym or unfamiliar term in
+parentheses the first few times it appears. If a plain word exists, the jargon
+is not worth the reader's time. Don't reach for analogies or sideways parallels
+— explain the thing itself.
+
+**Name the thing, not the category.** "Run `npm run test:rules`", not "run the
+test suite". "Firebase Console → Build → Authentication → Sign-in method", not
+"enable it in the console". A step the reader has to translate is not finished.
+
+**Be explicit about what is and isn't done.** Say which parts are built, which
+are unverified, and which were not attempted. "Works" means tested; if it was
+only reasoned about, say so in the same breath. Never let a summary imply
+coverage that doesn't exist.
+
+**Correct yourself in one line and move on.** When a claim turns out wrong, say
+what was wrong and what is true. No apology, no retelling, no tally.
+
+**Say what you need, not what you might need.** When a decision is genuinely the
+user's, state the options and give a recommendation with the reason. Don't
+present a survey and wait.
+
+**Numbers over adjectives.** "58 tests, 100 seconds" beats "the suite is slow".
+"126 entries either side, 5 changed" beats "mostly a reorder".
+
+Expansion is welcome when it's an architectural improvement or keeps the app
+professional and efficient; not otherwise.
 
 Say plainly when something is uncertain, when a claim was wrong, and when a
 result is unverified. Report what the tests actually did.
