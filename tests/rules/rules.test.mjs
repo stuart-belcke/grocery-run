@@ -7,7 +7,7 @@
 
 import test, { before, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { start, stop, seed, wipe, read, write, remove, patch, allowed, haveEmulator } from "./harness.mjs";
+import { start, stop, seed, wipe, read, write, remove, patch, allowed, haveEmulator, anon } from "./harness.mjs";
 
 const CODE = "home-cx2ur9zg";
 const H = `households/${CODE}`;
@@ -220,7 +220,7 @@ t("users/{uid} stays private to its own account", async () => {
    is somebody you handed a link to, so every rule here assumes they
    will try the next path along. */
 
-const guest = (email) => ({ email, displayName: null, updatedAt: Date.now(), role: "guest" });
+const guest = (name) => ({ email: null, displayName: name, updatedAt: Date.now(), role: "guest" });
 
 async function withGuest() {
   await seed({
@@ -339,4 +339,57 @@ t("a made-up role is refused outright", async () => {
   assert.ok(
     !(await allowed(write(`${H}/members/alice`, { ...member("alice@example.com"), role: "owner" }, "alice")))
   );
+});
+
+/* ------------------ anonymous identities ------------------
+   A guest link signs the browser in anonymously so someone can be handed a
+   link and just shop. That identity has a uid the rules can check, but no
+   account behind it and no life beyond the browser's storage — so it may be
+   a guest and nothing more. */
+
+t("an anonymous browser can redeem a guest link and shop", async () => {
+  await write(`${H}/invites/gtok`, { by: "alice", exp: soon(), role: "guest" }, "alice");
+  assert.ok(
+    await allowed(write(`${H}/members/ghost`, { ...guest("Sam"), invite: "gtok" }, anon("ghost")))
+  );
+  assert.ok(await allowed(read(`${H}/state`, anon("ghost"))));
+  assert.ok(await allowed(write(`${H}/state/list/checked/milk`, true, anon("ghost"))));
+});
+
+t("an anonymous browser cannot redeem a FULL invite", async () => {
+  // Holding a household as an equal has to mean an account that can be
+  // recovered and named — not a uid that dies with the browser's storage.
+  await write(`${H}/invites/ftok`, { by: "alice", exp: soon() }, "alice");
+  assert.ok(
+    !(await allowed(write(`${H}/members/ghost`, { ...member("g@x.com"), invite: "ftok" }, anon("ghost"))))
+  );
+  // And a real account redeeming the same invite still works, so the rule
+  // narrows by provider rather than breaking full invites outright.
+  assert.ok(await allowed(write(`${H}/members/bob`, { ...member("b@x.com"), invite: "ftok" }, "bob")));
+});
+
+t("an anonymous browser cannot claim an unclaimed household", async () => {
+  await wipe();
+  const NEW = "households/home-anonclaim";
+  assert.ok(!(await allowed(write(`${NEW}/members/ghost`, member("g@x.com"), anon("ghost")))));
+  assert.ok(!(await allowed(write(`${NEW}/members/ghost`, guest("Sam"), anon("ghost")))));
+  assert.ok(await allowed(write(`${NEW}/members/alice`, member("a@x.com"), "alice")));
+});
+
+t("an anonymous guest is still bound by every other guest rule", async () => {
+  await write(`${H}/invites/gtok`, { by: "alice", exp: soon(), role: "guest" }, "alice");
+  await write(`${H}/members/ghost`, { ...guest("Sam"), invite: "gtok" }, anon("ghost"));
+  assert.ok(!(await allowed(write(`${H}/catalog/updatedAt`, 9, anon("ghost")))));
+  assert.ok(!(await allowed(write(`${H}/state/plan/Sun/dinner`, { main: "r1" }, anon("ghost")))));
+  assert.ok(!(await allowed(remove(`${H}/members/alice`, anon("ghost")))));
+  // ...including the one that matters most: it can't promote itself.
+  assert.ok(!(await allowed(write(`${H}/members/ghost`, member("g@x.com"), anon("ghost")))));
+});
+
+t("a guest may rename themselves without becoming something else", async () => {
+  // The name is typed at redemption and refreshed on load, so it has to stay
+  // writable while the role stays frozen.
+  await write(`${H}/invites/gtok`, { by: "alice", exp: soon(), role: "guest" }, "alice");
+  await write(`${H}/members/ghost`, { ...guest("Sam"), invite: "gtok" }, anon("ghost"));
+  assert.ok(await allowed(patch(`${H}/members/ghost`, { displayName: "Sam B", updatedAt: Date.now() }, anon("ghost"))));
 });

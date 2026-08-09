@@ -27,12 +27,14 @@ import {
   sendEmailSignInLink,
   completePendingSignIn,
   signOutUser,
+  signInAnonymouslyForGuest,
   recordHouseholdMembership,
 } from "./sync";
 import { C, fontDisplay, fontBody, syncTone } from "./theme";
 import { Stripe, Btn, ChoiceDialog } from "./ui";
 import {
   LOCAL_KEY,
+  ONBOARDED_KEY,
   CATALOG_KEY,
   storageOk,
   FALLBACK_CATALOG,
@@ -56,6 +58,7 @@ import {
   syncIndicator,
   guestBlockedFields,
 } from "./lib";
+import { Onboarding } from "./Onboarding";
 import { ListTab } from "./tabs/ListTab";
 import { MealsTab } from "./tabs/MealsTab";
 import { WeekTab } from "./tabs/WeekTab";
@@ -129,6 +132,18 @@ export default function App() {
   // refuse it anyway; catching it here means a clear sentence instead of the
   // generic "Sync error" a rejected write produces.
   const [guestBlocked, setGuestBlocked] = useState(null);
+  /* First run. Treated as already onboarded when this browser has household
+     data of its own, so nobody who already uses the app is ever shown the
+     screen — the explicit flag only has to cover someone who chose "start my
+     own list" and therefore has nothing cached yet. */
+  const [onboarded, setOnboarded] = useState(() => {
+    if (loadJSON(ONBOARDED_KEY)) return true;
+    return !!loadCache(loadDeviceCode()) || validLocal(loadJSON(LOCAL_KEY));
+  });
+  const finishOnboarding = () => {
+    saveJSON(ONBOARDED_KEY, true);
+    setOnboarded(true);
+  };
   // Bumped once recordHouseholdMembership's write actually lands. The
   // household/catalog subscribe effect below depends on it so a device that
   // signs in AFTER it's already subscribed (the common case — auth restores
@@ -523,6 +538,56 @@ export default function App() {
   // connected socket over a refused read — is the one case a browser in this
   // sandbox can't reproduce, so it needs coverage that doesn't need a network.
   const sync = syncIndicator({ syncEnabled, authReady, signedIn: !!user, accessDenied, writeError, syncStatus });
+
+  /* Redeem an invite from the first-run screen. A GUEST link signs the
+     browser in anonymously first — that is the whole point of the choice: you
+     are handed a link and you shop, with no account to make. A FULL invite
+     needs a real account, which the rules enforce and this refuses early so
+     the failure is a sentence rather than a permission error. */
+  const joinFromOnboarding = async (parsed, typedName) => {
+    let who = user;
+    if (!who) {
+      if (parsed.role !== "guest") {
+        return { ok: false, message: "That's a full invite, so it needs an account. Sign in below first, then paste it again." };
+      }
+      try {
+        who = await signInAnonymouslyForGuest();
+      } catch (e) {
+        return { ok: false, message: `Couldn't start a guest session${e && e.code ? ` (${e.code})` : ""}. Ask for a link again, or sign in instead.` };
+      }
+      if (!who) return { ok: false, message: "Guest sessions aren't available on this build." };
+    }
+    const res = await joinWithInvite(parsed.code, parsed.token, who, parsed.role, typedName);
+    if (!res.ok) {
+      return { ok: false, message: "That link didn't work — it may have expired or already been used. Ask for a new one." };
+    }
+    setCode(parsed.code);
+    finishOnboarding();
+    return { ok: true };
+  };
+
+  /* Shown only to a browser with nothing of its own AND nobody signed in.
+     Deliberately gated on authReady: `user` is null before Firebase answers,
+     so without it a signed-in phone would flash the first-run screen on every
+     launch — the same trap authReady exists for in the sync indicator. */
+  if (!onboarded && authReady && !user) {
+    return (
+      <Onboarding
+        authError={authError}
+        onJoin={joinFromOnboarding}
+        onGoogle={() => signInWithGoogle().catch(() => {})}
+        onEmailLink={async (email) => {
+          try {
+            await sendEmailSignInLink(email);
+            return { ok: true };
+          } catch (e) {
+            return { ok: false, message: `Couldn't send the link${e && e.code ? ` (${e.code})` : ""} — try again in a moment.` };
+          }
+        }}
+        onSkip={finishOnboarding}
+      />
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: C.paper, color: C.ink, fontFamily: fontBody, fontSize: 15 }}>

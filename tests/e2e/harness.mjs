@@ -92,6 +92,7 @@ function chromePath() {
 const DEVICE_KEY = "grocery-run-device-v1";
 const CATALOG_PREFIX = "grocery-run-household-catalog-v1-";
 const STATE_PREFIX = "grocery-run-shared-";
+const ONBOARDED_KEY = "grocery-run-onboarded-v1";
 
 /* Opens the app with a known household already in place.
 
@@ -99,7 +100,7 @@ const STATE_PREFIX = "grocery-run-shared-";
    pins the ingredient IDS. Without a seeded catalog the app mints fresh
    random ids on first edit, so a test's ids don't match the rendered rows
    and the run proves nothing. */
-export async function openApp(baseUrl, { code = "home-e2etest", catalog, state } = {}) {
+export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, onboarded = true } = {}) {
   const browser = await chromium.launch({ executablePath: chromePath() });
   const page = await browser.newPage();
   const errors = [];
@@ -135,18 +136,35 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state }
      fixture. That looked exactly like "the edit didn't persist", and it is
      the sort of harness bug that makes a suite untrustworthy rather than
      merely failing. */
-  await page.addInitScript(([c, cat, st, kD, kC, kS]) => {
+  await page.addInitScript(([c, cat, st, kD, kC, kS, kO, onb]) => {
     if (!localStorage.getItem(kD)) localStorage.setItem(kD, JSON.stringify({ code: c }));
     if (cat && !localStorage.getItem(kC + c)) localStorage.setItem(kC + c, cat);
     if (st && !localStorage.getItem(kS + c)) localStorage.setItem(kS + c, st);
+    /* Every spec but the first-run one is testing the APP, so the browser has
+       to look like one that already uses it — otherwise the first-run screen
+       renders instead and nothing else on the page exists. onboarded:false
+       opts out, which is how onboarding.spec.mjs gets a genuinely new
+       browser. */
+    if (onb) localStorage.setItem(kO, JSON.stringify(true));
   }, [code, catalog ? JSON.stringify(catalog) : null, state ? JSON.stringify(state) : null,
-      DEVICE_KEY, CATALOG_PREFIX, STATE_PREFIX]);
+      DEVICE_KEY, CATALOG_PREFIX, STATE_PREFIX, ONBOARDED_KEY, onboarded]);
 
   // domcontentloaded, not networkidle: with external requests aborted there
   // is no "idle" to wait for, and the tab bar rendering is the real signal
   // that the app has mounted.
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
-  await page.getByRole("button", { name: /^ingredients$/i }).first().waitFor({ timeout: 15000 });
+  /* A first-run browser has no tab bar to wait for — the whole point is that
+     it shows a different screen — so wait for whichever one is expected. The
+     condition MIRRORS THE APP'S OWN: cached household state counts as
+     already-onboarded there, so seeding `state` means the app screen even
+     with the flag withheld. Deriving it any other way would make the harness
+     disagree with the thing it is testing. */
+  const expectFirstRun = !onboarded && !state;
+  if (expectFirstRun) {
+    await page.getByText(/Someone sent me a link/).first().waitFor({ timeout: 15000 });
+  } else {
+    await page.getByRole("button", { name: /^ingredients$/i }).first().waitFor({ timeout: 15000 });
+  }
 
   /* --- ground truth: what the app actually persisted --- */
   page.readCatalog = () =>

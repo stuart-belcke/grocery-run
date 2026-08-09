@@ -58,7 +58,7 @@ export function haveEmulator() {
 // @firebase/rules-unit-testing uses — so a uid can be minted without any
 // signing key or network round trip.
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
-function token(uid) {
+function token(uid, provider = "google.com") {
   const iat = Math.floor(Date.now() / 1000);
   return `${b64({ alg: "none", typ: "JWT" })}.${b64({
     iss: `https://securetoken.google.com/${NS}`,
@@ -68,9 +68,16 @@ function token(uid) {
     iat,
     exp: iat + 3600,
     auth_time: iat,
-    firebase: { sign_in_provider: "google.com", identities: {} },
+    // What the rules read as auth.token.firebase.sign_in_provider. "anonymous"
+    // is a real identity with no account behind it — enough to be a guest,
+    // deliberately not enough to own or fully join a household.
+    firebase: { sign_in_provider: provider, identities: {} },
   })}.`;
 }
+
+// Test callers pass either a uid, or { uid, provider } for an anonymous one.
+const asToken = (as) => (typeof as === "string" ? token(as) : token(as.uid, as.provider));
+export const anon = (uid) => ({ uid, provider: "anonymous" });
 
 let proc = null;
 
@@ -118,7 +125,7 @@ async function req(method, p, { as, body } = {}) {
   const headers = { "Content-Type": "application/json" };
   let q = "";
   if (as === "owner") headers.Authorization = "Bearer owner";
-  else if (as) q = `&auth=${token(as)}`;
+  else if (as) q = `&auth=${asToken(as)}`;
   const res = await fetch(`${BASE}/${p}.json?ns=${NS}${q}`, {
     method,
     headers,

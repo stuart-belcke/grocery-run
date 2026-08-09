@@ -8,6 +8,10 @@ import { APP_DATA_VERSION } from "./version.js";
 export { APP_DATA_VERSION };
 
 export const LOCAL_KEY = "grocery-run-local-v1";
+// Set once a browser has been through the first-run screen, so it is never
+// shown twice. An existing install is treated as onboarded by its cached
+// household rather than by this flag — see App.
+export const ONBOARDED_KEY = "grocery-run-onboarded-v1";
 export const CATALOG_KEY = "grocery-run-catalog-cache-v1";
 // The household's own catalog, cached so the app opens offline before the
 // database listener has said anything.

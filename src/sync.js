@@ -492,6 +492,22 @@ export async function signInWithGoogle() {
 // the one that sent it) falls back to asking, below.
 const EMAIL_FOR_SIGNIN_KEY = "grocery-run-email-for-signin";
 
+// Signs the browser in with no account at all — a real auth.uid with no
+// email behind it. This is what makes a guest link work as its own way in:
+// you're handed a link, you type a name, you're shopping. The rules cap it
+// hard (anonymous can only ever be a guest, never a household's owner or a
+// full member) precisely because the identity lives in this browser's
+// storage and dies with it.
+// NEEDS THE ANONYMOUS PROVIDER ENABLED in the Firebase console, same manual
+// step as Google and email-link.
+export async function signInAnonymouslyForGuest() {
+  const auth = await getAuthInstance();
+  if (!auth) return null;
+  const { signInAnonymously } = await import("firebase/auth");
+  const cred = await signInAnonymously(auth);
+  return cred && cred.user ? { uid: cred.user.uid, email: cred.user.email, displayName: cred.user.displayName } : null;
+}
+
 export async function sendEmailSignInLink(email) {
   const auth = await getAuthInstance();
   if (!auth) return;
@@ -626,9 +642,13 @@ export async function recordHouseholdMembership(code, user) {
   // merges, leaving role exactly as it was.
   const { ref, update } = await import("firebase/database");
   try {
+    // Only send fields we actually have. An anonymous guest has no email and
+    // no displayName on the auth user — the name was TYPED at redemption and
+    // lives only in this record — so sending nulls here would wipe it on the
+    // next load and leave the member list showing a bare uid.
     await update(ref(db, `households/${code}/members/${user.uid}`), {
-      email: user.email || null,
-      displayName: user.displayName || null,
+      ...(user.email ? { email: user.email } : {}),
+      ...(user.displayName ? { displayName: user.displayName } : {}),
       updatedAt: Date.now(),
     });
     reportWriteOk();
@@ -706,14 +726,17 @@ export async function revokeInvite(code, token) {
 // because at the moment of redeeming we are not yet a member and the rules
 // keep invite deletion members-only so nobody holding the code can burn every
 // outstanding invite. If this second write is lost the invite just expires.
-export async function joinWithInvite(code, token, user, role = "member") {
+export async function joinWithInvite(code, token, user, role = "member", displayName) {
   const db = await getDb();
   if (!db) return { ok: false, code: "no-db" };
   const { ref, set, remove } = await import("firebase/database");
   try {
     await set(ref(db, `households/${code}/members/${user.uid}`), {
       email: user.email || null,
-      displayName: user.displayName || null,
+      // A typed name wins over the account's own: an anonymous guest has
+      // none, and it is the only thing that will identify them in the
+      // member list afterwards.
+      displayName: displayName || user.displayName || null,
       updatedAt: Date.now(),
       invite: token,
       // Must match the stored invite exactly or the rules refuse the write,

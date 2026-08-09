@@ -845,7 +845,68 @@ MEASURED AND DELIBERATELY NOT PROBLEMS
     Mutation-tested: removing role immutability fails exactly the two
     promotion/demotion cases; giving guests the full $code write fails seven.
 
+    [BUILT, NOT YET DEPLOYED] FIRST RUN, AND GUEST LINKS THAT DON'T NEED AN
+    ACCOUNT. Two problems, one cause: nothing on screen ever told a new
+    browser what to do. It minted its own household code and landed on a
+    working list seeded from catalog.json — which LOOKS fine, and that is
+    the trap. Someone handed an invite ended up in a private household of
+    their own, staring at a list that wasn't the shared one, with nothing
+    suggesting anything was wrong. The app was answering a question they
+    hadn't asked.
+      - src/Onboarding.jsx: three ways in, the one most people arrive with
+        (a link somebody sent) first, then signing in, then "start my own
+        list". Shown ONLY to a browser with no household data and nobody
+        signed in, so neither of the two existing installs ever meets it.
+        Gated on authReady for the same reason the sync indicator is: `user`
+        is null before Firebase answers, so without it a signed-in phone
+        would flash the first-run screen at every launch.
+      - ANONYMOUS AUTH for guest links. A guest link now signs the browser in
+        anonymously and asks for a name, so being handed a link is the whole
+        flow — no account to make. Chosen over requiring a real sign-in
+        because a guest is inherently a one-off: the friction of an account
+        is most of the cost of asking someone to do the shop.
+        THE COST, stated plainly: the identity lives in that browser's
+        storage and dies with it, so clearing site data means asking for a
+        new link. The typed name is what keeps the member list answerable —
+        without it a guest shows as a bare anonymous id, which would undo
+        most of what CONTRACT was for.
+        NEEDS THE ANONYMOUS PROVIDER ENABLED in the console, same manual
+        step as Google and email-link.
+      - THE RULES CAP IT HARD, and this is the part worth keeping:
+        auth.token.firebase.sign_in_provider != 'anonymous' now guards case 2
+        (first claim) and full-invite redemption. An anonymous identity may
+        be a guest and nothing else — it can't own a household and can't hold
+        one as an equal, because both should mean an account that can be
+        recovered and named. Mutation-tested: dropping the guard fails
+        exactly the two cases that assert it.
+      - A KNOCK-ON WORTH REMEMBERING: recordHouseholdMembership refreshes the
+        member record on every load, and it used to send email/displayName as
+        `|| null`. For an anonymous guest both are null on the auth user —
+        the name exists ONLY in the member record — so the refresh would have
+        wiped the typed name on the next load. It now sends only the fields
+        it actually has.
+
+    SETTINGS SAYS "HOUSEHOLD" NOW, not "Phone-to-phone sync". That name was
+    the old model — a shared code WAS the whole story, and hasn't been since
+    membership landed. Members and invites were buried underneath it, which
+    is exactly backwards: they are what the section is for now, so they come
+    first and the code drops to the bottom as the detail it has become.
+    Opens by default, because it is the thing you go to Settings for.
+
+    THE E2E HARNESS NEEDED A CONCEPT IT DIDN'T HAVE. openApp seeds a device
+    code but no state, so with the first-run screen live every existing spec
+    suddenly landed on it and timed out looking for a tab bar. It now seeds
+    the onboarded flag by default (these specs test the APP), with
+    onboarded:false to opt out. The WAIT TARGET mirrors the app's own rule —
+    cached state counts as onboarded there, so seeding `state` means the app
+    screen even with the flag withheld. Deriving it any other way makes the
+    harness disagree with the thing it is testing, which is how a harness
+    starts lying.
+
     WHAT'S LEFT
+      - ENABLE THE ANONYMOUS PROVIDER in the Firebase console (Authentication
+        -> Sign-in method), or guest links fail at the sign-in step with a
+        message rather than working.
       - DELETE the throwaway home-* households in the console FIRST. After
         CONTRACT the two holding both accounts would read as real ones.
       - SIGN BOTH PHONES IN **BEFORE** PASTING, and check each shows up in

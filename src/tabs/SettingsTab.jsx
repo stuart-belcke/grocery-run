@@ -332,7 +332,8 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
       </Section>
 
       <Section
-        title="Phone-to-phone sync"
+        title="Household"
+        defaultOpen
         aside={
           syncEnabled ? (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontFamily: fontBody, fontWeight: 400, color: sync.tone === "bad" || sync.tone === "warn" ? syncTone[sync.tone] : C.faint }}>
@@ -349,32 +350,14 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         ) : (
           <>
             <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 12px" }}>
-              Both phones using the <b>same household code</b> share one live shopping list, week plan, and store choices. Set the same code on each phone once; after that, changes appear on both whenever you're online (and queue up when you're not).
+              Everyone in a household shares one live shopping list, week plan and set of recipes. Add someone by sending them an <b>invite link</b> from here — a full invite for another phone of your own, or a <b>guest link</b> for someone who just needs to do the shop.
             </p>
-            <label htmlFor="household-code" style={{ fontSize: 12, color: C.faint, display: "block", marginBottom: 4 }}>Household code, or an invite</label>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <input
-                id="household-code"
-                value={codeInput}
-                onChange={(e) => setCodeInput(e.target.value)}
-                spellCheck={false}
-                autoCapitalize="none"
-                style={{ ...inputStyle, flex: 1, minWidth: 180, fontFamily: "ui-monospace, Menlo, monospace" }}
-              />
-              <Btn kind="primary" onClick={joinCode}>Use this code</Btn>
-              <Btn onClick={() => copyText(code, "Code copied — enter it on your other phone.")}>Copy code</Btn>
-            </div>
-            {codeMsg && <div style={{ fontSize: 12, color: C.faint, marginTop: 8 }}>{codeMsg}</div>}
-            <p style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
-              The code alone no longer lets anyone in — joining a household you&apos;re not already in needs an invite from someone who is. Switching household makes this phone adopt that household&apos;s data (this phone&apos;s current list is replaced, so export a backup first if you need it).
-            </p>
-
             {/* Item 37: the list you check when someone can't get in. Reads
                 households/{code}/members, whose email and displayName are
                 denormalized onto each record exactly so this never has to
                 read users/{uid} — which the rules keep private per account. */}
             <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
-              <div style={{ fontSize: 12, color: C.faint, marginBottom: 6 }}>Who can open this household</div>
+              <div style={{ fontSize: 13, fontWeight: 500, color: C.ink, marginBottom: 6 }}>Who can open this household</div>
               {!user ? (
                 <p style={{ fontSize: 13, color: C.faint, margin: 0 }}>Sign in below to see who else is in this household.</p>
               ) : memberList.length ? (
@@ -438,6 +421,27 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                 </div>
               )}
             </div>
+
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
+            <label htmlFor="household-code" style={{ fontSize: 12, color: C.faint, display: "block", marginBottom: 4 }}>Paste an invite, or switch to another household you&apos;re in</label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <input
+                id="household-code"
+                value={codeInput}
+                onChange={(e) => setCodeInput(e.target.value)}
+                spellCheck={false}
+                autoCapitalize="none"
+                style={{ ...inputStyle, flex: 1, minWidth: 180, fontFamily: "ui-monospace, Menlo, monospace" }}
+              />
+              <Btn kind="primary" onClick={joinCode}>Use this code</Btn>
+              <Btn onClick={() => copyText(code, "Code copied — enter it on your other phone.")}>Copy code</Btn>
+            </div>
+            {codeMsg && <div style={{ fontSize: 12, color: C.faint, marginTop: 8 }}>{codeMsg}</div>}
+            <p style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
+              The code alone no longer lets anyone in — joining a household you&apos;re not already in needs an invite from someone who is. Switching household makes this phone adopt that household&apos;s data (this phone&apos;s current list is replaced, so export a backup first if you need it).
+            </p>
+            </div>
+
           </>
         )}
       </Section>

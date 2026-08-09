@@ -122,6 +122,15 @@
         //      being written. `now` is server time, so a device with a wrong
         //      clock can't extend its own window. isString() guards the
         //      lookup: child(null) on a missing field is not a valid path.
+        //
+        // ANONYMOUS IDENTITIES MAY ONLY EVER BE GUESTS. A guest link signs the
+        // browser in anonymously so someone can be handed a link and just
+        // shop — that identity is real enough to be a member (it has a uid the
+        // rules can check) but it has no account behind it and dies with the
+        // browser's storage. So it is barred from case 2 and from redeeming a
+        // FULL invite: owning a household, or holding one as an equal, has to
+        // mean an account that can be recovered and named. Guests it allows,
+        // which is the entire point.
         //   4. a deletion by an existing member — removing somebody else.
         //      Deletion only; a member can never CREATE or edit another
         //      account's record, which is what keeps a member record honest
@@ -153,7 +162,7 @@
         // To change somebody's role, remove them and invite them again.
         "members": {
           "$uid": {
-            ".write": "auth != null && ((auth.uid == $uid && (data.exists() || (!root.child('households').child($code).child('members').exists() && newData.child('role').val() != 'guest') || (newData.child('invite').isString() && root.child('households').child($code).child('invites').child(newData.child('invite').val()).child('exp').val() > now && newData.child('role').val() == root.child('households').child($code).child('invites').child(newData.child('invite').val()).child('role').val()))) || (!newData.exists() && root.child('households').child($code).child('members').child(auth.uid).exists() && root.child('households').child($code).child('members').child(auth.uid).child('role').val() != 'guest'))",
+            ".write": "auth != null && ((auth.uid == $uid && (data.exists() || (!root.child('households').child($code).child('members').exists() && newData.child('role').val() != 'guest' && auth.token.firebase.sign_in_provider != 'anonymous') || (newData.child('invite').isString() && root.child('households').child($code).child('invites').child(newData.child('invite').val()).child('exp').val() > now && newData.child('role').val() == root.child('households').child($code).child('invites').child(newData.child('invite').val()).child('role').val() && (newData.child('role').val() == 'guest' || auth.token.firebase.sign_in_provider != 'anonymous')))) || (!newData.exists() && root.child('households').child($code).child('members').child(auth.uid).exists() && root.child('households').child($code).child('members').child(auth.uid).child('role').val() != 'guest'))",
             ".validate": "auth != null && auth.uid == $uid && newData.hasChild('updatedAt') && (!newData.hasChild('role') || newData.child('role').val() == 'guest' || newData.child('role').val() == 'member') && (!data.exists() || newData.child('role').val() == data.child('role').val())"
           }
         },
