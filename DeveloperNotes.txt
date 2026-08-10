@@ -496,6 +496,98 @@ rather than saving them for a cleanup that never gets scheduled.
     Deliberately not urgent. Splitting is churn with no behaviour change, and
     the file has not yet made anything hard to do. Revisit when it does.
 
+39. INGREDIENT LINES NEED A THIRD FIELD, and this is the root of several
+    complaints at once. A line is { name, qty, unit } and there is nowhere to
+    put "optional", "or ground turkey", "diced", "cooked separately", "2
+    chopped 6 whole", or a can size — so BOTH a person typing and the recipe
+    importer put it in `unit`, which is the one field that has to be exact
+    for the arithmetic to work.
+    IT IS ALREADY COSTING LIST LINES, measured across the 22 recipes:
+      garlic            11 recipes "cloves", one "cloves (2 chopped, 6 whole)"
+      crushed tomatoes  28 "oz can"  vs  1 "can (28 oz)"   — the same can
+      salt              eleven "tsp", plus "tsp (can omit)" and "tsp (plus a pinch)"
+      yellow onion      six with no unit, plus "cup, diced" and "small/medium"
+      also black pepper, red pepper flakes, coconut milk, black beans,
+      jasmine rice, ground chicken, heavy whipping cream
+    Plan two of those together and the ingredient splits into two lines that
+    the cupboard subtraction cannot offset against each other. Eleven
+    ingredients are affected today.
+    THE FIX IS A FIELD, NOT A PARSER. Add `note` (or `prep`) to the line,
+    keep `unit` strictly a unit, and both the typing path and the import path
+    stop corrupting aggregation. Do it EXPAND-then-CONTRACT: write the new
+    field and read it while leaving whatever is in `unit` alone, ship, then
+    migrate the existing bracketed units in a later pass. Retro-fitting the
+    existing ones is a data change, not a code change, and can be done by
+    hand once there is somewhere for the text to land.
+    NOTE FOR THE MIGRATION: the older bracketed units are NOT damage. They
+    are hand-written information a person deliberately recorded — can sizes,
+    substitutions, prep. They should be moved, not deleted.
+
+40. Recipe import without AI. The paste-a-recipe importer (#86) did a poor
+    job on three real recipes: modifiers went into `unit` ("pinch (to
+    taste)", "(optional)", "small/medium"), "4 carrots cut into sticks"
+    became `4 stick Carrots`, and it invented nine ingredients the catalog
+    already had under another name — olive oil vs "extra virgin olive oil",
+    salt vs "kosher salt", three separate cilantros.
+    TWO SEPARABLE HALVES, and the second is the valuable one:
+      - PARSING a line into qty / unit / name / note. Ordinary work once
+        item 39 gives the note somewhere to go.
+      - MATCHING the parsed name against ingredients that already exist.
+        This is where the damage came from, and the app ALREADY has the
+        machinery: the recipe editor suggests known ingredients as you type
+        (item 15), and ingredientMatches/filterIngredients exist in lib.js.
+        The importer bypassed all of it. An import that ASKS — "you wrote
+        'extra virgin olive oil'; use the existing 'Olive oil'?" — is worth
+        more than one that parses perfectly and forks the catalog.
+    Prefer confirmation over cleverness: a wrong guess the user accepts
+    silently is how a catalog acquires three cilantros.
+
+41. A "how it works" note before signing in, and sign-in easy to find. The
+    first-run screen (item 37) offers three ways IN but never says what the
+    app IS, so somebody who has never seen it has no idea what they are
+    signing in to. Keep it brief — a few lines above the choices.
+
+42. THE SIGN-IN ERROR GIVES THE WRONG REMEDY. Signing in on a new phone
+    showed "Signed in, but this account can't open household home-cx2ur9zg.
+    Check the code above matches the other phone exactly." If the account is
+    not a member, checking the code cannot help — the answer is an invite
+    from someone already in. The message sends you to fix the one thing that
+    is not broken. Cheap to fix and worth doing first.
+    WORTH ESTABLISHING WHEN FIXING IT: whether the account eventually got in
+    on its own. If it did, the message is merely misleading; if it never
+    did, the resubscribe path (membershipTick) did not fire and that is a
+    real bug behind it.
+
+43. Recipe instructions: number the steps and end each with a newline.
+    Stored as one `notes` string today, so this is presentation.
+
+44. Edit an ingredient from the List tab. Setting an aisle or a store
+    currently means leaving the list, going to Ingredients, and searching
+    for the item you were just looking at. The List row already expands;
+    the editor could open there.
+    Fits the "primary bits + details panel" pattern the Ingredients row
+    already uses, and the List row is due that treatment anyway (see the
+    UI-density note at the end of this file) — do them together.
+
+45. Keep tab navigation reachable while scrolling. On a long list, switching
+    tabs means scrolling all the way back up. Either pin the tab bar or move
+    it behind a menu button. Interacts with StickyBar and with the
+    back-to-top control; check the stacking contexts by hit-testing rather
+    than by eye, as those two both needed.
+
+46. Sort the catalog on export, so a diff is readable. Two catalog PRs in a
+    row read as ~110 changed lines that were almost entirely key REORDERING,
+    which hides the five entries that actually changed and makes review
+    slow and unreliable. Sorting `config` keys (and recipes by name) on
+    export makes every future catalog change diff to just the change.
+    ONE-TIME COST: the first export after this re-sorts the whole file, so
+    it wants its own commit with no content change in it, or the diff it is
+    meant to fix is the one it produces.
+
+47. An over-long unit makes the row clickable. Reported from real use;
+    reproduce before fixing. Likely the unit text wrapping and pushing the
+    row's tap target, which item 39 will reduce but not eliminate.
+
 MEASURED AND DELIBERATELY NOT PROBLEMS
     Recorded so nobody optimises them on instinct.
       - Bundle at 253 KB / 76 KB gzipped. Firebase is already dynamically
