@@ -717,19 +717,19 @@
      "unit": "cloves"
     },
     {
-     "name": "Oregano",
+     "name": "Dried oregano",
      "qty": 1,
      "unit": "tbsp"
     },
     {
      "name": "Salt",
      "qty": 1,
-     "unit": "pinch (to taste)"
+     "unit": "pinch"
     },
     {
      "name": "Carrots",
      "qty": 4,
-     "unit": "stick"
+     "unit": ""
     },
     {
      "name": "Large potatoes",
@@ -737,14 +737,14 @@
      "unit": ""
     },
     {
-     "name": "Large onion",
+     "name": "Yellow onion",
      "qty": 1,
      "unit": ""
     },
     {
      "name": "Black pepper",
      "qty": 1,
-     "unit": "pinch (to taste)"
+     "unit": "pinch"
     }
    ]
   },
@@ -1134,7 +1134,7 @@
      "unit": "tbsp"
     },
     {
-     "name": "Chopped fresh cilantro",
+     "name": "Fresh cilantro",
      "qty": 4,
      "unit": "tbsp"
     }
@@ -1416,17 +1416,17 @@
     {
      "name": "Kosher salt",
      "qty": 1,
-     "unit": "pinch (to taste)"
+     "unit": "pinch"
     },
     {
      "name": "Black pepper",
      "qty": 1,
-     "unit": "pinch (to taste)"
+     "unit": "pinch"
     },
     {
      "name": "Baking soda",
      "qty": 1,
-     "unit": "(optional)"
+     "unit": ""
     },
     {
      "name": "Spaghetti",
@@ -1434,7 +1434,7 @@
      "unit": "oz"
     },
     {
-     "name": "Extra virgin olive oil",
+     "name": "Olive oil",
      "qty": 3,
      "unit": "tbsp"
     },
@@ -1444,7 +1444,7 @@
      "unit": "cloves"
     },
     {
-     "name": "Cherry or grape tomatoes",
+     "name": "Cherry tomatoes",
      "qty": 2.5,
      "unit": "cups"
     },
@@ -1454,7 +1454,7 @@
      "unit": "cup"
     },
     {
-     "name": "Crushed red pepper flakes",
+     "name": "Red pepper flakes",
      "qty": 0.25,
      "unit": "tsp"
     },
@@ -1464,14 +1464,14 @@
      "unit": "cup"
     },
     {
-     "name": "Grated Parmesan cheese",
+     "name": "Parmesan cheese",
      "qty": 1,
-     "unit": "(optional)"
+     "unit": ""
     },
     {
-     "name": "Fresh basil leaves",
+     "name": "Fresh basil",
      "qty": 1,
-     "unit": "(optional)"
+     "unit": ""
     }
    ]
   },
@@ -1700,10 +1700,6 @@
    },
    "staple": true
   },
-  "fresh basil leaves": {
-   "store": "Schnucks",
-   "aisles": {}
-  },
   "cherry tomatoes": {
    "store": "Aldi",
    "aisles": {
@@ -1716,14 +1712,6 @@
     "Grocery store": 7
    }
   },
-  "chopped fresh cilantro": {
-   "store": "Schnucks",
-   "aisles": {}
-  },
-  "cherry or grape tomatoes": {
-   "store": "Aldi",
-   "aisles": {}
-  },
   "avocado": {
    "store": "Aldi",
    "aisles": {}
@@ -1731,11 +1719,6 @@
   "parmesan cheese": {
    "store": "Aldi",
    "aisles": {}
-  },
-  "extra virgin olive oil": {
-   "store": "Schnucks",
-   "aisles": {},
-   "staple": true
   },
   "fresh parsley": {
    "store": "Grocery store",
@@ -1783,11 +1766,6 @@
    "aisles": {
     "Grocery store": 1
    }
-  },
-  "oregano": {
-   "store": "Sams",
-   "aisles": {},
-   "staple": true
   },
   "green onion": {
    "store": "Aldi",
@@ -1964,10 +1942,6 @@
    "store": "Schnucks",
    "aisles": {}
   },
-  "large onion": {
-   "store": "Aldi",
-   "aisles": {}
-  },
   "dried oregano": {
    "store": "Sams",
    "aisles": {
@@ -2067,11 +2041,6 @@
    "aisles": {
     "Grocery store": 1
    }
-  },
-  "crushed red pepper flakes": {
-   "store": "Schnucks",
-   "aisles": {},
-   "staple": true
   },
   "quinoa": {
    "store": "Aldi",
@@ -2243,10 +2212,6 @@
     "Grocery store": 7
    }
   },
-  "cilantro": {
-   "store": "Aldi",
-   "aisles": {}
-  },
   "bananas": {
    "store": "Aldi",
    "aisles": {}
@@ -2295,10 +2260,6 @@
     "Grocery store": 8
    },
    "staple": true
-  },
-  "grated parmesan cheese": {
-   "store": "Aldi",
-   "aisles": {}
   },
   "artichoke hearts": {
    "store": "Schnucks",
@@ -2460,6 +2421,6 @@
    "staple": true
   }
  },
- "appBuild": "2026-08-09 20:47 UTC · 72dfd57",
+ "appBuild": "2026-08-10 02:24 UTC · b68085c",
  "appDataVersion": 3
 }
