@@ -6,6 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
+  formatCatalog,
   guestBlockedFields,
   classifyJoinInput,
   parseInvite,
@@ -1848,4 +1849,56 @@ test("parseRecipeText returns empty ingredients and blank notes for text with ne
   const result = parseRecipeText("just a name, no ingredient list at all");
   assert.deepEqual(result.ingredients, []);
   assert.equal(result.notes, "");
+});
+
+/* ---------------- the catalog export is sorted ----------------
+   Two catalog PRs in a row read as ~110 changed lines that were almost
+   entirely key reordering, hiding the five entries that actually changed.
+   These pin the sort AND, just as importantly, pin the two things that must
+   NOT be sorted because their order is the data. */
+
+const exportFixture = () => ({
+  catalogVersion: 3,
+  // Deliberately NOT alphabetical: store order drives store-flow grouping.
+  stores: ["Grocery store", "Costco", "Aldi"],
+  recipes: [
+    { id: "r2", name: "Zucchini bake", servings: 4, ingredients: [{ name: "Zucchini", qty: 2, unit: "" }, { name: "Butter", qty: 1, unit: "tbsp" }] },
+    { id: "r1", name: "Apple crumble", servings: 6, ingredients: [{ name: "Apples", qty: 4, unit: "" }] },
+  ],
+  config: { zucchini: { store: "Aldi", aisles: {} }, apples: { store: "Costco", aisles: {} }, butter: { store: "Aldi", aisles: {} } },
+});
+
+test("export sorts config keys, so a diff shows the change not the shuffle", () => {
+  const out = JSON.parse(formatCatalog(exportFixture()));
+  assert.deepEqual(Object.keys(out.config), ["apples", "butter", "zucchini"]);
+});
+
+test("export sorts recipes by name", () => {
+  const out = JSON.parse(formatCatalog(exportFixture()));
+  assert.deepEqual(out.recipes.map((r) => r.name), ["Apple crumble", "Zucchini bake"]);
+});
+
+test("export NEVER sorts stores — their order is the store-flow walk", () => {
+  // Sorting these would silently rewrite what the shopping list means, to
+  // tidy a diff. Alphabetical would be Aldi, Costco, Grocery store.
+  const out = JSON.parse(formatCatalog(exportFixture()));
+  assert.deepEqual(out.stores, ["Grocery store", "Costco", "Aldi"]);
+});
+
+test("export NEVER sorts a recipe's ingredients — that's the order you cook in", () => {
+  const out = JSON.parse(formatCatalog(exportFixture()));
+  const zucchini = out.recipes.find((r) => r.name === "Zucchini bake");
+  assert.deepEqual(zucchini.ingredients.map((i) => i.name), ["Zucchini", "Butter"]);
+});
+
+test("export loses nothing, and running it twice changes nothing", () => {
+  // Idempotence is the property that makes the NEXT diff clean: a re-export
+  // with no edits must produce a byte-identical file.
+  const src = exportFixture();
+  const once = formatCatalog(src);
+  const out = JSON.parse(once);
+  assert.equal(out.recipes.length, src.recipes.length);
+  assert.equal(Object.keys(out.config).length, Object.keys(src.config).length);
+  assert.equal(out.catalogVersion, src.catalogVersion);
+  assert.equal(formatCatalog(out), once, "a second export differed from the first");
 });

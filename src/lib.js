@@ -285,12 +285,30 @@ export const inlineJson = (v) => {
 // Serialize the catalog with one recipe field / ingredient / config entry per
 // line, so committed catalog.json stays readable and diffs stay small — instead
 // of JSON.stringify's fully-expanded (one token per line) output.
+/* SORTED, so a catalog diff shows the change instead of hiding it.
+   Two catalog pull requests in a row read as ~110 changed lines that were
+   almost entirely key REORDERING — the export emitted whatever order the
+   objects happened to be in, which changes whenever a device rewrites the
+   catalog. Five real edits sat inside 220 lines of churn, and finding them
+   took a script rather than a reading.
+
+   WHAT IS SORTED: `config` keys, and recipes by name. Both are lookups
+   whose file order carries no meaning — every screen sorts them for itself.
+
+   WHAT IS NOT, and must not be:
+     - `stores`, where order IS the data. It drives store-flow grouping, and
+       is why stores stayed an array (item 24).
+     - a recipe's ingredient lines, which are in the order you'd read them
+       while cooking.
+   Sorting either of those would silently rewrite meaning to tidy a diff. */
+const byName = (a, b) => String(a.name || "").localeCompare(String(b.name || ""));
+
 export function formatCatalog(out) {
   const lines = ["{"];
   lines.push(`  "catalogVersion": ${JSON.stringify(out.catalogVersion)},`);
   lines.push(`  "stores": ${inlineJson(out.stores)},`);
   lines.push(`  "recipes": [`);
-  out.recipes.forEach((r, ri) => {
+  [...out.recipes].sort(byName).forEach((r, ri) => {
     lines.push("    {");
     for (const k of Object.keys(r)) {
       if (k === "ingredients") continue;
@@ -305,7 +323,7 @@ export function formatCatalog(out) {
   });
   lines.push("  ],");
   lines.push(`  "config": {`);
-  const cfg = Object.entries(out.config);
+  const cfg = Object.entries(out.config).sort(([a], [b]) => a.localeCompare(b));
   cfg.forEach(([k, v], ci) => {
     lines.push(`    ${JSON.stringify(k)}: ${inlineJson(v)}${ci < cfg.length - 1 ? "," : ""}`);
   });
