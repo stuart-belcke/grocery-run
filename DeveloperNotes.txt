@@ -542,21 +542,60 @@ rather than saving them for a cleanup that never gets scheduled.
     Prefer confirmation over cleverness: a wrong guess the user accepts
     silently is how a catalog acquires three cilantros.
 
-41. A "how it works" note before signing in, and sign-in easy to find. The
-    first-run screen (item 37) offers three ways IN but never says what the
-    app IS, so somebody who has never seen it has no idea what they are
-    signing in to. Keep it brief — a few lines above the choices.
+41. FIRST RUN, RESHAPED. The screen built in item 37 offers three ways in
+    side by side and never says what the app IS, so somebody who has never
+    seen it has no idea what they are signing in to. The order is also
+    wrong: it leads with "paste an invite", then tells anyone holding a FULL
+    invite to go and sign in first and come back — the detour that was hit
+    for real.
+    THE ORDER, as specified after a week of use:
+      - SIGN IN IS STEP ONE, not one option among three. A brief "how it
+        works" above it, a few lines, so the reader knows what they are
+        signing in to.
+      - THEN, and only then, two choices: join a household with an invite,
+        or start a new one.
+      - ARRIVING ON AN INVITE LINK SKIPS THE CHOOSING. The link identifies
+        the household, so: prompted to sign in, and on success the invite is
+        applied and they land inside it. Nothing typed, nothing pasted.
+    THE INVITE BECOMES A URL, which is the substantive change. Today it is a
+    string on the clipboard ("home-xxxx~token~g") that someone has to paste
+    into the right box. It should be
+    .../grocery-run/?invite=home-xxxx~token~g — tapped, not transcribed.
+    THE TOKEN MUST SURVIVE SIGN-IN, and this is where it will break. Google
+    uses a popup, so the page never unloads and memory is enough. The EMAIL
+    LINK navigates away to a mail app and back, so the invite has to be
+    written to localStorage on arrival and re-read after
+    completePendingSignIn — never held in a variable. That is the same
+    cross-navigation state loss that already broke the Google redirect
+    fallback (item 37), which remains unverified and probably still broken.
+    GUESTS STILL SKIP THE ACCOUNT. A guest link goes: tap, "what should we
+    call you", in — anonymous auth as decided. Requiring an account is most
+    of the friction the guest role exists to remove.
+    WHY A STALE CODE STOPS MATTERING: a device that already holds a
+    household code, signs in, and is denied has no route forward today
+    except being told to ask for an invite. Once the link carries the
+    household, the code on the device is irrelevant to joining.
 
-42. THE SIGN-IN ERROR GIVES THE WRONG REMEDY. Signing in on a new phone
+42. [DONE — the message; the denial itself was correct] THE SIGN-IN ERROR
+    GAVE THE WRONG REMEDY. Signing in on a new phone
     showed "Signed in, but this account can't open household home-cx2ur9zg.
     Check the code above matches the other phone exactly." If the account is
     not a member, checking the code cannot help — the answer is an invite
     from someone already in. The message sends you to fix the one thing that
     is not broken. Cheap to fix and worth doing first.
-    WORTH ESTABLISHING WHEN FIXING IT: whether the account eventually got in
-    on its own. If it did, the message is merely misleading; if it never
-    did, the resubscribe path (membershipTick) did not fire and that is a
-    real bug behind it.
+    ESTABLISHED, AND THERE IS NO BUG BEHIND IT. The account never got in and
+    does not appear in the member list, so it had no members/{uid} record
+    and the denial was correct. recordHouseholdMembership only ever
+    update()s, and the rules allow a self-write only where a record already
+    exists, the household has no members at all, or a valid invite is
+    presented — so signing in with a code you already hold cannot make you a
+    member any more. That is exactly what invites bought.
+    The account is therefore a THIRD identity, not one of the two recorded
+    during EXPAND. Most likely the same email arriving as two different
+    uids, which happens where a project allows multiple accounts per email
+    address and one phone used Google while the other used the email link.
+    Check Authentication -> Users in the console against the member list.
+    The remedy either way is an invite, which needs no code change.
 
 43. Recipe instructions: number the steps and end each with a newline.
     Stored as one `notes` string today, so this is presentation.
