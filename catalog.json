@@ -1,5 +1,5 @@
 {
- "catalogVersion": 11,
+ "catalogVersion": 12,
  "stores": [
   "Grocery store",
   "Costco",
@@ -689,6 +689,66 @@
    ]
   },
   {
+   "id": "dww72nzq",
+   "name": "Greek Style Roasted Lemon and Garlic Chicken with Potatoes and Carrots",
+   "mealTypes": [],
+   "easy": false,
+   "servings": 4,
+   "notes": "Preheat oven at 425 degrees Fahrenheit (220 degrees Celsius). Rub salt and pepper into the chicken. Push under the skin of each piece 1/4th piece of lemon and 2 garlic clove halves. Place chicken on a large pan (large enough to fit potatoes and carrots in one layer). Cut potato and carrots in smallish pieces 1 ½ -2 inches and put in a bowl along with sliced onion. Add 4 tablespoon olive oil to the vegetables, pepper, and the oregano and mix well, until all vegetables are coated well. Spread vegetables around the chicken. Brush chicken generously with olive oil on both sides, roast skin facing up. Roast for about 45 minutes-1 hour (if you are roasting a whole chicken it will take longer about a ½ hour more). Check chicken, juices should be clear, although I prefer a meat thermometer, temperature at thickest part should be 165 F (74 C). If chicken is done, but vegetables are not, remove chicken and cover with aluminum foil, and roast until vegetables are crunchy on the outside and soft on the inside. Link: https://www.olivetomato.com/greek-style-roasted-lemon-and-garlic-chicken-with-potatoes-and-carrots/",
+   "ingredients": [
+    {
+     "name": "Chicken legs with thigh attached",
+     "qty": 1.5,
+     "unit": "lb"
+    },
+    {
+     "name": "Olive oil",
+     "qty": 0.5,
+     "unit": "cup"
+    },
+    {
+     "name": "Lemon",
+     "qty": 1,
+     "unit": ""
+    },
+    {
+     "name": "Garlic",
+     "qty": 4,
+     "unit": "cloves"
+    },
+    {
+     "name": "Dried oregano",
+     "qty": 1,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Salt",
+     "qty": 1,
+     "unit": "pinch"
+    },
+    {
+     "name": "Carrots",
+     "qty": 4,
+     "unit": ""
+    },
+    {
+     "name": "Large potatoes",
+     "qty": 4,
+     "unit": ""
+    },
+    {
+     "name": "Yellow onion",
+     "qty": 1,
+     "unit": ""
+    },
+    {
+     "name": "Black pepper",
+     "qty": 1,
+     "unit": "pinch"
+    }
+   ]
+  },
+  {
    "id": "garlicky-pesto-flatbread-pizza",
    "name": "Garlicky Pesto Flatbread Pizza with Tomatoes and Arugula",
    "mealTypes": [
@@ -1034,6 +1094,53 @@
    ]
   },
   {
+   "id": "nm2o64fa",
+   "name": "Black Bean–Quinoa Bowl",
+   "mealTypes": [
+    "Dinner"
+   ],
+   "easy": false,
+   "servings": 4,
+   "notes": "Combine ¾ cup beans (rinsed) and ⅔ cup quinoa in a bowl. Stir ¼ cup hummus and 1 tablespoon lime juice together in a small bowl; thin with water to desired consistency. Drizzle the hummus dressing over the beans and quinoa. Top with avocado (diced), 3 tablespoons pico de gallo and 2 tablespoons cilantro.",
+   "ingredients": [
+    {
+     "name": "Black beans",
+     "qty": 1.5,
+     "unit": "cups"
+    },
+    {
+     "name": "Quinoa",
+     "qty": 1.33,
+     "unit": "cups"
+    },
+    {
+     "name": "Hummus",
+     "qty": 0.5,
+     "unit": "cup"
+    },
+    {
+     "name": "Lime juice",
+     "qty": 2,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Avocado",
+     "qty": 0.5,
+     "unit": ""
+    },
+    {
+     "name": "Pico de gallo",
+     "qty": 6,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Fresh cilantro",
+     "qty": 4,
+     "unit": "tbsp"
+    }
+   ]
+  },
+  {
    "id": "spaghetti-meat-sauce",
    "name": "Spaghetti & Meat Sauce",
    "mealTypes": [
@@ -1292,6 +1399,83 @@
    ]
   },
   {
+   "id": "utegi5r2",
+   "name": "Shrimp Pesto Pasta with Cherry Tomatoes and Spinach",
+   "mealTypes": [
+    "Dinner"
+   ],
+   "easy": false,
+   "servings": 4,
+   "notes": "Halve the tomatoes. Season the shrimp. Sprinkle the shrimp with a pinch each of salt, pepper, and baking soda, if you like. Toss to coat. Boil the pasta. Bring a large pot of generously salted water to a boil. Cook the spaghetti until al dente according to package directions. Before draining, reserve about a cup of the pasta cooking water. Drain pasta through a colander, but don’t rinse, and set aside. Sauté the shrimp. While the pasta cooks, heat 2 tablespoons olive oil in a large skillet over medium-high heat. Add them to the skillet in a single layer and cook for about 1 to 2 minutes per side, or until opaque and just cooked through. Transfer the shrimp to a plate and set aside. Sauté the tomatoes. In the same skillet, lower heat to medium and add the remaining tablespoon of olive oil. Stir in the garlic and cook just until fragrant (about 30 seconds), then add the cherry tomatoes and a pinch of salt. Sauté for 2 to 3 minutes, or until the tomatoes soften somewhat. Add the spinach and stir to wilt. If using, stir in the red pepper flakes. Combine and toss. Return the shrimp to the skillet along with the cooked pasta. Add the pesto and a splash of the reserved pasta water. Toss everything together gently to coat, adding more pasta water as needed to reach your desired consistency. Finish and serve. Taste and adjust seasoning with more salt and pepper. Transfer to a serving bowl and top with grated Parmesan and torn basil, if desired.",
+   "ingredients": [
+    {
+     "name": "Jumbo shrimp",
+     "qty": 1,
+     "unit": "lb"
+    },
+    {
+     "name": "Kosher salt",
+     "qty": 1,
+     "unit": "pinch"
+    },
+    {
+     "name": "Black pepper",
+     "qty": 1,
+     "unit": "pinch"
+    },
+    {
+     "name": "Baking soda",
+     "qty": 1,
+     "unit": ""
+    },
+    {
+     "name": "Spaghetti",
+     "qty": 12,
+     "unit": "oz"
+    },
+    {
+     "name": "Olive oil",
+     "qty": 3,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Garlic",
+     "qty": 2,
+     "unit": "cloves"
+    },
+    {
+     "name": "Cherry tomatoes",
+     "qty": 2.5,
+     "unit": "cups"
+    },
+    {
+     "name": "Basil pesto",
+     "qty": 0.75,
+     "unit": "cup"
+    },
+    {
+     "name": "Red pepper flakes",
+     "qty": 0.25,
+     "unit": "tsp"
+    },
+    {
+     "name": "Baby spinach",
+     "qty": 3,
+     "unit": "cup"
+    },
+    {
+     "name": "Parmesan cheese",
+     "qty": 1,
+     "unit": ""
+    },
+    {
+     "name": "Fresh basil",
+     "qty": 1,
+     "unit": ""
+    }
+   ]
+  },
+  {
    "id": "vanilla-marshmallow-boob-cake",
    "name": "One-Year Breastfeeding Cake (Vanilla Marshmallow \"Boob Cake\")",
    "mealTypes": [],
@@ -1368,24 +1552,11 @@
   }
  ],
  "config": {
-  "tomato paste": {
+  "sour cream": {
    "store": "Grocery store",
    "aisles": {
-    "Grocery store": 7
+    "Grocery store": 11
    }
-  },
-  "fresh cilantro": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 1
-   }
-  },
-  "garam masala": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 8
-   },
-   "staple": true
   },
   "ground ginger": {
    "store": "Sams",
@@ -1394,29 +1565,79 @@
    },
    "staple": true
   },
-  "shallot": {
-   "store": "Aldi",
-   "aisles": {
-    "Grocery store": 1
-   }
-  },
   "fresh oregano": {
    "store": "Grocery store",
    "aisles": {
     "Grocery store": 1
    }
   },
-  "balsamic vinegar": {
+  "heavy whipping cream": {
    "store": "Grocery store",
    "aisles": {
-    "Grocery store": 8
-   },
-   "staple": true
+    "Grocery store": 11
+   }
   },
-  "salted butter": {
+  "asparagus": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "kidney beans": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "brown rice": {
+   "store": "Sams",
+   "aisles": {
+    "Grocery store": 5
+   }
+  },
+  "english muffin": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "crushed tomatoes": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "corn (canned, salt-free)": {
+   "store": "Schnucks",
+   "aisles": {}
+  },
+  "fresh cilantro": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "fresh mozzarella": {
    "store": "Aldi",
    "aisles": {
     "Grocery store": 11
+   }
+  },
+  "balsamic glaze": {
+   "store": "Schnucks",
+   "aisles": {},
+   "staple": true
+  },
+  "pasta sauce": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "jumbo shrimp": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "corn tortillas": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 6
    }
   },
   "fresh thyme": {
@@ -1425,95 +1646,25 @@
     "Grocery store": 1
    }
   },
-  "fresh dill": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 1
-   }
-  },
-  "pink food coloring": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 9
-   }
-  },
-  "'1' candle": {
-   "store": "Schnucks",
-   "aisles": {
-    "Grocery store": 9,
-    "Schnucks": 1
-   }
-  },
-  "cherry tomatoes": {
+  "kalamata olives": {
    "store": "Aldi",
-   "aisles": {
-    "Grocery store": 1
-   }
-  },
-  "crushed tomatoes": {
-   "store": "Grocery store",
    "aisles": {
     "Grocery store": 7
    }
   },
-  "thyme": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 8
-   },
+  "baking soda": {
+   "store": "Aldi",
+   "aisles": {},
    "staple": true
   },
-  "fresh parsley": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 1
-   }
-  },
-  "tomatoes": {
-   "store": "Aldi",
-   "aisles": {
-    "Grocery store": 1
-   }
-  },
-  "pork loin roast": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 12
-   }
-  },
-  "fresh basil": {
-   "store": "Schnucks",
-   "aisles": {
-    "Grocery store": 1
-   }
-  },
-  "pasta sauce": {
+  "grapefruit": {
    "store": "Aldi",
    "aisles": {}
   },
-  "salmon fillets": {
-   "store": "Grocery store",
+  "spinach": {
+   "store": "Aldi",
    "aisles": {
-    "Grocery store": 13
-   }
-  },
-  "olive oil": {
-   "store": "Sams",
-   "aisles": {
-    "Sams": 8
-   },
-   "staple": true
-  },
-  "artichoke hearts": {
-   "store": "Schnucks",
-   "aisles": {
-    "Grocery store": 7
-   }
-  },
-  "corn": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 7
+    "Grocery store": 1
    }
   },
   "cheddar cheese": {
@@ -1522,39 +1673,17 @@
     "Aldi": 11
    }
   },
-  "applesauce": {
-   "store": "Aldi",
-   "aisles": {
-    "Grocery store": 9
-   }
-  },
-  "dried oregano": {
+  "smoked paprika": {
    "store": "Sams",
    "aisles": {
     "Grocery store": 8
    },
    "staple": true
   },
-  "vegan mac and cheese": {
-   "store": "Schnucks",
-   "aisles": {}
-  },
-  "chicken or beef broth": {
-   "store": "Aldi",
+  "diced tomatoes": {
+   "store": "Grocery store",
    "aisles": {
     "Grocery store": 7
-   }
-  },
-  "chicken thighs": {
-   "store": "Aldi",
-   "aisles": {
-    "Grocery store": 13
-   }
-  },
-  "yellow onion": {
-   "store": "Aldi",
-   "aisles": {
-    "Aldi": 1
    }
   },
   "black pepper": {
@@ -1564,18 +1693,51 @@
    },
    "staple": true
   },
-  "chicken breast": {
-   "store": "Costco",
+  "chili powder": {
+   "store": "Sams",
    "aisles": {
-    "Aldi": 14,
-    "Costco": 3
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "cherry tomatoes": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 1
    }
   },
-  "lemon": {
+  "black beans": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "avocado": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "parmesan cheese": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "fresh parsley": {
    "store": "Grocery store",
    "aisles": {
     "Grocery store": 1
    }
+  },
+  "spaghetti": {
+   "store": "Aldi",
+   "aisles": {
+    "Aldi": 5
+   }
+  },
+  "onion powder": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
   },
   "bowtie pasta": {
    "store": "Aldi",
@@ -1583,53 +1745,55 @@
     "Grocery store": 5
    }
   },
-  "eggs": {
-   "store": "Aldi",
-   "aisles": {
-    "Grocery store": 11
-   }
-  },
-  "orzo": {
+  "fresh dill or parsley": {
    "store": "Grocery store",
    "aisles": {
-    "Grocery store": 5
+    "Grocery store": 1
    }
   },
-  "salt": {
+  "broccoli": {
    "store": "Aldi",
    "aisles": {
-    "Grocery store": 8
-   },
-   "staple": true
+    "Aldi": 1
+   }
   },
-  "spinach": {
+  "dry white wine": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "fresh dill": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "green onion": {
    "store": "Aldi",
    "aisles": {
     "Grocery store": 1
    }
   },
-  "diced tomatoes with green chiles (rotel)": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 7
-   }
-  },
-  "italian seasoning": {
-   "store": "Sams",
+  "capers": {
+   "store": "Aldi",
    "aisles": {
     "Grocery store": 8
    },
    "staple": true
   },
-  "soy sauce": {
-   "store": "Aldi",
+  "pesto": {
+   "store": "Grocery store",
    "aisles": {
-    "Aldi": 7
-   },
-   "staple": true
+    "Grocery store": 5
+   }
   },
-  "pine nuts": {
-   "store": "Schnucks",
+  "pinto beans": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "pink food coloring": {
+   "store": "Grocery store",
    "aisles": {
     "Grocery store": 9
    }
@@ -1640,73 +1804,61 @@
     "Grocery store": 11
    }
   },
-  "butter": {
+  "salt": {
    "store": "Aldi",
    "aisles": {
-    "Grocery store": 11
-   }
+    "Grocery store": 8
+   },
+   "staple": true
   },
-  "ground sausage": {
+  "granulated sugar": {
    "store": "Grocery store",
    "aisles": {
-    "Grocery store": 12
-   }
+    "Grocery store": 9
+   },
+   "staple": true
   },
-  "salsa": {
-   "store": "Aldi",
-   "aisles": {
-    "Aldi": 6
-   }
+  "green beans (canned, salt-free)": {
+   "store": "Schnucks",
+   "aisles": {}
   },
-  "ground cumin": {
+  "dried thyme": {
    "store": "Sams",
    "aisles": {
     "Grocery store": 8
    },
    "staple": true
   },
-  "kidney beans": {
+  "parmesan": {
+   "store": "Aldi",
+   "aisles": {
+    "Aldi": 11,
+    "Costco": 8
+   }
+  },
+  "basil pesto": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "corn": {
    "store": "Grocery store",
    "aisles": {
     "Grocery store": 7
    }
   },
-  "green onion": {
-   "store": "Aldi",
+  "shallot": {
+   "store": "Schnucks",
    "aisles": {
     "Grocery store": 1
    }
   },
-  "english muffin": {
-   "store": "Aldi",
-   "aisles": {}
-  },
-  "cheerios (plain)": {
-   "store": "Aldi",
-   "aisles": {}
-  },
-  "fresh mozzarella": {
+  "chicken thighs": {
    "store": "Aldi",
    "aisles": {
-    "Grocery store": 11
+    "Grocery store": 13
    }
   },
-  "cheerios": {
-   "store": "Aldi",
-   "aisles": {}
-  },
-  "chili powder": {
-   "store": "Sams",
-   "aisles": {
-    "Grocery store": 8
-   },
-   "staple": true
-  },
-  "parmesan cheese": {
-   "store": "Aldi",
-   "aisles": {}
-  },
-  "vegetable broth": {
+  "cashew cream": {
    "store": "Grocery store",
    "aisles": {
     "Grocery store": 7
@@ -1718,44 +1870,80 @@
     "Aldi": 1
    }
   },
-  "red pesto": {
-   "store": "Aldi",
-   "aisles": {}
-  },
-  "corn (canned, salt-free)": {
-   "store": "Schnucks",
-   "aisles": {}
-  },
-  "ground beef": {
-   "store": "Aldi",
+  "sun-dried tomatoes": {
+   "store": "Grocery store",
    "aisles": {
-    "Aldi": 12
+    "Grocery store": 7
    }
   },
-  "craisins": {
+  "salsa": {
+   "store": "Aldi",
+   "aisles": {
+    "Aldi": 6
+   }
+  },
+  "salted butter": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 11
+   }
+  },
+  "yellow onion": {
+   "store": "Aldi",
+   "aisles": {
+    "Aldi": 1
+   }
+  },
+  "ground sausage": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 12
+   }
+  },
+  "kosher salt": {
    "store": "Sams",
    "aisles": {},
    "staple": true
   },
-  "ground coriander": {
-   "store": "Sams",
+  "powdered sugar": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 9
+   },
+   "staple": true
+  },
+  "ground turkey": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 12
+   }
+  },
+  "chicken breast": {
+   "store": "Costco",
+   "aisles": {
+    "Aldi": 14,
+    "Costco": 3
+   }
+  },
+  "balsamic vinegar": {
+   "store": "Grocery store",
    "aisles": {
     "Grocery store": 8
    },
    "staple": true
   },
-  "dry white wine": {
-   "store": "Aldi",
-   "aisles": {}
-  },
-  "pesto": {
-   "store": "Grocery store",
+  "burrata cheese": {
+   "store": "Schnucks",
    "aisles": {
-    "Grocery store": 5
+    "Grocery store": 11
    }
   },
-  "capers (optional)": {
-   "store": "Grocery store",
+  "pico de gallo": {
+   "store": "Schnucks",
+   "aisles": {}
+  },
+  "dried oregano": {
+   "store": "Sams",
    "aisles": {
     "Grocery store": 8
    },
@@ -1768,22 +1956,65 @@
    },
    "staple": true
   },
-  "tortillas": {
+  "applesauce": {
    "store": "Aldi",
    "aisles": {
-    "Aldi": 6
+    "Grocery store": 9
    }
   },
-  "arugula": {
+  "capers (optional)": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "eggs": {
    "store": "Aldi",
    "aisles": {
-    "Grocery store": 1
+    "Grocery store": 11
    }
   },
-  "kalamata olives": {
+  "naan flatbreads": {
    "store": "Aldi",
+   "aisles": {
+    "Grocery store": 6
+   }
+  },
+  "soy sauce": {
+   "store": "Aldi",
+   "aisles": {
+    "Aldi": 7
+   },
+   "staple": true
+  },
+  "diced tomatoes with green chiles (rotel)": {
+   "store": "Grocery store",
    "aisles": {
     "Grocery store": 7
+   }
+  },
+  "unsalted butter": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 11
+   }
+  },
+  "lime juice": {
+   "store": "Schnucks",
+   "aisles": {}
+  },
+  "thyme": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "banana peppers": {
+   "store": "Schnucks",
+   "aisles": {
+    "Grocery store": 1
    }
   },
   "garlic": {
@@ -1792,23 +2023,6 @@
     "Aldi": 1
    }
   },
-  "grapefruit": {
-   "store": "Aldi",
-   "aisles": {}
-  },
-  "spaghetti": {
-   "store": "Aldi",
-   "aisles": {
-    "Aldi": 5
-   }
-  },
-  "lemon juice": {
-   "store": "Schnucks",
-   "aisles": {
-    "Grocery store": 1
-   },
-   "staple": true
-  },
   "garlic puree": {
    "store": "Aldi",
    "aisles": {
@@ -1816,48 +2030,10 @@
    },
    "staple": true
   },
-  "sweet peppers": {
+  "salmon fillets": {
    "store": "Grocery store",
    "aisles": {
-    "Grocery store": 1
-   }
-  },
-  "dijon mustard": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 8
-   },
-   "staple": true
-  },
-  "powdered sugar": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 9
-   },
-   "staple": true
-  },
-  "balsamic glaze": {
-   "store": "Schnucks",
-   "aisles": {},
-   "staple": true
-  },
-  "mexican blend cheese": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 11
-   }
-  },
-  "vanilla extract": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 9
-   },
-   "staple": true
-  },
-  "feta": {
-   "store": "Sams",
-   "aisles": {
-    "Grocery store": 11
+    "Grocery store": 13
    }
   },
   "bell peppers": {
@@ -1866,43 +2042,142 @@
     "Grocery store": 1
    }
   },
-  "chickpeas": {
+  "quinoa": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "red pesto": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "feta": {
+   "store": "Sams",
+   "aisles": {
+    "Grocery store": 11
+   }
+  },
+  "orzo": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 5
+   }
+  },
+  "coconut milk": {
    "store": "Grocery store",
    "aisles": {
     "Grocery store": 7
    }
   },
-  "chicken broth": {
+  "lemon": {
    "store": "Grocery store",
    "aisles": {
-    "Grocery store": 7
+    "Grocery store": 1
    }
   },
-  "chicken sausage": {
+  "cod fillets": {
+   "store": "Sams",
+   "aisles": {
+    "Grocery store": 13
+   }
+  },
+  "ground coriander": {
+   "store": "Sams",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "craisins": {
+   "store": "Sams",
+   "aisles": {},
+   "staple": true
+  },
+  "ground beef": {
    "store": "Aldi",
    "aisles": {
     "Aldi": 12
    }
   },
-  "brown rice": {
-   "store": "Sams",
-   "aisles": {
-    "Grocery store": 5
-   }
-  },
-  "carrots": {
+  "chicken or beef broth": {
    "store": "Aldi",
    "aisles": {
-    "Grocery store": 1
+    "Grocery store": 7
    }
   },
-  "ground turkey": {
+  "marshmallow fluff": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 9
+   }
+  },
+  "jasmine rice": {
+   "store": "Costco",
+   "aisles": {
+    "Costco": 5
+   }
+  },
+  "ground chicken": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 12
+   }
+  },
+  "red pepper flakes": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "pork loin roast": {
    "store": "Grocery store",
    "aisles": {
     "Grocery store": 12
    }
   },
-  "cheerios (honey-nut)": {
+  "marinara sauce": {
+   "store": "Aldi",
+   "aisles": {
+    "Aldi": 5
+   }
+  },
+  "baking powder": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 9
+   },
+   "staple": true
+  },
+  "baby potatoes": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "large potatoes": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "serrano chile pepper": {
+   "store": "Schnucks",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "garlic powder": {
+   "store": "Sams",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "jalapeno": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "cheerios": {
    "store": "Aldi",
    "aisles": {}
   },
@@ -1913,95 +2188,178 @@
    },
    "staple": true
   },
-  "banana peppers": {
-   "store": "Schnucks",
-   "aisles": {
-    "Grocery store": 1
-   }
-  },
-  "unsalted butter": {
-   "store": "Grocery store",
+  "butter": {
+   "store": "Aldi",
    "aisles": {
     "Grocery store": 11
    }
   },
-  "pinto beans": {
+  "sweet peppers": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "red onion": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "chicken broth": {
    "store": "Grocery store",
    "aisles": {
     "Grocery store": 7
    }
   },
-  "sour cream": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 11
-   }
+  "bananas": {
+   "store": "Aldi",
+   "aisles": {}
   },
-  "jalapeno": {
+  "chicken sausage": {
    "store": "Aldi",
    "aisles": {
-    "Grocery store": 1
+    "Aldi": 12
    }
   },
-  "onion powder": {
-   "store": "Grocery store",
+  "italian seasoning": {
+   "store": "Sams",
    "aisles": {
     "Grocery store": 8
    },
    "staple": true
   },
-  "broccoli": {
-   "store": "Aldi",
-   "aisles": {
-    "Aldi": 1
-   }
-  },
-  "capers": {
-   "store": "Aldi",
-   "aisles": {
-    "Grocery store": 8
-   },
-   "staple": true
-  },
-  "burrata cheese": {
-   "store": "Schnucks",
-   "aisles": {
-    "Grocery store": 11
-   }
-  },
-  "baby potatoes": {
-   "store": "Aldi",
-   "aisles": {
-    "Grocery store": 1
-   }
-  },
-  "corn tortillas": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 6
-   }
-  },
-  "red bell pepper": {
-   "store": "Aldi",
-   "aisles": {
-    "Grocery store": 1
-   }
-  },
-  "diced tomatoes": {
+  "vegetable broth": {
    "store": "Grocery store",
    "aisles": {
     "Grocery store": 7
    }
   },
-  "granulated sugar": {
+  "pine nuts": {
+   "store": "Schnucks",
+   "aisles": {
+    "Grocery store": 9
+   }
+  },
+  "fresh basil": {
+   "store": "Schnucks",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "vanilla extract": {
    "store": "Grocery store",
    "aisles": {
     "Grocery store": 9
    },
    "staple": true
   },
-  "red onion": {
+  "garam masala": {
    "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "artichoke hearts": {
+   "store": "Schnucks",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "lemon juice": {
+   "store": "Schnucks",
+   "aisles": {
+    "Grocery store": 1
+   },
+   "staple": true
+  },
+  "arugula": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "hummus": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "tomatoes": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "mexican blend cheese": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 11
+   }
+  },
+  "'1' candle": {
+   "store": "Schnucks",
+   "aisles": {
+    "Grocery store": 9,
+    "Schnucks": 1
+   }
+  },
+  "chicken legs with thigh attached": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "cayenne powder": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "cheerios (plain)": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "ground cumin": {
+   "store": "Sams",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "taco seasoning": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "cheerios (honey-nut)": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "tomato paste": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "chickpeas": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "canned chicken": {
+   "store": "Unassigned",
+   "aisles": {}
+  },
+  "tomato sauce": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "red bell pepper": {
+   "store": "Aldi",
    "aisles": {
     "Grocery store": 1
    }
@@ -2012,46 +2370,17 @@
     "Grocery store": 7
    }
   },
-  "cod fillets": {
+  "olive oil": {
    "store": "Sams",
    "aisles": {
-    "Grocery store": 13
-   }
-  },
-  "red pepper flakes": {
-   "store": "Aldi",
-   "aisles": {
-    "Grocery store": 8
+    "Sams": 8
    },
    "staple": true
   },
-  "tomato sauce": {
+  "red enchilada sauce": {
    "store": "Grocery store",
    "aisles": {
     "Grocery store": 7
-   }
-  },
-  "naan flatbreads": {
-   "store": "Aldi",
-   "aisles": {
-    "Grocery store": 6
-   }
-  },
-  "canned chicken": {
-   "store": "Unassigned",
-   "aisles": {}
-  },
-  "taco seasoning": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 8
-   },
-   "staple": true
-  },
-  "jasmine rice": {
-   "store": "Costco",
-   "aisles": {
-    "Costco": 5
    }
   },
   "all-purpose flour": {
@@ -2061,16 +2390,28 @@
    },
    "staple": true
   },
-  "cayenne powder": {
+  "carrots": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "vegan mac and cheese": {
+   "store": "Schnucks",
+   "aisles": {}
+  },
+  "tortillas": {
+   "store": "Aldi",
+   "aisles": {
+    "Aldi": 6
+   }
+  },
+  "dijon mustard": {
    "store": "Grocery store",
    "aisles": {
     "Grocery store": 8
    },
    "staple": true
-  },
-  "green beans (canned, salt-free)": {
-   "store": "Schnucks",
-   "aisles": {}
   },
   "breadcrumbs": {
    "store": "Schnucks",
@@ -2078,119 +2419,8 @@
     "Grocery store": 9
    },
    "staple": true
-  },
-  "asparagus": {
-   "store": "Aldi",
-   "aisles": {
-    "Grocery store": 1
-   }
-  },
-  "baking powder": {
-   "store": "Aldi",
-   "aisles": {
-    "Grocery store": 9
-   },
-   "staple": true
-  },
-  "marshmallow fluff": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 9
-   }
-  },
-  "dried thyme": {
-   "store": "Sams",
-   "aisles": {
-    "Grocery store": 8
-   },
-   "staple": true
-  },
-  "marinara sauce": {
-   "store": "Aldi",
-   "aisles": {
-    "Aldi": 5
-   }
-  },
-  "garlic powder": {
-   "store": "Sams",
-   "aisles": {
-    "Grocery store": 8
-   },
-   "staple": true
-  },
-  "fresh dill or parsley": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 1
-   }
-  },
-  "sun-dried tomatoes": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 7
-   }
-  },
-  "parmesan": {
-   "store": "Aldi",
-   "aisles": {
-    "Aldi": 11,
-    "Costco": 8
-   }
-  },
-  "heavy whipping cream": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 11
-   }
-  },
-  "smoked paprika": {
-   "store": "Sams",
-   "aisles": {
-    "Grocery store": 8
-   },
-   "staple": true
-  },
-  "ground chicken": {
-   "store": "Aldi",
-   "aisles": {
-    "Grocery store": 12
-   }
-  },
-  "cashew cream": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 7
-   }
-  },
-  "coconut milk": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 7
-   }
-  },
-  "bananas": {
-   "store": "Aldi",
-   "aisles": {}
-  },
-  "red enchilada sauce": {
-   "store": "Grocery store",
-   "aisles": {
-    "Grocery store": 7
-   }
-  },
-  "black beans": {
-   "store": "Aldi",
-   "aisles": {
-    "Grocery store": 7
-   }
-  },
-  "serrano chile pepper": {
-   "store": "Schnucks",
-   "aisles": {
-    "Grocery store": 1
-   }
   }
  },
- "appBuild": "2026-08-09 21:21 UTC · 017fbf2",
+ "appBuild": "2026-08-10 12:32 UTC · 1460bb7",
  "appDataVersion": 3
 }
