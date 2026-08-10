@@ -4,7 +4,7 @@
 /* ------------------------------------------------------------------ */
 
 import { useEffect, useRef, useState } from "react";
-import { C, fontBody, fontDisplay } from "./theme";
+import { C, fontBody, fontDisplay, BOTTOM_NAV_H } from "./theme";
 
 /* Pins a tab's controls to the top of the viewport once you scroll past them.
    Fine at thirty recipes, the difference between usable and not at three
@@ -109,9 +109,11 @@ export function BackToTop({ showAfter = 500 }) {
       style={{
         position: "fixed",
         right: 16,
-        // Clears the home indicator on a notched phone; falls back to 16px
-        // where env() is unsupported.
-        bottom: "calc(16px + env(safe-area-inset-bottom, 0px))",
+        // Sits ABOVE the fixed tab bar, not under it: both live in the bottom
+        // of the screen, and the bar is the one that must stay put. The
+        // env() term still clears the home indicator on a notched phone and
+        // falls back to 0 where env() is unsupported.
+        bottom: `calc(${BOTTOM_NAV_H + 16}px + env(safe-area-inset-bottom, 0px))`,
         // Above the sticky bar (15) and the page, below the dialogs (70) —
         // a modal must never have this floating over it.
         zIndex: 20,

@@ -1341,6 +1341,41 @@ parallel field, the panel collapsed into the override, the aisle stored without
 its store, the guest given the editor, and the raw id put back — each fails the
 one test written for it.
 
+[DONE] Item 45 — the tab bar no longer scrolls away. It lived in the header, so
+switching tabs from halfway down the Ingredients list (about 8,500px against
+the real catalog) meant scrolling all the way back to the top first.
+
+PINNED TO THE BOTTOM, NOT THE TOP, and the reason is the two things already
+fixed up there. The per-tab StickyBar is stuck to `top: 0`; a pinned header
+would need it to carry a hand-maintained offset that nothing enforces. And the
+five labels wrap onto two lines at 390px, so pinning them at the top costs
+about 90px of permanent chrome ABOVE the search bar. At the bottom it costs one
+54px row, and it is under a thumb rather than at the far end of the phone.
+
+THREE PLACES HAVE TO AGREE ABOUT THE BAR'S HEIGHT, which is why BOTTOM_NAV_H
+is a constant in theme.js rather than a number written three times: the bar
+itself, the page's bottom padding (or the last row hides under it forever, and
+the page just looks like it ended there), and the back-to-top button (or the
+two controls sit in the same corner and a tap meant for "List" scrolls you to
+the top instead).
+
+THE LABEL SIZE IS MEASURED, NOT CHOSEN. "Ingredients" is 68px at 12px type and
+each tab gets 64px at 320px, so it ellipsised to "Ingredien…". Options were
+measured across 5 font sizes x 3 letter-spacings: 11px only fits with zero
+margin, which is one font-load away from clipping again. `clamp(10px, 3.1vw,
+12px)` shrinks the label only on the phones that need it — 10px at 320, 11.6px
+at 375, 12px from 388 up. Verified with scrollWidth vs clientWidth at 320, 360,
+375, 390 and 430.
+
+THE FIRST TEST OF THIS WAS WRONG AND MUST NOT COME BACK. It scrolled to the
+bottom of a long list and asserted the bar sat on the viewport's bottom edge —
+which a bar that had scrolled away with the page ALSO does, because at the end
+of the document it is the last thing on screen. `position: static` passed it.
+It now measures at THREE scroll depths and asserts the bar's viewport position
+does not change; two positions cannot both be the bottom.
+Five mutations, all caught: unpinned, above the dialogs, no bottom padding,
+back-to-top dropped onto the bar, and a fixed label size.
+
 UI density — Ingredients row [DONE], List row still open.
 The Ingredients gear panel had become a flat pile of unrelated concerns, and
 its aisle grid rendered one input per store (5, shown even where the item
