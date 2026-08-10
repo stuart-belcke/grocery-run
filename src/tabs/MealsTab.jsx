@@ -6,7 +6,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop } from "../ui";
-import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, unitSuggestions, ingredientNames, normalizeCfg, ingredientMatches, ensureIngredientId, asArray, planSlotsFor, parseRecipeText } from "../lib";
+import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, unitSuggestions, ingredientNames, normalizeCfg, ingredientMatches, existingIngredientSuggestions, ensureIngredientId, asArray, planSlotsFor, parseRecipeText } from "../lib";
 import { RecipeDetail } from "../RecipeDetail";
 
 // Rounded "pill" grouping a remove / count / add cluster so the controls read
@@ -84,7 +84,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
   };
 
   const startNew = () => {
-    setDraft({ id: null, name: "", mealTypes: [], easy: false, side: false, servings: "4", notes: "", ingredients: [{ name: "", qty: "1", unit: "" }] });
+    setDraft({ id: null, name: "", mealTypes: [], easy: false, side: false, servings: "4", notes: "", ingredients: [{ name: "", qty: "1", unit: "", note: "" }] });
     closePaste();
   };
   const startEdit = (r) => {
@@ -96,7 +96,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
       side: !!r.side,
       servings: String(r.servings || 4),
       notes: r.notes || "",
-      ingredients: r.ingredients.map((i) => ({ ...i, qty: String(i.qty) })),
+      ingredients: r.ingredients.map((i) => ({ ...i, qty: String(i.qty), note: i.note || "" })),
     });
     closePaste();
   };
@@ -108,9 +108,9 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
   // so a paste replaces it outright instead of leaving it as a stray blank row.
   const applyParsedRecipe = () => {
     const parsed = parseRecipeText(pasteText);
-    const isBlankIngredientRow = (i) => !i.name.trim() && i.qty === "1" && !i.unit.trim();
+    const isBlankIngredientRow = (i) => !i.name.trim() && i.qty === "1" && !i.unit.trim() && !(i.note || "").trim();
     setDraft((d) => {
-      const parsedIngredients = parsed.ingredients.map((i) => ({ name: i.name, qty: String(i.qty), unit: i.unit }));
+      const parsedIngredients = parsed.ingredients.map((i) => ({ name: i.name, qty: String(i.qty), unit: i.unit, note: i.note || "" }));
       const startsBlank = d.ingredients.length === 1 && isBlankIngredientRow(d.ingredients[0]);
       return {
         ...d,
@@ -138,7 +138,13 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
       notes: draft.notes.trim(),
       ingredients: draft.ingredients
         .filter((i) => i.name.trim())
-        .map((i) => ({ name: i.name.trim(), qty: Number(i.qty) || 0, unit: i.unit.trim() })),
+        // Absent, not empty — a recipe with no notes keeps exactly the shape it
+        // had, so nothing older reading it back has a new field to carry.
+        .map((i) => {
+          const line = { name: i.name.trim(), qty: Number(i.qty) || 0, unit: i.unit.trim() };
+          const note = (i.note || "").trim();
+          return note ? { ...line, note } : line;
+        }),
     };
     // One layer now: a recipe is just written, with no catalog-vs-local split
     // and nothing shadowing anything. New ingredients get an entry so they show
@@ -153,7 +159,11 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
         ingredients: clean.ingredients
           .map((ing) => {
             const id = ensureIngredientId(c, ing.name);
-            return id ? { ingredientId: id, qty: ing.qty, unit: ing.unit } : null;
+            if (!id) return null;
+            // The note belongs to THIS recipe's line, not to the ingredient:
+            // the same onion is diced here and sliced there.
+            const line = { ingredientId: id, qty: ing.qty, unit: ing.unit };
+            return ing.note ? { ...line, note: ing.note } : line;
           })
           .filter(Boolean),
       };
@@ -213,6 +223,11 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
   // Matches for the ingredient-name field currently being typed in. Mirrors the
   // List tab's add-item suggestions: name-substring, hidden once fully typed.
   const ingMatches = (name) => ingredientMatches(knownItems, name);
+
+  // Existing ingredients a typed or pasted name probably duplicates. Offered
+  // under the row, never applied: the importer forking the catalog nine ways
+  // is what this is for, and it did that by deciding rather than asking.
+  const ingDuplicates = (name) => existingIngredientSuggestions(knownItems, name);
 
   const setIngName = (i, name) => {
     const list = [...draft.ingredients];
@@ -614,9 +629,11 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
             const sugOpen = ingSug?.row === i;
             const matches = sugOpen ? ingMatches(ing.name) : [];
             const showList = sugOpen && matches.length > 0;
+            const dupes = ingDuplicates(ing.name);
             const pick = (k) => { setIngName(i, k.name); setIngSug(null); };
             return (
-            <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            <div key={i} style={{ marginBottom: 8 }}>
+            <div style={{ display: "flex", gap: 8 }}>
               <div style={{ position: "relative", flex: 2, minWidth: 0 }}>
                 <input
                   placeholder="Ingredient"
@@ -724,9 +741,40 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
               />
               <Btn small onClick={() => setDraft({ ...draft, ingredients: draft.ingredients.filter((_, j) => j !== i) })} title="Remove ingredient">✕</Btn>
             </div>
+            {/* Its own line, and always visible rather than behind a toggle:
+                the parser writes this field, so it has to be somewhere you can
+                see what it guessed and correct it. It is deliberately NOT part
+                of the name — the name is what the shopping list groups by. */}
+            <input
+              placeholder="Note — diced, 15 oz, divided (optional)"
+              aria-label="Ingredient note"
+              value={ing.note || ""}
+              onChange={(e) => {
+                const list = [...draft.ingredients];
+                list[i] = { ...ing, note: e.target.value };
+                setDraft({ ...draft, ingredients: list });
+              }}
+              style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginTop: 4, fontSize: 13 }}
+            />
+            {dupes.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 4, fontSize: 12, color: C.faint }}>
+                <span>Already have:</span>
+                {dupes.map((k) => (
+                  <button
+                    key={k.key}
+                    type="button"
+                    onClick={() => setIngName(i, k.name)}
+                    style={{ padding: "2px 8px", borderRadius: 999, border: `1px solid ${C.line}`, background: C.paper, color: C.ink, cursor: "pointer", fontFamily: fontBody, fontSize: 12 }}
+                  >
+                    use “{k.name}”
+                  </button>
+                ))}
+              </div>
+            )}
+            </div>
             );
           })}
-          <Btn small onClick={() => setDraft({ ...draft, ingredients: [...draft.ingredients, { name: "", qty: "1", unit: "" }] })} style={{ marginBottom: 10 }}>
+          <Btn small onClick={() => setDraft({ ...draft, ingredients: [...draft.ingredients, { name: "", qty: "1", unit: "", note: "" }] })} style={{ marginBottom: 10 }}>
             + Ingredient
           </Btn>
           <datalist id="unit-suggestions">
