@@ -576,6 +576,30 @@ rather than saving them for a cleanup that never gets scheduled.
     screen is now a landmark — <main aria-label="Getting started"> — which is
     what a screen reader wants anyway. Same lesson as sides.spec.mjs finding
     the quantity by DOM depth: identify a thing by what it IS.
+    AND IT IS READABLE AGAIN, from "How it works" — the first section on the
+    Settings tab, above Preferences, because somebody looking for "how does
+    this work" opens Settings and starts at the top. The first-run screen is
+    shown ONCE, before you have an account; without a second copy, the only
+    explanation the app gives is one you cannot get back to.
+    ONE COPY, IN src/help.js. The three lines were written twice for about a
+    day and had already drifted. help.js is plain data — no React — so both
+    screens read it, and a tab name is marked up {like this} rather than
+    written as JSX. parseTabMarkup and searchHelp are the two pure halves in
+    lib.js, because they are the two halves that can be WRONG.
+    13 FAQs, each one a question somebody asked or a confusion the app caused:
+    the two store dropdowns, why an ingredient shows "1.5 cup + 3 can", why
+    the same thing is on the list twice, what Restore starter catalog costs.
+    SEARCH MATCHES EVERY WORD, NOT ANY WORD, and that is the one behaviour
+    here worth a test. With "any", a second word can only ever make the list
+    LONGER — so typing more to narrow down does the opposite of what typing
+    more means, which is the single most likely way for the box to feel
+    broken. It searches the answer and the keywords too, because people search
+    with the word on their mind ("supermarket") not the one in the text.
+      THE FIRST VERSION OF THAT TEST DID NOT CATCH IT. It compared "store"
+      against "store dropdown" — two words that happen to live in the SAME
+      answer, so `some` and `every` give the same count and the mutation
+      passed. It now uses "aisle" and "guest", which are in different answers.
+      Pick the fixture that DISTINGUISHES the rule, not one that exercises it.
     NOT DONE, AND IT IS A SEPARATE ITEM (see 48): an invite is still a CODE
     you paste, not a URL you follow.
 

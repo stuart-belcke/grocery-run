@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { C, fontBody, fontDisplay, BOTTOM_NAV_H } from "./theme";
+import { parseTabMarkup } from "./lib";
 
 /* Pins a tab's controls to the top of the viewport once you scroll past them.
    Fine at thirty recipes, the difference between usable and not at three
@@ -148,6 +149,25 @@ export function BackToTop({ showAfter = 500 }) {
    Kept in ui.jsx rather than inside SettingsTab because the app already has
    this idiom in three places (recipe cards, ingredient rows, the bought-items
    panel) and they should look and behave the same. */
+/* Help text with {Tab} names in it, rendered with the names in bold and
+   spelled exactly as the tab bar spells them.
+
+   Here rather than in either screen because BOTH screens show the same
+   sentences — the first-run explanation and the Settings help read one copy
+   in help.js. Written twice, they drifted inside a day, and the copy somebody
+   goes looking for later is the one that had gone stale. */
+export function HelpText({ children }) {
+  return parseTabMarkup(children).map((part, i) =>
+    part.tab ? (
+      <b key={i} style={{ color: C.ink, fontWeight: 700, whiteSpace: "nowrap" }}>
+        {part.tab}
+      </b>
+    ) : (
+      <span key={i}>{part.text}</span>
+    )
+  );
+}
+
 export function Section({ title, aside, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
   return (

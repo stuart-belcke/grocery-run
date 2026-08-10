@@ -5,6 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { FAQS, HOW_IT_WORKS } from "./help.js";
 import {
   formatCatalog,
   guestBlockedFields,
@@ -62,6 +63,8 @@ import {
   splitUnitNote,
   withUnitNotes,
   needsUnitNotes,
+  parseTabMarkup,
+  searchHelp,
   existingIngredientSuggestions,
   parseRecipeText,
   unplannedMeals,
@@ -1879,6 +1882,102 @@ test("a migrated catalog totals garlic on ONE shopping-list row", () => {
 
   const after = aggregateItems(build(withUnitNotes(migratable()))).find((i) => i.name === "Garlic");
   assert.equal(qtyLabel(after.parts), "11 cloves");
+});
+
+/* ---------------- the help text ----------------
+   The content is prose, so most of it cannot be tested. Two things can, and
+   both are ways it goes quietly wrong: a tab name that no longer names a tab,
+   and a search that gets WIDER the more you type. */
+
+const TAB_LABELS = ["List", "Meals", "Week plan", "Ingredients", "Settings"];
+
+test("every {name} in the help text is a real tab label", () => {
+  /* The explanation doubles as the map — read it once and you know what the
+     things along the bottom of the screen are — and that only holds while the
+     spellings match. Rename a tab without following it through here and the
+     map is wrong; this is the only thing that would notice. */
+  const all = [...HOW_IT_WORKS, ...FAQS.map((f) => f.a), ...FAQS.map((f) => f.q)];
+  const named = all.flatMap((t) => parseTabMarkup(t).filter((p) => p.tab).map((p) => p.tab));
+  assert.ok(named.length >= 8, `only ${named.length} tab references — the markup is probably not being parsed`);
+  for (const n of named) assert.ok(TAB_LABELS.includes(n), `"${n}" is marked up as a tab but no tab is called that`);
+});
+
+test("parseTabMarkup keeps the text around the names, in order", () => {
+  assert.deepEqual(parseTabMarkup("go to {Meals} then {List}."), [
+    { text: "go to " },
+    { tab: "Meals" },
+    { text: " then " },
+    { tab: "List" },
+    { text: "." },
+  ]);
+  assert.deepEqual(parseTabMarkup("no names here"), [{ text: "no names here" }]);
+  assert.deepEqual(parseTabMarkup(""), []);
+});
+
+test("no brace survives into what gets rendered", () => {
+  // A stray or unbalanced brace renders as a literal "{" on screen — the same
+  // failure as the back-to-top button showing \u2191, and equally invisible
+  // to every behaviour test.
+  for (const t of [...HOW_IT_WORKS, ...FAQS.map((f) => f.a), ...FAQS.map((f) => f.q)]) {
+    const rendered = parseTabMarkup(t).map((p) => p.tab || p.text).join("");
+    assert.doesNotMatch(rendered, /[{}]/, `stray brace in: ${t}`);
+  }
+});
+
+test("searchHelp narrows as you type more, never widens", () => {
+  /* EVERY word has to match, not any of them. With `any`, a second word can
+     only ever make the list longer — so typing more to narrow it down does
+     the opposite of what typing more means, which is the single most likely
+     way for this box to feel broken. */
+  const one = searchHelp(FAQS, "store");
+  const two = searchHelp(FAQS, "store dropdown");
+  assert.ok(one.length > 0, "no result for a word that is definitely in there");
+  assert.ok(two.length <= one.length, `adding a word widened the results, ${one.length} -> ${two.length}`);
+  assert.ok(two.every((f) => one.includes(f)), "narrowing returned something the broader search did not");
+
+  /* The pair that actually distinguishes `every` from `some`, and the first
+     version of this test missed it: "store" and "dropdown" happen to live in
+     the SAME answer, so both rules give the same count and `some` passed.
+     These two words are in DIFFERENT answers — 3 and 1 — so `every` gives 0
+     and `some` would give 4. */
+  const aisle = searchHelp(FAQS, "aisle");
+  const guest = searchHelp(FAQS, "guest");
+  const both = searchHelp(FAQS, "aisle guest");
+  assert.ok(aisle.length > 1 && guest.length > 0, "the fixture words no longer match what this test needs");
+  assert.ok(both.length < Math.max(aisle.length, guest.length), `two words from different answers should narrow, got ${aisle.length} + ${guest.length} -> ${both.length}`);
+});
+
+test("searchHelp finds an answer by a word only its keywords carry", () => {
+  // People search with the word on their mind, not the one in the text.
+  const hit = searchHelp(FAQS, "supermarket");
+  assert.ok(hit.length > 0, "keywords are not being searched");
+  assert.ok(!/supermarket/i.test(hit[0].q + hit[0].a), "this word is in the visible text, so it proves nothing");
+});
+
+test("searchHelp searches the ANSWER too, not just the question", () => {
+  // The question is often not what somebody would call the thing.
+  const hit = searchHelp(FAQS, "store flow");
+  assert.ok(hit.length > 0);
+});
+
+test("searchHelp ignores the tab markup, so a tab name is searchable", () => {
+  // "{Meals}" must match a search for "meals".
+  assert.ok(searchHelp(FAQS, "meals").length > 0, "a tab name in braces is not findable");
+});
+
+test("searchHelp returns everything for an empty query and nothing for nonsense", () => {
+  assert.equal(searchHelp(FAQS, "").length, FAQS.length);
+  assert.equal(searchHelp(FAQS, "   ").length, FAQS.length);
+  assert.equal(searchHelp(FAQS, "qqzzx").length, 0);
+  assert.deepEqual(searchHelp(null, "x"), []);
+});
+
+test("every FAQ is answerable and none is a duplicate", () => {
+  for (const f of FAQS) {
+    assert.ok(f.q && f.q.trim().length > 8, `question too short: ${JSON.stringify(f.q)}`);
+    assert.ok(f.a && f.a.trim().length > 40, `answer too short to be an answer: ${JSON.stringify(f.q)}`);
+  }
+  assert.equal(new Set(FAQS.map((f) => f.q)).size, FAQS.length, "two FAQs share a question");
 });
 
 /* ---------------- ingredient notes ----------------
