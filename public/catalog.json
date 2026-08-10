@@ -218,12 +218,12 @@
         { "name": "Olive oil", "qty": 0.5, "unit": "cup" },
         { "name": "Lemon", "qty": 1, "unit": "" },
         { "name": "Garlic", "qty": 4, "unit": "cloves" },
-        { "name": "Oregano", "qty": 1, "unit": "tbsp" },
-        { "name": "Salt", "qty": 1, "unit": "pinch (to taste)" },
-        { "name": "Carrots", "qty": 4, "unit": "stick" },
+        { "name": "Dried oregano", "qty": 1, "unit": "tbsp" },
+        { "name": "Salt", "qty": 1, "unit": "pinch" },
+        { "name": "Carrots", "qty": 4, "unit": "" },
         { "name": "Large potatoes", "qty": 4, "unit": "" },
-        { "name": "Large onion", "qty": 1, "unit": "" },
-        { "name": "Black pepper", "qty": 1, "unit": "pinch (to taste)" }
+        { "name": "Yellow onion", "qty": 1, "unit": "" },
+        { "name": "Black pepper", "qty": 1, "unit": "pinch" }
       ]
     },
     {
@@ -347,7 +347,7 @@
         { "name": "Lime juice", "qty": 2, "unit": "tbsp" },
         { "name": "Avocado", "qty": 0.5, "unit": "" },
         { "name": "Pico de gallo", "qty": 6, "unit": "tbsp" },
-        { "name": "Chopped fresh cilantro", "qty": 4, "unit": "tbsp" }
+        { "name": "Fresh cilantro", "qty": 4, "unit": "tbsp" }
       ]
     },
     {
@@ -441,18 +441,18 @@
       "notes": "Halve the tomatoes. Season the shrimp. Sprinkle the shrimp with a pinch each of salt, pepper, and baking soda, if you like. Toss to coat. Boil the pasta. Bring a large pot of generously salted water to a boil. Cook the spaghetti until al dente according to package directions. Before draining, reserve about a cup of the pasta cooking water. Drain pasta through a colander, but don’t rinse, and set aside. Sauté the shrimp. While the pasta cooks, heat 2 tablespoons olive oil in a large skillet over medium-high heat. Add them to the skillet in a single layer and cook for about 1 to 2 minutes per side, or until opaque and just cooked through. Transfer the shrimp to a plate and set aside. Sauté the tomatoes. In the same skillet, lower heat to medium and add the remaining tablespoon of olive oil. Stir in the garlic and cook just until fragrant (about 30 seconds), then add the cherry tomatoes and a pinch of salt. Sauté for 2 to 3 minutes, or until the tomatoes soften somewhat. Add the spinach and stir to wilt. If using, stir in the red pepper flakes. Combine and toss. Return the shrimp to the skillet along with the cooked pasta. Add the pesto and a splash of the reserved pasta water. Toss everything together gently to coat, adding more pasta water as needed to reach your desired consistency. Finish and serve. Taste and adjust seasoning with more salt and pepper. Transfer to a serving bowl and top with grated Parmesan and torn basil, if desired.",
       "ingredients": [
         { "name": "Jumbo shrimp", "qty": 1, "unit": "lb" },
-        { "name": "Kosher salt", "qty": 1, "unit": "pinch (to taste)" },
-        { "name": "Black pepper", "qty": 1, "unit": "pinch (to taste)" },
-        { "name": "Baking soda", "qty": 1, "unit": "(optional)" },
+        { "name": "Kosher salt", "qty": 1, "unit": "pinch" },
+        { "name": "Black pepper", "qty": 1, "unit": "pinch" },
+        { "name": "Baking soda", "qty": 1, "unit": "" },
         { "name": "Spaghetti", "qty": 12, "unit": "oz" },
-        { "name": "Extra virgin olive oil", "qty": 3, "unit": "tbsp" },
+        { "name": "Olive oil", "qty": 3, "unit": "tbsp" },
         { "name": "Garlic", "qty": 2, "unit": "cloves" },
-        { "name": "Cherry or grape tomatoes", "qty": 2.5, "unit": "cups" },
+        { "name": "Cherry tomatoes", "qty": 2.5, "unit": "cups" },
         { "name": "Basil pesto", "qty": 0.75, "unit": "cup" },
-        { "name": "Crushed red pepper flakes", "qty": 0.25, "unit": "tsp" },
+        { "name": "Red pepper flakes", "qty": 0.25, "unit": "tsp" },
         { "name": "Baby spinach", "qty": 3, "unit": "cup" },
-        { "name": "Grated Parmesan cheese", "qty": 1, "unit": "(optional)" },
-        { "name": "Fresh basil leaves", "qty": 1, "unit": "(optional)" }
+        { "name": "Parmesan cheese", "qty": 1, "unit": "" },
+        { "name": "Fresh basil", "qty": 1, "unit": "" }
       ]
     },
     {
@@ -506,14 +506,10 @@
     "diced tomatoes": { "store": "Grocery store", "aisles": { "Grocery store": 7 } },
     "black pepper": { "store": "Sams", "aisles": { "Grocery store": 8 }, "staple": true },
     "chili powder": { "store": "Sams", "aisles": { "Grocery store": 8 }, "staple": true },
-    "fresh basil leaves": { "store": "Schnucks", "aisles": {} },
     "cherry tomatoes": { "store": "Aldi", "aisles": { "Grocery store": 1 } },
     "black beans": { "store": "Aldi", "aisles": { "Grocery store": 7 } },
-    "chopped fresh cilantro": { "store": "Schnucks", "aisles": {} },
-    "cherry or grape tomatoes": { "store": "Aldi", "aisles": {} },
     "avocado": { "store": "Aldi", "aisles": {} },
     "parmesan cheese": { "store": "Aldi", "aisles": {} },
-    "extra virgin olive oil": { "store": "Schnucks", "aisles": {}, "staple": true },
     "fresh parsley": { "store": "Grocery store", "aisles": { "Grocery store": 1 } },
     "spaghetti": { "store": "Aldi", "aisles": { "Aldi": 5 } },
     "onion powder": { "store": "Grocery store", "aisles": { "Grocery store": 8 }, "staple": true },
@@ -522,7 +518,6 @@
     "broccoli": { "store": "Aldi", "aisles": { "Aldi": 1 } },
     "dry white wine": { "store": "Aldi", "aisles": {} },
     "fresh dill": { "store": "Grocery store", "aisles": { "Grocery store": 1 } },
-    "oregano": { "store": "Sams", "aisles": {}, "staple": true },
     "green onion": { "store": "Aldi", "aisles": { "Grocery store": 1 } },
     "capers": { "store": "Aldi", "aisles": { "Grocery store": 8 }, "staple": true },
     "pesto": { "store": "Grocery store", "aisles": { "Grocery store": 5 } },
@@ -552,7 +547,6 @@
     "balsamic vinegar": { "store": "Grocery store", "aisles": { "Grocery store": 8 }, "staple": true },
     "burrata cheese": { "store": "Schnucks", "aisles": { "Grocery store": 11 } },
     "pico de gallo": { "store": "Schnucks", "aisles": {} },
-    "large onion": { "store": "Aldi", "aisles": {} },
     "dried oregano": { "store": "Sams", "aisles": { "Grocery store": 8 }, "staple": true },
     "paprika": { "store": "Sams", "aisles": { "Grocery store": 8 }, "staple": true },
     "applesauce": { "store": "Aldi", "aisles": { "Grocery store": 9 } },
@@ -569,7 +563,6 @@
     "garlic puree": { "store": "Aldi", "aisles": { "Grocery store": 7 }, "staple": true },
     "salmon fillets": { "store": "Grocery store", "aisles": { "Grocery store": 13 } },
     "bell peppers": { "store": "Aldi", "aisles": { "Grocery store": 1 } },
-    "crushed red pepper flakes": { "store": "Schnucks", "aisles": {}, "staple": true },
     "quinoa": { "store": "Aldi", "aisles": {} },
     "red pesto": { "store": "Aldi", "aisles": {} },
     "feta": { "store": "Sams", "aisles": { "Grocery store": 11 } },
@@ -599,7 +592,6 @@
     "sweet peppers": { "store": "Grocery store", "aisles": { "Grocery store": 1 } },
     "red onion": { "store": "Grocery store", "aisles": { "Grocery store": 1 } },
     "chicken broth": { "store": "Grocery store", "aisles": { "Grocery store": 7 } },
-    "cilantro": { "store": "Aldi", "aisles": {} },
     "bananas": { "store": "Aldi", "aisles": {} },
     "chicken sausage": { "store": "Aldi", "aisles": { "Aldi": 12 } },
     "italian seasoning": { "store": "Sams", "aisles": { "Grocery store": 8 }, "staple": true },
@@ -608,7 +600,6 @@
     "fresh basil": { "store": "Schnucks", "aisles": { "Grocery store": 1 } },
     "vanilla extract": { "store": "Grocery store", "aisles": { "Grocery store": 9 }, "staple": true },
     "garam masala": { "store": "Grocery store", "aisles": { "Grocery store": 8 }, "staple": true },
-    "grated parmesan cheese": { "store": "Aldi", "aisles": {} },
     "artichoke hearts": { "store": "Schnucks", "aisles": { "Grocery store": 7 } },
     "lemon juice": { "store": "Schnucks", "aisles": { "Grocery store": 1 }, "staple": true },
     "arugula": { "store": "Aldi", "aisles": { "Grocery store": 1 } },
