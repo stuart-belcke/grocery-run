@@ -249,13 +249,25 @@ export function ListTab({ data, update, updateCatalog }) {
             aria-label={`Bought ${item.name}`}
             style={{ width: 18, height: 18, accentColor: C.green, flexShrink: 0 }}
           />
+          {/* The name and the quantity share one WRAPPING box, and that is the
+              whole fix for an over-long unit. They used to be two items on the
+              row's single line, and a quantity like "2 28 oz can (San Marzano)"
+              is 209px that will not shrink (it is nowrap, so its min-content
+              width IS its full width). Everything flexible was squeezed to pay
+              for it: at 390px the name button measured 0px wide, the store
+              select and the "i" button were pushed to x=421 — off the screen —
+              and the page scrolled sideways to 445px.
+              Wrapping puts the quantity on its own second line instead, where
+              it has the full width and can break. The row gets taller; nothing
+              leaves the screen. A normal "2 cup" still sits beside the name. */}
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexWrap: "wrap", alignItems: "baseline", columnGap: 10, rowGap: 2 }}>
           <button
             onClick={() => setInspectKey(open ? null : item.key)}
             aria-expanded={open}
             title="Tap to see which meals this item is for"
-            style={{ flex: 1, minWidth: 0, textAlign: "left", background: "transparent", border: "none", padding: 0, cursor: "pointer", color: C.ink, fontFamily: "inherit" }}
+            style={{ flex: "1 1 0", minWidth: 64, textAlign: "left", background: "transparent", border: "none", padding: 0, cursor: "pointer", color: C.ink, fontFamily: "inherit" }}
           >
-            <span style={{ fontWeight: 500, textDecoration: checked ? "line-through" : "none", opacity: checked ? 0.45 : 1 }}>
+            <span style={{ display: "block", overflowWrap: "anywhere", fontWeight: 500, textDecoration: checked ? "line-through" : "none", opacity: checked ? 0.45 : 1 }}>
               {item.name}
               {item.staple && (
                 <span
@@ -270,10 +282,18 @@ export function ListTab({ data, update, updateCatalog }) {
               )}
             </span>
           </button>
-          <span style={{ fontVariantNumeric: "tabular-nums", fontSize: 14, fontWeight: 700, whiteSpace: "nowrap" }}>
+          {/* No `nowrap`: on its own line it has room to break, and a quantity
+              you cannot read is worse than one on two lines. `flex: 0 1 auto`
+              wraps it whole rather than crushing it beside the name. */}
+          {/* `anywhere` because at 320px the box can be narrower than a single
+              word — "Marzano)" is 64px of unbreakable text in a 63px box, and
+              it spills out the side rather than wrapping. It also lowers the
+              span's min-content width, which is what lets it shrink at all. */}
+          <span style={{ flex: "0 1 auto", minWidth: 0, overflowWrap: "anywhere", fontVariantNumeric: "tabular-nums", fontSize: 14, fontWeight: 700 }}>
             {/* A "need" staple carries no quantity — it means "get more". */}
             {qtyLabel(item.parts) || (item.staple ? "" : "—")}
           </span>
+          </div>
           <select
             value={storeOf(item.key)}
             onChange={(e) => setOverride(item.key, e.target.value)}
@@ -285,6 +305,9 @@ export function ListTab({ data, update, updateCatalog }) {
               border: `1px solid ${C.line}`,
               background: data.list.overrides[item.key] != null ? C.greenSoft : "#fff",
               maxWidth: 118,
+              // Never pays for someone else's overflow: a store you cannot
+              // reach mid-shop is the control this row exists for.
+              flexShrink: 0,
             }}
           >
             {storeOptions.map((s) => (

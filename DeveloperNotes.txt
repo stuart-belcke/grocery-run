@@ -1272,6 +1272,43 @@ and startEdit's `...i` already spreads a stored note), and the e2e layer
 caught a real one live — the note reached the editor and never reached the
 catalog write, which no unit test could have seen.
 
+[DONE] Item 47 — an over-long quantity broke the List row. REPRODUCED FIRST,
+as the item asked, and it was worse than reported. At 390px, with a unit of
+"28 oz can (San Marzano)":
+    item-name button   0px wide
+    "i" button         x = 421   (the screen is 390 wide)
+    store select       x = 295, half off the screen
+    page               scrollWidth 445 — the whole app scrolled sideways
+The cause is that the quantity was `whiteSpace: nowrap`, so its min-content
+width IS its full width and it cannot shrink. It sat on the row's single flex
+line, and everything flexible was squeezed to pay for it — the name button
+first, to nothing.
+THE FIX IS A WRAPPING BOX, not a width. The name and the quantity now share
+one flex container with `flexWrap: wrap`: they sit side by side when they fit
+and the quantity drops to its own full-width line when they don't. The name
+button is `flex: 1 1 0` — basis ZERO, deliberately, so it SHRINKS rather than
+pushing the quantity onto a second line in the ordinary case. `flex: 1 1 auto`
+was tried first and made every row two lines high, which the list pays for on
+every item.
+  `overflowWrap: anywhere` on both, because at 320px the quantity's box is
+  63px and "Marzano)" is a single unbreakable 64px word — it spilled out the
+  side without widening the page at all.
+MEASURED ACROSS 14 COMBINATIONS (7 unit lengths x 320/390): no page overflow,
+no text outside its own box, name button never below 44px, store select never
+off screen. The ordinary "2 oz" row is unchanged at 91px/32px, one line.
+TESTS: tests/e2e/specs/listrow.spec.mjs, and the assertion that matters is
+scrollWidth vs clientWidth per ELEMENT, not per page. The first version of the
+spec checked the page width and the hit tests, and a nowrap quantity inside a
+shrink-to-zero wrapper passed both: the box was crushed to 59px and the text
+ran out of it, which leaves the page exactly the right width. Mutation-tested
+four ways; three fail the right tests. The fourth — removing the name button's
+64px floor — is NOT independently covered, and honestly it is barely doing
+anything: at 320px it is the difference between 64px and 63px. It is kept as a
+statement of intent, not as something a test defends.
+  The one thing this changed elsewhere: sides.spec.mjs found the quantity with
+  `:scope > div > span`, which the extra wrapper broke. Now found by
+  `span[style*="tabular-nums"]` — what the quantity IS, not how deep it sits.
+
 UI density — Ingredients row [DONE], List row still open.
 The Ingredients gear panel had become a flat pile of unrelated concerns, and
 its aisle grid rendered one input per store (5, shown even where the item

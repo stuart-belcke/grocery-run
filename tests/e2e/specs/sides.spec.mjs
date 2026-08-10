@@ -30,7 +30,11 @@ const listAmount = (page, name) =>
   page.evaluate((n) => {
     const cb = document.querySelector(`input[aria-label="Bought ${n}"]`);
     if (!cb) return null;
-    const span = cb.closest("li").querySelector(":scope > div > span");
+    // Found by what the quantity IS (the tabular-numerals span), not by how
+    // deep it sits. `:scope > div > span` broke the day the name and quantity
+    // were wrapped together so an over-long unit could wrap — a layout change
+    // that altered no behaviour this test is about.
+    const span = cb.closest("li").querySelector('span[style*="tabular-nums"]');
     return span ? span.textContent.trim() : null;
   }, name);
 
