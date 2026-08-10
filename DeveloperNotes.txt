@@ -1232,6 +1232,7 @@ the failure that would cost a duplicate purchase.
   note in item 39. The field ships and gets used for real first; moving that
   hand-written text is a separate data pass. It is information somebody
   deliberately recorded — it gets MOVED, not deleted.
+  [DONE LATER — see "the migration" below.]
 
 THE PARSER (item 40, first half) is done, and the rule that took two attempts
 is where a comma is a note and where it is a list. "1 large onion, diced" is a
@@ -1375,6 +1376,48 @@ It now measures at THREE scroll depths and asserts the bar's viewport position
 does not change; two positions cannot both be the bottom.
 Five mutations, all caught: unpinned, above the dialogs, no bottom padding,
 back-to-top dropped onto the bar, and a fixed label size.
+
+[DONE] The migration — a modifier stranded in `unit` moves into `note`. This
+is item 39's "later pass", and the trigger was a real shopping list reading:
+      Garlic   16 cloves (2 chopped, 6 whole) + 11 cloves
+`unit` is HALF THE SHOPPING LIST'S GROUPING KEY, so one recipe spelling it
+"cloves (2 chopped, 6 whole)" against eleven saying "cloves" is arithmetic,
+not tidiness — two rows of garlic that cannot add up. 38 lines across 14 of
+the 22 recipes were affected.
+
+THE THING WORTH REMEMBERING IS WHERE IT HAD TO RUN. The first attempt at this
+class of fix (#90) edited public/catalog.json, and the next export brought
+every duplicate straight back. THE FILE IS EXPORT ONLY: App.jsx reads it once,
+through seedCatalog, and only when a household has NO catalog of its own
+(`hCatalog || seedCatalog(catalog)`). Once the database has one, the file is
+never consulted again. Editing it fixes the git history and nothing a phone
+will ever see. Anything that has to reach the data has to run in the app.
+  So it runs in two places, and needs both: on the catalog-adopt path beside
+  migrateToIngredientIds, which is what fixes an EXISTING household; and
+  inside seedCatalog, so a NEW household is never born with the bug. The
+  second is also the only one an e2e test can reach — the local-only build
+  compiles sync out, so the adopt path has unit tests and a proven sibling
+  pattern behind it and nothing more. Said plainly rather than implied.
+
+IT REUSES splitIngredientNote rather than defining "what is a note" twice,
+which makes it conservative by inheritance: no brackets and no trailing
+clause means untouched. That matters more than the cases it does catch —
+`stick` (from "4 carrots cut into sticks") is a WRONG UNIT, not a note, and
+no rule here can tell. It stays for a person to fix, and so does
+"skin-on, bone-in", which this only half-improves.
+
+GATED AND IDEMPOTENT, and the gate is not decoration: without needsUnitNotes,
+every launch on both phones would push the whole catalog back and bump
+updatedAt forever. Skipped for a guest, whose catalog writes the rules refuse
+anyway — the attempt would raise the "you're a guest" banner on a screen they
+only opened to shop.
+
+APP_DATA_VERSION IS NOT BUMPED. An older build carries `note` through
+untouched everywhere except a recipe it actually re-saves, which is the same
+exposure #94 already shipped with. A field an old build can carry is not a
+reason to lock a phone out.
+Five mutations, all caught: no migration, text deleted instead of moved, an
+existing note overwritten, the gate always true, and unknown fields pruned.
 
 UI density — Ingredients row [DONE], List row still open.
 The Ingredients gear panel had become a flat pile of unrelated concerns, and

@@ -1145,6 +1145,72 @@ export function needsIngredientIds(catalog) {
   return keys.some((k) => !/^ing_/.test(k));
 }
 
+/* ---------- moving a modifier out of `unit` and into `note` ----------
+
+   Item 39's second half, and the reason it waited: the field had to exist and
+   be used for real before the old data was touched. It exists now (#94), so
+   this is the migration that note said would come "in a later pass".
+
+   THE TEXT IS MOVED, NEVER DELETED. Every one of these was typed by a person
+   who meant it — a can size, a substitution, how to cut the thing — so
+   dropping it to tidy the unit would be the worse bug. `cloves (2 chopped, 6
+   whole)` becomes unit `cloves`, note `2 chopped, 6 whole`.
+
+   WHY IT MATTERS MORE THAN IT LOOKS: `unit` is half the shopping list's
+   grouping key. One recipe saying `cloves (2 chopped, 6 whole)` and eleven
+   saying `cloves` is not a cosmetic difference — it is two rows of garlic
+   that cannot add up, which is what you see on the List tab today:
+       Garlic   16 cloves (2 chopped, 6 whole) + 11 cloves
+
+   It reuses splitIngredientNote rather than defining "what is a note" a
+   second time, which also makes it CONSERVATIVE by inheritance: a unit with
+   no brackets and no trailing clause is left exactly alone. `stick` (from "4
+   carrots cut into sticks") is a wrong unit rather than a note, and no rule
+   here can know that — it stays for a person to fix.
+
+   Idempotent, which is what makes it safe to run on every load: the second
+   pass finds nothing to move. */
+export function splitUnitNote(unit, existingNote) {
+  const split = splitIngredientNote(unit);
+  const had = String(existingNote || "").trim();
+  if (!split.note) return { unit: String(unit || "").trim(), note: had };
+  // The line's own note comes first: it describes the ingredient, and what
+  // was stranded in `unit` is extra detail about the same thing.
+  return { unit: split.text, note: [had, split.note].filter(Boolean).join(", ") };
+}
+
+const lineNeedsUnitNote = (line) => {
+  const unit = line && typeof line === "object" ? String(line.unit || "") : "";
+  return !!unit && !!splitIngredientNote(unit).note;
+};
+
+export function needsUnitNotes(catalog) {
+  const recipes = asObject(catalog && catalog.recipes);
+  return Object.values(recipes).some((r) => asArray(r && r.ingredients).some(lineNeedsUnitNote));
+}
+
+export function withUnitNotes(catalog) {
+  if (!needsUnitNotes(catalog)) return catalog;
+  const recipes = {};
+  for (const [id, r] of Object.entries(asObject(catalog.recipes))) {
+    recipes[id] = {
+      ...r,
+      ingredients: asArray(r && r.ingredients).map((line) => {
+        if (!lineNeedsUnitNote(line)) return line;
+        const { unit, note } = splitUnitNote(line.unit, line.note);
+        // Spread first: a line may carry fields this build has never heard
+        // of, and a migration that prunes them is the forward-compatibility
+        // bug the whole app is written to avoid.
+        const out = { ...line, unit };
+        if (note) out.note = note;
+        else delete out.note;
+        return out;
+      }),
+    };
+  }
+  return { ...catalog, recipes };
+}
+
 export const CATALOG_SHAPE_VERSION = 1;
 
 /* --------------------------- preferences ---------------------------
@@ -1223,15 +1289,22 @@ export function seedCatalog(catalogJson) {
   // write is a shape the app immediately wants to replace — and it made "a new
   // household works" a weaker test than it looks, because renaming succeeds in
   // the un-migrated state too.
-  return withIngredientIds({
-    version: CATALOG_SHAPE_VERSION,
-    appDataVersion: APP_DATA_VERSION,
-    updatedAt: 0,
-    prefs: { ...DEFAULT_PREFS },
-    recipes,
-    ingredients,
-    stores: asArray(cat.stores),
-  });
+  // withUnitNotes for the same reason as withIngredientIds above: a household
+  // born with a modifier stranded in `unit` would carry a shopping list that
+  // cannot add itself up until the listener happened to migrate it. The
+  // shipped file still holds the old spellings, and this is the one place it
+  // is read, so the seed is where they get moved.
+  return withUnitNotes(
+    withIngredientIds({
+      version: CATALOG_SHAPE_VERSION,
+      appDataVersion: APP_DATA_VERSION,
+      updatedAt: 0,
+      prefs: { ...DEFAULT_PREFS },
+      recipes,
+      ingredients,
+      stores: asArray(cat.stores),
+    })
+  );
 }
 
 // Rebuild the full shape from whatever the database hands back, same contract

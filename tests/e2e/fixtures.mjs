@@ -205,3 +205,42 @@ export function longUnitState(unit = "28 oz can (San Marzano)") {
     },
   });
 }
+
+/* A catalog carrying the bracketed units the app allowed before `note`.
+
+   Two recipes wanting the same ingredient, one spelling its unit with a
+   modifier baked in. That is the shape of the real bug — the shipped catalog
+   had eleven recipes saying "cloves" and one saying "cloves (2 chopped, 6
+   whole)" — and the numbers are chosen so the two rows would be VISIBLY
+   different from the merged one: 8 + 3 = 11 in one row, not "8 … + 3 …". */
+export function bracketedUnitCatalog() {
+  const file = {
+    catalogVersion: 1,
+    stores: ["Aldi"],
+    recipes: [
+      {
+        id: "r-stew",
+        name: "Stew",
+        mealTypes: ["Dinner"],
+        servings: 4,
+        notes: "",
+        ingredients: [
+          { name: "Garlic", qty: 8, unit: "cloves (2 chopped, 6 whole)" },
+          { name: "Beans", qty: 1, unit: "can (15 oz)" },
+        ],
+      },
+      {
+        id: "r-soup",
+        name: "Soup",
+        mealTypes: ["Dinner"],
+        servings: 4,
+        notes: "",
+        ingredients: [{ name: "Garlic", qty: 3, unit: "cloves" }],
+      },
+    ],
+    config: { garlic: { store: "Aldi", aisles: {} }, beans: { store: "Aldi", aisles: {} } },
+  };
+  const cat = seedCatalog(file);
+  cat.updatedAt = Date.now();
+  return cat;
+}
