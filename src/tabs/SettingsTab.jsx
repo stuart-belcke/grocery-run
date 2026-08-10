@@ -472,9 +472,24 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
             <p style={{ fontSize: 12, color: C.faint, margin: "0 0 12px" }}>
               This account is what lets this phone sync. Signing out keeps everything already on this phone and stops it sending or receiving changes until you sign back in.
             </p>
+            {/* NAME THE ACTUAL REMEDY. This used to say "check the code above
+                matches the other phone exactly", which sends you to fix the
+                one thing that is not broken: since invites landed, a correct
+                code grants nothing on its own. If the database refuses this
+                account, it is not a member — and the only way in is an
+                invite from somebody who is. Showing the email matters
+                because it is what the other person needs to recognise, and
+                because signing in with the wrong account of two is the most
+                likely way to arrive here. */}
             {accessDenied && (
-              <div style={{ fontSize: 13, fontWeight: 500, color: C.tomato, margin: "0 0 12px", padding: "8px 10px", background: C.tomatoSoft, borderRadius: 8 }}>
-                Signed in, but this account can&apos;t open household <b>{code}</b>. Check the code above matches the other phone exactly.
+              <div style={{ fontSize: 13, color: C.ink, margin: "0 0 12px", padding: "10px 12px", background: C.tomatoSoft, borderRadius: 8, lineHeight: 1.5 }}>
+                <b style={{ color: C.tomato }}>This account isn&apos;t in household {code}.</b>{" "}
+                Ask someone who is to send you an invite link from their Settings, and paste it above
+                — a household code on its own doesn&apos;t grant access any more.
+                <div style={{ fontSize: 12, color: C.faint, marginTop: 6 }}>
+                  You&apos;re signed in as <b style={{ color: C.ink }}>{user.email || user.displayName || user.uid}</b>.
+                  If that&apos;s the wrong account, sign out and back in as the one that&apos;s already in the household.
+                </div>
               </div>
             )}
             <Btn onClick={signOutUser}>Sign out</Btn>
