@@ -545,11 +545,20 @@ rather than saving them for a cleanup that never gets scheduled.
 41. [DONE] A "how it works" note before signing in, and sign-in easy to find.
     The first-run screen (item 37) offered three ways IN but never said what
     the app IS, so somebody who had never seen it was signing in to find out.
-    THREE LINES, in the order the week actually happens: pick the meals, the
-    list builds itself from their ingredients, both phones see the same list.
-    Above the choices, and the test compares their POSITIONS on the page
-    rather than their order in the source — an explanation under the buttons
-    is not an explanation.
+    THREE LINES, in the order the week actually happens: choose on Meals and
+    Week plan, List builds itself from those recipes using the stores and
+    aisles kept on Ingredients, both phones see the same List. Above the
+    choices, and the test compares their POSITIONS on the page rather than
+    their order in the source — an explanation under the buttons is not an
+    explanation.
+    EACH TAB IS NAMED IN BOLD, spelled exactly as the tab bar spells it, so
+    the explanation doubles as the map: the four words in the list are four of
+    the five things along the bottom of the screen (Settings is deliberately
+    left out), and the first tap after signing in is informed rather than a
+    poke. One <Tab> component holds the spelling, and the test asserts every
+    bolded word IS a real tab label — a tab renamed without this line
+    following it turns the map into a wrong one, and nothing else would
+    notice.
     THE CARDS ARE REORDERED BY WHAT EACH ROUTE COSTS, not by how often it is
     used. Sign in is first. The invite card used to lead, which put the
     sentence "sign in below first, then come back and paste it" ABOVE the

@@ -81,16 +81,28 @@ test("the screen says what the app IS before it asks for anything", async () => 
   try {
     const body = await page.textContent("body");
     assert.match(body, /Meal planning and a shopping list/, "the screen never says what the app is");
-    assert.match(body, /Pick the meals/, "no explanation of where the list comes from");
-    assert.match(body, /list builds itself/, "doesn't say the list is generated, which is the whole idea");
-    assert.match(body, /Both phones see the same list/, "doesn't say it is shared, which is why you sign in");
+    assert.match(body, /Choose what you feel like cooking/, "no explanation of where the list comes from");
+    assert.match(body, /builds itself from those recipes/, "doesn't say the list is generated, which is the whole idea");
+    assert.match(body, /Both phones see the same/, "doesn't say it is shared, which is why you sign in");
+
+    /* THE BOLD WORDS ARE THE TAB BAR'S WORDS. The explanation doubles as the
+       map — read it once and you know what the five things along the bottom
+       are — which only holds while the spellings match. A tab renamed without
+       this line following it turns the map into a wrong one, and nothing else
+       in the suite would notice. */
+    const named = await page.evaluate(() => [...document.querySelectorAll("ol b")].map((e) => e.textContent.trim()));
+    assert.ok(named.length > 0, "no tab is named in the explanation");
+    const TAB_LABELS = ["List", "Meals", "Week plan", "Ingredients", "Settings"];
+    for (const n of named) assert.ok(TAB_LABELS.includes(n), `"${n}" is bolded as a tab but no tab is called that — the labels are ${JSON.stringify(TAB_LABELS)}`);
+    // Every tab worth explaining gets named. Settings is deliberately not one.
+    assert.deepEqual([...new Set(named)].sort(), ["Ingredients", "List", "Meals", "Week plan"]);
 
     // Above the choices, not buried under them: the point is reading it
     // BEFORE deciding. Compared by position on the page, not by source order.
     const y = await page.evaluate(() => {
       const find = (re) => [...document.querySelectorAll("li, p, h2")].find((e) => re.test(e.textContent));
       const box = (e) => (e ? Math.round(e.getBoundingClientRect().top) : null);
-      return { explain: box(find(/Pick the meals/)), firstChoice: box(find(/^Sign in$/)) };
+      return { explain: box(find(/Choose what you feel like cooking/)), firstChoice: box(find(/^Sign in$/)) };
     });
     assert.ok(y.explain !== null && y.firstChoice !== null, `couldn't locate both blocks: ${JSON.stringify(y)}`);
     assert.ok(y.explain < y.firstChoice, `the explanation sits below the first choice (${y.explain} vs ${y.firstChoice})`);

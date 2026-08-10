@@ -25,6 +25,11 @@ import { Btn, Stripe } from "./ui";
 import { classifyJoinInput } from "./lib";
 
 const card = { background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16, marginBottom: 12 };
+
+/* A tab's name, written the way the tab bar writes it. One component so the
+   five labels have a single spelling: an explanation that calls it "the meals
+   tab" when the bar says "Meals" is a map that does not match the ground. */
+const Tab = ({ children }) => <b style={{ color: C.ink, fontWeight: 700, whiteSpace: "nowrap" }}>{children}</b>;
 const label = { fontSize: 12, color: C.faint, display: "block", marginBottom: 4 };
 
 export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError }) {
@@ -80,11 +85,16 @@ export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError })
         {/* WHAT THE APP IS, before it asks anything. The screen used to open
             with three ways to get in and no answer to "in to what", so someone
             who had never seen it was signing in to find out. Three lines, in
-            the order the week actually happens. */}
-        <ol style={{ color: C.faint, fontSize: 14, lineHeight: 1.5, margin: "0 0 22px", paddingLeft: 20 }}>
-          <li>Pick the meals you want to cook this week.</li>
-          <li>The shopping list builds itself from their ingredients, added up and grouped by store and aisle.</li>
-          <li>Both phones see the same list, so whoever is out can tick things off as they go.</li>
+            the order the week actually happens.
+            EVERY TAB IS NAMED, in bold, spelled exactly as the tab bar spells
+            it. Read once here, it doubles as the map: the four words in this
+            list are the four things along the bottom of the screen, so the
+            first tap after signing in is an informed one rather than a poke.
+            Tab, not <b>, so the spelling cannot drift from the bar's. */}
+        <ol style={{ color: C.faint, fontSize: 14, lineHeight: 1.6, margin: "0 0 22px", paddingLeft: 20 }}>
+          <li>Choose what you feel like cooking on <Tab>Meals</Tab>, and give the week a shape on <Tab>Week plan</Tab>.</li>
+          <li><Tab>List</Tab> then builds itself from those recipes — every ingredient added up, and grouped by the store and aisle you keep on <Tab>Ingredients</Tab>.</li>
+          <li>Both phones see the same <Tab>List</Tab>, so whoever is out can tick things off as they go.</li>
         </ol>
 
         {/* FIRST. Both people who actually live in a household arrive this
