@@ -1215,6 +1215,132 @@ then left wherever the list left you.
   longListState() in fixtures.mjs fills it with hand-added extras, which need
   no catalog, plan or recipes.
 
+[DONE, HALF-DONE, and one half DELIBERATELY NOT STARTED] Items 39 and 40 — the
+ingredient `note` field, the parser, and duplicate ingredients.
+
+THE FIELD (item 39) is done. A recipe line is now { name, qty, unit, note? },
+and `note` is ABSENT rather than empty when there isn't one, so every recipe
+already stored keeps the exact bytes it had and an older build reading it back
+has nothing new to carry. It is a property of THE LINE, not of the ingredient:
+the same onion is diced in one recipe and sliced in another. It never reaches
+aggregateItems' grouping key — addPart keys on ingredient + unit — so two
+recipes wanting the same thing prepared differently still make one list row.
+That is asserted in tests/e2e/specs/ingredientnotes.spec.mjs, because it is
+the failure that would cost a duplicate purchase.
+  WHAT IS NOT DONE, ON PURPOSE: the existing bracketed units in catalog.json
+  ("can (15 oz)", "tsp (can omit)") are untouched, per the expand-then-contract
+  note in item 39. The field ships and gets used for real first; moving that
+  hand-written text is a separate data pass. It is information somebody
+  deliberately recorded — it gets MOVED, not deleted.
+
+THE PARSER (item 40, first half) is done, and the rule that took two attempts
+is where a comma is a note and where it is a list. "1 large onion, diced" is a
+note. "1 1/2 lb ground chicken, pork, or turkey" is ONE ingredient with three
+spellings, and splitting at the last comma produced the name "Ground chicken,
+pork" — which matches no catalog entry, so it forks a new one. The rule is:
+split on a comma only when there is exactly ONE, and never when the tail opens
+with "or"/"and". Parentheses are taken from anywhere, and are read BEFORE the
+unit word — "2 (14.5 oz) cans tomatoes" was reading `14.5` as the unit and
+losing the can size with it.
+
+COOKING STEPS now come out numbered, one per line. They were joined into a
+single paragraph, so following them at the stove meant re-finding your place
+each time you looked up. A numbered line STARTS a step and unnumbered lines
+after it continue it (blogs wrap long steps), and they are renumbered from 1
+rather than copied — a paste that starts at the second method starts at "5.".
+
+DUPLICATE INGREDIENTS (item 40, second half — the valuable one) now ASK.
+existingIngredientSuggestions() is the reverse of ingredientMatches: that one
+answers "what am I part-way through typing", so it asks whether the known name
+contains what you typed, and that question cannot see the failure that
+actually happened — the EXISTING name was inside the PASTED one ("Olive oil"
+inside "extra virgin olive oil", "Salt" inside "kosher salt"). So containment
+runs both ways, plus a last-word check for "large onion" beside "Yellow
+onion". Offered as a chip under the row, never applied: the importer forked
+the catalog nine ways precisely by deciding instead of asking, and a wrong
+guess accepted silently is how a catalog acquires three cilantros.
+  MATCHING ON WHOLE WORDS, NOT SUBSTRINGS, is load-bearing and mutation-tested:
+  "salted butter" contains the letters of "salt" and is not salt. A prompt
+  that is usually wrong gets dismissed unread, and then so does the one that
+  mattered. An exact match asks nothing for the same reason.
+  It sits in the ingredient row itself rather than in a paste-review dialog,
+  so it works for a hand-typed name too — the fork is not unique to imports.
+
+TESTED: 184 unit tests, 76 e2e. Twelve mutations run; two survived and both
+were equivalent (the empty-string note is already filtered by a second guard,
+and startEdit's `...i` already spreads a stored note), and the e2e layer
+caught a real one live — the note reached the editor and never reached the
+catalog write, which no unit test could have seen.
+
+[DONE] Item 47 — an over-long quantity broke the List row. REPRODUCED FIRST,
+as the item asked, and it was worse than reported. At 390px, with a unit of
+"28 oz can (San Marzano)":
+    item-name button   0px wide
+    "i" button         x = 421   (the screen is 390 wide)
+    store select       x = 295, half off the screen
+    page               scrollWidth 445 — the whole app scrolled sideways
+The cause is that the quantity was `whiteSpace: nowrap`, so its min-content
+width IS its full width and it cannot shrink. It sat on the row's single flex
+line, and everything flexible was squeezed to pay for it — the name button
+first, to nothing.
+THE FIX IS A WRAPPING BOX, not a width. The name and the quantity now share
+one flex container with `flexWrap: wrap`: they sit side by side when they fit
+and the quantity drops to its own full-width line when they don't. The name
+button is `flex: 1 1 0` — basis ZERO, deliberately, so it SHRINKS rather than
+pushing the quantity onto a second line in the ordinary case. `flex: 1 1 auto`
+was tried first and made every row two lines high, which the list pays for on
+every item.
+  `overflowWrap: anywhere` on both, because at 320px the quantity's box is
+  63px and "Marzano)" is a single unbreakable 64px word — it spilled out the
+  side without widening the page at all.
+MEASURED ACROSS 14 COMBINATIONS (7 unit lengths x 320/390): no page overflow,
+no text outside its own box, name button never below 44px, store select never
+off screen. The ordinary "2 oz" row is unchanged at 91px/32px, one line.
+TESTS: tests/e2e/specs/listrow.spec.mjs, and the assertion that matters is
+scrollWidth vs clientWidth per ELEMENT, not per page. The first version of the
+spec checked the page width and the hit tests, and a nowrap quantity inside a
+shrink-to-zero wrapper passed both: the box was crushed to 59px and the text
+ran out of it, which leaves the page exactly the right width. Mutation-tested
+four ways; three fail the right tests. The fourth — removing the name button's
+64px floor — is NOT independently covered, and honestly it is barely doing
+anything: at 320px it is the difference between 64px and 63px. It is kept as a
+statement of intent, not as something a test defends.
+  The one thing this changed elsewhere: sides.spec.mjs found the quantity with
+  `:scope > div > span`, which the extra wrapper broke. Now found by
+  `span[style*="tabular-nums"]` — what the quantity IS, not how deep it sits.
+
+[DONE] Item 44 — set an ingredient's store and aisle from the List tab. You
+only ever learn what aisle something is in while standing in front of it, and
+that meant leaving the list, opening Ingredients, and searching for the item
+you had in your hand.
+"Where it lives" now sits in the row's existing expand panel, and it calls the
+SAME two writes the Ingredients tab calls — one setIngredientCfg each. That is
+the point, not a detail: a parallel field would look right on this tab and
+leave the Ingredients tab showing the old store forever, so the test drives the
+List tab and then asserts on the INGREDIENTS TAB's dropdown.
+  TWO DROPDOWNS, DELIBERATELY DIFFERENT, and the panel now says so. The one on
+  the row is `overrides` — a reroute for TODAY. The one in the panel is the
+  catalog — where the item lives from now on. Collapsing them would turn a
+  one-off detour into a permanent wrong aisle on every future list.
+  ONLY FOR AN INGREDIENT THE CATALOG HOLDS. A genuinely ad-hoc hand-added entry
+  is keyed by its NAME, not by an ingredient id, so writing a store for it
+  would mint a config entry under a key nothing else resolves. Those keep
+  "Save to Ingredients", which mints the id properly.
+  It is the List tab's first CATALOG write, so it is the first thing here a
+  guest cannot do. Hidden, not disabled — same rule as everywhere else.
+FOUND WHILE LOOKING AT IT, in a screenshot rather than in a test: the panel
+read `Matches ingredients named "ing_2ym41inb"`. True when the key WAS the
+name; once recipe lines started storing ingredient ids it became gibberish
+sitting above an explanation of case-insensitive matching that no longer
+happens. An item with a catalog entry is matched by identity and needs no
+sentence at all; only an ad-hoc entry is still matched by its spelling, and
+only it still says so — by name, never by key. Asserted as TEXT: every
+behaviour assertion around that line passed, exactly like the ↑ button.
+TESTS: tests/e2e/specs/listedithome.spec.mjs, mutation-tested five ways — a
+parallel field, the panel collapsed into the override, the aisle stored without
+its store, the guest given the editor, and the raw id put back — each fails the
+one test written for it.
+
 UI density — Ingredients row [DONE], List row still open.
 The Ingredients gear panel had become a flat pile of unrelated concerns, and
 its aisle grid rendered one input per store (5, shown even where the item

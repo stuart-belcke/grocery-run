@@ -685,7 +685,7 @@ export default function App() {
           </div>
         )}
 
-        {tab === "list" && <ListTab data={data} update={update} updateCatalog={updateCatalog} />}
+        {tab === "list" && <ListTab data={data} update={update} updateCatalog={updateCatalog} isGuest={isGuest} />}
         {tab === "meals" && <MealsTab data={data} update={update} updateCatalog={updateCatalog} isGuest={isGuest} />}
         {tab === "week" && <WeekTab data={data} update={update} isGuest={isGuest} />}
         {tab === "pantry" && <PantryTab data={data} update={update} updateCatalog={updateCatalog} isGuest={isGuest} />}

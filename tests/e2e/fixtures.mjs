@@ -182,3 +182,26 @@ export function longListState(n = 60) {
   }
   return stateWith({ list: { ...emptyState().list, extras } });
 }
+
+/* A list row whose quantity is far too wide for a phone.
+
+   "28 oz can (San Marzano)" is the shape of unit the app allowed before the
+   `note` field existed — a can size, a brand and a preparation all crammed
+   into the one field that has to be exact for the arithmetic. The old ones
+   are still in the catalog and are deliberately not being rewritten yet, so
+   the row has to survive them. Measured at 390px: this made the item-name
+   button 0px wide and pushed the "i" button to x=421, off the screen.
+
+   Kept as a fixture rather than inlined because it is a SHAPE, not a value —
+   any quantity string wide enough to blow the row apart reproduces it. */
+export function longUnitState(unit = "28 oz can (San Marzano)") {
+  return stateWith({
+    list: {
+      ...emptyState().list,
+      extras: {
+        "crushed tomatoes": { name: "Crushed tomatoes", qty: 2, unit },
+        "short unit": { name: "Bananas", qty: 3, unit: "" },
+      },
+    },
+  });
+}

@@ -207,7 +207,13 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
       notes: r.notes || "",
       // r.ingredients already carries the resolved name (App fills it in when
       // it assembles `data`), so the export drops the id and keeps the name.
-      ingredients: (r.ingredients || []).map((i) => ({ name: i.name, qty: i.qty, unit: i.unit })),
+      // note is carried through when present. Dropping it here would quietly
+      // discard "15 oz", "rinsed", "or turkey" on every export — the file is
+      // the backup and the git history, so a field the export forgets is a
+      // field that does not really exist.
+      ingredients: (r.ingredients || []).map((i) =>
+        i.note ? { name: i.name, qty: i.qty, unit: i.unit, note: i.note } : { name: i.name, qty: i.qty, unit: i.unit }
+      ),
     }));
     // The FILE stays name-keyed: it's hand-edited and diffed in git, and ids
     // in it would mean inventing one and matching it across two sections just

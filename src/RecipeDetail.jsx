@@ -30,7 +30,14 @@ export function RecipeDetail({ recipe }) {
                 fontSize: 13,
               }}
             >
-              <span>{ing.name}</span>
+              {/* The note is how you cook it ("diced", "15 oz", "divided").
+                  It belongs beside the name here and nowhere near the shopping
+                  list, which aggregates by ingredient and would have to pick
+                  one recipe's note over another's. */}
+              <span>
+                {ing.name}
+                {ing.note ? <span style={{ color: C.faint }}>, {ing.note}</span> : null}
+              </span>
               <span style={{ fontVariantNumeric: "tabular-nums", color: C.faint, whiteSpace: "nowrap" }}>
                 {r2(Number(ing.qty) || 0)}
                 {ing.unit ? ` ${ing.unit}` : ""}

@@ -58,6 +58,8 @@ import {
   FALLBACK_CATALOG,
   normalizeCatalog,
   parseIngredientLine,
+  splitIngredientNote,
+  existingIngredientSuggestions,
   parseRecipeText,
   unplannedMeals,
 } from "./lib.js";
@@ -1729,6 +1731,119 @@ test("a field nobody has invented yet is off limits to a guest by default", () =
    but it has to actually save typing on the shapes people really paste, so
    these are checked against real copy/paste text, not hand-simplified input. */
 
+/* ---------------- catching a duplicate before it forks the catalog ----------------
+   One paste added nine ingredients the household already had under another
+   spelling — olive oil beside "extra virgin olive oil", salt beside "kosher
+   salt", three separate cilantros. Each fork is a second shopping-list line
+   and a second store and aisle to set. The names below are the real ones. */
+
+const knownFixture = () =>
+  ["Olive oil", "Salt", "Cilantro", "Yellow onion", "Chicken breast", "Garlic", "Crushed tomatoes"].map((name) => ({ key: norm(name), name }));
+
+const suggest = (name) => existingIngredientSuggestions(knownFixture(), name).map((k) => k.name);
+
+test("existingIngredientSuggestions finds the existing name INSIDE a longer pasted one", () => {
+  // The direction ingredientMatches cannot see, and the one that caused the
+  // damage: the known name is a substring of what was pasted, not vice versa.
+  assert.deepEqual(suggest("Extra virgin olive oil"), ["Olive oil"]);
+  assert.deepEqual(suggest("Kosher salt"), ["Salt"]);
+  assert.deepEqual(suggest("Fresh cilantro"), ["Cilantro"]);
+  assert.deepEqual(suggest("Chopped cilantro leaves"), ["Cilantro"]);
+});
+
+test("existingIngredientSuggestions also matches the shorter name and the shared head word", () => {
+  assert.deepEqual(suggest("Onion"), ["Yellow onion"]); // pasted name inside the known one
+  assert.deepEqual(suggest("Large onion"), ["Yellow onion"]); // neither contains the other
+  // Containment has to carry this one on its own — "chicken" and "breast" are
+  // different head words, so the head-word rule cannot cover for it.
+  assert.deepEqual(suggest("Chicken"), ["Chicken breast"]);
+});
+
+test("existingIngredientSuggestions says nothing when the name already exists exactly", () => {
+  // An exact match needs no question — asking about it would train the user
+  // to dismiss the prompt, which is how the real duplicates get through.
+  assert.deepEqual(suggest("Garlic"), []);
+  assert.deepEqual(suggest("olive oil"), []);
+});
+
+test("existingIngredientSuggestions stays quiet for a genuinely new ingredient", () => {
+  // Noise is the failure mode that makes this feature useless: a suggestion
+  // on every row is a suggestion nobody reads.
+  assert.deepEqual(suggest("Carrots"), []);
+  assert.deepEqual(suggest("Chicken thighs"), []); // shares "chicken", not the head word
+  // WHOLE WORDS, not raw substrings: "salted butter" contains the letters of
+  // "salt" and is not salt. A letter-level match offers a suggestion on most
+  // rows, and a prompt that is usually wrong gets dismissed without reading.
+  assert.deepEqual(suggest("Salted butter"), []);
+  assert.deepEqual(suggest(""), []);
+  assert.deepEqual(suggest("   "), []);
+});
+
+test("existingIngredientSuggestions prefers the longest match and caps the list", () => {
+  const known = [{ key: "a", name: "Oil" }, { key: "b", name: "Olive oil" }, { key: "c", name: "Sesame oil" }, { key: "d", name: "Chili oil" }];
+  const out = existingIngredientSuggestions(known, "Extra virgin olive oil").map((k) => k.name);
+  assert.equal(out[0], "Olive oil", "the most specific existing name should come first");
+  assert.ok(out.length <= 3, `offered ${out.length} suggestions — a wall of them is not a question`);
+});
+
+/* ---------------- ingredient notes ----------------
+   The note field exists because the shopping list needs "Onion" and the cook
+   needs "diced". Splitting them wrong is worse than not splitting: a name that
+   loses a word stops matching the catalog entry it belongs to, so the same
+   ingredient lands twice under two spellings. Every case below is a line that
+   was actually pasted in, and the pairs matter more than the singles — the
+   same punctuation means different things on either side. */
+
+test("splitIngredientNote pulls a preparation off the end", () => {
+  assert.deepEqual(splitIngredientNote("large onion, diced"), { text: "large onion", note: "diced" });
+  assert.deepEqual(splitIngredientNote("chickpeas, rinsed and drained"), { text: "chickpeas", note: "rinsed and drained" });
+  assert.deepEqual(splitIngredientNote("fresh basil and dill, for serving"), { text: "fresh basil and dill", note: "for serving" });
+});
+
+test("splitIngredientNote leaves a comma'd LIST alone — the last item is part of the name", () => {
+  // Two commas means the commas are punctuating a list of spellings, not
+  // introducing a note. Splitting the last one off gave "Ground chicken, pork"
+  // as a name and "or turkey" as a note, which is not an ingredient anyone has.
+  assert.deepEqual(splitIngredientNote("ground chicken, pork, or turkey"), { text: "ground chicken, pork, or turkey", note: "" });
+  assert.deepEqual(splitIngredientNote("garlic, 2 chopped, 6 whole"), { text: "garlic, 2 chopped, 6 whole", note: "" });
+  // One comma, but "or" says alternative just as plainly as a second comma does.
+  assert.deepEqual(splitIngredientNote("chicken thighs, or breasts"), { text: "chicken thighs, or breasts", note: "" });
+});
+
+test("splitIngredientNote takes parentheses from anywhere in the line", () => {
+  assert.deepEqual(splitIngredientNote("(14.5 oz) cans diced tomatoes"), { text: "cans diced tomatoes", note: "14.5 oz" });
+  assert.deepEqual(splitIngredientNote("garlic (2 chopped, 6 whole)"), { text: "garlic", note: "2 chopped, 6 whole" });
+  // A parenthetical AND a trailing clause both survive, in reading order.
+  assert.deepEqual(splitIngredientNote("can (15 oz) chickpeas, rinsed"), { text: "can chickpeas", note: "15 oz, rinsed" });
+});
+
+test("splitIngredientNote catches a bare trailing modifier with no punctuation", () => {
+  assert.deepEqual(splitIngredientNote("olive oil divided"), { text: "olive oil", note: "divided" });
+  assert.deepEqual(splitIngredientNote("kosher salt to taste"), { text: "kosher salt", note: "to taste" });
+  // Only as a SUFFIX of something longer — the whole line is the name.
+  assert.deepEqual(splitIngredientNote("divided"), { text: "divided", note: "" });
+});
+
+test("splitIngredientNote leaves an ordinary ingredient completely untouched", () => {
+  // The common case, and the one a greedy rule breaks first.
+  assert.deepEqual(splitIngredientNote("cherry tomatoes"), { text: "cherry tomatoes", note: "" });
+  assert.deepEqual(splitIngredientNote("kosher salt and black pepper"), { text: "kosher salt and black pepper", note: "" });
+  assert.deepEqual(splitIngredientNote(""), { text: "", note: "" });
+});
+
+test("parseIngredientLine reads the unit past a parenthetical, not out of it", () => {
+  // "2 (14.5 oz) cans" — the unit is `cans`. Reading the first word after the
+  // number gave `14.5`, and the can size was lost with it.
+  assert.deepEqual(parseIngredientLine("2 (14.5 oz) cans diced tomatoes"), { name: "Diced tomatoes", qty: 2, unit: "cans", note: "14.5 oz" });
+  assert.deepEqual(parseIngredientLine("1 pinch (to taste) kosher salt"), { name: "Kosher salt", qty: 1, unit: "pinch", note: "to taste" });
+});
+
+test("parseIngredientLine omits note entirely when there isn't one", () => {
+  // Absent, not empty: every recipe already stored keeps the exact shape it
+  // has, so an older build reading it back has nothing new to carry.
+  assert.deepEqual(Object.keys(parseIngredientLine("4 carrots")).sort(), ["name", "qty", "unit"]);
+});
+
 test("parseIngredientLine splits quantity, unit, and name", () => {
   assert.deepEqual(parseIngredientLine("2 cups cherry tomatoes"), { name: "Cherry tomatoes", qty: 2, unit: "cup" });
   assert.deepEqual(parseIngredientLine("1 1/2 pounds ground chicken, pork, or turkey"), {
@@ -1736,7 +1851,7 @@ test("parseIngredientLine splits quantity, unit, and name", () => {
     qty: 1.5,
     unit: "lb",
   });
-  assert.deepEqual(parseIngredientLine("▢ 1/4 cup fresh oregano, chopped"), { name: "Fresh oregano, chopped", qty: 0.25, unit: "cup" });
+  assert.deepEqual(parseIngredientLine("▢ 1/4 cup fresh oregano, chopped"), { name: "Fresh oregano", qty: 0.25, unit: "cup", note: "chopped" });
   assert.deepEqual(parseIngredientLine("8 cloves garlic, 2 chopped, 6 whole"), { name: "Garlic, 2 chopped, 6 whole", qty: 8, unit: "cloves" });
 });
 
@@ -1818,7 +1933,29 @@ test("parseRecipeText pulls name, servings, and ingredients from a real food-blo
   assert.equal(result.ingredients.length, 19);
   assert.deepEqual(result.ingredients[0], { name: "Ground chicken, pork, or turkey", qty: 1.5, unit: "lb" });
   assert.deepEqual(result.ingredients[9], { name: "Extra virgin olive oil", qty: 2, unit: "tbsp" });
-  assert.deepEqual(result.ingredients[18], { name: "Fresh basil and dill, for serving", qty: 1, unit: "" });
+  assert.deepEqual(result.ingredients[18], { name: "Fresh basil and dill", qty: 1, unit: "", note: "for serving" });
+});
+
+test("parseRecipeText keeps the cooking steps numbered, one per line", () => {
+  // They arrive numbered on the blog and were being joined into one paragraph,
+  // so following them at the stove meant finding your place in a wall of text.
+  const lines = parseRecipeText(PASTED_RECIPE).notes.split("\n");
+  assert.equal(lines.length, 6);
+  assert.match(lines[0], /^1\. Add the chicken, parmesan/);
+  assert.match(lines[1], /^2\. Add the tomatoes/);
+  assert.match(lines[5], /^6\. Serve the meatballs over the orzo/);
+});
+
+test("parseRecipeText renumbers from 1 and rejoins a step that wrapped onto more lines", () => {
+  // Source numbers are boundaries, not labels: this paste starts at 4 (it is
+  // the tail of a longer list) and its second step wrapped across two lines.
+  const result = parseRecipeText(["Soup", "Instructions", "4. Boil the water.", "5. Add the noodles.", "Stir until they soften.", "6. Serve."].join("\n"));
+  assert.deepEqual(result.notes.split("\n"), ["1. Boil the water.", "2. Add the noodles. Stir until they soften.", "3. Serve."]);
+});
+
+test("parseRecipeText still numbers steps that arrived with no numbers of their own", () => {
+  const result = parseRecipeText(["Toast", "Instructions", "Put the bread in.", "Take the bread out."].join("\n"));
+  assert.deepEqual(result.notes.split("\n"), ["1. Put the bread in.", "2. Take the bread out."]);
 });
 
 test("parseRecipeText keeps only the first method's steps when a recipe lists several", () => {

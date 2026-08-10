@@ -562,10 +562,63 @@ function unitWordCanonical(word) {
 
 const QTY_RE = new RegExp(`^(\\d+\\s+\\d+/\\d+|\\d+/\\d+|\\d+[${VULGAR_RE}]|\\d*\\.\\d+|\\d+|[${VULGAR_RE}])(?=\\s|$)`);
 
-// One pasted ingredient line -> { name, qty, unit }, or null for a blank /
-// heading-only line. Never throws on text it doesn't understand — worst case
-// the whole line becomes the name with qty 1, which is still a safe, editable
-// starting point rather than a dropped ingredient.
+/* Everything on an ingredient line that is neither how much nor what:
+   "(optional)", "to taste", "diced", "rinsed and drained", "or ground
+   turkey", "15 oz can". Pulled OUT of the name and the unit and kept in its
+   own field.
+
+   WHY IT GETS ITS OWN FIELD RATHER THAN BEING DROPPED OR LEFT IN PLACE. The
+   line was { name, qty, unit } with nowhere for any of this, so it ended up
+   in `unit` — and `unit` is the one field that has to be exact for the
+   arithmetic to work. Measured across 22 real recipes, that split eleven
+   ingredients into rows that will not add up: garlic is "cloves" in eleven
+   recipes and "cloves (2 chopped, 6 whole)" in one, crushed tomatoes is
+   "28 oz can" in one and "can (28 oz)" in another. Aggregation keys on
+   ingredient + unit, so a note can never split a row.
+   Dropping it instead would lose real information — a can size or a
+   substitution is worth keeping, it just isn't a unit. */
+const NOTE_WORDS = /^(optional|to taste|as needed|divided|plus more|for serving|for garnish)$/i;
+
+export function splitIngredientNote(text) {
+  let rest = String(text || "").trim();
+  const notes = [];
+  // Parentheses anywhere: "(optional)", "(15 oz)", "(or whole milk)".
+  rest = rest.replace(/\(([^)]*)\)/g, (_, inner) => {
+    const t = inner.trim();
+    if (t) notes.push(t);
+    return " ";
+  });
+  // A trailing clause after a comma: "Onion, diced", "Beans, rinsed".
+  // Only when there is EXACTLY ONE comma. Two or more means the commas are
+  // punctuating a list, and the last item is part of the name, not a note:
+  // "ground chicken, pork, or turkey" is one ingredient with three spellings,
+  // and "garlic, 2 chopped, 6 whole" splits into nonsense at the last comma.
+  // A leading "or"/"and" says the same thing on its own, so it is refused too.
+  const comma = rest.indexOf(",");
+  if (comma > 0 && rest.indexOf(",", comma + 1) === -1) {
+    const tail = rest.slice(comma + 1).trim();
+    if (tail && tail.split(/\s+/).length <= 4 && !/^(or|and)\b/i.test(tail)) {
+      notes.push(tail);
+      rest = rest.slice(0, comma);
+    }
+  }
+  // A bare trailing "optional" / "to taste" with no punctuation at all.
+  const words = rest.trim().split(/\s+/);
+  for (let take = 2; take >= 1; take--) {
+    const tail = words.slice(-take).join(" ");
+    if (words.length > take && NOTE_WORDS.test(tail)) {
+      notes.push(tail);
+      rest = words.slice(0, -take).join(" ");
+      break;
+    }
+  }
+  return { text: rest.replace(/\s+/g, " ").trim(), note: notes.join(", ") };
+}
+
+// One pasted ingredient line -> { name, qty, unit, note }, or null for a
+// blank / heading-only line. Never throws on text it doesn't understand —
+// worst case the whole line becomes the name with qty 1, which is still a
+// safe, editable starting point rather than a dropped ingredient.
 export function parseIngredientLine(rawLine) {
   const stripped = String(rawLine || "").replace(/^[\s▢☐☑✓•●○\-*·]+/, "").trim();
   if (!stripped || /:$/.test(stripped)) return null; // blank, or a "For the sauce:" subheading
@@ -576,6 +629,11 @@ export function parseIngredientLine(rawLine) {
     qty = qtyToNumber(m[1]) || 1;
     rest = stripped.slice(m[0].length).trim();
   }
+  /* The note comes out BEFORE the unit is read, because a parenthetical
+     sitting between the number and the unit ("2 (14 oz) cans tomatoes") would
+     otherwise be mistaken for the unit word and leave "cans" in the name. */
+  const split = splitIngredientNote(rest);
+  rest = split.text;
   const wm = rest.match(/^(\S+)\s*(.*)$/);
   let unit = "";
   if (wm) {
@@ -586,7 +644,10 @@ export function parseIngredientLine(rawLine) {
     }
   }
   const name = cap(rest.trim());
-  return name ? { name, qty, unit } : null;
+  if (!name) return null;
+  // Absent rather than empty: a line with no note keeps exactly the shape it
+  // has always had, so nothing downstream has to learn a new field to ignore.
+  return split.note ? { name, qty, unit, note: split.note } : { name, qty, unit };
 }
 
 // Section/metadata lines a food-blog copy/paste is full of — recognized so
@@ -641,6 +702,7 @@ export function parseRecipeText(text) {
   if (insStart !== -1) {
     const steps = [];
     let sawMethodHeading = false;
+    let numbered = false;
     for (let i = insStart + 1; i < lines.length; i++) {
       const l = lines[i];
       if (!l) continue;
@@ -650,9 +712,18 @@ export function parseRecipeText(text) {
         sawMethodHeading = true;
         continue;
       }
-      steps.push(l.replace(/^\d+[.)]\s*/, ""));
+      // A numbered line STARTS a step; anything after it belongs to that step.
+      // Blogs wrap a long step over several lines, and joining everything with
+      // a space turned twelve steps into one wall of text you had to re-read
+      // from the top each time you looked up from the pan.
+      const m = l.match(/^(\d+)[.)]\s*(.*)$/);
+      if (m) { steps.push(m[2]); numbered = true; }
+      else if (numbered && steps.length) steps[steps.length - 1] += " " + l;
+      else steps.push(l);
     }
-    notes = steps.join(" ");
+    // Renumbered from 1, not copied: a paste that starts at the second method
+    // starts at "5.", and a paste with no numbers at all still cooks in order.
+    notes = steps.map((s) => s.trim()).filter(Boolean).map((s, i) => `${i + 1}. ${s}`).join("\n");
   }
 
   return { name, servings, notes, ingredients };
@@ -1032,7 +1103,13 @@ export function withIngredientIds(catalog, mint = mintIngredientId) {
       ingredients: asArray(r && r.ingredients)
         .map((line) => {
           const id = line && line.ingredientId && ingredients[line.ingredientId] ? line.ingredientId : idFor(line && line.name);
-          return id ? { ingredientId: id, qty: Number(line.qty) || 0, unit: (line.unit || "").trim() } : null;
+          // `note` rides along when there is one, and is simply absent when
+          // there isn't — a line without one keeps exactly the shape it has
+          // always had, so nothing downstream has to learn a field to ignore.
+          if (!id) return null;
+          const note = String(line.note || "").trim();
+          const out = { ingredientId: id, qty: Number(line.qty) || 0, unit: (line.unit || "").trim() };
+          return note ? { ...out, note } : out;
         })
         .filter(Boolean),
     };
@@ -1225,6 +1302,48 @@ export function usedInRecipes(data, key) {
 // editor's ingredient rows. Both steer you onto an existing ingredient rather
 // than forking a spelling variant into its own row, so they have to agree about
 // what counts as a match — which is exactly the argument for one copy.
+/* Existing ingredients that probably MEAN THE SAME THING as a name just
+   typed or just pasted in — the other direction from ingredientMatches.
+
+   ingredientMatches answers "what am I part-way through typing", so it asks
+   whether the known name contains what you typed. That question cannot see
+   the failure that actually happened: a paste wrote "extra virgin olive oil"
+   next to an existing "Olive oil", "kosher salt" next to "Salt", and three
+   spellings of cilantro, and the catalog forked nine ways in one afternoon.
+   The existing name is INSIDE the pasted one, so containment has to run both
+   ways, plus a last-word check for "large onion" against "Yellow onion".
+
+   Suggestions only. An exact match needs no question and returns nothing;
+   everything else is offered, never applied — a wrong guess accepted silently
+   is exactly how a catalog acquires three cilantros. */
+const wordsOf = (s) => norm(s).split(/\s+/).filter(Boolean);
+const hasRun = (hay, needle) =>
+  needle.length > 0 &&
+  hay.some((_, i) => i + needle.length <= hay.length && needle.every((w, j) => hay[i + j] === w));
+
+export function existingIngredientSuggestions(known, name, limit = 3) {
+  const q = norm(name);
+  if (!q) return [];
+  const list = known || [];
+  // Already the same ingredient — there is nothing to ask about.
+  if (list.some((k) => norm(k.name) === q)) return [];
+  const qw = wordsOf(q);
+  const head = qw[qw.length - 1];
+  const scored = [];
+  for (const k of list) {
+    const kw = wordsOf(k.name);
+    if (!kw.length) continue;
+    let score = 0;
+    if (hasRun(qw, kw)) score = 3;            // "olive oil" inside "extra virgin olive oil"
+    else if (hasRun(kw, qw)) score = 2;       // "onion" inside "yellow onion"
+    else if (kw[kw.length - 1] === head) score = 1; // "large onion" beside "yellow onion"
+    if (score) scored.push({ k, score, len: kw.length });
+  }
+  // Longest first within a tier: "olive oil" is a better answer than "oil".
+  scored.sort((a, b) => b.score - a.score || b.len - a.len || a.k.name.localeCompare(b.k.name));
+  return scored.slice(0, limit).map((s) => s.k);
+}
+
 export function ingredientMatches(known, text, limit = 8) {
   const q = norm(text);
   if (!q) return [];
