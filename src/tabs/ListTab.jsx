@@ -6,9 +6,9 @@
 import { useState, useMemo, useRef } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop } from "../ui";
-import { UNASSIGNED, norm, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor } from "../lib";
+import { UNASSIGNED, norm, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg } from "../lib";
 
-export function ListTab({ data, update, updateCatalog }) {
+export function ListTab({ data, update, updateCatalog, isGuest }) {
   const [view, setView] = useState("store");
   const [storeSort, setStoreSort] = useState("az");
   const [extra, setExtra] = useState({ name: "", qty: "1", unit: "" });
@@ -58,6 +58,30 @@ export function ListTab({ data, update, updateCatalog }) {
   const totals = servingsByRecipe(data);
   const selectedMealCount = Object.values(totals).filter((s) => s > 0).length;
   const remaining = items.filter((i) => !data.list.checked[i.key]).length;
+
+  /* Item 44: the ingredient's PERMANENT home, edited from the row you are
+     already looking at. Setting an aisle used to mean leaving the list, going
+     to Ingredients and searching for the item you had in your hand — mid-shop,
+     which is the only time you ever learn what aisle something is in.
+
+     The same two writes the Ingredients tab makes, deliberately: one
+     setIngredientCfg call each, so there is no second way to write a store.
+     Distinct from the row's store dropdown, which is `overrides` — a reroute
+     for TODAY. This changes where the item lives from now on. */
+  const setDefaultStore = (key, store) =>
+    updateCatalog((c) => {
+      c.ingredients[key] = setIngredientCfg(c.ingredients[key], { store });
+      return c;
+    });
+
+  const setAisle = (key, store, value) =>
+    updateCatalog((c) => {
+      const aisles = { ...normalizeCfg(c.ingredients[key]).aisles };
+      if (value === "") delete aisles[store];
+      else aisles[store] = Number(value);
+      c.ingredients[key] = setIngredientCfg(c.ingredients[key], { aisles });
+      return c;
+    });
 
   const setOverride = (key, store) =>
     update((d) => {
@@ -239,6 +263,10 @@ export function ListTab({ data, update, updateCatalog }) {
     const itemStore = storeOf(item.key);
     const aisle = aisleFor(cfg, itemStore);
     const open = inspectKey === item.key;
+    // Store and aisle are CATALOG writes, which a guest doesn't have, and they
+    // only mean anything for an ingredient the catalog already holds.
+    const homeCfg = normalizeCfg(cfg);
+    const canEditHome = !isGuest && !!cfg;
     return (
       <li key={item.key} style={{ padding: "10px 2px", borderBottom: `1px dashed ${C.line}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -360,26 +388,91 @@ export function ListTab({ data, update, updateCatalog }) {
                 </div>
               ))}
             </div>
-            <div style={{ color: C.faint, borderTop: `1px dashed ${C.line}`, paddingTop: 6 }}>
-              Matches ingredients named <b style={{ color: C.ink }}>"{item.key}"</b> (case-insensitive — a different spelling becomes a separate line). Default store:{" "}
-              <b style={{ color: C.ink }}>{normalizeCfg(cfg).store}</b>.
-              {data.list.overrides[item.key] != null && (
-                <>
-                  {" "}
-                  Today it's rerouted to <b style={{ color: C.ink }}>{data.list.overrides[item.key]}</b>.
-                </>
-              )}
-              {" "}
-              At <b style={{ color: C.ink }}>{itemStore}</b>
-              {aisle !== "" ? (
-                <>
-                  {" "}
-                  it's in <b style={{ color: C.ink }}>aisle {aisle}</b>.
-                </>
-              ) : (
-                <> no aisle is set yet (set it on the Ingredients tab).</>
-              )}
-            </div>
+            {/* Only for an item the catalog actually knows. A genuinely ad-hoc
+                hand-added entry is keyed by its name, not by an ingredient id,
+                so writing a store here would mint a config entry under a key
+                nothing else resolves. Those get "Save to Ingredients" instead,
+                which mints the id properly. */}
+            {canEditHome && (
+              <div style={{ borderTop: `1px dashed ${C.line}`, paddingTop: 8, marginTop: 2 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 6 }}>
+                  Where it lives
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <label style={{ fontSize: 11, color: C.faint }}>Usually at</label>
+                  <select
+                    value={homeCfg.store}
+                    onChange={(e) => setDefaultStore(item.key, e.target.value)}
+                    aria-label={`Usual store for ${item.name}`}
+                    style={{ fontSize: 13, padding: "6px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", maxWidth: 160 }}
+                  >
+                    {storeOptions.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                  {homeCfg.store !== UNASSIGNED && (
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: C.ink }}>
+                      aisle
+                      <input
+                        type="number"
+                        min="0"
+                        value={homeCfg.aisles[homeCfg.store] ?? ""}
+                        onChange={(e) => setAisle(item.key, homeCfg.store, e.target.value === "" ? "" : Number(e.target.value))}
+                        aria-label={`Aisle for ${item.name} at ${homeCfg.store}`}
+                        style={{ width: 52, fontSize: 13, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: C.greenSoft }}
+                      />
+                    </label>
+                  )}
+                </div>
+                {/* The row's dropdown and this one are different questions, and
+                    saying so is the whole reason this line exists: one is where
+                    you are buying it TODAY, the other is where it lives. */}
+                {data.list.overrides[item.key] != null && (
+                  <div style={{ color: C.faint, marginTop: 6 }}>
+                    Today it's rerouted to <b style={{ color: C.ink }}>{data.list.overrides[item.key]}</b>
+                    {aisle !== "" ? (
+                      <>
+                        , <b style={{ color: C.ink }}>aisle {aisle}</b>.
+                      </>
+                    ) : (
+                      "."
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            {/* This line used to read: Matches ingredients named "{item.key}".
+                That was true when the key WAS the name; since recipe lines
+                started storing ingredient ids it rendered as
+                `Matches ingredients named "ing_2ym41inb"` — gibberish, over an
+                explanation of case-insensitive matching that no longer happens.
+                An item with a catalog entry is matched by identity now and
+                needs no sentence; only a genuinely ad-hoc entry is still
+                matched by its spelling, and only it still says so. */}
+            {(!canEditHome || !cfg) && (
+              <div style={{ color: C.faint, borderTop: `1px dashed ${C.line}`, paddingTop: 6, marginTop: 8 }}>
+                {!canEditHome && (
+                  <>
+                    It's at <b style={{ color: C.ink }}>{itemStore}</b>
+                    {aisle !== "" ? (
+                      <>
+                        , <b style={{ color: C.ink }}>aisle {aisle}</b>.
+                      </>
+                    ) : (
+                      "."
+                    )}{" "}
+                  </>
+                )}
+                {!cfg && (
+                  <>
+                    Added by hand as <b style={{ color: C.ink }}>"{item.name}"</b> and matched by that spelling, so a different one becomes a separate line
+                    {isGuest ? "." : " — save it to Ingredients to give it a usual store and aisle."}
+                  </>
+                )}
+              </div>
+            )}
             {item.sources.includes("Added by hand") && (
               <div style={{ marginTop: 8 }}>
                 {editExtra && editExtra.key === item.key ? (

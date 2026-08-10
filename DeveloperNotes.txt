@@ -1309,6 +1309,38 @@ statement of intent, not as something a test defends.
   `:scope > div > span`, which the extra wrapper broke. Now found by
   `span[style*="tabular-nums"]` — what the quantity IS, not how deep it sits.
 
+[DONE] Item 44 — set an ingredient's store and aisle from the List tab. You
+only ever learn what aisle something is in while standing in front of it, and
+that meant leaving the list, opening Ingredients, and searching for the item
+you had in your hand.
+"Where it lives" now sits in the row's existing expand panel, and it calls the
+SAME two writes the Ingredients tab calls — one setIngredientCfg each. That is
+the point, not a detail: a parallel field would look right on this tab and
+leave the Ingredients tab showing the old store forever, so the test drives the
+List tab and then asserts on the INGREDIENTS TAB's dropdown.
+  TWO DROPDOWNS, DELIBERATELY DIFFERENT, and the panel now says so. The one on
+  the row is `overrides` — a reroute for TODAY. The one in the panel is the
+  catalog — where the item lives from now on. Collapsing them would turn a
+  one-off detour into a permanent wrong aisle on every future list.
+  ONLY FOR AN INGREDIENT THE CATALOG HOLDS. A genuinely ad-hoc hand-added entry
+  is keyed by its NAME, not by an ingredient id, so writing a store for it
+  would mint a config entry under a key nothing else resolves. Those keep
+  "Save to Ingredients", which mints the id properly.
+  It is the List tab's first CATALOG write, so it is the first thing here a
+  guest cannot do. Hidden, not disabled — same rule as everywhere else.
+FOUND WHILE LOOKING AT IT, in a screenshot rather than in a test: the panel
+read `Matches ingredients named "ing_2ym41inb"`. True when the key WAS the
+name; once recipe lines started storing ingredient ids it became gibberish
+sitting above an explanation of case-insensitive matching that no longer
+happens. An item with a catalog entry is matched by identity and needs no
+sentence at all; only an ad-hoc entry is still matched by its spelling, and
+only it still says so — by name, never by key. Asserted as TEXT: every
+behaviour assertion around that line passed, exactly like the ↑ button.
+TESTS: tests/e2e/specs/listedithome.spec.mjs, mutation-tested five ways — a
+parallel field, the panel collapsed into the override, the aisle stored without
+its store, the guest given the editor, and the raw id put back — each fails the
+one test written for it.
+
 UI density — Ingredients row [DONE], List row still open.
 The Ingredients gear panel had become a flat pile of unrelated concerns, and
 its aisle grid rendered one input per store (5, shown even where the item
