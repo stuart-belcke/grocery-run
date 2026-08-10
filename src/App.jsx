@@ -56,6 +56,8 @@ import {
   isBuildTooOld,
   APP_DATA_VERSION,
   normalizeCatalog,
+  needsUnitNotes,
+  withUnitNotes,
   syncIndicator,
   guestBlockedFields,
 } from "./lib";
@@ -283,6 +285,29 @@ export default function App() {
     });
   };
 
+  /* Item 39's second half: a modifier stranded in `unit` moves to `note`.
+
+     IT HAS TO RUN HERE, not in catalog.json. The file is EXPORT ONLY — it is
+     read once, by seedCatalog, when a household has no catalog of its own —
+     so editing it fixes the git history and nothing a phone will ever see.
+     That is exactly how the same duplicates came back on the next export.
+
+     `unit` is half the shopping list's grouping key, so this is arithmetic,
+     not tidying: one recipe saying "cloves (2 chopped, 6 whole)" against
+     eleven saying "cloves" showed up as
+         Garlic   92 cloves + 16 cloves (2 chopped, 6 whole)
+     which no amount of squinting adds up.
+
+     Gated on needsUnitNotes and idempotent, so a settled catalog writes
+     nothing — without the gate every launch on both phones would push the
+     whole catalog back and bump updatedAt forever. Skipped for a guest, whose
+     catalog writes the rules refuse anyway: the attempt would raise the
+     "you're a guest" banner on a screen they only opened to shop. */
+  const migrateUnitNotes = (adopted) => {
+    if (isGuestRef.current || !needsUnitNotes(adopted)) return;
+    updateCatalog((c) => withUnitNotes(c));
+  };
+
   // The debounced push dies with the page, so force it out when the app is
   // backgrounded or closed — otherwise the last edit before you swipe away is
   // never sent, and the next launch reads the older state back.
@@ -462,6 +487,7 @@ export default function App() {
         // adopt above, so a failure leaves a perfectly usable name-keyed catalog
         // rather than a half-converted one.
         if (needsIngredientIds(adopted)) migrateToIngredientIds(adopted);
+        else migrateUnitNotes(adopted);
         return;
       }
       // Our copy wins, which means one of two things:

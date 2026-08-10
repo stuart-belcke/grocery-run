@@ -59,6 +59,9 @@ import {
   normalizeCatalog,
   parseIngredientLine,
   splitIngredientNote,
+  splitUnitNote,
+  withUnitNotes,
+  needsUnitNotes,
   existingIngredientSuggestions,
   parseRecipeText,
   unplannedMeals,
@@ -1784,6 +1787,98 @@ test("existingIngredientSuggestions prefers the longest match and caps the list"
   const out = existingIngredientSuggestions(known, "Extra virgin olive oil").map((k) => k.name);
   assert.equal(out[0], "Olive oil", "the most specific existing name should come first");
   assert.ok(out.length <= 3, `offered ${out.length} suggestions — a wall of them is not a question`);
+});
+
+/* ---------------- moving a modifier out of `unit` ----------------
+   Item 39's second half. `unit` is HALF THE SHOPPING LIST'S GROUPING KEY, so
+   one recipe saying "cloves (2 chopped, 6 whole)" against eleven saying
+   "cloves" is not cosmetic — it is two rows of garlic that cannot add up.
+   Every value here was typed by a person who meant it, so the rule that
+   matters most is that the text is MOVED and never dropped. */
+
+test("splitUnitNote moves a bracketed modifier out of the unit", () => {
+  assert.deepEqual(splitUnitNote("cloves (2 chopped, 6 whole)", ""), { unit: "cloves", note: "2 chopped, 6 whole" });
+  assert.deepEqual(splitUnitNote("can (15 oz)", ""), { unit: "can", note: "15 oz" });
+  assert.deepEqual(splitUnitNote("pinch (to taste)", ""), { unit: "pinch", note: "to taste" });
+  // Nothing but a modifier: the unit goes empty rather than keeping "(optional)".
+  assert.deepEqual(splitUnitNote("(optional)", ""), { unit: "", note: "optional" });
+});
+
+test("splitUnitNote moves a trailing clause too, and keeps a note the line already had", () => {
+  assert.deepEqual(splitUnitNote("cup, diced", ""), { unit: "cup", note: "diced" });
+  // The line's own note comes FIRST — it describes the ingredient, and what
+  // was stranded in `unit` is extra detail about the same thing.
+  assert.deepEqual(splitUnitNote("can (15 oz)", "rinsed"), { unit: "can", note: "rinsed, 15 oz" });
+});
+
+test("splitUnitNote leaves an ordinary unit completely alone", () => {
+  // The conservative half, and the one that protects the arithmetic: a unit
+  // this cannot parse must survive untouched rather than be guessed at.
+  for (const u of ["cloves", "cup", "lb", "28 oz can", "small/medium", "stick", "fl oz", ""]) {
+    assert.deepEqual(splitUnitNote(u, ""), { unit: u, note: "" }, `${JSON.stringify(u)} should be left alone`);
+  }
+});
+
+const migratable = () => ({
+  stores: ["Aldi"],
+  ingredients: { ing_g: { name: "Garlic", store: "Aldi", aisles: {} }, ing_b: { name: "Beans", store: "Aldi", aisles: {} } },
+  recipes: {
+    r1: { id: "r1", name: "Stew", servings: 4, ingredients: [{ ingredientId: "ing_g", qty: 8, unit: "cloves (2 chopped, 6 whole)" }, { ingredientId: "ing_b", qty: 1, unit: "can (15 oz)", note: "rinsed" }] },
+    r2: { id: "r2", name: "Soup", servings: 4, ingredients: [{ ingredientId: "ing_g", qty: 3, unit: "cloves" }] },
+  },
+});
+
+test("withUnitNotes makes the two garlic units ONE unit, which is the whole point", () => {
+  const out = withUnitNotes(migratable());
+  assert.equal(out.recipes.r1.ingredients[0].unit, "cloves");
+  assert.equal(out.recipes.r2.ingredients[0].unit, "cloves");
+  assert.equal(out.recipes.r1.ingredients[0].note, "2 chopped, 6 whole", "the text was dropped instead of moved");
+});
+
+test("withUnitNotes never drops what was in the unit, and merges with an existing note", () => {
+  const out = withUnitNotes(migratable());
+  assert.deepEqual(out.recipes.r1.ingredients[1], { ingredientId: "ing_b", qty: 1, unit: "can", note: "rinsed, 15 oz" });
+});
+
+test("withUnitNotes carries fields it has never heard of straight through", () => {
+  // Every device writes the whole catalog back, so a migration that prunes an
+  // unknown field strips it out of the SHARED copy for everyone.
+  const src = migratable();
+  src.recipes.r1.ingredients[0].somethingNewer = { keep: true };
+  src.recipes.r1.mealTypes = ["Dinner"];
+  const out = withUnitNotes(src);
+  assert.deepEqual(out.recipes.r1.ingredients[0].somethingNewer, { keep: true });
+  assert.deepEqual(out.recipes.r1.mealTypes, ["Dinner"]);
+});
+
+test("withUnitNotes is idempotent, which is what makes it safe to run on every load", () => {
+  const once = withUnitNotes(migratable());
+  assert.equal(needsUnitNotes(once), false);
+  assert.deepEqual(withUnitNotes(once), once);
+});
+
+test("needsUnitNotes says no for a catalog with nothing to move, so nothing is rewritten", () => {
+  // The gate. Without it every launch would write the whole catalog back and
+  // bump updatedAt for no reason, on both phones, forever.
+  assert.equal(needsUnitNotes(withUnitNotes(migratable())), false);
+  assert.equal(needsUnitNotes({ recipes: {} }), false);
+  assert.equal(needsUnitNotes({}), false);
+  assert.equal(needsUnitNotes({ recipes: { r: { ingredients: [{ ingredientId: "x", qty: 1, unit: "cup" }] } } }), false);
+  assert.equal(needsUnitNotes({ recipes: { r: { ingredients: [{ ingredientId: "x", qty: 1, unit: "cup, diced" }] } } }), true);
+});
+
+test("a migrated catalog totals garlic on ONE shopping-list row", () => {
+  // The reported symptom, end to end:
+  //   Garlic   16 cloves (2 chopped, 6 whole) + 11 cloves
+  const build = (cat) => {
+    const recipes = Object.values(cat.recipes).map((r) => ({ ...r, ingredients: r.ingredients.map((l) => ({ ...l, name: cat.ingredients[l.ingredientId].name })) }));
+    return { ...normalizeLocal({ list: { ...emptyLocal().list, selections: { r1: 4, r2: 4 } } }), recipes, config: cat.ingredients, stores: cat.stores };
+  };
+  const before = aggregateItems(build(migratable())).find((i) => i.name === "Garlic");
+  assert.equal(qtyLabel(before.parts), "8 cloves (2 chopped, 6 whole) + 3 cloves", "the fixture no longer reproduces the bug");
+
+  const after = aggregateItems(build(withUnitNotes(migratable()))).find((i) => i.name === "Garlic");
+  assert.equal(qtyLabel(after.parts), "11 cloves");
 });
 
 /* ---------------- ingredient notes ----------------
