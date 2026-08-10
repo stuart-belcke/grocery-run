@@ -30,7 +30,7 @@ import {
   signInAnonymouslyForGuest,
   recordHouseholdMembership,
 } from "./sync";
-import { C, fontDisplay, fontBody, syncTone } from "./theme";
+import { C, fontDisplay, fontBody, syncTone, BOTTOM_NAV_H, BOTTOM_NAV_Z } from "./theme";
 import { Stripe, Btn, ChoiceDialog } from "./ui";
 import {
   LOCAL_KEY,
@@ -600,7 +600,7 @@ export default function App() {
         input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid ${C.green}; outline-offset: 1px; }
       `}</style>
 
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "20px 14px 90px" }}>
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: `20px 14px calc(${BOTTOM_NAV_H + 28}px + env(safe-area-inset-bottom, 0px))` }}>
         <header style={{ marginBottom: 18 }}>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
             <h1 style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 30, margin: 0 }}>Grocery Run</h1>
@@ -620,33 +620,6 @@ export default function App() {
             </div>
           )}
           {catalogNote && <div style={{ fontSize: 12, color: C.faint, marginTop: 8 }}>{catalogNote}</div>}
-          <nav style={{ display: "flex", gap: 6, marginTop: 14, flexWrap: "wrap" }}>
-            {[
-              { id: "list", label: "List" },
-              { id: "meals", label: "Meals" },
-              { id: "week", label: "Week plan" },
-              { id: "pantry", label: "Ingredients" },
-              { id: "settings", label: "Settings" },
-            ].map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                style={{
-                  fontFamily: fontBody,
-                  fontSize: 14,
-                  fontWeight: 500,
-                  padding: "8px 13px",
-                  borderRadius: 8,
-                  border: "none",
-                  cursor: "pointer",
-                  background: tab === t.id ? C.ink : "transparent",
-                  color: tab === t.id ? C.paper : C.ink,
-                }}
-              >
-                {t.label}
-              </button>
-            ))}
-          </nav>
         </header>
 
         {/* Two different messages, deliberately not merged. The first is an
@@ -717,6 +690,80 @@ export default function App() {
           />
         )}
       </div>
+
+      {/* THE TAB BAR IS PINNED TO THE BOTTOM, not to the top. It used to sit in
+          the header and scroll away, so switching tabs from halfway down the
+          Ingredients list — about 8,500px with the real catalog — meant
+          scrolling all the way back up first.
+          Bottom rather than top for two reasons. It does not fight the
+          per-tab StickyBar, which is already stuck to top: 0 and would need a
+          hand-maintained offset under a pinned header. And the labels wrap
+          onto two lines at 390px, so pinning them up there costs ~90px of
+          permanent chrome above the search bar; down here it costs one row
+          that a thumb can reach without moving the phone.
+          The page's bottom padding and the back-to-top button both clear it
+          via BOTTOM_NAV_H — see the note beside that constant. */}
+      <nav
+        aria-label="Main"
+        style={{
+          position: "fixed",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: BOTTOM_NAV_Z,
+          background: C.card,
+          borderTop: `1px solid ${C.line}`,
+          // The bar keeps its own height; the safe area is added UNDER it, so
+          // the buttons stay a full 54px tall on a notched phone rather than
+          // being squeezed by the home indicator.
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          boxShadow: "0 -6px 12px -8px rgba(20,24,16,0.35)",
+        }}
+      >
+        <div style={{ maxWidth: 720, margin: "0 auto", display: "flex" }}>
+          {[
+            { id: "list", label: "List" },
+            { id: "meals", label: "Meals" },
+            { id: "week", label: "Week plan" },
+            { id: "pantry", label: "Ingredients" },
+            { id: "settings", label: "Settings" },
+          ].map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              aria-current={tab === t.id ? "page" : undefined}
+              style={{
+                // Equal shares of whatever width there is, and minWidth 0 so
+                // five of them still fit a 320px screen without overflowing.
+                flex: "1 1 0",
+                minWidth: 0,
+                height: BOTTOM_NAV_H,
+                fontFamily: fontBody,
+                // MEASURED, not chosen: at 320px each tab gets 64px and
+                // "Ingredients" is 68px at 12px type, so it ellipsised to
+                // "Ingredien…". clamp shrinks the label only on the phones
+                // that need it and leaves 12px everywhere there is room —
+                // 10px at 320, 11.6px at 375, 12px from 388 up.
+                fontSize: "clamp(10px, 3.1vw, 12px)",
+                fontWeight: 500,
+                padding: "0 1px",
+                border: "none",
+                borderTop: `3px solid ${tab === t.id ? C.green : "transparent"}`,
+                cursor: "pointer",
+                background: tab === t.id ? C.greenSoft : "transparent",
+                color: tab === t.id ? C.green : C.faint,
+                // One line, always: a label that wraps changes the bar's
+                // height and shifts every other tab under the thumb.
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </nav>
 
       {/* A banner at the top of a scrolling page is easy to scroll past — and
           for an update you're being ASKED to take, being missed is the whole
