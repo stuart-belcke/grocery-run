@@ -542,10 +542,33 @@ rather than saving them for a cleanup that never gets scheduled.
     Prefer confirmation over cleverness: a wrong guess the user accepts
     silently is how a catalog acquires three cilantros.
 
-41. A "how it works" note before signing in, and sign-in easy to find. The
-    first-run screen (item 37) offers three ways IN but never says what the
-    app IS, so somebody who has never seen it has no idea what they are
-    signing in to. Keep it brief — a few lines above the choices.
+41. [DONE] A "how it works" note before signing in, and sign-in easy to find.
+    The first-run screen (item 37) offered three ways IN but never said what
+    the app IS, so somebody who had never seen it was signing in to find out.
+    THREE LINES, in the order the week actually happens: pick the meals, the
+    list builds itself from their ingredients, both phones see the same list.
+    Above the choices, and the test compares their POSITIONS on the page
+    rather than their order in the source — an explanation under the buttons
+    is not an explanation.
+    THE CARDS ARE REORDERED BY WHAT EACH ROUTE COSTS, not by how often it is
+    used. Sign in is first. The invite card used to lead, which put the
+    sentence "sign in below first, then come back and paste it" ABOVE the
+    thing it was pointing at — you had to scroll past the answer to be told
+    to go find it. It now says "above", and the test asserts that word.
+    A GUEST LINK STILL SKIPS SIGN-IN ENTIRELY, and that has its own test:
+    putting sign-in first must not quietly make an account a prerequisite for
+    the one route deliberately designed without one.
+    ASSERTED AS TEXT. There is no behaviour behind an explanation, so nothing
+    else can catch it — the same reason the back-to-top button shipped
+    rendering six literal characters with every behaviour test passing.
+    THE SUITE NO LONGER KEYS ON THE COPY. "Which screen am I on" was matched
+    against /Someone sent me a link/ in the harness AND in every onboarding
+    spec, so rewording a heading hung the whole suite on a 15s timeout. The
+    screen is now a landmark — <main aria-label="Getting started"> — which is
+    what a screen reader wants anyway. Same lesson as sides.spec.mjs finding
+    the quantity by DOM depth: identify a thing by what it IS.
+    NOT DONE, AND IT IS A SEPARATE ITEM (see 48): an invite is still a CODE
+    you paste, not a URL you follow.
 
 42. THE SIGN-IN ERROR GIVES THE WRONG REMEDY. Signing in on a new phone
     showed "Signed in, but this account can't open household home-cx2ur9zg.
@@ -587,6 +610,23 @@ rather than saving them for a cleanup that never gets scheduled.
 47. An over-long unit makes the row clickable. Reported from real use;
     reproduce before fixing. Likely the unit text wrapping and pushing the
     row's tap target, which item 39 will reduce but not eliminate.
+
+48. An invite link is not a link. `formatInvite` produces a bare code —
+    `home-xxxxxxxx~token~g` — which is copied to the clipboard and PASTED
+    into a field on the other phone. It is called a link everywhere in the
+    UI, and the natural reading of "send them an invite link" is that tapping
+    it opens the app already joined.
+    Making it real means an actual URL carrying the code in the fragment
+    (#join=...), read on first load and pre-filled into the join field. The
+    FRAGMENT specifically, not a query string: it never reaches a server,
+    which matters for something that grants access to a household.
+    WORTH DOING BECAUSE OF WHAT IT REMOVES, not because it is tidier: the
+    truncated-paste bug (item 37) exists only because a human is copying a
+    50-character string between two phones by hand. A URL that is tapped
+    cannot be half-copied.
+    Check the PWA scope and the standalone-mode behaviour before starting —
+    an installed app opening a link in the browser instead of itself would
+    make this worse, not better.
 
 MEASURED AND DELIBERATELY NOT PROBLEMS
     Recorded so nobody optimises them on instinct.
