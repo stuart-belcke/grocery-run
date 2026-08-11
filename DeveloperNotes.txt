@@ -698,6 +698,32 @@ rather than saving them for a cleanup that never gets scheduled.
     itself is not, and neither is the Settings join field, which lives inside
     the same syncEnabled branch.
 
+    A LOOKUP KEY WAS CONSIDERED AND REJECTED — write it down, because the idea
+    sounds safer than it is and will come back. Putting a short key in the URL
+    and resolving it to {code, token} requires a phone that is NOT YET A
+    MEMBER to read that mapping, which means a WORLD-READABLE index of every
+    live invite. Today nothing about an invite is publicly readable at all:
+    `invites` .read requires membership, and the joining phone never reads
+    one — the RULES check it when the member record is written, which is why
+    the token alone is enough. A short key is also enumerable, so the index
+    could be harvested. Shorter URL, strictly worse. The fragment already
+    never reaches a server, so there is nothing to buy.
+
+    THE TOKEN IS THE ONE THING THAT WAS ACTUALLY WEAK, and it was fixed here.
+    It base36-encoded each random byte and concatenated pieces of 1 or 2
+    characters. Measured over 200k tokens: digits 1-6 at ~9.4% EACH against
+    ~1.43% for most letters, 4.60 bits per character where uniform base36
+    gives 5.17, and adjacent characters correlated because where one piece
+    ends depends on its value. Probably still ~90 bits — and "probably" is the
+    problem for a credential.
+    Now 22 characters drawn uniformly by REJECTION SAMPLING: 256 is not a
+    multiple of 36, so bytes >= 252 are discarded rather than folded with `%`,
+    which would make the first four letters likelier. Measured after: every
+    character 2.76-2.79% against a uniform 2.78%, 5.170 bits/char, 113.7 bits.
+    It moved to lib.js in the process — it is pure logic, and in sync.js it
+    could not be tested at all. The test asserts the DISTRIBUTION, because the
+    old one did not look wrong; it looked like a random string.
+
 MEASURED AND DELIBERATELY NOT PROBLEMS
     Recorded so nobody optimises them on instinct.
       - Bundle at 253 KB / 76 KB gzipped. Firebase is already dynamically

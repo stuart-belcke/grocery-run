@@ -1241,6 +1241,55 @@ export function keyboardIsOpen(innerHeight, viewportHeight, threshold = KEYBOARD
   return outer - inner >= threshold;
 }
 
+/* The invite token — the only thing that authorises joining a household.
+
+   UNIFORM, BY REJECTION. The previous version base36-encoded each random byte
+   and concatenated the results, which are 1 or 2 characters long depending on
+   the byte. Measured over 200k tokens that produced a visibly biased
+   alphabet — digits 1-6 at ~9.4% each against ~1.43% for most letters, 4.60
+   bits per character where uniform base36 gives 5.17 — and, worse, adjacent
+   characters were correlated, because where one variable-length piece ends
+   depends on its value. It was probably still ~90 bits. "Probably" is the
+   problem: a credential's strength should be arithmetic, not an estimate.
+
+   Rejection sampling is what makes it uniform: 256 is not a multiple of 36,
+   so bytes at or above the largest multiple (252) are DISCARDED rather than
+   folded back with `%`, which would make the first four characters of the
+   alphabet slightly likelier than the rest. Draws more bytes if it has to.
+
+   22 characters of uniform base36 is a shade under 114 bits. The alphabet is
+   [a-z0-9] because that is what the database accepts in a key.
+
+   The Math.random fallback exists so a browser without crypto still gets a
+   token rather than an exception. It is NOT equivalent — Math.random is not
+   a cryptographic source — and on any browser this app runs on, crypto is
+   there. Left in as a floor, not as a plan. */
+const TOKEN_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789"; // 36
+const TOKEN_LENGTH = 22;
+
+export function newInviteToken() {
+  const out = [];
+  const limit = 256 - (256 % TOKEN_ALPHABET.length); // 252
+  const rng = (globalThis.crypto || {}).getRandomValues
+    ? (n) => globalThis.crypto.getRandomValues(new Uint8Array(n))
+    : null;
+  if (rng) {
+    // Bounded rather than `while (true)`: a stuck source must not hang the
+    // page, and the fallback below is a better outcome than a frozen tab.
+    for (let pass = 0; pass < 16 && out.length < TOKEN_LENGTH; pass++) {
+      for (const b of rng(TOKEN_LENGTH * 2)) {
+        if (b >= limit) continue;
+        out.push(TOKEN_ALPHABET[b % TOKEN_ALPHABET.length]);
+        if (out.length === TOKEN_LENGTH) break;
+      }
+    }
+    if (out.length === TOKEN_LENGTH) return out.join("");
+  }
+  let s = "";
+  while (s.length < TOKEN_LENGTH) s += Math.random().toString(36).slice(2);
+  return s.slice(0, TOKEN_LENGTH);
+}
+
 /* ---------------- an invite you can actually tap ----------------
 
    `formatInvite` produces a bare code — home-xxxxxxxx~token~g. It is called a

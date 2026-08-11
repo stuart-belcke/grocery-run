@@ -13,6 +13,7 @@ import {
   parseInvite,
   formatInvite,
   inviteUrl,
+  newInviteToken,
   parseJoinHash,
   inviteLive,
   syncIndicator,
@@ -1934,6 +1935,65 @@ test("keyboardIsOpen assumes NO keyboard when it cannot tell", () => {
   assert.equal(keyboardIsOpen(null, 500), false);
   // A viewport somehow TALLER than the window is not a keyboard either.
   assert.equal(keyboardIsOpen(600, 900), false);
+});
+
+/* ---------------- the invite token ----------------
+   The only thing that authorises joining a household, so its strength should
+   be arithmetic rather than an estimate. The previous version base36-encoded
+   each random byte and concatenated pieces of 1 or 2 characters, which gave a
+   visibly biased alphabet and correlated neighbours. */
+
+test("the invite token is a fixed length in the alphabet the database accepts", () => {
+  // [a-z0-9] only: a Firebase key cannot contain . $ # [ ] or /, and parseInvite
+  // strips anything outside that set — a token with a stray character would be
+  // silently mangled into a different, un-redeemable one.
+  for (let i = 0; i < 200; i++) {
+    const t = newInviteToken();
+    assert.match(t, /^[a-z0-9]{22}$/, `bad token: ${JSON.stringify(t)}`);
+  }
+});
+
+test("the invite token survives the round trip through an invite string", () => {
+  // The end that actually matters: whatever is minted has to come back out of
+  // formatInvite/parseInvite unchanged, or the invite cannot be redeemed.
+  for (let i = 0; i < 50; i++) {
+    const token = newInviteToken();
+    const parsed = parseInvite(formatInvite("home-cx2ur9zg", token, "guest"));
+    assert.equal(parsed.token, token);
+    assert.equal(parsed.role, "guest");
+  }
+});
+
+test("the invite token is UNIFORM across the alphabet, not merely random-looking", () => {
+  /* The bug this replaces did not look wrong — it looked like a random
+     string. Measured over 200k tokens it put digits 1-6 at ~9.4% each against
+     ~1.43% for most letters. So the assertion has to be about the
+     DISTRIBUTION, not about the characters being unpredictable.
+
+     256 is not a multiple of 36, so folding a byte with `%` alone would make
+     the first four letters likelier than the rest; the generator discards
+     bytes at or above 252 instead. This is what catches that going away. */
+  const N = 20000;
+  const freq = new Map();
+  for (let i = 0; i < N; i++) for (const c of newInviteToken()) freq.set(c, (freq.get(c) || 0) + 1);
+  assert.equal(freq.size, 36, `only ${freq.size} of 36 characters ever appear`);
+
+  const total = [...freq.values()].reduce((a, b) => a + b, 0);
+  const expected = 1 / 36;
+  for (const [c, n] of freq) {
+    const share = n / total;
+    // Generous — this must not go red on an unlucky run. A `%`-folded byte
+    // would put the first four characters ~14% above the rest, far outside.
+    assert.ok(Math.abs(share - expected) < expected * 0.08, `"${c}" appears ${(share * 100).toFixed(2)}% against an expected ${(expected * 100).toFixed(2)}%`);
+  }
+});
+
+test("the invite token does not repeat itself", () => {
+  // 22 uniform base36 characters is ~113 bits; a collision here means the
+  // source is not doing its job, not that we got unlucky.
+  const seen = new Set();
+  for (let i = 0; i < 20000; i++) seen.add(newInviteToken());
+  assert.equal(seen.size, 20000, "a token was minted twice");
 });
 
 /* ---------------- an invite you can tap ----------------
