@@ -8,8 +8,12 @@
     isn't the shared one, and has no reason to think anything is wrong. The
     app was answering a question they hadn't asked.
 
-    So: ask. Three ways in, and the one most people arrive with — a link
-    somebody sent them — is first.
+    So: say what the app IS, then ask. The three ways in are ordered by what
+    each one COSTS rather than by how often it is used: signing in is the
+    answer for both people who actually live here, and it is what a full
+    invite needs anyway, so it goes first. The invite box used to lead, which
+    put the one card that says "sign in below first, then come back" above the
+    thing it was pointing at.
 
     Shown ONLY to a browser with no household data and no signed-in account,
     so nobody who already uses the app ever meets it.                       */
@@ -17,10 +21,12 @@
 
 import { useState } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "./theme";
-import { Btn, Stripe } from "./ui";
+import { Btn, Stripe, HelpText } from "./ui";
+import { HOW_IT_WORKS } from "./help";
 import { classifyJoinInput } from "./lib";
 
 const card = { background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16, marginBottom: 12 };
+
 const label = { fontSize: 12, color: C.faint, display: "block", marginBottom: 4 };
 
 export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError }) {
@@ -63,19 +69,67 @@ export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError })
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: C.paper, color: C.ink, fontFamily: fontBody, fontSize: 15 }}>
+    /* A landmark, not a class name: the tests need to know which screen they
+       are on, and keying that to a heading's WORDING meant every copy edit
+       broke the suite. It is also the right thing for a screen reader. */
+    <main aria-label="Getting started" style={{ minHeight: "100vh", background: C.paper, color: C.ink, fontFamily: fontBody, fontSize: 15 }}>
       <div style={{ maxWidth: 480, margin: "0 auto", padding: "28px 14px 60px" }}>
         <h1 style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 30, margin: "0 0 10px" }}>Grocery Run</h1>
         <Stripe />
-        <p style={{ color: C.faint, fontSize: 14, margin: "14px 0 20px" }}>
-          Meal planning and a shopping list, shared between phones.
+        <p style={{ fontSize: 15, margin: "14px 0 12px" }}>
+          Meal planning and a shopping list, shared between two phones.
         </p>
+        {/* WHAT THE APP IS, before it asks anything. The screen used to open
+            with three ways to get in and no answer to "in to what", so someone
+            who had never seen it was signing in to find out. Three lines, in
+            the order the week actually happens.
+            EVERY TAB IS NAMED, in bold, spelled exactly as the tab bar spells
+            it. Read once here, it doubles as the map: the four words in this
+            list are the four things along the bottom of the screen, so the
+            first tap after signing in is an informed one rather than a poke.
+            THE WORDS THEMSELVES LIVE IN help.js, because Settings shows the
+            same three lines under "How it works" — this screen is seen once,
+            before you have an account, and Settings is where you go looking
+            for it afterwards. Written twice they drifted inside a day, and
+            the copy you find later is the one that had gone stale. */}
+        <ol style={{ color: C.faint, fontSize: 14, lineHeight: 1.6, margin: "0 0 22px", paddingLeft: 20 }}>
+          {HOW_IT_WORKS.map((line, i) => (
+            <li key={i}>
+              <HelpText>{line}</HelpText>
+            </li>
+          ))}
+        </ol>
 
-        {/* First, because it is how most people arrive here. */}
+        {/* FIRST. Both people who actually live in a household arrive this
+            way, and every other route on this screen either needs it now or
+            tells you to come back for it later. */}
         <div style={card}>
-          <h2 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 4px" }}>Someone sent me a link</h2>
+          <h2 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 4px" }}>Sign in</h2>
           <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
-            Paste it below to join their household.
+            Start here. It picks up whichever household this account is already in, and a full invite needs an account too.
+          </p>
+          <Btn kind="primary" onClick={onGoogle}>Sign in with Google</Btn>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 12 }}>
+            <input
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              spellCheck={false}
+              autoCapitalize="none"
+              style={{ ...inputStyle, flex: 1, minWidth: 180 }}
+            />
+            <Btn onClick={sendLink} disabled={emailBusy}>{emailBusy ? "Sending…" : "Email me a link"}</Btn>
+          </div>
+        </div>
+
+        {/* SECOND, not first. A full invite is redeemed for an ACCOUNT, so it
+            cannot be the first thing on the screen without immediately sending
+            you further down it. A guest link is the exception and says so. */}
+        <div style={card}>
+          <h2 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 4px" }}>Join a household</h2>
+          <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
+            Paste the invite somebody sent you.
           </p>
           <label htmlFor="onboard-invite" style={label}>Invite link</label>
           <input
@@ -116,29 +170,9 @@ export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError })
           )}
           {parsed.kind === "invite" && !isGuestLink && (
             <p style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
-              This is a full invite, so it needs an account. Sign in below first, then come back and paste it.
+              This is a full invite, so it needs an account. Sign in above first, then come back and paste it.
             </p>
           )}
-        </div>
-
-        <div style={card}>
-          <h2 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 4px" }}>I already have an account</h2>
-          <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
-            Sign in to pick up the household this account is already in.
-          </p>
-          <Btn kind="primary" onClick={onGoogle}>Sign in with Google</Btn>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 12 }}>
-            <input
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              spellCheck={false}
-              autoCapitalize="none"
-              style={{ ...inputStyle, flex: 1, minWidth: 180 }}
-            />
-            <Btn onClick={sendLink} disabled={emailBusy}>{emailBusy ? "Sending…" : "Email me a link"}</Btn>
-          </div>
         </div>
 
         <div style={card}>
@@ -160,6 +194,6 @@ export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError })
           </div>
         )}
       </div>
-    </div>
+    </main>
   );
 }

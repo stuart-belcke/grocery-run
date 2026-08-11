@@ -166,7 +166,9 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
      disagree with the thing it is testing. */
   const expectFirstRun = !onboarded && !state;
   if (expectFirstRun) {
-    await page.getByText(/Someone sent me a link/).first().waitFor({ timeout: 15000 });
+    // The screen's LANDMARK, not a heading's wording. Waiting on prose meant
+    // that rewording the first-run copy hung every spec in the suite.
+    await page.locator('[aria-label="Getting started"]').first().waitFor({ timeout: 15000 });
   } else {
     await page.getByRole("button", { name: /^ingredients$/i }).first().waitFor({ timeout: 15000 });
   }

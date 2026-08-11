@@ -1211,6 +1211,51 @@ export function withUnitNotes(catalog) {
   return { ...catalog, recipes };
 }
 
+/* ---------------- help text ----------------
+   The content lives in help.js; these are the two things that have to be
+   pure, because they are the two things that can be wrong. */
+
+/* Split "cooking on {Meals}" into [{text:"cooking on "},{tab:"Meals"}].
+
+   A tab name is marked up rather than written as JSX so ONE string can be
+   read by the first-run screen and by the Settings help without either of
+   them owning the wording. The test that every {name} IS a real tab label is
+   what keeps the explanation a map rather than a guess — rename a tab and
+   this is what notices. */
+export function parseTabMarkup(text) {
+  const out = [];
+  const re = /\{([^{}]+)\}/g;
+  let last = 0;
+  let m;
+  while ((m = re.exec(String(text || ""))) !== null) {
+    if (m.index > last) out.push({ text: String(text).slice(last, m.index) });
+    out.push({ tab: m[1] });
+    last = m.index + m[0].length;
+  }
+  const tail = String(text || "").slice(last);
+  if (tail) out.push({ text: tail });
+  return out;
+}
+
+/* Which FAQs match what was typed.
+
+   EVERY WORD HAS TO MATCH, not any of them: with `any`, a second word only
+   ever makes the list longer, so typing more to narrow it down does the
+   opposite of what typing more means. Matching runs over the question, the
+   answer AND the keywords, because people search with the word that is on
+   their mind ("supermarket") rather than the one in the text ("store"), and
+   over the answer because the question is often not what they would call it.
+   Braces are stripped first, so searching "meals" finds "{Meals}". */
+export function searchHelp(faqs, query) {
+  const words = norm(query).split(/\s+/).filter(Boolean);
+  const list = asArray(faqs);
+  if (!words.length) return list;
+  return list.filter((f) => {
+    const hay = norm([f.q, f.a, ...(f.keywords || [])].join(" ")).replace(/[{}]/g, "");
+    return words.every((w) => hay.includes(w));
+  });
+}
+
 export const CATALOG_SHAPE_VERSION = 1;
 
 /* --------------------------- preferences ---------------------------

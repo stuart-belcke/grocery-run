@@ -6,9 +6,10 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { C, fontBody, inputStyle, syncTone } from "../theme";
-import { Btn, ConfirmDialog, AlertDialog, Section, Seg } from "../ui";
-import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, catalogConfigKey, catalogNameCollisions, classifyJoinInput, formatInvite, inviteLive } from "../lib";
+import { Btn, ConfirmDialog, AlertDialog, Section, Seg, HelpText } from "../ui";
+import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, catalogConfigKey, catalogNameCollisions, classifyJoinInput, formatInvite, inviteLive, searchHelp } from "../lib";
 import { syncEnabled } from "../sync";
+import { HOW_IT_WORKS, FAQS } from "../help";
 
 export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, sync, user, accessDenied, members, invites, isGuest, createInvite, revokeInvite, joinWithInvite, removeMember, authError, signInWithGoogle, sendEmailSignInLink, signOutUser }) {
   const prefs = data.prefs;
@@ -35,6 +36,8 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
   const [askImport, setAskImport] = useState(null);   // parsed backup pending confirmation
   const [askReset, setAskReset] = useState(false);    // reset-to-catalog confirmation
   const [copyFallback, setCopyFallback] = useState(null); // text to copy when the clipboard is blocked
+  const [helpQuery, setHelpQuery] = useState(""); // "How it works" search box
+  const [openFaq, setOpenFaq] = useState(null); // which answer is expanded
   // { text, ok } rather than a plain string, so the message can be styled
   // distinctly (green/red) instead of the same faint gray for both a success
   // and a failure — that similarity is what made a real failure read as "no
@@ -278,6 +281,10 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
   // so a silent loss here becomes a permanent one later.
   const collisions = catalogNameCollisions(data.config);
 
+  // Recomputed as you type. Pure and tested in lib.js — every word has to
+  // match, so typing more narrows rather than widens.
+  const matchingFaqs = useMemo(() => searchHelp(FAQS, helpQuery), [helpQuery]);
+
   // The escape hatch: throw away this household's catalog and start again from
   // the one shipped with the app. Destructive, hence the confirmation.
   const restoreStarter = () => {
@@ -291,6 +298,76 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
 
   return (
     <div>
+      {/* FIRST, above everything. It is the only place the explanation from
+          the first-run screen can be READ AGAIN — that screen is shown once,
+          before you have an account, and never again. Somebody looking for
+          "how does this work" opens Settings and starts at the top. */}
+      <Section title="How it works">
+        <ol style={{ color: C.faint, fontSize: 14, lineHeight: 1.6, margin: "8px 0 16px", paddingLeft: 20 }}>
+          {HOW_IT_WORKS.map((line, i) => (
+            <li key={i} style={{ marginBottom: 4 }}>
+              <HelpText>{line}</HelpText>
+            </li>
+          ))}
+        </ol>
+
+        <label htmlFor="help-search" style={{ fontSize: 12, color: C.faint, display: "block", marginBottom: 4 }}>
+          Search the questions
+        </label>
+        <input
+          id="help-search"
+          value={helpQuery}
+          onChange={(e) => setHelpQuery(e.target.value)}
+          placeholder="aisle, guest, staple, offline…"
+          style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 10 }}
+        />
+
+        {/* Questions collapsed, answers on tap. Thirteen answers open at once
+            is a wall nobody reads, and the question is the part you scan. */}
+        {matchingFaqs.length === 0 ? (
+          <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 0" }}>
+            Nothing matches &ldquo;{helpQuery.trim()}&rdquo;. Try a single word — the search wants every word you type to appear.
+          </p>
+        ) : (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {matchingFaqs.map((f) => {
+              const open = openFaq === f.q;
+              return (
+                <li key={f.q} style={{ borderTop: `1px dashed ${C.line}` }}>
+                  <button
+                    onClick={() => setOpenFaq(open ? null : f.q)}
+                    aria-expanded={open}
+                    style={{
+                      display: "flex",
+                      alignItems: "baseline",
+                      gap: 8,
+                      width: "100%",
+                      textAlign: "left",
+                      background: "transparent",
+                      border: "none",
+                      padding: "10px 0",
+                      cursor: "pointer",
+                      fontFamily: fontBody,
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: C.ink,
+                    }}
+                  >
+                    <span style={{ flex: 1, minWidth: 0 }}>{f.q}</span>
+                    <span aria-hidden style={{ color: C.faint, fontSize: 12, flexShrink: 0 }}>{open ? "\u25b2" : "\u25be"}</span>
+                  </button>
+                  {open && (
+                    <p style={{ fontSize: 13, color: C.faint, lineHeight: 1.55, margin: "0 0 12px" }}>
+                      <HelpText>{f.a}</HelpText>
+                    </p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Section>
+
       <Section title="Preferences">
         <p style={{ fontSize: 12, color: C.faint, margin: "8px 0 4px" }}>
           {isGuest
