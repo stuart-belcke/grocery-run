@@ -496,7 +496,7 @@ rather than saving them for a cleanup that never gets scheduled.
     Deliberately not urgent. Splitting is churn with no behaviour change, and
     the file has not yet made anything hard to do. Revisit when it does.
 
-39. INGREDIENT LINES NEED A THIRD FIELD, and this is the root of several
+39. [DONE] INGREDIENT LINES NEED A THIRD FIELD, and this is the root of several
     complaints at once. A line is { name, qty, unit } and there is nowhere to
     put "optional", "or ground turkey", "diced", "cooked separately", "2
     chopped 6 whole", or a can size — so BOTH a person typing and the recipe
@@ -523,7 +523,7 @@ rather than saving them for a cleanup that never gets scheduled.
     are hand-written information a person deliberately recorded — can sizes,
     substitutions, prep. They should be moved, not deleted.
 
-40. Recipe import without AI. The paste-a-recipe importer (#86) did a poor
+40. [DONE] Recipe import without AI. The paste-a-recipe importer (#86) did a poor
     job on three real recipes: modifiers went into `unit` ("pinch (to
     taste)", "(optional)", "small/medium"), "4 carrots cut into sticks"
     became `4 stick Carrots`, and it invented nine ingredients the catalog
@@ -603,7 +603,7 @@ rather than saving them for a cleanup that never gets scheduled.
     NOT DONE, AND IT IS A SEPARATE ITEM (see 48): an invite is still a CODE
     you paste, not a URL you follow.
 
-42. THE SIGN-IN ERROR GIVES THE WRONG REMEDY. Signing in on a new phone
+42. [DONE] THE SIGN-IN ERROR GIVES THE WRONG REMEDY. Signing in on a new phone
     showed "Signed in, but this account can't open household home-cx2ur9zg.
     Check the code above matches the other phone exactly." If the account is
     not a member, checking the code cannot help — the answer is an invite
@@ -614,10 +614,27 @@ rather than saving them for a cleanup that never gets scheduled.
     did, the resubscribe path (membershipTick) did not fire and that is a
     real bug behind it.
 
-43. Recipe instructions: number the steps and end each with a newline.
-    Stored as one `notes` string today, so this is presentation.
+43. [HALF DONE, AND THE OTHER HALF DELIBERATELY NOT ATTEMPTED] Recipe
+    instructions: number the steps and end each with a newline.
+    DONE for anything pasted from now on: parseRecipeText numbers the steps,
+    one per line, renumbered from 1, folding unnumbered continuation lines
+    into the step above (#94).
+    NOT DONE for the 22 recipes already stored, and this is the part worth
+    reading before someone tries again. Their step boundaries are GONE, and
+    mostly were never there: the notes were written as condensed prose, not
+    pasted from a numbered source —
+        Chicken Stir-Fry: "High heat, cook chicken first, vegetables second,
+        sauce last."
+    — and where paragraphs do exist they are not all steps. The first
+    paragraph of Baked Chicken & Veggie Meatballs is a YIELD NOTE ("Yields
+    about 24-30 1-inch meatballs"), so numbering paragraphs would label it
+    "1.". Splitting on sentences instead would make "Halve the tomatoes." its
+    own step. Only 2 of the 22 came from a paste with real numbered steps.
+    Either rule invents structure that was not there and reads worse than the
+    prose does. THE FIX IS RE-PASTING a recipe from its source next time you
+    cook it, one at a time, which produces proper steps for free.
 
-44. Edit an ingredient from the List tab. Setting an aisle or a store
+44. [DONE] Edit an ingredient from the List tab. Setting an aisle or a store
     currently means leaving the list, going to Ingredients, and searching
     for the item you were just looking at. The List row already expands;
     the editor could open there.
@@ -625,13 +642,13 @@ rather than saving them for a cleanup that never gets scheduled.
     already uses, and the List row is due that treatment anyway (see the
     UI-density note at the end of this file) — do them together.
 
-45. Keep tab navigation reachable while scrolling. On a long list, switching
+45. [DONE] Keep tab navigation reachable while scrolling. On a long list, switching
     tabs means scrolling all the way back up. Either pin the tab bar or move
     it behind a menu button. Interacts with StickyBar and with the
     back-to-top control; check the stacking contexts by hit-testing rather
     than by eye, as those two both needed.
 
-46. Sort the catalog on export, so a diff is readable. Two catalog PRs in a
+46. [DONE] Sort the catalog on export, so a diff is readable. Two catalog PRs in a
     row read as ~110 changed lines that were almost entirely key REORDERING,
     which hides the five entries that actually changed and makes review
     slow and unreliable. Sorting `config` keys (and recipes by name) on
@@ -640,7 +657,7 @@ rather than saving them for a cleanup that never gets scheduled.
     it wants its own commit with no content change in it, or the diff it is
     meant to fix is the one it produces.
 
-47. An over-long unit makes the row clickable. Reported from real use;
+47. [DONE] An over-long unit makes the row clickable. Reported from real use;
     reproduce before fixing. Likely the unit text wrapping and pushing the
     row's tap target, which item 39 will reduce but not eliminate.
 
@@ -724,6 +741,24 @@ rather than saving them for a cleanup that never gets scheduled.
     could not be tested at all. The test asserts the DISTRIBUTION, because the
     old one did not look wrong; it looked like a random string.
 
+50. A GUEST LINK IS REUSABLE FOR ITS FULL HOUR; A FULL INVITE IS NOT.
+    Both are the same mechanism and only the `role` field differs, so this
+    asymmetry is accidental rather than designed.
+    joinWithInvite DELETES the token after redeeming it, and that deletion is
+    what makes an invite single-use — the rules do not enforce it. But
+    `invites/$token` .write requires `role != 'guest'`, so a guest who has
+    just joined cannot delete the token they used. The remove() is refused,
+    the catch swallows it, and the link stays live until `exp`.
+    A full invite makes the joiner a non-guest member, whose delete succeeds.
+    NOT OBVIOUSLY WRONG — two helpers sharing one guest link is a reasonable
+    thing to want — but it was not decided, and the FAQ said "works once",
+    which was false for half the cases. The wording is fixed; the BEHAVIOUR
+    is still undecided.
+    IF IT SHOULD BE SINGLE-USE, the rules have to do it, not the client: a
+    guest cannot be given blanket delete on invites without also letting them
+    revoke everyone else's. The narrow grant would be "delete a token whose
+    id equals the `invite` field on your own member record".
+
 MEASURED AND DELIBERATELY NOT PROBLEMS
     Recorded so nobody optimises them on instinct.
       - Bundle at 253 KB / 76 KB gzipped. Firebase is already dynamically
@@ -733,7 +768,7 @@ MEASURED AND DELIBERATELY NOT PROBLEMS
         payload size was reasoned about rather than measured, the estimate was
         wrong by 30x (item 25).
 
-37. Multi-user: auth, and the household as a real tenant. Absorbed from the
+37. [DONE] Multi-user: auth, and the household as a real tenant. Absorbed from the
     "platform phase" that used to live in FutureProjects.md, now that the
     expensive half of it has shipped.
 

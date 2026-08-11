@@ -75,12 +75,12 @@ export const FAQS = [
   },
   {
     q: "How do I add the other phone?",
-    a: "On this tab, under Household, press Invite another phone and send the invite it copies. On the other phone, sign in first, then paste it. An invite lasts an hour and works once.",
+    a: "On this tab, under Household, press Invite another phone and send the link. Tapping it opens the app with the invite filled in; they sign in and they're in. A full invite lasts an hour and works once — it is used up the moment somebody joins with it.",
     keywords: ["invite", "share", "add person", "second phone", "join", "household"],
   },
   {
     q: "What is a guest link?",
-    a: "A link for somebody doing the shop who does not need an account. A guest sees everything and can work the shopping list — ticking off, adding items, flagging a staple as run out — but cannot change recipes, the week plan, or where an ingredient lives. Under Household, press Guest link.",
+    a: "A link for somebody doing the shop who does not need an account. A guest sees everything and can work the shopping list — ticking off, adding items, flagging a staple as run out — but cannot change recipes, the week plan, or where an ingredient lives. Under Household, press Guest link. Unlike a full invite it is NOT used up when somebody joins: it keeps working for its full hour, so more than one person can come in on the same link. Revoke it under Household if that is not what you want.",
     keywords: ["guest", "link", "read only", "helper", "temporary", "no account"],
   },
   {
