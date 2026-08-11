@@ -2153,6 +2153,19 @@ test("searchHelp returns everything for an empty query and nothing for nonsense"
   assert.deepEqual(searchHelp(null, "x"), []);
 });
 
+test("the FAQ does not claim a guest link is single-use", () => {
+  /* It said "works once" for both, which is false for half the cases: a
+     guest cannot delete the token they redeemed (invites/$token .write
+     requires role != 'guest'), so a guest link stays live for its full hour.
+     Asserted because it is the kind of sentence that reads fine and is
+     wrong — see item 50. */
+  const invite = FAQS.find((f) => /add the other phone/i.test(f.q));
+  const guest = FAQS.find((f) => /guest link/i.test(f.q));
+  assert.match(invite.a, /works once/, "the full-invite answer should still say it is single-use");
+  assert.match(guest.a, /not used up|more than one person|keeps working/i, "the guest answer must not imply single use");
+  assert.doesNotMatch(guest.a, /works once/, "the guest answer claims single use, which is false");
+});
+
 test("every FAQ is answerable and none is a duplicate", () => {
   for (const f of FAQS) {
     assert.ok(f.q && f.q.trim().length > 8, `question too short: ${JSON.stringify(f.q)}`);
