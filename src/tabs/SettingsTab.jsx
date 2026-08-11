@@ -7,11 +7,11 @@
 import { useState, useEffect, useMemo } from "react";
 import { C, fontBody, inputStyle, syncTone } from "../theme";
 import { Btn, ConfirmDialog, AlertDialog, Section, Seg, HelpText } from "../ui";
-import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, inviteLive, searchHelp } from "../lib";
+import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, inviteLive, searchHelp, writeErrorAdvice } from "../lib";
 import { syncEnabled } from "../sync";
 import { HOW_IT_WORKS, FAQS } from "../help";
 
-export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, sync, user, accessDenied, members, invites, isGuest, createInvite, revokeInvite, joinWithInvite, removeMember, authError, signInWithGoogle, sendEmailSignInLink, signOutUser, initialInvite = "" }) {
+export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, sync, writeError, user, accessDenied, members, invites, isGuest, createInvite, revokeInvite, joinWithInvite, removeMember, authError, signInWithGoogle, sendEmailSignInLink, signOutUser, initialInvite = "" }) {
   const prefs = data.prefs;
   const setPref = (patch) => updateCatalog((c) => ({ ...c, prefs: { ...c.prefs, ...patch } }));
   // The members node as written: { uid: { email, displayName, updatedAt } }.
@@ -439,13 +439,16 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
       <Section
         title="Household"
         defaultOpen
+        /* Shown whether or not sync is on — "Saved on this device" is a
+           status too, and the header says it in the same place. The dot is
+           the part that only means something when there is a database.
+           textAlign/justifyContent matter because this wraps: the longest
+           status is three times the width of the heading beside it. */
         aside={
-          syncEnabled ? (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontFamily: fontBody, fontWeight: 400, color: sync.tone === "bad" || sync.tone === "warn" ? syncTone[sync.tone] : C.faint }}>
-              <span aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: syncTone[sync.tone] }} />
-              {sync.text}
-            </span>
-          ) : null
+          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 5, fontSize: 12, fontFamily: fontBody, fontWeight: 400, textAlign: "right", color: sync.tone === "bad" || sync.tone === "warn" ? syncTone[sync.tone] : C.faint }}>
+            {syncEnabled && <span aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: syncTone[sync.tone], flexShrink: 0 }} />}
+            {sync.text}
+          </span>
         }
       >
         {!syncEnabled ? (
@@ -454,6 +457,14 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
           </p>
         ) : (
           <>
+            {/* The red dot's own sentence. The dot says something is wrong;
+                this is the only place in the app that says WHAT — which
+                write, and which of the two very different causes. */}
+            {writeErrorAdvice(writeError) && (
+              <p role="alert" style={{ fontSize: 13, color: C.ink, background: C.tomatoSoft, border: `1px solid ${C.tomato}`, borderRadius: 10, padding: "10px 12px", margin: "8px 0 12px" }}>
+                {writeErrorAdvice(writeError)}
+              </p>
+            )}
             <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 12px" }}>
               Everyone in a household shares one live shopping list, week plan and set of recipes. Add someone by sending them an <b>invite link</b> from here — a full invite for another phone of your own, or a <b>guest link</b> for someone who just needs to do the shop.
             </p>

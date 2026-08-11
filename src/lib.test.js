@@ -17,6 +17,7 @@ import {
   parseJoinHash,
   inviteLive,
   syncIndicator,
+  writeErrorAdvice,
   normalizeLocal,
   emptyLocal,
   diffPaths,
@@ -1623,6 +1624,42 @@ test("local-only builds never mention signing in", () => {
 test("a refused read outranks a refused write, because it explains it", () => {
   const out = syncIndicator({ ...base, accessDenied: true, writeError: true });
   assert.equal(out.text, "No access to this household");
+});
+
+/* The sentence under the dot. Reported from a phone: "Sync error — changes
+   may not be saved" with nothing anywhere saying which write or why, because
+   the signal was a bare `true`. These tests are about what the reader can DO
+   with the message, not about its wording. */
+
+test("nothing is said when no write has been refused", () => {
+  assert.equal(writeErrorAdvice(null), null);
+  assert.equal(writeErrorAdvice(undefined), null);
+  // A detail object with no `where` is a bug in the reporter, not a failure
+  // worth a red box — say nothing rather than "The last change to the .".
+  assert.equal(writeErrorAdvice({ code: "PERMISSION_DENIED" }), null);
+});
+
+test("the message names the write that failed and the database's own code", () => {
+  const out = writeErrorAdvice({ where: "recipes and ingredients", code: "PERMISSION_DENIED" });
+  assert.match(out, /recipes and ingredients/);
+  assert.match(out, /PERMISSION_DENIED/);
+});
+
+test("a refused write and a malformed one send the reader somewhere different", () => {
+  // The reason this is a function and not a string. PERMISSION_DENIED means
+  // the account is wrong — re-invite the phone. Anything else means the app
+  // sent something the database wouldn't take, and re-inviting fixes nothing.
+  const denied = writeErrorAdvice({ where: "shopping list and week plan", code: "PERMISSION_DENIED" });
+  const broken = writeErrorAdvice({ where: "shopping list and week plan", code: "Error" });
+  assert.match(denied, /invite/i);
+  assert.doesNotMatch(broken, /invite/i);
+  assert.match(broken, /[Rr]eload/);
+});
+
+test("an unknown code is left out rather than shown as the word unknown", () => {
+  const out = writeErrorAdvice({ where: "invite link", code: "unknown" });
+  assert.doesNotMatch(out, /unknown/);
+  assert.match(out, /invite link/);
 });
 
 /* ------------------- invites (item 37) ------------------- */

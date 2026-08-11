@@ -94,6 +94,7 @@ const CATALOG_PREFIX = "grocery-run-household-catalog-v1-";
 const STATE_PREFIX = "grocery-run-shared-";
 const ONBOARDED_KEY = "grocery-run-onboarded-v1";
 const GUEST_PREVIEW_KEY = "grocery-run-e2e-guest-preview";
+const STATUS_PREVIEW_KEY = "grocery-run-e2e-status-preview";
 
 /* Opens the app with a known household already in place.
 
@@ -101,7 +102,7 @@ const GUEST_PREVIEW_KEY = "grocery-run-e2e-guest-preview";
    pins the ingredient IDS. Without a seeded catalog the app mints fresh
    random ids on first edit, so a test's ids don't match the rendered rows
    and the run proves nothing. */
-export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, onboarded = true, guest = false, hash = "" } = {}) {
+export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, onboarded = true, guest = false, hash = "", status = null } = {}) {
   const browser = await chromium.launch({ executablePath: chromePath() });
   const page = await browser.newPage();
   const errors = [];
@@ -137,7 +138,7 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
      fixture. That looked exactly like "the edit didn't persist", and it is
      the sort of harness bug that makes a suite untrustworthy rather than
      merely failing. */
-  await page.addInitScript(([c, cat, st, kD, kC, kS, kO, onb, kG, gst]) => {
+  await page.addInitScript(([c, cat, st, kD, kC, kS, kO, onb, kG, gst, kSt, sts]) => {
     if (!localStorage.getItem(kD)) localStorage.setItem(kD, JSON.stringify({ code: c }));
     if (cat && !localStorage.getItem(kC + c)) localStorage.setItem(kC + c, cat);
     if (st && !localStorage.getItem(kS + c)) localStorage.setItem(kS + c, st);
@@ -151,8 +152,14 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
        which a sync-stripped build cannot have. See GUEST_PREVIEW_KEY in lib.js
        for why this seam is safe: a production build never reads it. */
     if (gst) localStorage.setItem(kG, JSON.stringify(true));
+    /* Same seam, same reason, for the sync status: a sync-stripped build can
+       only ever produce "Saved on this device", and the status is a LAYOUT
+       problem — the longest of them is what broke the Settings heading. See
+       STATUS_PREVIEW_KEY in lib.js. */
+    if (sts) localStorage.setItem(kSt, JSON.stringify(sts));
   }, [code, catalog ? JSON.stringify(catalog) : null, state ? JSON.stringify(state) : null,
-      DEVICE_KEY, CATALOG_PREFIX, STATE_PREFIX, ONBOARDED_KEY, onboarded, GUEST_PREVIEW_KEY, guest]);
+      DEVICE_KEY, CATALOG_PREFIX, STATE_PREFIX, ONBOARDED_KEY, onboarded, GUEST_PREVIEW_KEY, guest,
+      STATUS_PREVIEW_KEY, status]);
 
   // domcontentloaded, not networkidle: with external requests aborted there
   // is no "idle" to wait for, and the tab bar rendering is the real signal

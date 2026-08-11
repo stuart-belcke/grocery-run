@@ -22,6 +22,18 @@ export const ONBOARDED_KEY = "grocery-run-onboarded-v1";
    branch and never looks at this key, so it is a test seam and not a way in;
    the rules would refuse the writes regardless of what any client believes. */
 export const GUEST_PREVIEW_KEY = "grocery-run-e2e-guest-preview";
+
+/* Forces a sync status in a LOCAL-ONLY build, for the e2e suite. Same seam
+   and same rule as GUEST_PREVIEW_KEY above: only read when syncEnabled is
+   false, so a production build never looks at it.
+   It exists because the status is a LAYOUT problem as much as a message —
+   "Sync error — changes may not be saved" beside the "Household" heading
+   was drawn straight over it on a real phone — and a build with sync
+   compiled out can only ever produce the shortest of the seven strings.
+   The value is a status NAME ("writeError", "accessDenied", "offline",
+   "synced", "signedOut"); App turns it back into a label through the real
+   syncIndicator, so no test can assert on wording the app doesn't show. */
+export const STATUS_PREVIEW_KEY = "grocery-run-e2e-status-preview";
 export const CATALOG_KEY = "grocery-run-catalog-cache-v1";
 // The household's own catalog, cached so the app opens offline before the
 // database listener has said anything.
@@ -1973,6 +1985,28 @@ export function syncIndicator({ syncEnabled, authReady, signedIn, accessDenied, 
   if (syncStatus === "synced") return { text: "Synced", tone: "good" };
   if (syncStatus === "offline") return { text: "Offline — will sync", tone: "bad" };
   return { text: "Connecting…", tone: "faint" };
+}
+
+/* The sentence under the red dot: WHICH write was refused, and what to do.
+
+   "Sync error — changes may not be saved" is true and useless. It was
+   reported from a phone with no way to find out any more than that, and
+   there was nothing more to find: the failure signal was a bare `true`, so
+   even the console line it came from had been thrown away by then.
+
+   Takes the detail object watchWriteErrors now reports ({ where, code }).
+   Split out here, pure, because the two codes worth telling apart lead to
+   opposite actions — one is "you were removed or you are a guest", the
+   other is "something in the data is malformed, reload" — and getting that
+   wrong sends somebody to re-invite a phone that was never the problem. */
+export function writeErrorAdvice(detail) {
+  if (!detail || !detail.where) return null;
+  const code = String(detail.code || "");
+  const what = `The last change to the ${detail.where} was refused${code && code !== "unknown" ? ` (${code})` : ""}.`;
+  if (code === "PERMISSION_DENIED") {
+    return `${what} The database only allows that for a full member of this household — so this phone is signed in as a guest, is signed in to a different account than you think, or was removed. Check who is signed in at the bottom of this tab, then ask for a new invite link.`;
+  }
+  return `${what} That is the app's own fault rather than a permissions one. Reload the app; if the message comes straight back, say what you last changed.`;
 }
 
 /* ---------------------- invites (item 37) ----------------------------

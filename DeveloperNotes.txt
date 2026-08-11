@@ -1693,3 +1693,60 @@ Still open: the List row (checkbox, name, staple tag, qty, store select,
 info) carries the same pressure. The fix there is the same shared pattern —
 "a row with a few primary bits and a details panel" — so it's worth doing as
 one pass rather than a one-off.
+
+52. [DONE] THE SYNC STATUS WAS DRAWN THROUGH THE "HOUSEHOLD" HEADING, AND SAID
+    NOTHING USEFUL WHEN IT DID. Reported from a real phone as a screenshot:
+    "Sync error — changes may not be saved" in red, overlapping the heading it
+    sits beside on the Settings tab.
+
+    TWO FAULTS, ONE CAUSE — a flex item told it may shrink to nothing, with
+    text that carries on being painted anyway.
+      - Section's title span had `minWidth: 0`. At 320px the heading was
+        squeezed to 0px wide while its 82px of text kept rendering, straight
+        over the status. Removing it lets the flex default (min-width auto)
+        hold the title at its longest word; the status wraps instead, which is
+        what should give way. `overflowWrap: break-word` is the last resort
+        for a single word wider than the card — it does not change the
+        min-content width, so it cannot reintroduce the squeeze.
+      - The header's <h1> and the status were both shrinkable, so the longest
+        status broke "Grocery Run" across two lines. The app's own name is not
+        the thing that should move for a transient message: flexShrink 0.
+    The Settings status also renders now when sync is OFF ("Saved on this
+    device"), which the header already did. It is a status either way, and it
+    is what makes the layout testable at all in a local-only build.
+
+    "SYNC ERROR — CHANGES MAY NOT BE SAVED" IS TRUE AND USELESS. There was no
+    way to find out more, because there was nothing left to find: sync.js
+    reported the failure as a bare `true`. Which write, and which of the two
+    very different causes, had already been thrown away — and a phone has no
+    console to read the discarded line from.
+    watchWriteErrors now reports { where, code, message } or null. `where` is
+    plain words at the six call sites ("recipes and ingredients", "shopping
+    list and week plan", ...); `code` is the database's own, or e.name for the
+    other shape that lands there — a payload the SDK refuses before the
+    network, which throws an ordinary Error rather than PERMISSION_DENIED.
+    writeErrorAdvice (lib.js, pure, tested) turns that into the sentence, and
+    the split is the point: PERMISSION_DENIED means the ACCOUNT is wrong — a
+    guest, the wrong account, or removed — and the fix is a new invite;
+    anything else means the app sent something malformed and re-inviting a
+    phone fixes nothing. One message for both sends somebody to the wrong
+    place.
+
+    STATUS_PREVIEW_KEY is a second e2e seam alongside GUEST_PREVIEW_KEY, read
+    only when syncEnabled is false. A sync-stripped build can only produce the
+    SHORTEST of the seven statuses, and the longest is the one that broke the
+    layout. It names a status; App turns it back into a label through the real
+    syncIndicator, so no test can assert on wording the app does not show.
+    Measured, not looked at, for listrow.spec.mjs's reason: text overflowing a
+    zero-width box leaves the page the right width and every element
+    "visible". The per-element invariants are what catch it — does each box
+    contain its own text, do two boxes claim the same pixels — plus a Range
+    per line for the <h1>, since box height also grows for padding and font.
+    Mutation: both fixes reverted together, 6 of 9 assertions failed, with
+    "the title text needs 82px and was given 0px" naming the reported bug
+    exactly. The three that still passed are the shorter status at the wider
+    screen — which is why the longest string is the one under test.
+
+    WHAT IS NOT ANSWERED: why that phone got a refused write in the first
+    place. Nothing recorded it at the time, which is the whole reason for the
+    change above. The next occurrence will name the write and the code.

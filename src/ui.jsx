@@ -338,7 +338,16 @@ export function Section({ title, aside, children, defaultOpen = false }) {
           color: C.ink,
         }}
       >
-        <span style={{ flex: 1, minWidth: 0 }}>{title}</span>
+        {/* `minWidth: 0` used to sit on this span, and that is what let the
+            title be squeezed to nothing while its text carried on being
+            painted — straight over the aside. On a real phone "Household"
+            was drawn on top of "Sync error — changes may not be saved".
+            Without it the flex default (min-width auto) holds the title at
+            its longest word and the aside, which wraps, gives way instead.
+            overflowWrap is the last resort for a single word longer than the
+            whole card; it does not affect the min-content width, so it
+            cannot bring the squeeze back. */}
+        <span style={{ flex: "1 1 auto", overflowWrap: "break-word" }}>{title}</span>
         {aside}
         <span aria-hidden style={{ color: C.faint, fontSize: 13, flexShrink: 0 }}>{open ? "\u25b2" : "\u25be"}</span>
       </button>
