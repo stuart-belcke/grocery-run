@@ -1,5 +1,5 @@
 {
- "catalogVersion": 13,
+ "catalogVersion": 14,
  "stores": [
   "Grocery store",
   "Costco",
@@ -151,7 +151,8 @@
     {
      "name": "Chickpeas",
      "qty": 1,
-     "unit": "can (14 oz)"
+     "unit": "can",
+     "note": "14 oz"
     },
     {
      "name": "Red onion",
@@ -236,7 +237,7 @@
      "unit": "tbsp"
     },
     {
-     "name": "Chopped fresh cilantro",
+     "name": "Fresh cilantro",
      "qty": 4,
      "unit": "tbsp"
     }
@@ -270,12 +271,14 @@
     {
      "name": "Salt",
      "qty": 0.25,
-     "unit": "tsp (plus to taste)"
+     "unit": "tsp",
+     "note": "plus to taste"
     },
     {
      "name": "Black pepper",
      "qty": 1,
-     "unit": "pinch (to taste)"
+     "unit": "pinch",
+     "note": "to taste"
     },
     {
      "name": "Chicken breast",
@@ -452,7 +455,8 @@
     {
      "name": "Chicken thighs",
      "qty": 2.5,
-     "unit": "lb, boneless skinless"
+     "unit": "lb",
+     "note": "boneless skinless"
     },
     {
      "name": "Yellow onion",
@@ -466,8 +470,9 @@
     },
     {
      "name": "Crushed tomatoes",
-     "qty": 28,
-     "unit": "oz can"
+     "qty": 1,
+     "unit": "can",
+     "note": "28 oz"
     },
     {
      "name": "Tomato paste",
@@ -477,12 +482,14 @@
     {
      "name": "Coconut milk",
      "qty": 1,
-     "unit": "can (13.5 oz)"
+     "unit": "can",
+     "note": "13.5 oz"
     },
     {
      "name": "Jasmine rice",
      "qty": 2,
-     "unit": "cups (cooked separately)"
+     "unit": "cups",
+     "note": "cooked separately"
     },
     {
      "name": "Fresh cilantro",
@@ -539,7 +546,8 @@
     {
      "name": "Parmesan cheese",
      "qty": 0.5,
-     "unit": "cup, grated"
+     "unit": "cup",
+     "note": "grated"
     },
     {
      "name": "Shallot",
@@ -549,12 +557,14 @@
     {
      "name": "Garlic",
      "qty": 8,
-     "unit": "cloves (2 chopped, 6 whole)"
+     "unit": "cloves",
+     "note": "2 chopped, 6 whole"
     },
     {
      "name": "Fresh oregano",
      "qty": 0.25,
-     "unit": "cup, chopped"
+     "unit": "cup",
+     "note": "chopped"
     },
     {
      "name": "Paprika",
@@ -614,7 +624,7 @@
     {
      "name": "Rosemary",
      "qty": 1,
-     "unit": "sprig"
+     "unit": "sprigs"
     },
     {
      "name": "Fresh thyme",
@@ -671,7 +681,8 @@
     {
      "name": "Black beans",
      "qty": 2,
-     "unit": "can (15 oz)"
+     "unit": "can",
+     "note": "15 oz"
     },
     {
      "name": "Brown rice",
@@ -731,7 +742,8 @@
     {
      "name": "Red pepper flakes",
      "qty": 0.125,
-     "unit": "tsp (pinch, optional)"
+     "unit": "tsp",
+     "note": "pinch, optional"
     }
    ]
   },
@@ -773,17 +785,18 @@
     {
      "name": "Fresh basil",
      "qty": 1,
-     "unit": "handful, torn"
+     "unit": "handful",
+     "note": "torn"
     },
     {
      "name": "Canned chicken",
      "qty": 0.5,
-     "unit": "Jar"
+     "unit": "jar"
     },
     {
      "name": "Balsamic glaze",
      "qty": 1,
-     "unit": "Tbsp"
+     "unit": "tbsp"
     }
    ]
   },
@@ -816,19 +829,21 @@
      "unit": "cloves"
     },
     {
-     "name": "Oregano",
+     "name": "Dried oregano",
      "qty": 1,
      "unit": "tbsp"
     },
     {
      "name": "Salt",
      "qty": 1,
-     "unit": "pinch (to taste)"
+     "unit": "pinch",
+     "note": "to taste"
     },
     {
      "name": "Carrots",
      "qty": 4,
-     "unit": "stick"
+     "unit": "",
+     "note": "cut into sticks"
     },
     {
      "name": "Large potatoes",
@@ -836,14 +851,15 @@
      "unit": ""
     },
     {
-     "name": "Large onion",
+     "name": "Yellow onion",
      "qty": 1,
      "unit": ""
     },
     {
      "name": "Black pepper",
      "qty": 1,
-     "unit": "pinch (to taste)"
+     "unit": "pinch",
+     "note": "to taste"
     }
    ]
   },
@@ -860,7 +876,8 @@
     {
      "name": "Salmon fillets",
      "qty": 4,
-     "unit": "fillets (6 oz ea)"
+     "unit": "fillets",
+     "note": "6 oz ea"
     },
     {
      "name": "Asparagus",
@@ -893,9 +910,10 @@
      "unit": "tbsp"
     },
     {
-     "name": "Capers (optional)",
+     "name": "Capers",
      "qty": 1,
-     "unit": "tbsp"
+     "unit": "tbsp",
+     "note": "optional"
     },
     {
      "name": "Salt",
@@ -942,7 +960,8 @@
     {
      "name": "Chicken thighs",
      "qty": 4,
-     "unit": "skin-on, bone-in"
+     "unit": "",
+     "note": "skin-on, bone-in"
     },
     {
      "name": "Olive oil",
@@ -952,17 +971,20 @@
     {
      "name": "Yellow onion",
      "qty": 0.5,
-     "unit": "cup, diced"
+     "unit": "cup",
+     "note": "diced"
     },
     {
      "name": "Red bell pepper",
      "qty": 0.5,
-     "unit": "medium"
+     "unit": "",
+     "note": "medium"
     },
     {
      "name": "Serrano chile pepper",
      "qty": 1,
-     "unit": "(optional)"
+     "unit": "",
+     "note": "optional"
     },
     {
      "name": "Garlic",
@@ -1166,7 +1188,8 @@
     {
      "name": "Salt",
      "qty": 0.5,
-     "unit": "tsp (plus a pinch)"
+     "unit": "tsp",
+     "note": "plus a pinch"
     },
     {
      "name": "Granulated sugar",
@@ -1176,7 +1199,8 @@
     {
      "name": "Powdered sugar",
      "qty": 4,
-     "unit": "cups (about)"
+     "unit": "cups",
+     "note": "about"
     },
     {
      "name": "Unsalted butter",
@@ -1206,7 +1230,8 @@
     {
      "name": "Marshmallow fluff",
      "qty": 1,
-     "unit": "jar (7-8 oz)"
+     "unit": "jar",
+     "note": "7-8 oz"
     },
     {
      "name": "Pink food coloring",
@@ -1233,17 +1258,20 @@
     {
      "name": "Kosher salt",
      "qty": 1,
-     "unit": "pinch (to taste)"
+     "unit": "pinch",
+     "note": "to taste"
     },
     {
      "name": "Black pepper",
      "qty": 1,
-     "unit": "pinch (to taste)"
+     "unit": "pinch",
+     "note": "to taste"
     },
     {
      "name": "Baking soda",
      "qty": 1,
-     "unit": "(optional)"
+     "unit": "",
+     "note": "optional"
     },
     {
      "name": "Spaghetti",
@@ -1251,7 +1279,7 @@
      "unit": "oz"
     },
     {
-     "name": "Extra virgin olive oil",
+     "name": "Olive oil",
      "qty": 3,
      "unit": "tbsp"
     },
@@ -1271,7 +1299,7 @@
      "unit": "cup"
     },
     {
-     "name": "Crushed red pepper flakes",
+     "name": "Red pepper flakes",
      "qty": 0.25,
      "unit": "tsp"
     },
@@ -1281,14 +1309,16 @@
      "unit": "cup"
     },
     {
-     "name": "Grated Parmesan cheese",
+     "name": "Parmesan cheese",
      "qty": 1,
-     "unit": "(optional)"
+     "unit": "",
+     "note": "optional"
     },
     {
-     "name": "Fresh basil leaves",
+     "name": "Fresh basil",
      "qty": 1,
-     "unit": "(optional)"
+     "unit": "",
+     "note": "optional"
     }
    ]
   },
@@ -1394,22 +1424,26 @@
     {
      "name": "Black beans",
      "qty": 1,
-     "unit": "can (15 oz)"
+     "unit": "can",
+     "note": "15 oz"
     },
     {
      "name": "Corn",
      "qty": 1,
-     "unit": "can (15 oz)"
+     "unit": "can",
+     "note": "15 oz"
     },
     {
      "name": "Diced tomatoes with green chiles (rotel)",
      "qty": 1,
-     "unit": "can (10 oz)"
+     "unit": "can",
+     "note": "10 oz"
     },
     {
      "name": "Red enchilada sauce",
      "qty": 1,
-     "unit": "can (10 oz)"
+     "unit": "can",
+     "note": "10 oz"
     },
     {
      "name": "Mexican blend cheese",
@@ -1461,12 +1495,14 @@
     {
      "name": "Red onion",
      "qty": 1,
-     "unit": "medium"
+     "unit": "",
+     "note": "medium"
     },
     {
      "name": "Yellow onion",
      "qty": 1,
-     "unit": "small/medium"
+     "unit": "",
+     "note": "small/medium"
     },
     {
      "name": "Sweet peppers",
@@ -1476,37 +1512,44 @@
     {
      "name": "Banana peppers",
      "qty": 6,
-     "unit": "large (7-8 in)"
+     "unit": "",
+     "note": "large, 7-8 in"
     },
     {
      "name": "Kidney beans",
      "qty": 3,
-     "unit": "can (15 oz)"
+     "unit": "can",
+     "note": "15 oz"
     },
     {
      "name": "Pinto beans",
      "qty": 2,
-     "unit": "can (16 oz)"
+     "unit": "can",
+     "note": "16 oz"
     },
     {
      "name": "Great northern beans",
      "qty": 1,
-     "unit": "can (15.8 oz)"
+     "unit": "can",
+     "note": "15.8 oz"
     },
     {
      "name": "Crushed tomatoes",
      "qty": 1,
-     "unit": "can (28 oz)"
+     "unit": "can",
+     "note": "28 oz"
     },
     {
      "name": "Tomato sauce",
      "qty": 3,
-     "unit": "can (8 oz)"
+     "unit": "can",
+     "note": "8 oz"
     },
     {
      "name": "Diced tomatoes",
      "qty": 3,
-     "unit": "can (14.5 oz)"
+     "unit": "can",
+     "note": "14.5 oz"
     },
     {
      "name": "Chili powder",
@@ -1541,7 +1584,8 @@
     {
      "name": "Salt",
      "qty": 4,
-     "unit": "tsp (can omit)"
+     "unit": "tsp",
+     "note": "can omit"
     },
     {
      "name": "Black pepper",
@@ -1708,19 +1752,8 @@
    "store": "Unassigned",
    "aisles": {}
   },
-  "canned green beans (no salt)": {
-   "store": "Schnucks",
-   "aisles": {}
-  },
   "capers": {
    "store": "Aldi",
-   "aisles": {
-    "Grocery store": 8
-   },
-   "staple": true
-  },
-  "capers (optional)": {
-   "store": "Grocery store",
    "aisles": {
     "Grocery store": 8
    },
@@ -1813,14 +1846,6 @@
    },
    "staple": true
   },
-  "chopped fresh cilantro": {
-   "store": "Schnucks",
-   "aisles": {}
-  },
-  "cilantro": {
-   "store": "Aldi",
-   "aisles": {}
-  },
   "coconut milk": {
    "store": "Grocery store",
    "aisles": {
@@ -1851,11 +1876,6 @@
   },
   "craisins": {
    "store": "Sams",
-   "aisles": {},
-   "staple": true
-  },
-  "crushed red pepper flakes": {
-   "store": "Schnucks",
    "aisles": {},
    "staple": true
   },
@@ -1912,11 +1932,6 @@
    "store": "Aldi",
    "aisles": {}
   },
-  "extra virgin olive oil": {
-   "store": "Schnucks",
-   "aisles": {},
-   "staple": true
-  },
   "feta": {
    "store": "Sams",
    "aisles": {
@@ -1929,12 +1944,8 @@
     "Grocery store": 1
    }
   },
-  "fresh basil leaves": {
-   "store": "Schnucks",
-   "aisles": {}
-  },
   "fresh cilantro": {
-   "store": "Grocery store",
+   "store": "Schnucks",
    "aisles": {
     "Grocery store": 1
    }
@@ -2010,10 +2021,6 @@
    "staple": true
   },
   "grapefruit": {
-   "store": "Aldi",
-   "aisles": {}
-  },
-  "grated parmesan cheese": {
    "store": "Aldi",
    "aisles": {}
   },
@@ -2128,10 +2135,6 @@
    "aisles": {},
    "staple": true
   },
-  "large onion": {
-   "store": "Aldi",
-   "aisles": {}
-  },
   "large potatoes": {
    "store": "Aldi",
    "aisles": {}
@@ -2184,7 +2187,7 @@
    }
   },
   "olive oil": {
-   "store": "Sams",
+   "store": "Schnucks",
    "aisles": {
     "Sams": 8
    },
@@ -2195,11 +2198,6 @@
    "aisles": {
     "Grocery store": 8
    },
-   "staple": true
-  },
-  "oregano": {
-   "store": "Sams",
-   "aisles": {},
    "staple": true
   },
   "orzo": {
@@ -2294,7 +2292,7 @@
    }
   },
   "red pepper flakes": {
-   "store": "Aldi",
+   "store": "Schnucks",
    "aisles": {
     "Grocery store": 8
    },
@@ -2460,6 +2458,6 @@
    }
   }
  },
- "appBuild": "2026-08-10 22:07 UTC · 3c406ee",
+ "appBuild": "2026-08-11 00:52 UTC · 9fff43a",
  "appDataVersion": 3
 }
