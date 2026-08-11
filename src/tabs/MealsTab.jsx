@@ -5,8 +5,8 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
-import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop } from "../ui";
-import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, unitSuggestions, ingredientNames, normalizeCfg, ingredientMatches, existingIngredientSuggestions, ensureIngredientId, asArray, planSlotsFor, parseRecipeText } from "../lib";
+import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop, SuggestInput } from "../ui";
+import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, ingredientNames, normalizeCfg, ingredientMatches, existingIngredientSuggestions, unitMatches, ensureIngredientId, asArray, planSlotsFor, parseRecipeText } from "../lib";
 import { RecipeDetail } from "../RecipeDetail";
 
 // Rounded "pill" grouping a remove / count / add cluster so the controls read
@@ -214,7 +214,6 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [filterOpen]);
 
-  const units = useMemo(() => unitSuggestions(data), [data]);
   // Every ingredient the household already knows, so a recipe references an
   // existing item (matched by norm(name)) instead of a spelling variant that
   // would fork into a separate ingredient and shopping-list line.
@@ -728,16 +727,20 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
                 }}
                 style={{ ...inputStyle, width: 54 }}
               />
-              <input
+              {/* Suggests the units THIS ingredient already uses first —
+                  `cloves` for garlic before `cup`, which is merely common. */}
+              <SuggestInput
                 placeholder="Unit"
-                list="unit-suggestions"
+                aria-label="Unit"
                 value={ing.unit}
-                onChange={(e) => {
+                suggestions={unitMatches(data, ing.ingredientId || ing.name, ing.unit)}
+                onChange={(v) => {
                   const list = [...draft.ingredients];
-                  list[i] = { ...ing, unit: e.target.value };
+                  list[i] = { ...ing, unit: v };
                   setDraft({ ...draft, ingredients: list });
                 }}
-                style={{ ...inputStyle, width: 70 }}
+                wrapStyle={{ width: 70, flexShrink: 0 }}
+                style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
               />
               <Btn small onClick={() => setDraft({ ...draft, ingredients: draft.ingredients.filter((_, j) => j !== i) })} title="Remove ingredient">✕</Btn>
             </div>
@@ -777,11 +780,6 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
           <Btn small onClick={() => setDraft({ ...draft, ingredients: [...draft.ingredients, { name: "", qty: "1", unit: "", note: "" }] })} style={{ marginBottom: 10 }}>
             + Ingredient
           </Btn>
-          <datalist id="unit-suggestions">
-            {units.map((u) => (
-              <option key={u} value={u} />
-            ))}
-          </datalist>
           <textarea
             placeholder="Cooking instructions / notes (optional)"
             value={draft.notes}

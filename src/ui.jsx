@@ -205,6 +205,116 @@ export function HelpText({ children }) {
   );
 }
 
+/* A text input with a suggestion list under it.
+
+   NOT <datalist>. That is what the unit fields used, and it renders
+   unreliably — the same reason the ingredient-name field grew a custom list
+   (item 11). On a phone a datalist is frequently just… nothing, which reads
+   as "this app has no suggestions" rather than as a browser quirk.
+
+   SUGGESTS, NEVER RESTRICTS. What you type is always what you get; the list
+   only saves keystrokes. That is why there is no "must pick one" state and
+   why an exact match shows nothing — offering somebody the word they have
+   just finished typing is noise.
+
+   Takes its suggestions as a prop rather than reaching for app data, so this
+   file stays free of anything that knows what a unit or an ingredient is. */
+export function SuggestInput({ value, onChange, suggestions = [], style, wrapStyle, ...rest }) {
+  const [open, setOpen] = useState(false);
+  const [idx, setIdx] = useState(-1);
+  const show = open && suggestions.length > 0;
+  const pick = (u) => {
+    onChange(u);
+    setOpen(false);
+    setIdx(-1);
+  };
+  return (
+    <div style={{ position: "relative", ...wrapStyle }}>
+      <input
+        {...rest}
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+          setIdx(-1);
+        }}
+        onFocus={() => setOpen(true)}
+        // Blur closes it, but the option's own onMouseDown preventDefault
+        // fires first — without that pairing, tapping a suggestion blurs the
+        // field, unmounts the list, and the tap lands on whatever moved up.
+        onBlur={() => setOpen(false)}
+        onKeyDown={(e) => {
+          if (show && e.key === "ArrowDown") {
+            e.preventDefault();
+            setIdx((i) => Math.min(i + 1, suggestions.length - 1));
+          } else if (show && e.key === "ArrowUp") {
+            e.preventDefault();
+            setIdx((i) => Math.max(i - 1, -1));
+          } else if (e.key === "Enter" && show && idx >= 0) {
+            e.preventDefault();
+            pick(suggestions[idx]);
+          } else if (e.key === "Escape") {
+            setOpen(false);
+          }
+          if (rest.onKeyDown) rest.onKeyDown(e);
+        }}
+        role="combobox"
+        aria-expanded={show}
+        aria-autocomplete="list"
+        style={style}
+      />
+      {show && (
+        <ul
+          role="listbox"
+          style={{
+            position: "absolute",
+            zIndex: 20,
+            top: "calc(100% + 4px)",
+            left: 0,
+            minWidth: "100%",
+            listStyle: "none",
+            margin: 0,
+            padding: 4,
+            background: C.card,
+            border: `1px solid ${C.line}`,
+            borderRadius: 8,
+            boxShadow: "0 6px 20px rgba(0,0,0,0.12)",
+            maxHeight: 220,
+            overflowY: "auto",
+          }}
+        >
+          {suggestions.map((u, i) => (
+            <li key={u} role="option" aria-selected={i === idx}>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onMouseEnter={() => setIdx(i)}
+                onClick={() => pick(u)}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  borderRadius: 6,
+                  border: "none",
+                  cursor: "pointer",
+                  background: i === idx ? C.greenSoft : "transparent",
+                  color: C.ink,
+                  fontFamily: fontBody,
+                  fontSize: 14,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {u}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function Section({ title, aside, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
   return (

@@ -54,8 +54,8 @@ Tier 2 — Ingredients-tab cluster (shared refactor, then features)
 11. [DONE — #17] The List tab's "add an item" field now suggests matching
     known ingredients as you type (name + default store, keyboard-navigable),
     so you pick an existing item instead of creating a duplicate.
-12. [PART DONE] Suggest units as you type when adding a new ingredient.
-    The CONVERSION half is built; the suggestion half below is still open.
+12. [DONE] Suggest units as you type when adding a new ingredient.
+    Both halves are built — the conversion table first, the suggestions after.
 
     What shipped: a factor table in lib.js grouping units by dimension, and
     resolveAgainstBought doing the cupboard subtraction in base units so
@@ -86,11 +86,33 @@ Tier 2 — Ingredients-tab cluster (shared refactor, then features)
     An amount with qty 0 ("salt, to taste") is kept at zero rather than
     dropped — an empty group is not the same as a covered one.
 
-    STILL OPEN — the original item: Extend the unit
-    suggestions (item 3) to the ingredient-adding flow — the recipe editor's
-    add-ingredient row and the Ingredients tab — offering the units already in
-    use as you type. Must still let you type a brand-new unit and use it; the
-    suggestions never restrict entry to a fixed set.
+    [DONE] The suggestion half. Extended to every place a unit is typed — the
+    recipe editor's ingredient row, the List tab's add box, and the amount
+    editor on Ingredients.
+    THE INGREDIENT'S OWN UNITS COME FIRST, and that is the only reason this is
+    worth more than the flat list it replaces. Typing a unit for garlic offers
+    `cloves` — twelve recipes use it — before `cup`, which is merely the
+    household's commonest. The flat A-Z list was technically correct and went
+    unused because the obvious answer was nine rows down.
+    Ranked: this ingredient's units, then everything the household has typed
+    ordered by HOW OFTEN, then COMMON_UNITS. Typed text narrows by prefix
+    before substring, so "c" leads with `cup` rather than `oz can`.
+    THE LAST TIEBREAK IS unitSuggestions' OWN ORDER, not alphabetical — a
+    brand-new household has no usage to rank by, and alphabetical had it
+    offering "bag, box, bunch" ahead of "cup" and "lb". Caught by the test for
+    a fresh household, which is the case nobody using the app is ever in.
+    AND IT IS NO LONGER A <datalist>. Those render unreliably — frequently as
+    nothing at all on a phone, which reads as "this app has no suggestions"
+    rather than a browser quirk. That is the same reason the ingredient-NAME
+    field grew a custom list (item 11); the units kept the datalist for
+    another year. One <SuggestInput> in ui.jsx now serves all three, taking
+    its suggestions as a prop so ui.jsx still knows nothing about units.
+    SUGGESTS, NEVER RESTRICTS. An exact match offers nothing — handing back
+    the word somebody just finished typing is noise and leaves a dropdown over
+    the field they are trying to leave — and a unit nobody has used is typed
+    and kept, which the e2e asserts on what was PERSISTED rather than on the
+    field, because a box that accepts text and drops it on save looks
+    identical while you type.
 
 
 Tier 3 — data-model / sorting

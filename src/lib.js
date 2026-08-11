@@ -265,6 +265,66 @@ export function unitSuggestions(data) {
   return seen;
 }
 
+/* Units to offer while somebody is typing one, best first.
+
+   THE INGREDIENT'S OWN UNITS COME FIRST, and that is the whole point of this
+   over the flat list. Typing a unit for garlic should offer `cloves` — which
+   twelve recipes already use — before `cup`, which is merely common in the
+   household. A global A-Z list makes you scroll past nine irrelevant units to
+   reach the obvious one, which is why the flat one went unused.
+
+   Ranked, not filtered, by ingredient: units this ingredient uses, then
+   everything else the household has typed, then the common ones. Text typed
+   so far narrows it by PREFIX first and substring second, so "c" leads with
+   `cup` and `cloves` rather than `oz can`.
+
+   SUGGESTIONS, NEVER A FIXED SET. Anything typed is a valid unit — this list
+   only saves keystrokes. An exact match returns nothing, because offering
+   somebody the word they have just finished typing is noise. */
+export function unitMatches(data, ingredientKey, typed, limit = 8) {
+  const all = unitSuggestions(data);
+  const q = norm(typed);
+  if (q && all.some((u) => norm(u) === q)) return [];
+
+  const mine = [];
+  const key = norm(ingredientKey || "");
+  if (key) {
+    for (const r of asArray(data && data.recipes)) {
+      for (const i of asArray(r && r.ingredients)) {
+        if (norm(i.ingredientId || "") !== key && norm(i.name || "") !== key) continue;
+        const u = String(i.unit || "").trim();
+        if (u && !mine.some((x) => norm(x) === norm(u))) mine.push(u);
+      }
+    }
+  }
+  // How often the household reaches for each unit at all, so the second tier
+  // is "what we actually use" rather than whatever order the list was built
+  // in. Without this an empty box leads with g/l/kg/ml — units nobody here
+  // has ever typed — purely because they are short.
+  const used = new Map();
+  for (const r of asArray(data && data.recipes)) {
+    for (const i of asArray(r && r.ingredients)) {
+      const u = norm(i.unit || "");
+      if (u) used.set(u, (used.get(u) || 0) + 1);
+    }
+  }
+
+  const rank = (u) => (mine.some((x) => norm(x) === norm(u)) ? 0 : 1);
+  const hit = (u) => (!q ? 2 : norm(u).startsWith(q) ? 0 : norm(u).includes(q) ? 1 : -1);
+
+  // Last tiebreak is the ORDER unitSuggestions built, not alphabetical: units
+  // this household has typed come before COMMON_UNITS, and COMMON_UNITS is
+  // itself ordered by how useful it is (ea, lb, oz, cup, tbsp, tsp…). A
+  // brand-new household has no usage to rank by, so alphabetical left it
+  // offering "bag, box, bunch" before "cup" and "lb".
+  return all
+    .map((u, i) => ({ u, i, r: rank(u), h: hit(u), n: used.get(norm(u)) || 0 }))
+    .filter((x) => x.h >= 0)
+    .sort((a, b) => a.h - b.h || a.r - b.r || b.n - a.n || a.i - b.i)
+    .slice(0, limit)
+    .map((x) => x.u);
+}
+
 export const norm = (s) => (s || "").trim().toLowerCase();
 export const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 export const uid = () => Math.random().toString(36).slice(2, 10);

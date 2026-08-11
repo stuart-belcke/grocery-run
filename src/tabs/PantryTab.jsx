@@ -6,8 +6,8 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
-import { Btn, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop } from "../ui";
-import { UNASSIGNED, norm, cap, r2, normalizeCfg, ingredientNames, unitSuggestions, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient, ensureIngredientId, ingredientIdByName, mergeIngredients, setIngredientCfg, planIngredientRename } from "../lib";
+import { Btn, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop , SuggestInput} from "../ui";
+import { UNASSIGNED, norm, cap, r2, normalizeCfg, ingredientNames, unitMatches, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient, ensureIngredientId, ingredientIdByName, mergeIngredients, setIngredientCfg, planIngredientRename } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
 // "how many of this on the list" reads the same everywhere in the app.
@@ -38,7 +38,6 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
   const [editList, setEditList] = useState(null); // { key, qty, unit } while typing an exact list amount
 
   const keys = useMemo(() => ingredientNames(data), [data]);
-  const unitList = useMemo(() => unitSuggestions(data), [data]);
 
   // Search by name + narrow to one default store. A-Z ordering is inherited
   // from `keys`; these only hide non-matching rows.
@@ -445,11 +444,6 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                 : <>No ingredients default to {storeFilter}.</>}
           </div>
         )}
-        <datalist id="pantry-unit-suggestions">
-          {unitList.map((u) => (
-            <option key={u} value={u} />
-          ))}
-        </datalist>
         {/* While a filter is active the visible list shrinks, which would collapse
             the page under the scroll position and jerk everything (search bar
             included) as the browser clamps the scroll. Holding a screenful of
@@ -541,17 +535,20 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                             aria-label={`Amount of ${name} on the shopping list`}
                             style={{ ...inputStyle, width: 54, padding: "5px 6px", fontVariantNumeric: "tabular-nums" }}
                           />
-                          <input
+                          {/* Keyed to THIS ingredient, so editing garlic's
+                              amount offers `cloves` first. */}
+                          <SuggestInput
                             value={editList.unit}
-                            onChange={(e) => setEditList({ ...editList, unit: e.target.value })}
+                            onChange={(v) => setEditList({ ...editList, unit: v })}
+                            suggestions={unitMatches(data, key, editList.unit)}
                             onKeyDown={(e) => {
                               if (e.key === "Enter") commitListEdit(name);
                               else if (e.key === "Escape") setEditList(null);
                             }}
-                            list="pantry-unit-suggestions"
                             placeholder="unit"
                             aria-label={`Unit for ${name}`}
-                            style={{ ...inputStyle, width: 64, padding: "5px 6px" }}
+                            wrapStyle={{ width: 64, flexShrink: 0 }}
+                            style={{ ...inputStyle, width: "100%", boxSizing: "border-box", padding: "5px 6px" }}
                           />
                           <Btn kind="primary" small onClick={() => commitListEdit(name)} title="Save amount" aria-label={`Save amount of ${name}`}>✓</Btn>
                           <Btn small onClick={() => setEditList(null)} title="Cancel" aria-label="Cancel">✕</Btn>
