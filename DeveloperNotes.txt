@@ -1492,6 +1492,41 @@ reason to lock a phone out.
 Five mutations, all caught: no migration, text deleted instead of moved, an
 existing note overwritten, the gate always true, and unknown fields pruned.
 
+49. [DONE] THE TAB BAR STRANDED ITSELF WHEN THE KEYBOARD OPENED. Reported
+    from a real iPhone with a screenshot: the bar sat in the middle of the
+    screen, page content visible BELOW it, with a gap between it and the
+    keyboard.
+    THE CAUSE IS WHAT `position: fixed` IS FIXED TO. It is fixed to the LAYOUT
+    viewport, and iOS Safari does not shrink that when the keyboard opens — it
+    shrinks the VISUAL viewport and scrolls the layout one underneath. So a
+    bottom bar stops tracking the bottom of what you can see. This is a
+    property of every fixed bottom bar on iOS, not of this one.
+    HIDDEN, NOT REPOSITIONED, and that was a choice. Repositioning off
+    visualViewport is possible and is a known rabbit hole — the numbers settle
+    over several frames, differ by iOS version, and the result parks the bar
+    directly on the keys, where it eats typing room and catches taps meant for
+    the top keyboard row. Nobody switches tabs mid-word. It comes back the
+    moment the keyboard closes.
+    THE PAGE KEEPS ITS BOTTOM PADDING while the bar is hidden. Reclaiming it
+    would reflow the list under the cursor every time the keyboard opened,
+    which is a worse bug than the one being fixed.
+    THE THRESHOLD IS THE ONLY REAL DECISION. iOS also shrinks the visual
+    viewport by 60-90px when the URL bar collapses on scroll; counting that as
+    a keyboard would make the bar flicker away every time you scrolled the
+    shopping list. A keyboard is 250px+. 150 sits in the gap, and the test
+    pins BOTH ends of it so it cannot drift either way.
+    The back-to-top button hides with it — it is anchored above the bar, so
+    leaving it behind would strand it in the same gap.
+    WHAT IS NOT VERIFIED, PLAINLY: the iOS keyboard cannot be opened in the
+    browser the e2e suite drives, so nothing here proves the fix on a phone.
+    What IS tested is keyboardIsOpen against real viewport numbers, including
+    the URL-bar case, and the other direction in the browser — that the bar
+    does NOT hide when there is no keyboard. That second one matters most:
+    getting it wrong removes the navigation permanently, on every device.
+    Four mutations, all caught. The unconditional-hide one is caught by the
+    HARNESS rather than an assertion — openApp waits for a tab button, so the
+    whole suite times out. Loud, if slow.
+
 UI density — Ingredients row [DONE], List row still open.
 The Ingredients gear panel had become a flat pile of unrelated concerns, and
 its aisle grid rendered one input per store (5, shown even where the item

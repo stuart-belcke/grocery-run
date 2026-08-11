@@ -31,7 +31,7 @@ import {
   recordHouseholdMembership,
 } from "./sync";
 import { C, fontDisplay, fontBody, syncTone, BOTTOM_NAV_H, BOTTOM_NAV_Z } from "./theme";
-import { Stripe, Btn, ChoiceDialog } from "./ui";
+import { Stripe, Btn, ChoiceDialog, useKeyboardOpen } from "./ui";
 import {
   LOCAL_KEY,
   ONBOARDED_KEY,
@@ -108,6 +108,16 @@ export default function App() {
   // only — pushing it could overwrite a real one with a fresh copy of the file.
   const [catalogReady, setCatalogReady] = useState(false);
   const [tab, setTab] = useState("list");
+  /* The tab bar goes away while the keyboard is up. `position: fixed` is fixed
+     to the LAYOUT viewport, and iOS Safari does not shrink that for the
+     keyboard — it shrinks the visual viewport and scrolls the layout one — so
+     the bar stops tracking the bottom of what you can see and strands itself
+     in the middle of the screen with page content showing underneath it.
+     HIDDEN RATHER THAN REPOSITIONED. Repositioning it lands the bar directly
+     on top of the keys, where it eats the room you are typing in and catches
+     taps meant for the top keyboard row. Nobody switches tabs mid-word, and
+     it comes straight back when the keyboard closes. */
+  const keyboardOpen = useKeyboardOpen();
   const [syncStatus, setSyncStatus] = useState(syncEnabled ? "connecting" : "local-only");
   // A write the server actively rejected (rules, quota, a malformed payload) —
   // NOT offline, which the SDK handles by queuing and never surfaces here.
@@ -729,6 +739,7 @@ export default function App() {
           that a thumb can reach without moving the phone.
           The page's bottom padding and the back-to-top button both clear it
           via BOTTOM_NAV_H — see the note beside that constant. */}
+      {!keyboardOpen && (
       <nav
         aria-label="Main"
         style={{
@@ -790,6 +801,7 @@ export default function App() {
           ))}
         </div>
       </nav>
+      )}
 
       {/* A banner at the top of a scrolling page is easy to scroll past — and
           for an update you're being ASKED to take, being missed is the whole

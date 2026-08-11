@@ -1211,6 +1211,36 @@ export function withUnitNotes(catalog) {
   return { ...catalog, recipes };
 }
 
+/* Is the on-screen keyboard covering the bottom of the page?
+
+   ASKED OF MEASUREMENTS, not of focus. A focused input is a bad proxy: the
+   keyboard can be dismissed while focus stays put, hardware keyboards exist,
+   and a <select> opens a picker rather than a keyboard. The visual viewport
+   shrinking by a lot IS the thing we care about.
+
+   WHY THIS IS NEEDED AT ALL: `position: fixed; bottom: 0` is fixed to the
+   LAYOUT viewport, and iOS Safari does not shrink that when the keyboard
+   opens — it shrinks the VISUAL viewport and scrolls the layout one. So a
+   bottom bar stops tracking the bottom of what you can see and ends up
+   stranded in the middle of the screen with page content visible below it,
+   which is exactly what was reported.
+
+   THE THRESHOLD IS THE WHOLE DESIGN. iOS also changes the visual viewport
+   when the URL bar collapses on scroll — around 60-90px — and treating that
+   as a keyboard would make the tab bar flicker away every time you scrolled.
+   A keyboard is 250px or more. 150 sits in the gap with room either side, and
+   the test pins both ends of it. */
+export const KEYBOARD_MIN_INSET = 150;
+
+export function keyboardIsOpen(innerHeight, viewportHeight, threshold = KEYBOARD_MIN_INSET) {
+  const outer = Number(innerHeight) || 0;
+  const inner = Number(viewportHeight) || 0;
+  // No visual-viewport support, or nonsense numbers: assume no keyboard. The
+  // bar staying put is the normal case and the safe thing to be wrong about.
+  if (!outer || !inner) return false;
+  return outer - inner >= threshold;
+}
+
 /* ---------------- help text ----------------
    The content lives in help.js; these are the two things that have to be
    pure, because they are the two things that can be wrong. */

@@ -64,6 +64,8 @@ import {
   withUnitNotes,
   needsUnitNotes,
   parseTabMarkup,
+  keyboardIsOpen,
+  KEYBOARD_MIN_INSET,
   searchHelp,
   existingIngredientSuggestions,
   parseRecipeText,
@@ -1882,6 +1884,54 @@ test("a migrated catalog totals garlic on ONE shopping-list row", () => {
 
   const after = aggregateItems(build(withUnitNotes(migratable()))).find((i) => i.name === "Garlic");
   assert.equal(qtyLabel(after.parts), "11 cloves");
+});
+
+/* ---------------- is the keyboard up ----------------
+   Reported from a real iPhone: with the keyboard open, the tab bar sat
+   stranded in the middle of the screen with page content visible below it.
+   `position: fixed; bottom: 0` is fixed to the LAYOUT viewport, and iOS does
+   not shrink that for the keyboard — it shrinks the VISUAL viewport.
+
+   This function is the testable half. The iOS keyboard itself cannot be
+   reproduced in the browser the e2e suite drives, so the numbers below stand
+   in for it, and the threshold is the only real decision being made. */
+
+test("keyboardIsOpen says yes for a keyboard-sized bite out of the viewport", () => {
+  // An iPhone 14: 852 tall, roughly 336 of it keyboard.
+  assert.equal(keyboardIsOpen(852, 516), true);
+  // A small phone with a big keyboard, and a big phone with a small one.
+  assert.equal(keyboardIsOpen(667, 407), true);
+  assert.equal(keyboardIsOpen(932, 682), true);
+});
+
+test("keyboardIsOpen says NO when it is only the URL bar collapsing", () => {
+  /* THE CASE THE THRESHOLD EXISTS FOR. iOS shrinks the visual viewport by
+     roughly 60-90px when the URL bar collapses on scroll. Counting that as a
+     keyboard would make the tab bar flicker away every time you scrolled the
+     shopping list, which is worse than the bug being fixed. */
+  assert.equal(keyboardIsOpen(852, 852), false);
+  assert.equal(keyboardIsOpen(852, 793), false); // 59px, URL bar
+  assert.equal(keyboardIsOpen(852, 762), false); // 90px, the biggest of them
+});
+
+test("keyboardIsOpen pins BOTH ends of the threshold", () => {
+  // Above it and below it, so neither can drift without failing.
+  assert.equal(keyboardIsOpen(1000, 1000 - KEYBOARD_MIN_INSET), true);
+  assert.equal(keyboardIsOpen(1000, 1000 - KEYBOARD_MIN_INSET + 1), false);
+  assert.ok(KEYBOARD_MIN_INSET > 90, "must clear the URL bar collapse");
+  assert.ok(KEYBOARD_MIN_INSET < 250, "must not be so high it misses a small keyboard");
+});
+
+test("keyboardIsOpen assumes NO keyboard when it cannot tell", () => {
+  // No visualViewport support, or nonsense numbers. The bar staying put is the
+  // normal case and the safe thing to be wrong about — hiding navigation on a
+  // browser that simply does not report this would be a permanent bug.
+  assert.equal(keyboardIsOpen(0, 0), false);
+  assert.equal(keyboardIsOpen(852, 0), false);
+  assert.equal(keyboardIsOpen(undefined, undefined), false);
+  assert.equal(keyboardIsOpen(null, 500), false);
+  // A viewport somehow TALLER than the window is not a keyboard either.
+  assert.equal(keyboardIsOpen(600, 900), false);
 });
 
 /* ---------------- the help text ----------------

@@ -197,6 +197,32 @@ test("a dialog covers the tab bar rather than the other way round", async () => 
   }
 });
 
+test("with no keyboard, the bar and the back-to-top button both stay put", async () => {
+  /* The guard on the keyboard fix. A real iOS keyboard cannot be opened in
+     this browser, so what is checked here is the OTHER direction: the hiding
+     rule must not fire when there is no keyboard. Getting that wrong removes
+     the navigation permanently, on every device, and looks like the app
+     simply lost its tabs. keyboardIsOpen itself is unit-tested on numbers. */
+  const page = await openScrolled();
+  try {
+    const m = await measureBar(page);
+    assert.equal(m.bottom, m.vh, "the bar is not sitting on the bottom edge with no keyboard open");
+    assert.deepEqual(m.hits, TABS.map(() => "self"));
+    assert.equal(await page.locator('button[aria-label="Back to top"]').count(), 1, "back-to-top vanished with no keyboard open");
+
+    // And the page still reserves room for the bar, so nothing reflows when
+    // the keyboard opens and the bar goes away under the user's cursor.
+    const pad = await page.evaluate(() => {
+      const el = document.querySelector("nav[aria-label='Main']").previousElementSibling || document.body.firstElementChild;
+      return getComputedStyle(el).paddingBottom;
+    });
+    assert.ok(parseInt(pad, 10) >= 54, `the page reserves only ${pad} for a 54px bar`);
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
 test("the first-run screen has no tab bar", async () => {
   // There is nowhere to navigate to before there is a household, and offering
   // five tabs over a sign-in screen invites tapping past it.
