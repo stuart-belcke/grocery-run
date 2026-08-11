@@ -1814,3 +1814,57 @@ one pass rather than a one-off.
     ingredient-id migration again for stores. Item 52's error message now
     quotes the database's own words for this branch, which name the offending
     key, so it will be identifiable rather than mysterious.
+
+54. [DONE] "RESTORE STARTER CATALOG" ORPHANED THE SHOPPING STATE, AND THE
+    ORPHANS LISTED THEMSELVES AS GROCERIES. Reported as a screenshot: eight
+    rows in the already-bought panel reading "Ing_05jz04l4 · 1", in among
+    Hummus and Jumbo shrimp.
+
+    seedCatalog MINTS A FRESH ID FOR EVERY INGREDIENT — it calls
+    ensureIngredientId, which is uid()-based — so the moment a restore ran,
+    everything the state keys by id pointed at an ingredient that no longer
+    existed: what was ticked, what an earlier trip already bought, today's
+    store reroutes, which staples you are out of. This was KNOWN and written
+    down as a cost of the restore. What it was not was harmless: an orphan can
+    never resolve later, because nothing on any list carries that id again, so
+    those entries sit in the panel permanently.
+
+    TWO FAULTS, AND THEY NEEDED SEPARATE FIXES:
+      - THE CAUSE. remapStateIngredientIds moves the state onto the new ids,
+        matching BY NAME — the only thing the two catalogs share. Called from
+        restoreStarter with the OLD config, read before updateCatalog replaces
+        it, since that is the only copy of the old ids' names.
+        An entry that resolves to nothing is DROPPED here, which is the
+        opposite of remapIngredientKeys and deliberate: there an unresolved key
+        was stale and cost nothing to keep, here it is an id whose ingredient
+        is deleted outright and keeping it IS the reported row. A hand-added
+        entry survives either way — it carries its own name, so it goes back to
+        being ad-hoc rather than disappearing off the list.
+        Collisions merge (checked ORs, bought sums): a restore collapses
+        duplicates a household had merged apart, and losing a banked quantity
+        would silently put something back on the list.
+      - THE DISPLAY. ingredientNameFor ended in cap(key), which was right for
+        exactly as long as the key WAS the name. A minted id is not a name, so
+        it now returns "" for one it cannot name — a decision reversed from an
+        earlier note in the test that said "something deleted still shows
+        SOMETHING rather than blank". The screenshot settled it. A name-key
+        still returns itself.
+        The panel groups what it cannot name into one row that says what they
+        are and offers Clear. Phones that already ran the old restore still
+        hold these, and the names are UNRECOVERABLE — the catalog that had
+        them is gone — so explaining and clearing is the whole of what can be
+        done for them.
+
+    ONE update() CALL FOR THE CLEAR, not one per key. update() snapshots
+    localRef.current, which only refreshes on the next render, so a forEach
+    over unbuy() rebuilds from the same stale base every time and clears
+    exactly one — with the button looking like it worked. The file says this
+    at the top of update(); it is easy to write anyway.
+
+    Three mutations, each caught by a different test: the restore not
+    remapping (2 browser tests), ingredientNameFor back to cap(key) (1 browser
+    + 1 unit), and the Clear button back to one update() per key (1 browser).
+    The unit tests cover the merge and the forward-compat spread; the browser
+    tests assert on the PERSISTED state, because a fix that only stopped
+    rendering these would leave a list quietly subtracting quantities that
+    belong to ingredients nobody can name.

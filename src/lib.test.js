@@ -19,6 +19,7 @@ import {
   syncIndicator,
   writeErrorAdvice,
   keyForName,
+  remapStateIngredientIds,
   safeKey,
   normalizeLocal,
   emptyLocal,
@@ -1263,8 +1264,99 @@ test("a key renders as its NAME, never as the raw id", () => {
   assert.equal(ingredientNameFor(data, "ing_a1"), "Applesauce");
   // A hand-added entry that never became an ingredient still has a name.
   assert.equal(ingredientNameFor(data, "ing_b2"), "Paper towels");
-  // Something deleted still shows SOMETHING rather than blank.
-  assert.equal(ingredientNameFor(data, "ing_gone"), "Ing_gone");
+  /* An id whose ingredient is GONE has no name, and says so. This used to
+     return "Ing_gone" on the reasoning that showing something beats showing
+     nothing — a screenshot from a real phone settled it: the already-bought
+     panel listed eight rows reading "Ing_05jz04l4 · 1" in among the
+     groceries. Empty is what lets the caller group them and explain them. */
+  assert.equal(ingredientNameFor(data, "ing_gone"), "");
+  // A NAME-key still returns itself: there the key IS the name, which is the
+  // whole reason the fallback existed.
+  assert.equal(ingredientNameFor(data, "paper towels"), "Paper towels");
+});
+
+/* ---- restoring the starter catalog must take the state with it ----
+   seedCatalog mints a fresh id for every ingredient, so a restore left every
+   id-keyed thing in the shopping state — ticked, bought, rerouted, staples
+   run out — pointing at an ingredient that no longer existed. */
+
+const catalogOf = (names) => ({
+  ingredients: Object.fromEntries(names.map((n, i) => [`ing_new${i}`, { name: n, store: "Aldi", aisles: {} }])),
+});
+
+test("restoring the catalog carries the shopping state onto the new ids", () => {
+  const oldConfig = { ing_old1: { name: "Broccoli" }, ing_old2: { name: "Orzo" } };
+  const fresh = catalogOf(["Broccoli", "Orzo"]);
+  const out = remapStateIngredientIds(
+    {
+      list: { checked: { ing_old1: true }, overrides: { ing_old2: "Costco" }, bought: { ing_old1: { lb: 2 } }, extras: {} },
+      stapleNeeds: { ing_old2: true },
+    },
+    oldConfig,
+    fresh
+  );
+  assert.deepEqual(out.list.checked, { ing_new0: true }, "what was ticked should still be ticked");
+  assert.deepEqual(out.list.overrides, { ing_new1: "Costco" });
+  assert.deepEqual(out.list.bought, { ing_new0: { lb: 2 } });
+  assert.deepEqual(out.stapleNeeds, { ing_new1: true });
+});
+
+test("an ingredient the new catalog doesn't have is dropped, not left as an id", () => {
+  // The row from the screenshot. It can never resolve later — the ingredient
+  // is gone outright — so keeping it means keeping "Ing_05jz04l4" forever.
+  const out = remapStateIngredientIds(
+    { list: { bought: { ing_old1: { ea: 1 }, ing_old9: { ea: 1 } }, checked: {}, overrides: {}, extras: {} }, stapleNeeds: {} },
+    { ing_old1: { name: "Broccoli" }, ing_old9: { name: "Something retired" } },
+    catalogOf(["Broccoli"])
+  );
+  assert.deepEqual(Object.keys(out.list.bought), ["ing_new0"]);
+});
+
+test("a hand-added item survives a restore even when nothing matches it", () => {
+  // It carries its own name, so it becomes an ad-hoc entry again rather than
+  // vanishing off the list.
+  const out = remapStateIngredientIds(
+    { list: { extras: { ing_old1: { name: "Birthday candles", qty: 1, unit: "" } }, checked: {}, overrides: {}, bought: {} }, stapleNeeds: {} },
+    { ing_old1: { name: "Birthday candles" } },
+    catalogOf(["Broccoli"])
+  );
+  const entries = Object.entries(out.list.extras);
+  assert.equal(entries.length, 1, "a hand-added item should never be dropped by a restore");
+  assert.equal(entries[0][1].name, "Birthday candles");
+  assert.doesNotMatch(entries[0][0], /^ing_/, "with no ingredient to point at it should key by its own name");
+});
+
+test("a key that was never an id is left exactly as it is", () => {
+  const out = remapStateIngredientIds(
+    { list: { checked: { "paper towels": true }, overrides: {}, bought: {}, extras: {} }, stapleNeeds: {} },
+    {},
+    catalogOf(["Broccoli"])
+  );
+  assert.deepEqual(out.list.checked, { "paper towels": true });
+});
+
+test("two old ids landing on one new one keep both the tick and the amount", () => {
+  // Restoring collapses duplicates that the household had merged apart. Losing
+  // a banked quantity here would silently put something back on the list.
+  const out = remapStateIngredientIds(
+    { list: { checked: { ing_a: false, ing_b: true }, bought: { ing_a: { lb: 1 }, ing_b: { lb: 2 } }, overrides: {}, extras: {} }, stapleNeeds: {} },
+    { ing_a: { name: "Broccoli" }, ing_b: { name: "broccoli" } },
+    catalogOf(["Broccoli"])
+  );
+  assert.equal(out.list.checked.ing_new0, true);
+  assert.deepEqual(out.list.bought.ing_new0, { lb: 3 });
+});
+
+test("unknown top-level fields survive a restore untouched", () => {
+  // Forward compatibility: this rewrites a state that a newer build may have
+  // extended, and it must not be the thing that prunes the new field.
+  const out = remapStateIngredientIds(
+    { version: 1, somethingNew: { a: 1 }, list: { checked: {}, overrides: {}, bought: {}, extras: {}, laterField: 7 }, stapleNeeds: {} },
+    {},
+    catalogOf([])
+  );
+  assert.deepEqual(out.somethingNew, { a: 1 });
+  assert.equal(out.list.laterField, 7);
 });
 
 

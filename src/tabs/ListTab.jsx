@@ -142,16 +142,32 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
   // silently empty the list — `bought` only clears on "Clear week", so changing
   // meals without pressing it left last week's purchases subtracting from this
   // week's needs.
-  const boughtRows = Object.entries(data.list.bought || {})
+  const boughtAll = Object.entries(data.list.bought || {})
     .filter(([, parts]) => parts && typeof parts === "object" && Object.keys(parts).length)
-    .map(([key, parts]) => ({ key, name: ingredientNameFor(data, key), label: qtyLabel(parts) }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .map(([key, parts]) => ({ key, name: ingredientNameFor(data, key), label: qtyLabel(parts) }));
+  const boughtRows = boughtAll.filter((r) => r.name).sort((a, b) => a.name.localeCompare(b.name));
+  /* Entries whose ingredient no longer exists. They came from "Restore starter
+     catalog", which used to mint fresh ids and leave the state pointing at the
+     old ones — so these listed themselves among the groceries as
+     "Ing_05jz04l4 · 1" on a real phone. They can never offset anything again,
+     since nothing on any list carries that id, so they are grouped and
+     explained rather than shown one by one as items. */
+  const boughtOrphans = boughtAll.filter((r) => !r.name);
 
   // Putting something back means "I don't actually have this": it stops
   // offsetting demand, so the item returns to the list at its full quantity.
   const unbuy = (key) =>
     update((d) => {
       delete d.list.bought[key];
+      return d;
+    });
+  /* ONE update() call, not one per key. update() snapshots localRef.current,
+     which only refreshes on the next render, so a forEach over unbuy() would
+     rebuild from the same stale base every time and clear exactly one of
+     them — with the button looking like it worked. */
+  const clearKeys = (keys) =>
+    update((d) => {
+      for (const k of keys) delete d.list.bought[k];
       return d;
     });
   const unbuyAll = () =>
@@ -612,7 +628,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
           you can open — a full-width bar with a disclosure caret — rather than
           a footnote among neutral counts. Gold, not tomato: suppression is
           correct behaviour most weeks and shouldn't read as an error. */}
-      {boughtRows.length > 0 && (
+      {(boughtRows.length > 0 || boughtOrphans.length > 0) && (
         <div style={{ background: C.goldSoft, border: `1px solid ${C.gold}`, borderRadius: 12, marginBottom: 12, overflow: "hidden" }}>
           <button
             onClick={() => setShowBought((v) => !v)}
@@ -653,6 +669,17 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
                   </li>
                 ))}
               </ul>
+              {/* Grouped, and named for what they are. One row each, reading
+                  "Ing_05jz04l4", is how this looked on a phone — indistinguishable
+                  from groceries, and every one of them permanent. */}
+              {boughtOrphans.length > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: `1px solid ${C.line}` }}>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: C.faint }}>
+                    {boughtOrphans.length} more {boughtOrphans.length === 1 ? "was" : "were"} bought before the ingredients were replaced, so there is no longer a name to show. Clearing them changes nothing on the list.
+                  </span>
+                  <Btn small onClick={() => clearKeys(boughtOrphans.map((r) => r.key))}>Clear</Btn>
+                </div>
+              )}
               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
                 <Btn small onClick={unbuyAll}>Put all back</Btn>
               </div>

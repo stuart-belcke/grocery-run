@@ -1264,6 +1264,71 @@ export function remapIngredientKeys(obj, index) {
   return out;
 }
 
+/* Move the shopping state onto a NEW SET OF INGREDIENT IDS, matching by name.
+
+   "Restore starter catalog" mints a fresh id for every ingredient — seedCatalog
+   calls ensureIngredientId, which is uid()-based — so the moment it runs, every
+   id-keyed thing in the shopping state points at an ingredient that no longer
+   exists. What that looked like on a real phone: eight rows in the
+   already-bought panel reading "Ing_05jz04l4 · 1", sitting there permanently,
+   because an orphan can never match anything on a list again.
+
+   MATCHED BY NAME, which is the only thing the two catalogs share. The old
+   config is the only place the old ids' names survive, so this has to be
+   called with it BEFORE it is replaced.
+
+   AN ENTRY THAT RESOLVES TO NOTHING IS DROPPED, and that is the opposite of
+   remapIngredientKeys above — deliberately. There, an unresolved key was a
+   stale key nothing reads, and keeping it cost nothing. Here it is an id whose
+   ingredient has been deleted outright, so it can never resolve later; keeping
+   it is exactly the row the screenshot showed. A hand-added ENTRY survives
+   either way, re-keyed by its own name, because it carries one. */
+export function remapStateIngredientIds(state, oldConfig, newCatalog) {
+  const byName = new Map();
+  for (const [id, ing] of Object.entries(asObject(newCatalog && newCatalog.ingredients))) {
+    const n = norm(normalizeIngredient(ing, id).name);
+    if (n && !byName.has(n)) byName.set(n, id);
+  }
+  const moved = new Map();
+  for (const [oldId, cfg] of Object.entries(asObject(oldConfig))) {
+    const n = norm(normalizeIngredient(cfg, oldId).name);
+    const to = n && byName.get(n);
+    if (to) moved.set(oldId, to);
+  }
+  // A key that was never an id — a hand-added item keyed by its own name — is
+  // not part of this and passes through untouched.
+  const move = (key) => (isIngredientId(key) ? moved.get(key) || null : key);
+  const remap = (obj, merge) => {
+    const out = {};
+    for (const [key, v] of Object.entries(asObject(obj))) {
+      const to = move(key);
+      if (!to) continue;
+      out[to] = to in out && merge ? merge(out[to], v) : to in out ? out[to] : v;
+    }
+    return out;
+  };
+  const list = asObject(state && state.list);
+  return {
+    ...state,
+    list: {
+      ...list,
+      overrides: remap(list.overrides),
+      checked: remap(list.checked, (a, b) => a || b),
+      bought: remap(list.bought, (a, b) => {
+        const out = { ...asObject(a) };
+        for (const [u, q] of Object.entries(asObject(b))) out[u] = r2((Number(out[u]) || 0) + (Number(q) || 0));
+        return out;
+      }),
+      // Extras carry their own name, so one whose ingredient is gone becomes an
+      // ad-hoc item again rather than disappearing off the list.
+      extras: Object.fromEntries(
+        Object.entries(asObject(list.extras)).map(([key, e]) => [move(key) || keyForName(e && e.name) || key, e])
+      ),
+    },
+    stapleNeeds: remap(state && state.stapleNeeds, (a, b) => a || b),
+  };
+}
+
 // Does this catalog still key ingredients by name? Deliberately NOT folded
 // into normalizeCatalog: that runs on every listener report, and minting ids
 // there would hand out fresh ones on every read. The conversion is an explicit
@@ -1645,8 +1710,20 @@ export function ingredientNameFor(data, key) {
   if (cfg) return normalizeIngredient(cfg, key).name || cap(key);
   const extra = data && data.list && data.list.extras && data.list.extras[key];
   if (extra && extra.name) return cap(String(extra.name).trim());
-  return cap(key);
+  /* A MINTED ID IS NOT A NAME, and cap(key) treated it as one. This used to
+     return "Ing_gone" on the reasoning that showing something beats showing
+     nothing; a screenshot from a real phone settled it — the already-bought
+     panel listed eight rows reading "Ing_05jz04l4 · 1" among the groceries.
+     Empty is the honest answer, and it lets the caller group them and say
+     what they actually are. A NAME-key still returns itself, because there
+     the key IS the name. */
+  return isIngredientId(key) ? "" : cap(key);
 }
+
+// The shape seedCatalog and ensureIngredientId mint. Used wherever a key has
+// to be told apart from a name, which is the distinction the whole id
+// migration turns on.
+export const isIngredientId = (key) => /^ing_[a-z0-9]+$/i.test(String(key));
 
 // Every ingredient the household knows about, as { key, name }. The catalog is
 // the authority on names now that ingredients have ids — a recipe line carries

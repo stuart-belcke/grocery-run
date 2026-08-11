@@ -7,7 +7,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { C, fontBody, inputStyle, syncTone } from "../theme";
 import { Btn, ConfirmDialog, AlertDialog, Section, Seg, HelpText } from "../ui";
-import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, inviteLive, searchHelp, writeErrorAdvice } from "../lib";
+import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, remapStateIngredientIds, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, inviteLive, searchHelp, writeErrorAdvice } from "../lib";
 import { syncEnabled } from "../sync";
 import { HOW_IT_WORKS, FAQS } from "../help";
 
@@ -308,7 +308,19 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
   // The escape hatch: throw away this household's catalog and start again from
   // the one shipped with the app. Destructive, hence the confirmation.
   const restoreStarter = () => {
-    updateCatalog(() => seedCatalog(catalog));
+    /* The state has to move WITH the catalog. seedCatalog mints a fresh id for
+       every ingredient, so without this every id-keyed thing in the shopping
+       state — what's ticked, what's already bought, today's store reroutes,
+       which staples you're out of — points at an ingredient that no longer
+       exists. On a real phone that showed up as rows reading "Ing_05jz04l4"
+       in the already-bought panel, which is the visible half of it.
+       The old config is read BEFORE updateCatalog replaces it: it holds the
+       only copy of the old ids' names, which is what the two catalogs are
+       matched on. */
+    const fresh = seedCatalog(catalog);
+    const oldConfig = data.config;
+    updateCatalog(() => fresh);
+    update((d) => remapStateIngredientIds(d, oldConfig, fresh));
     setMsg("Starter catalog restored.");
     setAskReset(false);
   };
