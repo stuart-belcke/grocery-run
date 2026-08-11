@@ -29,8 +29,11 @@ const card = { background: C.card, border: `1px solid ${C.line}`, borderRadius: 
 
 const label = { fontSize: 12, color: C.faint, display: "block", marginBottom: 4 };
 
-export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError }) {
-  const [text, setText] = useState("");
+export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError, initialInvite = "" }) {
+  // Pre-filled when the app was opened from a tapped invite link. Editable
+  // like any other paste — it goes through the same validation, and a link
+  // that arrived mangled should be correctable rather than a dead end.
+  const [text, setText] = useState(initialInvite);
   const [name, setName] = useState("");
   const [msg, setMsg] = useState(null); // { text, ok }
   const [busy, setBusy] = useState(false);

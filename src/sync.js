@@ -12,7 +12,7 @@
  * ------------------------------------------------------------------ */
 
 import { firebaseConfig, syncEnabled } from "./firebase-config";
-import { planWrite, cleanCode } from "./lib";
+import { planWrite, cleanCode, newInviteToken } from "./lib";
 
 /* ------------------------- write failure signal ---------------------
    A rejected write (security rules, quota, a malformed payload) used to be
@@ -667,21 +667,6 @@ export async function recordHouseholdMembership(code, user) {
    the code, so they simply rejoined. Now the code addresses a household and
    an invite is what authorises joining one.                              */
 
-// Long enough not to be guessable, and in the same [a-z0-9] alphabet the
-// database accepts as a key. crypto where it exists; Math.random is the
-// fallback and is never the only source on a real browser.
-function newToken() {
-  const rand = () => Math.random().toString(36).slice(2, 12);
-  try {
-    const b = new Uint8Array(16);
-    (globalThis.crypto || {}).getRandomValues?.(b);
-    if (b.some((x) => x !== 0)) return [...b].map((x) => x.toString(36)).join("").slice(0, 20);
-  } catch (e) {
-    /* fall through */
-  }
-  return (rand() + rand()).slice(0, 20);
-}
-
 // Create an invite. Only a member can, which the rules enforce — the right
 // to let somebody in belongs to the people already in.
 /* Takes an OPTIONS OBJECT rather than positional arguments, and returns the
@@ -699,7 +684,7 @@ export async function createInvite(code, user, { ttlMinutes = 60, role = "member
   const db = await getDb();
   if (!db) return null;
   const { ref, set } = await import("firebase/database");
-  const token = newToken();
+  const token = newInviteToken();
   try {
     await set(ref(db, `households/${code}/invites/${token}`), {
       by: user.uid,

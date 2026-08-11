@@ -56,6 +56,7 @@ import {
   isBuildTooOld,
   APP_DATA_VERSION,
   normalizeCatalog,
+  parseJoinHash,
   needsUnitNotes,
   withUnitNotes,
   syncIndicator,
@@ -118,6 +119,27 @@ export default function App() {
      taps meant for the top keyboard row. Nobody switches tabs mid-word, and
      it comes straight back when the keyboard closes. */
   const keyboardOpen = useKeyboardOpen();
+
+  /* An invite carried in by a tapped link (#join=...).
+
+     READ ONCE, AT STARTUP, AND THE HASH CLEARED IMMEDIATELY. Left in the
+     address bar it would be redeemed again on every reload, sit in a shared
+     screenshot, and survive into whatever the browser syncs between devices.
+     replaceState rather than assigning location.hash, which would push a
+     history entry and make Back re-arm it.
+
+     It is handed to the join FIELD rather than redeemed here, so a link goes
+     through exactly the same validation as a paste. A link is a convenience
+     for the typing, not a second way in. */
+  // Read once, in the initializer, so a later render cannot see a hash this
+  // has already cleared. There is no setter: a link is a one-shot arrival.
+  const [linkInvite] = useState(() =>
+    typeof window === "undefined" ? "" : parseJoinHash(window.location.hash)
+  );
+  useEffect(() => {
+    if (!linkInvite || typeof window === "undefined") return;
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  }, [linkInvite]);
   const [syncStatus, setSyncStatus] = useState(syncEnabled ? "connecting" : "local-only");
   // A write the server actively rejected (rules, quota, a malformed payload) —
   // NOT offline, which the SDK handles by queuing and never surfaces here.
@@ -613,6 +635,7 @@ export default function App() {
     return (
       <Onboarding
         authError={authError}
+        initialInvite={linkInvite}
         onJoin={joinFromOnboarding}
         onGoogle={() => signInWithGoogle().catch(() => {})}
         onEmailLink={async (email) => {
@@ -701,6 +724,7 @@ export default function App() {
         {tab === "settings" && (
           <SettingsTab
             data={data}
+            initialInvite={linkInvite}
             catalog={catalog}
             local={local}
             hCatalog={hCatalog}

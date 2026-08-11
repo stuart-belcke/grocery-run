@@ -1241,6 +1241,100 @@ export function keyboardIsOpen(innerHeight, viewportHeight, threshold = KEYBOARD
   return outer - inner >= threshold;
 }
 
+/* The invite token — the only thing that authorises joining a household.
+
+   UNIFORM, BY REJECTION. The previous version base36-encoded each random byte
+   and concatenated the results, which are 1 or 2 characters long depending on
+   the byte. Measured over 200k tokens that produced a visibly biased
+   alphabet — digits 1-6 at ~9.4% each against ~1.43% for most letters, 4.60
+   bits per character where uniform base36 gives 5.17 — and, worse, adjacent
+   characters were correlated, because where one variable-length piece ends
+   depends on its value. It was probably still ~90 bits. "Probably" is the
+   problem: a credential's strength should be arithmetic, not an estimate.
+
+   Rejection sampling is what makes it uniform: 256 is not a multiple of 36,
+   so bytes at or above the largest multiple (252) are DISCARDED rather than
+   folded back with `%`, which would make the first four characters of the
+   alphabet slightly likelier than the rest. Draws more bytes if it has to.
+
+   22 characters of uniform base36 is a shade under 114 bits. The alphabet is
+   [a-z0-9] because that is what the database accepts in a key.
+
+   The Math.random fallback exists so a browser without crypto still gets a
+   token rather than an exception. It is NOT equivalent — Math.random is not
+   a cryptographic source — and on any browser this app runs on, crypto is
+   there. Left in as a floor, not as a plan. */
+const TOKEN_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789"; // 36
+const TOKEN_LENGTH = 22;
+
+export function newInviteToken() {
+  const out = [];
+  const limit = 256 - (256 % TOKEN_ALPHABET.length); // 252
+  const rng = (globalThis.crypto || {}).getRandomValues
+    ? (n) => globalThis.crypto.getRandomValues(new Uint8Array(n))
+    : null;
+  if (rng) {
+    // Bounded rather than `while (true)`: a stuck source must not hang the
+    // page, and the fallback below is a better outcome than a frozen tab.
+    for (let pass = 0; pass < 16 && out.length < TOKEN_LENGTH; pass++) {
+      for (const b of rng(TOKEN_LENGTH * 2)) {
+        if (b >= limit) continue;
+        out.push(TOKEN_ALPHABET[b % TOKEN_ALPHABET.length]);
+        if (out.length === TOKEN_LENGTH) break;
+      }
+    }
+    if (out.length === TOKEN_LENGTH) return out.join("");
+  }
+  let s = "";
+  while (s.length < TOKEN_LENGTH) s += Math.random().toString(36).slice(2);
+  return s.slice(0, TOKEN_LENGTH);
+}
+
+/* ---------------- an invite you can actually tap ----------------
+
+   `formatInvite` produces a bare code — home-xxxxxxxx~token~g. It is called a
+   LINK everywhere in the UI and is not one: it gets copied to a clipboard and
+   PASTED into a field on the other phone, by hand, 30-odd characters of it.
+   That hand-copy is where the truncated-invite bug came from, and a link that
+   is tapped cannot be half-copied.
+
+   THE FRAGMENT, NOT A QUERY STRING. Everything after `#` stays in the browser
+   and is never sent to a server or written to its logs, which is the right
+   place for something that grants access to a household. It also costs
+   nothing at the hosting end: the app is served statically with `base: "./"`,
+   so any path works and no rewrite rule is needed.
+
+   Built from the URL the inviting phone is ALREADY LOOKING AT, rather than a
+   configured domain — that is the one address known to work, and a constant
+   here would be a second thing to keep in step with wherever this is
+   deployed. Query and existing fragment are dropped so a link made from a
+   half-navigated URL is still clean. */
+export function inviteUrl(href, code, token, role) {
+  const invite = formatInvite(code, token, role);
+  const base = String(href || "").split("#")[0].split("?")[0];
+  if (!base) return invite;
+  return `${base}#join=${invite}`;
+}
+
+/* The invite carried by a URL somebody tapped, or "" for anything else.
+
+   Deliberately returns the STRING rather than a parsed invite: it is fed into
+   the same join field a person would paste into, so it goes through exactly
+   the same validation. A second parse here would be a second place for "what
+   counts as a valid invite" to be decided, and the two would disagree. */
+export function parseJoinHash(hash) {
+  const m = /(?:^|[#&])join=([^&]+)/.exec(String(hash || ""));
+  if (!m) return "";
+  let raw = m[1];
+  try {
+    raw = decodeURIComponent(raw);
+  } catch {
+    // A malformed escape is not a reason to throw the whole link away; the
+    // join field will reject it just as clearly as this could.
+  }
+  return raw.trim();
+}
+
 /* ---------------- help text ----------------
    The content lives in help.js; these are the two things that have to be
    pure, because they are the two things that can be wrong. */

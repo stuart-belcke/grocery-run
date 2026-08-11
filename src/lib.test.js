@@ -12,6 +12,9 @@ import {
   classifyJoinInput,
   parseInvite,
   formatInvite,
+  inviteUrl,
+  newInviteToken,
+  parseJoinHash,
   inviteLive,
   syncIndicator,
   normalizeLocal,
@@ -1932,6 +1935,134 @@ test("keyboardIsOpen assumes NO keyboard when it cannot tell", () => {
   assert.equal(keyboardIsOpen(null, 500), false);
   // A viewport somehow TALLER than the window is not a keyboard either.
   assert.equal(keyboardIsOpen(600, 900), false);
+});
+
+/* ---------------- the invite token ----------------
+   The only thing that authorises joining a household, so its strength should
+   be arithmetic rather than an estimate. The previous version base36-encoded
+   each random byte and concatenated pieces of 1 or 2 characters, which gave a
+   visibly biased alphabet and correlated neighbours. */
+
+test("the invite token is a fixed length in the alphabet the database accepts", () => {
+  // [a-z0-9] only: a Firebase key cannot contain . $ # [ ] or /, and parseInvite
+  // strips anything outside that set — a token with a stray character would be
+  // silently mangled into a different, un-redeemable one.
+  for (let i = 0; i < 200; i++) {
+    const t = newInviteToken();
+    assert.match(t, /^[a-z0-9]{22}$/, `bad token: ${JSON.stringify(t)}`);
+  }
+});
+
+test("the invite token survives the round trip through an invite string", () => {
+  // The end that actually matters: whatever is minted has to come back out of
+  // formatInvite/parseInvite unchanged, or the invite cannot be redeemed.
+  for (let i = 0; i < 50; i++) {
+    const token = newInviteToken();
+    const parsed = parseInvite(formatInvite("home-cx2ur9zg", token, "guest"));
+    assert.equal(parsed.token, token);
+    assert.equal(parsed.role, "guest");
+  }
+});
+
+test("the invite token is UNIFORM across the alphabet, not merely random-looking", () => {
+  /* The bug this replaces did not look wrong — it looked like a random
+     string. Measured over 200k tokens it put digits 1-6 at ~9.4% each against
+     ~1.43% for most letters. So the assertion has to be about the
+     DISTRIBUTION, not about the characters being unpredictable.
+
+     256 is not a multiple of 36, so folding a byte with `%` alone would make
+     the first four letters likelier than the rest; the generator discards
+     bytes at or above 252 instead. This is what catches that going away. */
+  const N = 20000;
+  const freq = new Map();
+  for (let i = 0; i < N; i++) for (const c of newInviteToken()) freq.set(c, (freq.get(c) || 0) + 1);
+  assert.equal(freq.size, 36, `only ${freq.size} of 36 characters ever appear`);
+
+  const total = [...freq.values()].reduce((a, b) => a + b, 0);
+  const expected = 1 / 36;
+  for (const [c, n] of freq) {
+    const share = n / total;
+    // Generous — this must not go red on an unlucky run. A `%`-folded byte
+    // would put the first four characters ~14% above the rest, far outside.
+    assert.ok(Math.abs(share - expected) < expected * 0.08, `"${c}" appears ${(share * 100).toFixed(2)}% against an expected ${(expected * 100).toFixed(2)}%`);
+  }
+});
+
+test("the invite token does not repeat itself", () => {
+  // 22 uniform base36 characters is ~113 bits; a collision here means the
+  // source is not doing its job, not that we got unlucky.
+  const seen = new Set();
+  for (let i = 0; i < 20000; i++) seen.add(newInviteToken());
+  assert.equal(seen.size, 20000, "a token was minted twice");
+});
+
+/* ---------------- an invite you can tap ----------------
+   It was a bare code called a link, copied and re-typed by hand on the other
+   phone. That hand-copy is where the truncated-invite bug came from, so the
+   property that matters is the ROUND TRIP: whatever the link carries has to
+   come back out as the same invite the join field would have accepted. */
+
+test("an invite link round-trips back to the same invite", () => {
+  const url = inviteUrl("https://example.test/grocery-run/", "home-cx2ur9zg", "abcdefgh1234", "member");
+  assert.equal(parseJoinHash(new URL(url).hash), "home-cx2ur9zg~abcdefgh1234");
+  assert.deepEqual(classifyJoinInput(parseJoinHash(new URL(url).hash)), {
+    kind: "invite",
+    code: "home-cx2ur9zg",
+    token: "abcdefgh1234",
+    role: "member",
+  });
+});
+
+test("a GUEST link survives the round trip as a guest link", () => {
+  // The `~g` marker is the only thing saying what the invite grants, and it
+  // has been dropped once already — a guest link that redeems as a member is
+  // un-redeemable, because the rules check the role against the stored one.
+  const url = inviteUrl("https://example.test/", "home-cx2ur9zg", "abcdefgh1234", "guest");
+  assert.match(url, /~g$/);
+  assert.equal(classifyJoinInput(parseJoinHash(new URL(url).hash)).role, "guest");
+});
+
+test("the invite goes in the FRAGMENT, never the query", () => {
+  /* Everything after `#` stays in the browser: never sent to the host, never
+     in its logs. For something that grants access to a household that is the
+     difference between a link and a leak. */
+  const url = inviteUrl("https://example.test/grocery-run/", "home-cx2ur9zg", "abcdefgh1234", "member");
+  const u = new URL(url);
+  assert.equal(u.search, "", "the invite must not be in the query string");
+  assert.match(u.hash, /^#join=home-/);
+});
+
+test("inviteUrl builds on the page's own address, and drops what was already there", () => {
+  // A link made from a half-navigated URL still has to be clean.
+  const url = inviteUrl("https://example.test/app/?tab=list#join=old~junk~g", "home-cx2ur9zg", "abcdefgh1234", "member");
+  assert.equal(url, "https://example.test/app/#join=home-cx2ur9zg~abcdefgh1234");
+});
+
+test("inviteUrl falls back to the bare code rather than producing a broken URL", () => {
+  // Somewhere with no address to build on. A pasteable code beats "#join=..."
+  assert.equal(inviteUrl("", "home-cx2ur9zg", "abcdefgh1234", "guest"), "home-cx2ur9zg~abcdefgh1234~g");
+});
+
+test("parseJoinHash ignores a hash that is not an invite", () => {
+  for (const h of ["", "#", "#tab=list", "#joinery=x", "nonsense"]) {
+    assert.equal(parseJoinHash(h), "", `${JSON.stringify(h)} should carry no invite`);
+  }
+  // Another parameter alongside it is still readable.
+  assert.equal(parseJoinHash("#tab=list&join=home-cx2ur9zg~abcdefgh1234"), "home-cx2ur9zg~abcdefgh1234");
+});
+
+test("parseJoinHash decodes an escaped link, and survives a mangled one", () => {
+  assert.equal(parseJoinHash("#join=home-cx2ur9zg%7Eabcdefgh1234"), "home-cx2ur9zg~abcdefgh1234");
+  // A bad escape must not throw — the join field can reject it far more
+  // helpfully than a crash on startup can.
+  assert.doesNotThrow(() => parseJoinHash("#join=home-%E0%A4%A"));
+});
+
+test("a TRUNCATED link is still refused, exactly as a truncated paste is", () => {
+  /* The reason parseJoinHash returns a STRING rather than a parsed invite:
+     one definition of "valid", used by both routes. cleanCode strips the `~`,
+     so a half-copied invite resolves to a real-looking WRONG household. */
+  assert.deepEqual(classifyJoinInput(parseJoinHash("#join=home-cx2ur9zg~short")), { kind: "broken" });
 });
 
 /* ---------------- the help text ----------------
