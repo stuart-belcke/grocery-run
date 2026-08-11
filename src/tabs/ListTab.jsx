@@ -5,8 +5,8 @@
 
 import { useState, useMemo, useRef } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
-import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop } from "../ui";
-import { UNASSIGNED, norm, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitSuggestions, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg } from "../lib";
+import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop, SuggestInput } from "../ui";
+import { UNASSIGNED, norm, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg } from "../lib";
 
 export function ListTab({ data, update, updateCatalog, isGuest }) {
   const [view, setView] = useState("store");
@@ -27,7 +27,6 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
   const [showBought, setShowBought] = useState(false); // "already bought" review panel
 
   const items = useMemo(() => aggregateItems(data), [data]);
-  const units = useMemo(() => unitSuggestions(data), [data]);
   const knownItems = useMemo(() => ingredientNames(data), [data]);
 
   // Live-filtered ingredient matches for the "add shopping item" field. A custom
@@ -769,19 +768,18 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
                 onChange={(e) => setExtra({ ...extra, qty: e.target.value })}
                 style={{ ...inputStyle, width: 56, padding: "8px 6px", textAlign: "center", boxSizing: "border-box" }}
               />
-              <input
+              {/* Keyed off the name being typed, so adding "garlic" by hand
+                  offers `cloves` — the unit the recipes already measure it in,
+                  which is what makes the hand-added amount total with them. */}
+              <SuggestInput
                 placeholder="Unit"
                 aria-label="Unit"
-                list="unit-suggestions"
                 value={extra.unit}
-                onChange={(e) => setExtra({ ...extra, unit: e.target.value })}
-                style={{ ...inputStyle, width: 96, padding: "8px 8px", boxSizing: "border-box" }}
+                suggestions={unitMatches(data, extra.name, extra.unit)}
+                onChange={(v) => setExtra({ ...extra, unit: v })}
+                wrapStyle={{ width: 96, flexShrink: 0 }}
+                style={{ ...inputStyle, width: "100%", padding: "8px 8px", boxSizing: "border-box" }}
               />
-              <datalist id="unit-suggestions">
-                {units.map((u) => (
-                  <option key={u} value={u} />
-                ))}
-              </datalist>
             </div>
           )}
         </div>

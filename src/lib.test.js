@@ -32,6 +32,7 @@ import {
   aggregateItems,
   servingsByRecipe,
   qtyLabel,
+  unitMatches,
   convertQty,
   unitInfo,
   combineParts,
@@ -2063,6 +2064,72 @@ test("a TRUNCATED link is still refused, exactly as a truncated paste is", () =>
      one definition of "valid", used by both routes. cleanCode strips the `~`,
      so a half-copied invite resolves to a real-looking WRONG household. */
   assert.deepEqual(classifyJoinInput(parseJoinHash("#join=home-cx2ur9zg~short")), { kind: "broken" });
+});
+
+/* ---------------- suggesting a unit as you type (item 12) ----------------
+   The flat A-Z list this replaces was technically correct and went unused:
+   typing a unit for garlic offered `cup` nine rows above `cloves`. What makes
+   it worth having is that the INGREDIENT'S OWN units come first. */
+
+const unitFixture = () => {
+  const recipes = [
+    { id: "r1", name: "A", servings: 4, ingredients: [{ ingredientId: "ing_g", name: "Garlic", qty: 4, unit: "cloves" }, { ingredientId: "ing_f", name: "Flour", qty: 2, unit: "cup" }] },
+    { id: "r2", name: "B", servings: 4, ingredients: [{ ingredientId: "ing_g", name: "Garlic", qty: 2, unit: "cloves" }, { ingredientId: "ing_f", name: "Flour", qty: 1, unit: "cup" }] },
+    { id: "r3", name: "C", servings: 4, ingredients: [{ ingredientId: "ing_f", name: "Flour", qty: 8, unit: "oz" }, { ingredientId: "ing_s", name: "Stock", qty: 2, unit: "cup" }] },
+  ];
+  return { ...normalizeLocal({}), recipes, config: {}, stores: [] };
+};
+
+test("unitMatches puts the ingredient's OWN units first", () => {
+  // The whole reason this exists. `cup` is the household's most-used unit and
+  // still must not outrank `cloves` when the ingredient is garlic.
+  const forGarlic = unitMatches(unitFixture(), "ing_g", "");
+  assert.equal(forGarlic[0], "cloves", `garlic should lead with cloves, got ${JSON.stringify(forGarlic)}`);
+  const forFlour = unitMatches(unitFixture(), "ing_f", "");
+  assert.equal(forFlour[0], "cup", `flour should lead with its most-used, got ${JSON.stringify(forFlour)}`);
+  assert.ok(forFlour.indexOf("oz") > 0 && forFlour.indexOf("oz") < forFlour.indexOf("cloves"), "flour's own oz should beat garlic's cloves");
+});
+
+test("unitMatches falls back to what the household uses, most-used first", () => {
+  // An ingredient no recipe measures yet still gets a useful list, and it is
+  // ordered by real usage rather than by whatever order the list was built in.
+  // cup appears 3 times against cloves twice, so the order is decided by
+  // usage and not by a tie broken alphabetically.
+  const fresh = unitMatches(unitFixture(), "ing_new", "");
+  assert.equal(fresh[0], "cup", `expected the most-used unit first, got ${JSON.stringify(fresh)}`);
+  assert.ok(fresh.indexOf("cup") < fresh.indexOf("cloves"), "usage should outrank alphabetical order");
+});
+
+test("unitMatches narrows as you type, prefix before substring", () => {
+  const m = unitMatches(unitFixture(), "ing_g", "c");
+  assert.ok(m.every((u) => /c/i.test(u)), `a non-matching unit slipped through: ${JSON.stringify(m)}`);
+  assert.equal(m[0], "cloves", "the ingredient's own match should still lead");
+  // "oz can" contains a c but does not start with one, so a prefix match wins.
+  const withCan = unitMatches({ ...unitFixture(), recipes: [{ id: "r", name: "R", servings: 4, ingredients: [{ ingredientId: "x", name: "X", qty: 1, unit: "oz can" }] }] }, "y", "c");
+  assert.ok(withCan.indexOf("cup") < withCan.indexOf("oz can"), `prefix should beat substring: ${JSON.stringify(withCan)}`);
+});
+
+test("unitMatches offers nothing once the unit is fully typed", () => {
+  // Suggesting the word somebody has just finished typing is noise, and it
+  // leaves a dropdown covering the field they are trying to leave.
+  assert.deepEqual(unitMatches(unitFixture(), "ing_g", "cloves"), []);
+  assert.deepEqual(unitMatches(unitFixture(), "ing_g", "CLOVES"), [], "matching is case-insensitive");
+});
+
+test("unitMatches never restricts what can be typed", () => {
+  // Suggestions only. A brand-new unit simply has nothing to offer, which must
+  // be an empty list rather than anything that blocks the entry.
+  assert.deepEqual(unitMatches(unitFixture(), "ing_g", "zzz"), []);
+  assert.deepEqual(unitMatches({ ...unitFixture(), recipes: [] }, "", "qqq"), []);
+});
+
+test("unitMatches still suggests something for a brand-new household", () => {
+  // No recipes yet, so there is no usage to rank by — it must still offer the
+  // common units rather than an empty box on the very first ingredient.
+  const empty = { ...normalizeLocal({}), recipes: [], config: {}, stores: [] };
+  const m = unitMatches(empty, "", "");
+  assert.ok(m.length > 3, `a fresh household got ${JSON.stringify(m)}`);
+  assert.ok(m.includes("cup") && m.includes("lb"));
 });
 
 /* ---------------- the help text ----------------
