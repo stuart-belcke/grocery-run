@@ -1590,7 +1590,37 @@ existing note overwritten, the gate always true, and unknown fields pruned.
     HARNESS rather than an assertion — openApp waits for a tab button, so the
     whole suite times out. Loud, if slow.
 
-UI density — Ingredients row [DONE], List row still open.
+UI density — Ingredients row [DONE], List row [DONE].
+The List row carried a checkbox, the name, the quantity, a 118px store
+dropdown and an "i" button on one line at 390px. That crowding is what
+produced the over-long-unit bug (item 47): everything flexible was squeezed
+to pay for a quantity that would not shrink.
+THE STORE MOVED INTO THE PANEL, and the row is now checkbox / name / quantity
+/ i. The name went to 15px with it — spending some of the 118px back on the
+one thing you actually read while shopping is the whole point.
+ONE CONTROL NOW, AND IT ASKS. There were two store dropdowns — the row's
+writing `overrides` (today) and the panel's writing the catalog (from now on)
+— and the FAQ needed an entry to explain which was which. Two fields for one
+question is the app admitting it does not know what you meant, so it asks
+instead: "Just this trip" or "Always". That FAQ entry is now a different
+question, because the old one no longer describes anything.
+  "Always" ALSO CLEARS THE REROUTE. Today's detour outranks the default, so
+  leaving it would make the change look like it did nothing until the trip
+  ended. Mutation-tested — it is the kind of omission that reads as a bug in
+  the store picker rather than in the write.
+  NOBODY IS ASKED A QUESTION THEY CANNOT ANSWER. A guest has no catalog write,
+  and an ad-hoc hand-added entry is keyed by its name rather than an
+  ingredient id so it has nowhere to keep a default. Both get the one answer
+  that exists, with no dialog. They keep the control itself: a reroute is a
+  LIST write, which is exactly what the guest role grants.
+THE STORE STILL SHOWS ON THE ROW IN A-Z VIEW, where no heading carries it —
+keyed to the VIEW, not to showAisle. showAisle is about store-flow ordering
+and is false in by-store A-Z, which is precisely where the heading is; using
+it printed "Aldi" on every row under an "Aldi" heading. Caught by looking at
+a screenshot, not by a test.
+DISCOVERABILITY IS THE KNOWN COST: the store now takes a tap to reach, and
+nothing on the row advertises the panel. Accepted deliberately — it is a few
+taps a shop against 118px on every row of every list.
 The Ingredients gear panel had become a flat pile of unrelated concerns, and
 its aisle grid rendered one input per store (5, shown even where the item
 isn't sold), so adding a store widened every ingredient's panel. Fixed by:

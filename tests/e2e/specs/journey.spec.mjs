@@ -81,7 +81,13 @@ test("plan a meal, shop it, finish the trip, then rename an ingredient", async (
 
     /* --- 3. reroute one item for this trip only ----------------------- */
     // Broccoli normally lives at Aldi. Today, get it at Costco.
+    // The store control moved into the row's panel and now asks whether a
+    // change is for today or for good, so this answers "just this trip".
+    await page.getByRole("button", { name: "Show where Broccoli comes from" }).click();
+    await page.waitForTimeout(300);
     await page.getByLabel("Store for Broccoli").selectOption("Costco");
+    await page.waitForTimeout(350);
+    await page.getByRole("button", { name: /^Just this trip$/ }).click();
     await page.waitForTimeout(500);
     assert.equal(
       (await page.readState()).list.overrides[broccoli],

@@ -5,6 +5,9 @@
      item-name button   0px wide
      "i" button         x = 421   (the screen is 390 wide)
      page               scrollWidth 445
+   The store dropdown that used to sit on this row has since moved into the
+   panel, which gave the row 118px back — but the wrapping is what stops an
+   over-long quantity breaking it, and that still needs holding down.
    The quantity is `nowrap`, so its min-content width IS its full width and it
    cannot shrink. Everything flexible was squeezed to pay for it.
 
@@ -38,7 +41,9 @@ const openList = async (width, state = longUnitState()) => {
    `hit` reports what actually receives a tap at each control's centre. */
 const measure = (page, name) =>
   page.evaluate((wanted) => {
-    const li = Array.from(document.querySelectorAll("li")).find((e) => e.textContent.includes(wanted) && e.querySelector("select"));
+    // Found by its checkbox: the row used to be identified by its store
+    // <select>, which moved into the panel.
+    const li = Array.from(document.querySelectorAll("li")).find((e) => e.textContent.includes(wanted) && e.querySelector('input[type="checkbox"]'));
     if (!li) return { error: `no row for ${wanted}` };
     const btns = li.querySelectorAll("button");
     const box = (el) => (el ? (({ x, y, width, height }) => ({ x: Math.round(x), y: Math.round(y), w: Math.round(width), h: Math.round(height) }))(el.getBoundingClientRect()) : null);
@@ -55,7 +60,6 @@ const measure = (page, name) =>
       scrollWidth: document.body.scrollWidth,
       name: box(btns[0]),
       qty: box(li.querySelector("span[style*='tabular-nums']")),
-      select: box(li.querySelector("select")),
       info: box(btns[1]),
       // Does each box actually CONTAIN its own text? This is the invariant the
       // bug broke, and the only one that catches every shape of it: a box
@@ -66,14 +70,13 @@ const measure = (page, name) =>
         qty: (() => { const q = li.querySelector("span[style*='tabular-nums']"); return [q.scrollWidth, q.clientWidth]; })(),
       },
       hitName: hit(btns[0]),
-      hitSelect: hit(li.querySelector("select")),
       hitInfo: hit(btns[1]),
     };
   }, name);
 
 const assertRowUsable = (m, where) => {
   assert.equal(m.scrollWidth, m.viewport, `${where}: the page scrolls sideways (${m.scrollWidth} > ${m.viewport})`);
-  for (const el of ["name", "select", "info"]) {
+  for (const el of ["name", "info"]) {
     // 44px is the smallest target a thumb reliably hits; the name button
     // measured 0 when this shipped, which is a control that is simply gone.
     const floor = el === "name" ? 44 : 1;
@@ -88,12 +91,9 @@ const assertRowUsable = (m, where) => {
     assert.ok(content <= boxW + 1, `${where}: the ${el} text needs ${content}px and was given ${boxW}px — it runs outside its own box`);
   }
   const overlaps = (a, b) => Math.max(a.x, b.x) < Math.min(a.x + a.w, b.x + b.w) && Math.max(a.y, b.y) < Math.min(a.y + a.h, b.y + b.h);
-  assert.ok(!overlaps(m.qty, m.select), `${where}: the quantity is drawn over the store picker (qty x=${m.qty.x}..${m.qty.x + m.qty.w}, select x=${m.select.x})`);
-  assert.ok(!overlaps(m.name, m.select), `${where}: the item name is drawn over the store picker`);
   assert.ok(!overlaps(m.qty, m.info) && !overlaps(m.name, m.info), `${where}: the row text is drawn over the "i" button`);
 
   assert.equal(m.hitName, "self", `${where}: tapping the item name hits ${m.hitName}`);
-  assert.equal(m.hitSelect, "self", `${where}: tapping the store picker hits ${m.hitSelect}`);
   assert.equal(m.hitInfo, "self", `${where}: tapping the "i" button hits ${m.hitInfo}`);
 };
 
