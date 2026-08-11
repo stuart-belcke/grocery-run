@@ -6,7 +6,7 @@
 import { useState, useMemo, useRef } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop, SuggestInput } from "../ui";
-import { UNASSIGNED, norm, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg } from "../lib";
+import { UNASSIGNED, keyForName, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg } from "../lib";
 
 export function ListTab({ data, update, updateCatalog, isGuest }) {
   const [view, setView] = useState("store");
@@ -206,7 +206,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
   const addExtra = () => {
     const name = extra.name.trim();
     if (!name) return;
-    // config is id-keyed, so looking it up by norm(name) never matched — every
+    // config is id-keyed, so looking it up by the normalized name never matched — every
     // add asked "remember this?" even for an ingredient you already have.
     if (!ingredientIdByName(data.config, name)) return setAskSave(name);
     commitExtra(false);
@@ -223,7 +223,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
     let key = ingredientIdByName(data.config, name);
     if (!key && saveToIngredients) {
       // Mints an `ing_` id AND stores the name as a field. The old code wrote
-      // c.ingredients[norm(name)] = { store, aisles } — a name-keyed entry
+      // c.ingredients[the normalized name] = { store, aisles } — a name-keyed entry
       // with no name in it, which showed up as a duplicate AND made
       // needsIngredientIds true, re-triggering the whole id migration.
       updateCatalog((c) => {
@@ -231,7 +231,9 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
         return c;
       });
     }
-    if (!key) key = norm(name);
+    // keyForName, not norm: a name with `.` `#` `$` `[` `]` or `/` in it
+    // makes a key the database refuses, and every write after it fails too.
+    if (!key) key = keyForName(name);
     update((d) => {
       d.list.extras[key] = { name, qty: Number(extra.qty) || 1, unit: extra.unit.trim() };
       // "Save to Ingredients" only means "remember this name so it's suggested
@@ -278,7 +280,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
     // Same rule as adding: attach to the ingredient's id when the name is one
     // we know, so a renamed hand-added item merges into that row instead of
     // becoming a store-less twin of it.
-    const newKey = ingredientIdByName(data.config, name) || norm(name);
+    const newKey = ingredientIdByName(data.config, name) || keyForName(name);
     update((d) => {
       delete d.list.extras[item.key];
       d.list.extras[newKey] = { name, qty: Number(editExtra.qty) || 1, unit: editExtra.unit.trim() };

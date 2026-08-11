@@ -18,6 +18,8 @@ import {
   inviteLive,
   syncIndicator,
   writeErrorAdvice,
+  keyForName,
+  safeKey,
   normalizeLocal,
   emptyLocal,
   diffPaths,
@@ -1660,6 +1662,111 @@ test("an unknown code is left out rather than shown as the word unknown", () => 
   const out = writeErrorAdvice({ where: "invite link", code: "unknown" });
   assert.doesNotMatch(out, /unknown/);
   assert.match(out, /invite link/);
+});
+
+/* ---------- keys the database will actually accept ----------
+   A hand-added "Dr. Pepper" was keyed norm(name) = "dr. pepper", and RTDB
+   refuses `.` in a key — so the SDK threw before the write left the phone,
+   and because a failed write deliberately keeps its baseline, EVERY later
+   write re-sent the same bad path. A permanently stuck "Sync error" that
+   reopening the app does not clear.
+   Verified against the real firebase package, not reasoned about: `.` `#`
+   `$` `[` `]` throw "values argument contains an invalid key"; `%` and `&`
+   are accepted; `/` is accepted and silently writes NESTED nodes, which is
+   worse than an error. */
+
+const ILLEGAL = /[.#$[\]/]/;
+
+test("every character the database refuses is taken out of a key", () => {
+  for (const [name, key] of [
+    ["Dr. Pepper", "dr pepper"],
+    ["A[1] sauce", "a 1 sauce"],
+    ["1/2 gallon milk", "1 2 gallon milk"],
+    ["#2 pencils", "2 pencils"],
+    ["$5 wine", "5 wine"],
+  ]) {
+    assert.equal(keyForName(name), key);
+    assert.doesNotMatch(keyForName(name), ILLEGAL);
+  }
+});
+
+test("characters the database accepts are left alone", () => {
+  // Stripping more than necessary would split items that are one item:
+  // "Ben & Jerry's" and "Milk 2%" both store fine.
+  assert.equal(keyForName("Milk 2%"), "milk 2%");
+  assert.equal(keyForName("Ben & Jerry's"), "ben & jerry's");
+});
+
+test("a legal key keeps its case, because ids are identities", () => {
+  // safeKey runs over keys that already exist, ingredient and recipe ids
+  // among them. Lowercasing one would orphan everything pointing at it.
+  assert.equal(safeKey("ing_2ym41inb"), "ing_2ym41inb");
+  assert.equal(safeKey("r-StirFry"), "r-StirFry");
+  assert.equal(safeKey("Dr. Pepper"), "Dr Pepper");
+});
+
+test("a name made only of refused characters still produces a usable key", () => {
+  // An empty key is refused too, so stripping to nothing is not a fix.
+  assert.equal(keyForName("..."), "item");
+  assert.notEqual(keyForName("$"), "");
+});
+
+test("a device already holding a refused key heals itself when state is read", () => {
+  // The part that actually unsticks a phone. The database never received the
+  // key — the write failed — so there is no shared copy to reconcile with.
+  const d = normalizeLocal({
+    list: {
+      extras: { "dr. pepper": { name: "Dr. Pepper", qty: 2, unit: "bottle" } },
+      checked: { "dr. pepper": true },
+      overrides: { "dr. pepper": "Costco" },
+      bought: { "dr. pepper": { bottle: 1 } },
+    },
+    stapleNeeds: { "a.1. sauce": true },
+  });
+  assert.deepEqual(Object.keys(d.list.extras), ["dr pepper"]);
+  assert.equal(d.list.extras["dr pepper"].name, "Dr. Pepper", "the punctuation belongs in the NAME, which is what is displayed");
+  assert.equal(d.list.checked["dr pepper"], true);
+  assert.equal(d.list.overrides["dr pepper"], "Costco");
+  assert.deepEqual(d.list.bought["dr pepper"], { bottle: 1 });
+  assert.deepEqual(Object.keys(d.stapleNeeds), ["a 1 sauce"]);
+});
+
+test("healing two names that differ only by punctuation loses neither", () => {
+  // "Dr. Pepper" and "Dr Pepper" collapse onto one key. Silently dropping a
+  // tick or a quantity here would be a second bug hiding inside the fix.
+  const d = normalizeLocal({
+    list: {
+      checked: { "dr. pepper": false, "dr pepper": true },
+      bought: { "dr. pepper": { bottle: 1 }, "dr pepper": { bottle: 2 } },
+    },
+  });
+  assert.equal(d.list.checked["dr pepper"], true, "a ticked item came back unticked");
+  assert.deepEqual(d.list.bought["dr pepper"], { bottle: 3 }, "banked quantities should add, not replace");
+});
+
+test("nothing a flush sends can contain a key the database refuses", () => {
+  /* THE ASSERTION THAT WOULD HAVE CAUGHT THIS. Everything the app writes goes
+     through planWrite, so checking the paths it produces covers every screen
+     at once — no test of one tab could have. */
+  const before = normalizeLocal(emptyLocal());
+  const after = normalizeLocal({
+    ...emptyLocal(),
+    list: {
+      ...emptyLocal().list,
+      extras: { [keyForName("Dr. Pepper")]: { name: "Dr. Pepper", qty: 1, unit: "ea" } },
+      checked: { [keyForName("1/2 gallon milk")]: true },
+      bought: { [keyForName("A[1] sauce")]: { ea: 1 } },
+    },
+    stapleNeeds: { [keyForName("Mrs. Butterworth")]: true },
+  });
+  const plan = planWrite({ code: "home-abcdefgh", state: before }, "home-abcdefgh", after);
+  assert.equal(plan.kind, "update");
+  for (const path of Object.keys(plan.paths)) {
+    for (const segment of path.split("/")) {
+      assert.doesNotMatch(segment, /[.#$[\]]/, `the path ${path} has a segment the database refuses`);
+      assert.notEqual(segment, "", `the path ${path} has an empty segment`);
+    }
+  }
 });
 
 /* ------------------- invites (item 37) ------------------- */

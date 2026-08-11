@@ -1750,3 +1750,67 @@ one pass rather than a one-off.
     WHAT IS NOT ANSWERED: why that phone got a refused write in the first
     place. Nothing recorded it at the time, which is the whole reason for the
     change above. The next occurrence will name the write and the code.
+
+53. [DONE] AN ITEM CALLED "DR. PEPPER" BROKE SYNC PERMANENTLY. Found chasing
+    item 52's report — "it happened after checking off a bunch of stuff, then
+    Done shopping, then coming back later".
+
+    The list keys a hand-added item by its own NAME, `norm(name)`. RTDB refuses
+    `.` `#` `$` `[` `]` in a key, so state/list/extras/dr. pepper made the
+    Firebase SDK throw before the write ever left the phone:
+      "values argument contains an invalid key (dr. pepper)"
+    VERIFIED AGAINST THE REAL firebase PACKAGE, not reasoned about. `.` `#`
+    `$` `[` `]` throw; `%` and `&` are accepted, so "Milk 2%" and "Ben &
+    Jerry's" were never the problem. `/` IS WORSE THAN REFUSED: it is
+    accepted, and "1/2 gallon milk" silently writes a node "1" containing
+    "2 gallon milk". No error, wrong data.
+
+    IT IS PERMANENT, AND THAT IS THE PART THAT MATTERS. A failed write keeps
+    its baseline on purpose (item 21) so nothing is dropped from a future
+    diff — so the bad path is re-sent on EVERY write from then on. The error
+    never clears, and reopening the app does not help: the key is in the
+    device's cached state. That is the shape of the report exactly — it does
+    not matter which tap first created the key, only that nothing afterwards
+    could succeed.
+    IT ALSO EXPLAINS WHY IT WAS NOTICED AFTER A SHOP rather than at the tap.
+    The status line is 12px at the top of the header; you are looking at rows
+    while you shop.
+
+    TWO LAYERS, AND THEY FAIL INDEPENDENTLY — each has its own mutation:
+      - keyForName at the two places a typed name becomes a key (adding an
+        ad-hoc item, renaming one). Prevention.
+      - withSafeKeys in normalizeLocal, over list.checked / .overrides /
+        .extras / .bought and stapleNeeds. A phone that already holds one is
+        stuck until its own copy is fixed, and the app can no longer produce
+        that state, so healing is the only way those phones recover.
+    NO EXPAND-THEN-CONTRACT, and the reason is worth keeping: the database
+    NEVER RECEIVED these keys — the write failed every time — so there is no
+    shared copy to diverge from. The one exception is `/`, which did get
+    written, as nested nodes.
+    THE HEAL REACHES STORAGE ON THE NEXT WRITE, not on the read. Nothing
+    re-saves an unchanged state. It is in memory immediately, which is what
+    the sync layer writes from, so the first write after this build loads
+    already carries the clean key.
+    safeKey NEVER CHANGES CASE. It runs over keys that already exist,
+    ingredient and recipe ids among them; lowercasing a legal key would
+    orphan everything pointing at it. Mutation-tested from both sides:
+    stripping nothing (6 unit tests fail), and stripping `%`/`&` as well (the
+    "characters the database accepts are left alone" test fails).
+    COLLISIONS ARE MERGED, NOT DROPPED: "Dr. Pepper" and "Dr Pepper" collapse
+    onto one key, so `checked` ORs and `bought` sums. Losing a tick or a
+    banked quantity silently would be a second bug inside the fix.
+
+    THE TEST THAT WOULD HAVE CAUGHT IT is on planWrite, not on a tab:
+    everything the app writes goes through it, so asserting that no path it
+    produces has a refused segment covers every screen at once. Plus three
+    browser tests that drive the real add / tick / Done shopping sequence and
+    read back what was PERSISTED — the row rendered perfectly on the broken
+    build, the item just never left the phone.
+
+    STILL OPEN, SAME CLASS: `aisles` is keyed by STORE NAME, and a store
+    called "St. Louis Market" would break every catalog write the same way.
+    Not fixed here because a store name is DISPLAYED, so it cannot simply be
+    stripped — the key needs to stop being the display name, which is the
+    ingredient-id migration again for stores. Item 52's error message now
+    quotes the database's own words for this branch, which name the offending
+    key, so it will be identifiable rather than mysterious.

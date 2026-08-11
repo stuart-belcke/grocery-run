@@ -340,6 +340,58 @@ export function unitMatches(data, ingredientKey, typed, limit = 8) {
 export const norm = (s) => (s || "").trim().toLowerCase();
 export const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 export const uid = () => Math.random().toString(36).slice(2, 10);
+
+/* ------------------- keys the database will accept -------------------
+   RTDB refuses `.` `#` `$` `[` `]` in a key, and treats `/` as a path
+   separator. The list keys hand-added items by their own NAME — norm(name) —
+   so "Dr. Pepper" produced the path state/list/extras/dr. pepper, and the
+   Firebase SDK threw before the write ever left the phone:
+     "values argument contains an invalid key (dr. pepper)"
+   Verified against the real SDK, not reasoned about. `.` `#` `$` `[` `]` all
+   throw; `%` and `&` are fine.
+
+   THE FAILURE IS PERMANENT, WHICH IS THE PART THAT MATTERS. lastWritten
+   deliberately stays put on a failed write so nothing is dropped from a
+   future diff — so the bad path is re-sent on every write from then on, and
+   the "Sync error" never clears. Closing and reopening the app does not help;
+   the key is in the cached state.
+
+   `/` IS WORSE THAN REFUSED: it is accepted, and silently writes nested nodes
+   — "1/2 gallon milk" becomes a node "1" containing "2 gallon milk". No
+   error, wrong data.
+
+   safeKey only touches keys that are actually illegal, and never changes the
+   case: minted ingredient ids are base36 and recipe ids are hand-written, and
+   lowercasing a legal key would orphan everything pointing at it. */
+const RTDB_ILLEGAL_KEY = /[.#$[\]/]/;
+export const safeKey = (k) => {
+  const s = String(k);
+  if (!RTDB_ILLEGAL_KEY.test(s)) return s;
+  return s.replace(/[.#$[\]/]/g, " ").replace(/\s+/g, " ").trim() || "item";
+};
+// The key a hand-added item gets from what was typed. Same normalization as
+// before, then made storable.
+export const keyForName = (s) => safeKey(norm(s)) || "item";
+
+/* Heals keys that are already in a device's cached state. A phone that hit
+   this is stuck until its own copy is fixed, and the database never received
+   the bad key — the write failed — so there is no shared copy to diverge
+   from and no expand-then-contract needed.
+   `merge` decides collisions, which happen when two names differ only by
+   punctuation: checked ORs, bought sums, everything else keeps what was
+   already there. Rare, and losing a tick or a quantity silently would be its
+   own bug. */
+export function withSafeKeys(obj, merge) {
+  const src = asObject(obj);
+  let changed = false;
+  const out = {};
+  for (const [k, v] of Object.entries(src)) {
+    const safe = safeKey(k);
+    if (safe !== k) changed = true;
+    out[safe] = safe in out ? (merge ? merge(out[safe], v) : out[safe]) : v;
+  }
+  return changed ? out : src;
+}
 export const r2 = (x) => Math.round(x * 100) / 100;
 
 // Render a value on a single line, matching the hand-authored catalog.json
@@ -813,16 +865,26 @@ export function normalizeLocal(raw) {
     // everyone. That is exactly how `bought` could vanish and already-purchased
     // items reappear on both phones. Top-level keys never had this problem
     // (`...d` above carries them through); `list` was the one place that did.
+    /* withSafeKeys on every map keyed by an ITEM. A key with `.` `#` `$` `[`
+       `]` in it is refused by the SDK on every write from then on, so the app
+       has to heal its own cached state or a phone that got one stays stuck
+       forever. Read-time, like the rest of this function, so it also catches a
+       state that arrived from another device. `selections` is keyed by recipe
+       id and `plan` by day, neither of which comes from typing. */
     list: {
       ...asObject(d.list),
       selections: asObject(d.list && d.list.selections),
-      overrides: asObject(d.list && d.list.overrides),
-      checked: asObject(d.list && d.list.checked),
-      extras: asKeyed(d.list && d.list.extras, (e) => norm(e.name)),
-      bought: asObject(d.list && d.list.bought),
+      overrides: withSafeKeys(d.list && d.list.overrides),
+      checked: withSafeKeys(d.list && d.list.checked, (a, b) => a || b),
+      extras: withSafeKeys(asKeyed(d.list && d.list.extras, (e) => keyForName(e.name))),
+      bought: withSafeKeys(d.list && d.list.bought, (a, b) => {
+        const out = { ...asObject(a) };
+        for (const [u, q] of Object.entries(asObject(b))) out[u] = r2((Number(out[u]) || 0) + (Number(q) || 0));
+        return out;
+      }),
     },
     plan: asObject(d.plan),
-    stapleNeeds: asObject(d.stapleNeeds),
+    stapleNeeds: withSafeKeys(d.stapleNeeds, (a, b) => a || b),
   };
 }
 
@@ -2006,7 +2068,13 @@ export function writeErrorAdvice(detail) {
   if (code === "PERMISSION_DENIED") {
     return `${what} The database only allows that for a full member of this household — so this phone is signed in as a guest, is signed in to a different account than you think, or was removed. Check who is signed in at the bottom of this tab, then ask for a new invite link.`;
   }
-  return `${what} That is the app's own fault rather than a permissions one. Reload the app; if the message comes straight back, say what you last changed.`;
+  /* The database's own words, for this branch only. They are ugly, but this
+     is the branch where they say exactly what is wrong — "values argument
+     contains an invalid key (dr. pepper)" names the item. On the
+     PERMISSION_DENIED branch the raw message says nothing a person can act
+     on, so it is left out there. */
+  const raw = String(detail.message || "").trim();
+  return `${what} That is the app's own fault rather than a permissions one. Reload the app; if the message comes straight back, send this line: ${raw || "no further detail"}`;
 }
 
 /* ---------------------- invites (item 37) ----------------------------
