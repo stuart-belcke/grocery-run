@@ -44,8 +44,8 @@ export const FAQS = [
     keywords: ["duplicate", "twice", "merge", "rename", "two entries", "forked"],
   },
   {
-    q: "There are two store dropdowns. What is the difference?",
-    a: "The one on the row itself is just for this trip — buying it somewhere else today, without changing anything permanently. The one inside the row's panel, under Where it lives, is the ingredient's usual store from now on, and it is the same setting the {Ingredients} tab shows. Tap the round i on a row to open the panel.",
+    q: "How do I change where something is bought?",
+    a: "Tap the round i on the {List} row, then pick a store under Where to buy it. It asks whether that is just for this trip or from now on, because those are different things and the app cannot tell which you meant. Just this trip goes back afterwards; Always makes it the item's home on both phones, the same setting the {Ingredients} tab shows.",
     keywords: ["store", "shop", "supermarket", "reroute", "override", "aisle", "permanent", "today", "dropdown"],
   },
   {

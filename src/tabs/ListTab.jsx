@@ -25,6 +25,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
   const [askSave, setAskSave] = useState(null); // name of a new item, pending remember-or-not
   const [confirmRemove, setConfirmRemove] = useState(null); // hand-added item pending removal
   const [showBought, setShowBought] = useState(false); // "already bought" review panel
+  const [askStore, setAskStore] = useState(null); // { key, name, store } pending "this trip or always?"
 
   const items = useMemo(() => aggregateItems(data), [data]);
   const knownItems = useMemo(() => ingredientNames(data), [data]);
@@ -53,6 +54,9 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
   const setName = (name) => setExtra(name.trim() ? { ...extra, name } : { name, qty: "1", unit: "" });
 
   const storeOf = (key) => storeFor(data, key);
+  // A default can only be kept for an ingredient the catalog holds, and only
+  // by somebody allowed to write the catalog.
+  const canEditDefault = (item) => !isGuest && !!data.config[item.key];
   const storeOptions = [...data.stores, UNASSIGNED];
   const totals = servingsByRecipe(data);
   const selectedMealCount = Object.values(totals).filter((s) => s > 0).length;
@@ -81,6 +85,42 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
       c.ingredients[key] = setIngredientCfg(c.ingredients[key], { aisles });
       return c;
     });
+
+  /* ONE store control, asked rather than guessed.
+
+     There were two — a dropdown on the row writing `overrides` (today) and one
+     in this panel writing the catalog (from now on) — and the FAQ needed a
+     whole entry to explain which was which. Two fields for one question is the
+     app admitting it does not know what you meant, so it asks instead.
+
+     WHO CANNOT BE ASKED, and why it is not a dialog for them: a guest has no
+     catalog write at all, and an ad-hoc hand-added entry is keyed by its name
+     rather than an ingredient id, so it has nowhere to keep a default.
+     Both get the one answer that exists — just this trip — with no question,
+     because offering a choice where only one branch works is worse than not
+     offering it. */
+  const pickStore = (item, store) => {
+    if (store === storeOf(item.key)) return;
+    if (!canEditDefault(item)) return setOverride(item.key, store);
+    setAskStore({ key: item.key, name: item.name, store });
+  };
+
+  // "Always" also clears any reroute, or today's detour would keep winning
+  // over the home you just set and the change would look like it did nothing.
+  const applyStoreChoice = (permanent) => {
+    if (!askStore) return;
+    const { key, store } = askStore;
+    if (permanent) {
+      setDefaultStore(key, store);
+      update((d) => {
+        delete d.list.overrides[key];
+        return d;
+      });
+    } else {
+      setOverride(key, store);
+    }
+    setAskStore(null);
+  };
 
   const setOverride = (key, store) =>
     update((d) => {
@@ -294,7 +334,11 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
             title="Tap to see which meals this item is for"
             style={{ flex: "1 1 0", minWidth: 64, textAlign: "left", background: "transparent", border: "none", padding: 0, cursor: "pointer", color: C.ink, fontFamily: "inherit" }}
           >
-            <span style={{ display: "block", overflowWrap: "anywhere", fontWeight: 500, textDecoration: checked ? "line-through" : "none", opacity: checked ? 0.45 : 1 }}>
+            {/* 15px, up from the inherited 15/14. The store dropdown used to
+                take 118px of this row; spending a little of it back on the one
+                thing you actually read while shopping is the whole point of
+                moving it. */}
+            <span style={{ display: "block", overflowWrap: "anywhere", fontSize: 15, fontWeight: 500, lineHeight: 1.3, textDecoration: checked ? "line-through" : "none", opacity: checked ? 0.45 : 1 }}>
               {item.name}
               {item.staple && (
                 <span
@@ -304,8 +348,20 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
                   🏠 staple
                 </span>
               )}
-              {showAisle && aisle !== "" && (
-                <span style={{ marginLeft: 8, fontSize: 11, color: C.faint }}>aisle {aisle}</span>
+              {/* THE STORE ONLY WHERE NOTHING ELSE SAYS IT. Grouped by store the
+                  heading above already does, and repeating it on every row is
+                  the noise the dropdown used to be. A-Z has no heading, so
+                  without this the store went invisible the moment the dropdown
+                  left the row. Keyed to the VIEW, not to showAisle — that flag
+                  is about store-flow ordering and is false in by-store A-Z,
+                  which is exactly where the heading is. */}
+              {view === "all" ? (
+                <span style={{ marginLeft: 8, fontSize: 11, color: C.faint, whiteSpace: "nowrap" }}>
+                  {itemStore}
+                  {aisle !== "" ? ` \u00b7 aisle ${aisle}` : ""}
+                </span>
+              ) : (
+                showAisle && aisle !== "" && <span style={{ marginLeft: 8, fontSize: 11, color: C.faint }}>aisle {aisle}</span>
               )}
             </span>
           </button>
@@ -321,28 +377,6 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
             {qtyLabel(item.parts) || (item.staple ? "" : "—")}
           </span>
           </div>
-          <select
-            value={storeOf(item.key)}
-            onChange={(e) => setOverride(item.key, e.target.value)}
-            aria-label={`Store for ${item.name}`}
-            style={{
-              fontSize: 12,
-              padding: "4px 6px",
-              borderRadius: 6,
-              border: `1px solid ${C.line}`,
-              background: data.list.overrides[item.key] != null ? C.greenSoft : "#fff",
-              maxWidth: 118,
-              // Never pays for someone else's overflow: a store you cannot
-              // reach mid-shop is the control this row exists for.
-              flexShrink: 0,
-            }}
-          >
-            {storeOptions.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
           <button
             onClick={() => setInspectKey(open ? null : item.key)}
             aria-label={`Show where ${item.name} comes from`}
@@ -392,56 +426,57 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
                 so writing a store here would mint a config entry under a key
                 nothing else resolves. Those get "Save to Ingredients" instead,
                 which mints the id properly. */}
-            {canEditHome && (
-              <div style={{ borderTop: `1px dashed ${C.line}`, paddingTop: 8, marginTop: 2 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 6 }}>
-                  Where it lives
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <label style={{ fontSize: 11, color: C.faint }}>Usually at</label>
-                  <select
-                    value={homeCfg.store}
-                    onChange={(e) => setDefaultStore(item.key, e.target.value)}
-                    aria-label={`Usual store for ${item.name}`}
-                    style={{ fontSize: 13, padding: "6px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", maxWidth: 160 }}
-                  >
-                    {storeOptions.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                  {homeCfg.store !== UNASSIGNED && (
-                    <label style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: C.ink }}>
-                      aisle
-                      <input
-                        type="number"
-                        min="0"
-                        value={homeCfg.aisles[homeCfg.store] ?? ""}
-                        onChange={(e) => setAisle(item.key, homeCfg.store, e.target.value === "" ? "" : Number(e.target.value))}
-                        aria-label={`Aisle for ${item.name} at ${homeCfg.store}`}
-                        style={{ width: 52, fontSize: 13, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: C.greenSoft }}
-                      />
-                    </label>
-                  )}
-                </div>
-                {/* The row's dropdown and this one are different questions, and
-                    saying so is the whole reason this line exists: one is where
-                    you are buying it TODAY, the other is where it lives. */}
-                {data.list.overrides[item.key] != null && (
-                  <div style={{ color: C.faint, marginTop: 6 }}>
-                    Today it's rerouted to <b style={{ color: C.ink }}>{data.list.overrides[item.key]}</b>
-                    {aisle !== "" ? (
-                      <>
-                        , <b style={{ color: C.ink }}>aisle {aisle}</b>.
-                      </>
-                    ) : (
-                      "."
-                    )}
-                  </div>
+            {/* ONE store control, and it lives here rather than on the row.
+                On the row it cost 118px of every line for something you change
+                a few times a shop; here it can be full width and legible, and
+                the name gets the space back.
+                A guest gets it too — a reroute is a LIST write, which is
+                exactly what the guest role grants. Only the "always" branch is
+                a catalog write, and that is the branch they are never offered. */}
+            <div style={{ borderTop: `1px dashed ${C.line}`, paddingTop: 8, marginTop: 2 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 6 }}>
+                Where to buy it
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <select
+                  value={itemStore}
+                  onChange={(e) => pickStore(item, e.target.value)}
+                  aria-label={`Store for ${item.name}`}
+                  style={{ fontSize: 14, padding: "7px 8px", borderRadius: 6, border: `1px solid ${C.line}`, background: data.list.overrides[item.key] != null ? C.greenSoft : "#fff", maxWidth: 200 }}
+                >
+                  {storeOptions.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+                {canEditHome && itemStore !== UNASSIGNED && (
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: C.ink }}>
+                    aisle
+                    <input
+                      type="number"
+                      min="0"
+                      value={homeCfg.aisles[itemStore] ?? ""}
+                      onChange={(e) => setAisle(item.key, itemStore, e.target.value === "" ? "" : Number(e.target.value))}
+                      aria-label={`Aisle for ${item.name} at ${itemStore}`}
+                      style={{ width: 52, fontSize: 13, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: C.greenSoft }}
+                    />
+                  </label>
                 )}
               </div>
-            )}
+              {/* Says which of the two answers is in force, since one control
+                  can now mean either. Without it, "just this trip" and "always"
+                  are indistinguishable the moment the dialog closes. */}
+              <div style={{ color: C.faint, marginTop: 6 }}>
+                {data.list.overrides[item.key] != null ? (
+                  <>
+                    Just for this trip. It normally lives at <b style={{ color: C.ink }}>{homeCfg.store}</b>.
+                  </>
+                ) : (
+                  <>Where it always lives.</>
+                )}
+              </div>
+            </div>
             {/* This line used to read: Matches ingredients named "{item.key}".
                 That was true when the key WAS the name; since recipe lines
                 started storing ingredient ids it rendered as
@@ -815,6 +850,25 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
         ]}
       >
         <b style={{ color: C.ink }}>{askSave}</b> isn't in your Ingredients yet. Saving it means it's suggested next time you type — set its store and aisle on the Ingredients tab. Otherwise it's a one-time buy.
+      </ChoiceDialog>
+
+      {/* The question that replaced the second dropdown. Asked because the app
+          genuinely cannot tell: "buy the milk at Costco" means today when you
+          happen to be there and forever when you have switched. Guessing wrong
+          in the permanent direction puts a wrong aisle on every future list. */}
+      <ChoiceDialog
+        open={!!askStore}
+        title={askStore ? `Buy ${askStore.name} at ${askStore.store}?` : ""}
+        cancelLabel="Cancel"
+        onCancel={() => setAskStore(null)}
+        choices={[
+          { label: "Just this trip", onClick: () => applyStoreChoice(false) },
+          { label: "Always", kind: "primary", onClick: () => applyStoreChoice(true) },
+        ]}
+      >
+        <b style={{ color: C.ink }}>Just this trip</b> moves it for today only and it goes back afterwards.{" "}
+        <b style={{ color: C.ink }}>Always</b> makes {askStore ? askStore.store : "it"} where this
+        item lives from now on, on both phones.
       </ChoiceDialog>
 
       <ConfirmDialog

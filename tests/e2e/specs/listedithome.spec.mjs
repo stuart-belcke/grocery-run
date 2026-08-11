@@ -9,7 +9,12 @@
    the dropdown moves, nothing throws, and the aisle is simply not there on the
    other phone. Two things are checked every time — that it was written, and
    that it was written to the SAME place the Ingredients tab writes, since two
-   ways to store one fact is how the two tabs start disagreeing. */
+   ways to store one fact is how the two tabs start disagreeing.
+
+   MOVED OUT, NOT DROPPED: "today's reroute and the usual store stay separate"
+   lived here and tested two dropdowns that no longer exist — one control now
+   asks which you meant. Both branches, and the guest who is never asked, are
+   covered in listrowstore.spec.mjs. */
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -60,7 +65,9 @@ test("the usual store set from the List tab is the SAME field the Ingredients ta
   const page = await openApp(BASE, { catalog: smallCatalog(), state: withList() });
   try {
     await openRow(page, "Broccoli");
-    await page.getByLabel("Usual store for Broccoli").selectOption("Costco");
+    await page.getByLabel("Store for Broccoli").selectOption("Costco");
+    await page.waitForTimeout(350);
+    await page.getByRole("button", { name: /^Always$/ }).click();
     await page.waitForTimeout(600);
     await page.roundTrip();
 
@@ -70,27 +77,6 @@ test("the usual store set from the List tab is the SAME field the Ingredients ta
     await page.searchIngredients("Broccoli");
     await page.expandRow("Broccoli");
     assert.equal(await page.getByLabel("Default store for Broccoli").inputValue(), "Costco", "the Ingredients tab should show the store the List tab just set");
-    assertNoPageErrors(page, assert);
-  } finally {
-    await page.done();
-  }
-});
-
-test("today's reroute and the item's usual store stay separate", async () => {
-  // The row dropdown is `overrides` — one trip. The panel dropdown is the
-  // catalog — from now on. Collapsing them would make a one-off detour
-  // permanent, which is a wrong aisle on every future list.
-  const page = await openApp(BASE, { catalog: smallCatalog(), state: withList() });
-  try {
-    await page.tab("List");
-    await page.getByLabel("Store for Broccoli").selectOption("Costco");
-    await page.waitForTimeout(600);
-    await page.roundTrip();
-
-    assert.equal((await storedCfg(page, "Broccoli")).store, "Aldi", "a reroute for today must NOT change where the item lives");
-    const state = await page.readState();
-    const overrideValues = Object.values(state.list.overrides);
-    assert.deepEqual(overrideValues, ["Costco"], `the reroute belongs in overrides, got ${JSON.stringify(state.list.overrides)}`);
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
@@ -123,7 +109,9 @@ test("a hand-added entry with no catalog record still explains itself, by name",
     await openRow(page, "Crushed tomatoes");
     const body = await page.textContent("body");
     assert.match(body, /Added by hand as\s+"Crushed tomatoes"/, "a hand-added entry should say what spelling it is matched by");
-    assert.equal(await page.getByLabel("Usual store for Crushed tomatoes").count(), 0, "an entry with no catalog record has nowhere to store a usual store");
+    // It still gets a store control — a reroute is a list write and works for
+    // anything on the list — but no aisle, which is a catalog field.
+    assert.equal(await page.getByLabel("Aisle for Crushed tomatoes at Unassigned").count(), 0, "an entry with no catalog record was offered an aisle");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
@@ -138,10 +126,13 @@ test("a guest is not offered the store or aisle editor, but keeps the rest of th
   const member = await openApp(BASE, { catalog: smallCatalog(), state: withList() });
   try {
     await openRow(member, "Broccoli");
-    assert.equal(await member.getByLabel("Usual store for Broccoli").count(), 1, "control missing for a member too — the selector is wrong, not the app");
+    assert.equal(await member.getByLabel("Store for Broccoli").count(), 1, "control missing for a member too — the selector is wrong, not the app");
 
     await openRow(guest, "Broccoli");
-    assert.equal(await guest.getByLabel("Usual store for Broccoli").count(), 0, "a guest was offered the usual-store editor");
+    /* The store control STAYS for a guest — a reroute is a list write, which
+       the guest role grants. What they must not get is the aisle, which is a
+       catalog field, or the "Always" branch of the question. Both are covered
+       in listrowstore.spec.mjs; here it is the aisle. */
     assert.equal(await guest.getByLabel("Aisle for Broccoli at Aldi").count(), 0, "a guest was offered the aisle editor");
 
     // What a guest MUST keep: the panel still explains the row, and today's
