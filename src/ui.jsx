@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { C, fontBody, fontDisplay, BOTTOM_NAV_H } from "./theme";
-import { parseTabMarkup } from "./lib";
+import { parseTabMarkup, keyboardIsOpen } from "./lib";
 
 /* Pins a tab's controls to the top of the viewport once you scroll past them.
    Fine at thirty recipes, the difference between usable and not at three
@@ -77,6 +77,9 @@ export function StickyBar({ children, style }) {
    exactly as it did before. */
 export function BackToTop({ showAfter = 500 }) {
   const [show, setShow] = useState(false);
+  // Goes with the tab bar. It is anchored above the bar, so leaving it behind
+  // when the bar hides would strand it in the middle of the screen.
+  const keyboardOpen = useKeyboardOpen();
 
   useEffect(() => {
     let frame = 0;
@@ -95,7 +98,7 @@ export function BackToTop({ showAfter = 500 }) {
     };
   }, [showAfter]);
 
-  if (!show) return null;
+  if (!show || keyboardOpen) return null;
   return (
     <button
       onClick={() => {
@@ -149,6 +152,40 @@ export function BackToTop({ showAfter = 500 }) {
    Kept in ui.jsx rather than inside SettingsTab because the app already has
    this idiom in three places (recipe cards, ingredient rows, the bought-items
    panel) and they should look and behave the same. */
+/* Is the on-screen keyboard up? Used by everything anchored to the bottom of
+   the screen, so the tab bar and the back-to-top button agree about it —
+   otherwise one of them hides and the other is left floating in the gap.
+
+   visualViewport is the only thing that reports this. Where it does not exist
+   the hook simply always says no, which is the behaviour every browser had
+   before this existed. */
+export function useKeyboardOpen() {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!vv) return;
+    let frame = 0;
+    const read = () => {
+      frame = 0;
+      setOpen(keyboardIsOpen(window.innerHeight, vv.height));
+    };
+    const onChange = () => {
+      if (!frame) frame = requestAnimationFrame(read);
+    };
+    read();
+    // `scroll` as well as `resize`: iOS fires scroll on the visual viewport as
+    // the keyboard animates in, and the final size only settles on that one.
+    vv.addEventListener("resize", onChange);
+    vv.addEventListener("scroll", onChange);
+    return () => {
+      vv.removeEventListener("resize", onChange);
+      vv.removeEventListener("scroll", onChange);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, []);
+  return open;
+}
+
 /* Help text with {Tab} names in it, rendered with the names in bold and
    spelled exactly as the tab bar spells them.
 
