@@ -1241,6 +1241,51 @@ export function keyboardIsOpen(innerHeight, viewportHeight, threshold = KEYBOARD
   return outer - inner >= threshold;
 }
 
+/* ---------------- an invite you can actually tap ----------------
+
+   `formatInvite` produces a bare code — home-xxxxxxxx~token~g. It is called a
+   LINK everywhere in the UI and is not one: it gets copied to a clipboard and
+   PASTED into a field on the other phone, by hand, 30-odd characters of it.
+   That hand-copy is where the truncated-invite bug came from, and a link that
+   is tapped cannot be half-copied.
+
+   THE FRAGMENT, NOT A QUERY STRING. Everything after `#` stays in the browser
+   and is never sent to a server or written to its logs, which is the right
+   place for something that grants access to a household. It also costs
+   nothing at the hosting end: the app is served statically with `base: "./"`,
+   so any path works and no rewrite rule is needed.
+
+   Built from the URL the inviting phone is ALREADY LOOKING AT, rather than a
+   configured domain — that is the one address known to work, and a constant
+   here would be a second thing to keep in step with wherever this is
+   deployed. Query and existing fragment are dropped so a link made from a
+   half-navigated URL is still clean. */
+export function inviteUrl(href, code, token, role) {
+  const invite = formatInvite(code, token, role);
+  const base = String(href || "").split("#")[0].split("?")[0];
+  if (!base) return invite;
+  return `${base}#join=${invite}`;
+}
+
+/* The invite carried by a URL somebody tapped, or "" for anything else.
+
+   Deliberately returns the STRING rather than a parsed invite: it is fed into
+   the same join field a person would paste into, so it goes through exactly
+   the same validation. A second parse here would be a second place for "what
+   counts as a valid invite" to be decided, and the two would disagree. */
+export function parseJoinHash(hash) {
+  const m = /(?:^|[#&])join=([^&]+)/.exec(String(hash || ""));
+  if (!m) return "";
+  let raw = m[1];
+  try {
+    raw = decodeURIComponent(raw);
+  } catch {
+    // A malformed escape is not a reason to throw the whole link away; the
+    // join field will reject it just as clearly as this could.
+  }
+  return raw.trim();
+}
+
 /* ---------------- help text ----------------
    The content lives in help.js; these are the two things that have to be
    pure, because they are the two things that can be wrong. */

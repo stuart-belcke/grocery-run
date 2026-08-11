@@ -7,11 +7,11 @@
 import { useState, useEffect, useMemo } from "react";
 import { C, fontBody, inputStyle, syncTone } from "../theme";
 import { Btn, ConfirmDialog, AlertDialog, Section, Seg, HelpText } from "../ui";
-import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, catalogConfigKey, catalogNameCollisions, classifyJoinInput, formatInvite, inviteLive, searchHelp } from "../lib";
+import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, inviteLive, searchHelp } from "../lib";
 import { syncEnabled } from "../sync";
 import { HOW_IT_WORKS, FAQS } from "../help";
 
-export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, sync, user, accessDenied, members, invites, isGuest, createInvite, revokeInvite, joinWithInvite, removeMember, authError, signInWithGoogle, sendEmailSignInLink, signOutUser }) {
+export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, sync, user, accessDenied, members, invites, isGuest, createInvite, revokeInvite, joinWithInvite, removeMember, authError, signInWithGoogle, sendEmailSignInLink, signOutUser, initialInvite = "" }) {
   const prefs = data.prefs;
   const setPref = (patch) => updateCatalog((c) => ({ ...c, prefs: { ...c.prefs, ...patch } }));
   // The members node as written: { uid: { email, displayName, updatedAt } }.
@@ -30,12 +30,17 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
   const [msg, setMsg] = useState("");
-  const [codeInput, setCodeInput] = useState(code);
+  // Pre-filled when the app was opened from a tapped invite link on a device
+  // that is already past the first-run screen. Same field, same validation.
+  const [codeInput, setCodeInput] = useState(initialInvite || code);
   const [codeMsg, setCodeMsg] = useState("");
   const [askJoin, setAskJoin] = useState(null);       // household code pending confirmation
   const [askImport, setAskImport] = useState(null);   // parsed backup pending confirmation
   const [askReset, setAskReset] = useState(false);    // reset-to-catalog confirmation
   const [copyFallback, setCopyFallback] = useState(null); // text to copy when the clipboard is blocked
+  // The invite just made, shown as a link with its own Copy button.
+  const [newInvite, setNewInvite] = useState(null); // { token, role }
+  const [copied, setCopied] = useState("");         // inline "Copied" feedback
   const [helpQuery, setHelpQuery] = useState(""); // "How it works" search box
   const [openFaq, setOpenFaq] = useState(null); // which answer is expanded
   // { text, ok } rather than a plain string, so the message can be styled
@@ -158,18 +163,33 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
       setInviteMsg("Couldn't create an invite. You have to be a full member of this household to invite someone.");
       return;
     }
-    // Hand over ONE string carrying both halves: a token alone doesn't say
-    // which household it opens, and a code alone no longer opens anything.
-    // The role rides along too, because the account redeeming it can't read
-    // the invite to find out what it grants.
-    // made.role, not the `role` asked for: the link has to describe what the
-    // database actually stored, or it is a link that cannot be redeemed.
-    copyText(
-      formatInvite(code, made.token, made.role),
-      made.role === "guest"
-        ? "Guest link copied — they can shop the list, not change recipes or the week."
-        : "Invite copied — paste it on the other phone within the hour."
-    );
+    /* SHOWN, NOT AUTO-COPIED. It used to call the clipboard straight after
+       this await, and Safari drops the user-gesture context across an await —
+       so the write was refused and the "your browser blocked the clipboard"
+       fallback came up every time, which reads as the button being broken.
+       The link now appears with its own Copy button; that tap is a fresh
+       gesture, which is the only kind the clipboard accepts.
+       made.role, not the `role` asked for: the link has to describe what the
+       database actually stored, or it is a link that cannot be redeemed. */
+    setNewInvite({ token: made.token, role: made.role });
+    setCopied("");
+  };
+
+  // One string carrying both halves: a token alone doesn't say which household
+  // it opens, and a code alone no longer opens anything. The role rides along
+  // because the account redeeming it can't read the invite to find out what
+  // it grants. Built against the URL this phone is already on.
+  const linkFor = (i) => inviteUrl(typeof window !== "undefined" ? window.location.href : "", code, i.token, i.role);
+
+  const copyInvite = async (i) => {
+    const text = linkFor(i);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(i.token);
+      setTimeout(() => setCopied((t) => (t === i.token ? "" : t)), 2500);
+    } catch {
+      setCopyFallback(text);
+    }
   };
 
   /* ---------- backup / catalog export ---------- */
@@ -483,9 +503,49 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                     <Btn onClick={() => makeInvite("guest")} disabled={inviting}>Guest link</Btn>
                   </div>
                   {inviteMsg && <div style={{ fontSize: 13, fontWeight: 500, color: C.tomato, marginTop: 8 }}>{inviteMsg}</div>}
+
+                  {/* The link, right where the button was pressed. The old code
+                      reported success into a `msg` that renders inside the
+                      Export & recover section three sections further down and
+                      collapsed by default — so pressing the button looked like
+                      it did nothing at all. */}
+                  {newInvite && (
+                    <div style={{ marginTop: 12, padding: 12, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 10 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
+                        {newInvite.role === "guest" ? "Guest link — send this" : "Invite link — send this"}
+                      </div>
+                      <p style={{ fontSize: 12, color: C.faint, margin: "0 0 8px" }}>
+                        {newInvite.role === "guest"
+                          ? "Opening it lets them shop the list. They can't change recipes or the week, and they don't need an account."
+                          : "They open it, sign in, and they're in. Good for an hour, once."}
+                      </p>
+                      <input
+                        readOnly
+                        value={linkFor(newInvite)}
+                        onFocus={(e) => e.target.select()}
+                        aria-label="Invite link"
+                        style={{ ...inputStyle, width: "100%", boxSizing: "border-box", fontFamily: "ui-monospace, Menlo, monospace", fontSize: 11 }}
+                      />
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
+                        <Btn kind="primary" small onClick={() => copyInvite(newInvite)}>Copy link</Btn>
+                        <Btn small onClick={() => setNewInvite(null)}>Done</Btn>
+                        {copied === newInvite.token && (
+                          <span style={{ fontSize: 12, fontWeight: 500, color: C.green }}>Copied</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {inviteList.length > 0 && (
                     <div style={{ marginTop: 10 }}>
-                      <div style={{ fontSize: 12, color: C.faint, marginBottom: 4 }}>Unused invites</div>
+                      {/* NOT MEMBERS. An invite is written to the household the
+                          moment it is created — it has to be, or there is
+                          nothing for the other phone to redeem — and it sat
+                          under the member list looking like somebody had just
+                          been added. Says what it is now. */}
+                      <div style={{ fontSize: 12, color: C.faint, marginBottom: 4 }}>
+                        Invites waiting to be used — nobody has joined with these yet
+                      </div>
                       <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
                         {inviteList.map((i) => (
                           <li key={i.token} style={{ fontSize: 12, color: C.faint, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -493,7 +553,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                               {i.token.slice(0, 6)}…
                               {i.role === "guest" && <span style={{ fontFamily: fontBody, color: C.gold, fontWeight: 500, marginLeft: 6 }}>guest</span>}
                             </span>
-                            <Btn small onClick={() => copyText(formatInvite(code, i.token, i.role), "Invite copied.")}>Copy</Btn>
+                            <Btn small onClick={() => copyInvite(i)}>{copied === i.token ? "Copied" : "Copy"}</Btn>
                             <Btn small kind="danger" onClick={() => revokeInvite(i.token)}>Revoke</Btn>
                           </li>
                         ))}

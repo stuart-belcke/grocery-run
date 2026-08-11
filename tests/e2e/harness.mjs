@@ -101,7 +101,7 @@ const GUEST_PREVIEW_KEY = "grocery-run-e2e-guest-preview";
    pins the ingredient IDS. Without a seeded catalog the app mints fresh
    random ids on first edit, so a test's ids don't match the rendered rows
    and the run proves nothing. */
-export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, onboarded = true, guest = false } = {}) {
+export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, onboarded = true, guest = false, hash = "" } = {}) {
   const browser = await chromium.launch({ executablePath: chromePath() });
   const page = await browser.newPage();
   const errors = [];
@@ -157,7 +157,10 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
   // domcontentloaded, not networkidle: with external requests aborted there
   // is no "idle" to wait for, and the tab bar rendering is the real signal
   // that the app has mounted.
-  await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+  // `hash` opens the app the way a tapped invite link does. It has to be on
+  // the FIRST navigation: the app reads it in a state initializer and clears
+  // it immediately, so setting it afterwards would be read by nothing.
+  await page.goto(baseUrl + (hash || ""), { waitUntil: "domcontentloaded" });
   /* A first-run browser has no tab bar to wait for — the whole point is that
      it shows a different screen — so wait for whichever one is expected. The
      condition MIRRORS THE APP'S OWN: cached household state counts as

@@ -12,6 +12,8 @@ import {
   classifyJoinInput,
   parseInvite,
   formatInvite,
+  inviteUrl,
+  parseJoinHash,
   inviteLive,
   syncIndicator,
   normalizeLocal,
@@ -1932,6 +1934,75 @@ test("keyboardIsOpen assumes NO keyboard when it cannot tell", () => {
   assert.equal(keyboardIsOpen(null, 500), false);
   // A viewport somehow TALLER than the window is not a keyboard either.
   assert.equal(keyboardIsOpen(600, 900), false);
+});
+
+/* ---------------- an invite you can tap ----------------
+   It was a bare code called a link, copied and re-typed by hand on the other
+   phone. That hand-copy is where the truncated-invite bug came from, so the
+   property that matters is the ROUND TRIP: whatever the link carries has to
+   come back out as the same invite the join field would have accepted. */
+
+test("an invite link round-trips back to the same invite", () => {
+  const url = inviteUrl("https://example.test/grocery-run/", "home-cx2ur9zg", "abcdefgh1234", "member");
+  assert.equal(parseJoinHash(new URL(url).hash), "home-cx2ur9zg~abcdefgh1234");
+  assert.deepEqual(classifyJoinInput(parseJoinHash(new URL(url).hash)), {
+    kind: "invite",
+    code: "home-cx2ur9zg",
+    token: "abcdefgh1234",
+    role: "member",
+  });
+});
+
+test("a GUEST link survives the round trip as a guest link", () => {
+  // The `~g` marker is the only thing saying what the invite grants, and it
+  // has been dropped once already — a guest link that redeems as a member is
+  // un-redeemable, because the rules check the role against the stored one.
+  const url = inviteUrl("https://example.test/", "home-cx2ur9zg", "abcdefgh1234", "guest");
+  assert.match(url, /~g$/);
+  assert.equal(classifyJoinInput(parseJoinHash(new URL(url).hash)).role, "guest");
+});
+
+test("the invite goes in the FRAGMENT, never the query", () => {
+  /* Everything after `#` stays in the browser: never sent to the host, never
+     in its logs. For something that grants access to a household that is the
+     difference between a link and a leak. */
+  const url = inviteUrl("https://example.test/grocery-run/", "home-cx2ur9zg", "abcdefgh1234", "member");
+  const u = new URL(url);
+  assert.equal(u.search, "", "the invite must not be in the query string");
+  assert.match(u.hash, /^#join=home-/);
+});
+
+test("inviteUrl builds on the page's own address, and drops what was already there", () => {
+  // A link made from a half-navigated URL still has to be clean.
+  const url = inviteUrl("https://example.test/app/?tab=list#join=old~junk~g", "home-cx2ur9zg", "abcdefgh1234", "member");
+  assert.equal(url, "https://example.test/app/#join=home-cx2ur9zg~abcdefgh1234");
+});
+
+test("inviteUrl falls back to the bare code rather than producing a broken URL", () => {
+  // Somewhere with no address to build on. A pasteable code beats "#join=..."
+  assert.equal(inviteUrl("", "home-cx2ur9zg", "abcdefgh1234", "guest"), "home-cx2ur9zg~abcdefgh1234~g");
+});
+
+test("parseJoinHash ignores a hash that is not an invite", () => {
+  for (const h of ["", "#", "#tab=list", "#joinery=x", "nonsense"]) {
+    assert.equal(parseJoinHash(h), "", `${JSON.stringify(h)} should carry no invite`);
+  }
+  // Another parameter alongside it is still readable.
+  assert.equal(parseJoinHash("#tab=list&join=home-cx2ur9zg~abcdefgh1234"), "home-cx2ur9zg~abcdefgh1234");
+});
+
+test("parseJoinHash decodes an escaped link, and survives a mangled one", () => {
+  assert.equal(parseJoinHash("#join=home-cx2ur9zg%7Eabcdefgh1234"), "home-cx2ur9zg~abcdefgh1234");
+  // A bad escape must not throw — the join field can reject it far more
+  // helpfully than a crash on startup can.
+  assert.doesNotThrow(() => parseJoinHash("#join=home-%E0%A4%A"));
+});
+
+test("a TRUNCATED link is still refused, exactly as a truncated paste is", () => {
+  /* The reason parseJoinHash returns a STRING rather than a parsed invite:
+     one definition of "valid", used by both routes. cleanCode strips the `~`,
+     so a half-copied invite resolves to a real-looking WRONG household. */
+  assert.deepEqual(classifyJoinInput(parseJoinHash("#join=home-cx2ur9zg~short")), { kind: "broken" });
 });
 
 /* ---------------- the help text ----------------

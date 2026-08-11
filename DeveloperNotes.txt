@@ -644,7 +644,7 @@ rather than saving them for a cleanup that never gets scheduled.
     reproduce before fixing. Likely the unit text wrapping and pushing the
     row's tap target, which item 39 will reduce but not eliminate.
 
-48. An invite link is not a link. `formatInvite` produces a bare code —
+48. [DONE] An invite link is not a link. `formatInvite` produces a bare code —
     `home-xxxxxxxx~token~g` — which is copied to the clipboard and PASTED
     into a field on the other phone. It is called a link everywhere in the
     UI, and the natural reading of "send them an invite link" is that tapping
@@ -660,6 +660,43 @@ rather than saving them for a cleanup that never gets scheduled.
     Check the PWA scope and the standalone-mode behaviour before starting —
     an installed app opening a link in the browser instead of itself would
     make this worse, not better.
+    [DONE] It is a URL now, built with inviteUrl from the address the inviting
+    phone is ALREADY ON rather than a configured domain — that is the one
+    address known to work, and a constant would be a second thing to keep in
+    step with wherever this is deployed. `base: "./"` is what makes that safe.
+    THE FRAGMENT, NOT THE QUERY. Everything after `#` stays in the browser and
+    never reaches the host or its logs. For a string that grants access to a
+    household that is the difference between a link and a leak.
+    READ ONCE AT STARTUP AND THE HASH CLEARED IMMEDIATELY, with replaceState
+    so Back cannot re-arm it. Left in the address bar the invite is redeemed
+    again on every reload, survives into a screenshot, and rides along with
+    whatever the browser syncs between devices. That is the assertion worth
+    keeping, not the convenience.
+    parseJoinHash RETURNS THE STRING, not a parsed invite, and is handed to
+    the same field a person pastes into. One definition of "valid invite", so
+    a truncated link is refused exactly as a truncated paste is. A second
+    parse would be a second place for that to be decided.
+    TWO OTHER THINGS CAME OUT OF THE SAME REPORT:
+      - THE CLIPBOARD WRITE COULD NEVER HAVE WORKED. It ran straight after
+        `await createInvite(...)`, and Safari drops the user-gesture context
+        across an await, so the write was refused and the "your browser
+        blocked the clipboard" fallback came up EVERY time. The link is now
+        shown with its own Copy button; that tap is a fresh gesture, which is
+        the only kind the clipboard accepts. No test would have caught this —
+        the sandbox browser allows the write.
+      - THE SUCCESS MESSAGE WAS IN THE WRONG SECTION. copyText set `msg`,
+        which renders inside "Export & recover" — three sections down and
+        collapsed by default. So the button genuinely gave no feedback.
+        Feedback now sits where the button is.
+    AND THE PENDING-INVITE LIST NOW SAYS WHAT IT IS. An invite is written to
+    the household the moment it is created — it has to be, or there is nothing
+    to redeem — and the list sat under the member list reading as though
+    somebody had just been added. "Invites waiting to be used — nobody has
+    joined with these yet".
+    NOT VERIFIED: redeeming needs the database, and the e2e build compiles
+    sync out. Everything up to the redemption is covered; the redemption
+    itself is not, and neither is the Settings join field, which lives inside
+    the same syncEnabled branch.
 
 MEASURED AND DELIBERATELY NOT PROBLEMS
     Recorded so nobody optimises them on instinct.
