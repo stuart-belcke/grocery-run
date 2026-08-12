@@ -2143,3 +2143,36 @@ one pass rather than a one-off.
     it is once per trip, already behind a confirmation, and moving it down by
     the tab bar puts a destructive control under the thumb that is ticking
     items off for the whole shop.
+
+60. [DONE] THE TAB BAR READ AS A FOOTNOTE. Reported from real use: the only
+    navigation in the app was easy to miss. It was 12px at weight 500 with the
+    unselected tabs in `faint` — the colour used for secondary text you are
+    meant to SKIM PAST, which is the opposite of what navigation should be.
+    Weight 700, and the unselected tabs in `ink`. The selected one stays green
+    and keeps the soft background and the 3px rule doing that work.
+
+    BOLD IS WIDER, AND THAT COST A RE-MEASURE. The old clamp(10px, 3.1vw,
+    12px) was measured at weight 500; at 700 it ellipsised "Ingredients" at
+    320px AND 390px the moment the weight changed. The existing test caught it
+    on the first run, which is the whole reason that assertion exists.
+    "Ingredients" needs 6.49px of width per 1px of type at weight 700, and
+    each of five tabs gets (viewport/5 - 2)px: 62px at 320, 76px at 390.
+    clamp(9px, 2.85vw, 11.5px) with -0.01em leaves ~6% headroom. Net: about
+    1px smaller and a great deal heavier, which is the trade the report asked
+    for.
+
+    THE HEADROOM ASSERTION IS NEW AND IS THE USEFUL PART. "Does it fit" is not
+    enough here: the suite runs with no network, so Space Grotesk never loads
+    and every width it measures is system-ui's. A label one pixel inside its
+    box in the sandbox can still ellipsise on the phone. The new check fails
+    anything using more than 97% of its box — and it proved itself
+    immediately, catching the old clamp at 390px with "Ingredients 77/78",
+    which FITS in the sandbox and would not have on a device.
+    IT MEASURES A RANGE OVER THE TEXT, NOT scrollWidth. The button clips its
+    overflow, so scrollWidth is just the box again and can never report how
+    much room a label that fits actually has — the first version of this
+    reported every tab as 64/64 and failed everything.
+
+    THE WEIGHT AND THE COLOUR ARE ASSERTED, because they ARE the change: a
+    later tidy-up that put the bar back to 500, or back to `faint`, would
+    leave every other test in the file green.
