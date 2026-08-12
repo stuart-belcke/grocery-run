@@ -21,16 +21,7 @@ const BASE = process.env.E2E_BASE_URL;
    failed for missing controls, which was this flow being skipped, not a
    bug. */
 const planStirFry = async (page) => {
-  await page.tab("Week plan");
-  const start = page.locator("button").filter({ hasText: /^Start planning$/ }).first();
-  if (await start.count()) {
-    await start.click();
-    await page.waitForTimeout(400);
-  }
-  await page.getByLabel("Choose a meal for Mon Dinner").click();
-  await page.waitForTimeout(400);
-  await page.locator("button").filter({ hasText: /Stir-fry/ }).first().click();
-  await page.waitForTimeout(500);
+  await page.planMeal("Mon Dinner", "Stir-fry");
 };
 
 const listRows = (page) =>

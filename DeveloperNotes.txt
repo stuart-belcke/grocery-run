@@ -2233,7 +2233,8 @@ one pass rather than a one-off.
     everywhere else. `::placeholder` in App's style block, since a placeholder
     cannot be styled inline. C.faint gives 4.72.
 
-    B. THE "+" IS PER DAY, AND THAT IS THE WHOLE POINT. Item 59 collapsed the
+    B. [SUPERSEDED BY ITEM 63 — the "+" was the wrong answer.] THE "+" IS PER
+    DAY, AND THAT IS THE WHOLE POINT. Item 59 collapsed the
     week to the meal types in use and put the rest behind one button at the top
     reading "Add breakfast, lunch, dessert" — wordy, easy to miss, and GLOBAL:
     it put three empty rows on all seven days so you could fill one, which is
@@ -2251,3 +2252,41 @@ one pass rather than a one-off.
     The e2e helpers take the same step a person does — the day's "+", not a
     global reveal. A test that routes around a new control stops describing the
     app.
+
+63. [DONE] THE WEEK PLAN: WHAT IS ON THE DAY, PLUS ONE "CHOOSE A MEAL".
+    Third shape for item 51d, and the one that was right. Worth keeping the
+    other two, because the mistake is easy to repeat:
+      - 4 types x 7 days, always. 28 slots to hold 4-7 meals; 2.5 screens to
+        read four dinners.
+      - types-in-use + a "+" to reveal the rest (items 59, 62B). Compact, but
+        it hid something behind a control you had to find first, and the
+        report on it was "no plus sign, that is hard to see". A glyph you have
+        to discover is not more discoverable than a row that is simply there.
+      - NOW: a day shows the meals ON it, then one "Choose a meal" row — the
+        same button an empty slot always had. Nothing hidden, nothing to
+        reveal, no new control to learn.
+
+    THE MEAL TYPE IS CHOSEN WHEN THE MEAL IS. That is the piece that makes it
+    work: a day no longer needs a row per type to let you say "this is a
+    lunch", because the picker asks. The Seg offers only the types still FREE
+    on that day plus the one selected — a day holds one meal per type, so an
+    option that would silently replace an existing meal is not an option.
+    DEFAULTS TO DINNER, not to the first free type in MEAL_TYPES order, which
+    is BREAKFAST. This app exists to shop for dinners — that is where the
+    "4-7 of 28" measurement came from — so the common case is one tap on the
+    meal and nothing else. journey.spec caught the wrong default by reading
+    the plan back; on screen the two are identical.
+    !isGuest, NOT slotsEditable, on the "Choose a meal" row. An EMPTY slot has
+    always been fillable in either mode — you do not press Edit to plan into a
+    day with nothing on it — and gating the new row on slotsEditable quietly
+    took that away. Three specs caught it.
+
+    planTypesInUse is GONE, with its tests: the design that needed it is the
+    one that was replaced. So is the "a type in use anywhere shows everywhere"
+    rule — the rows are what is actually on the day now, so a Sunday breakfast
+    appears on Sunday and nowhere else.
+
+    page.planMeal MOVED INTO THE HARNESS. Five specs had their own copy of
+    "plan a meal onto a day", and all five broke together the moment the Week
+    tab stopped carrying a row per meal type. One definition of a flow the
+    whole suite depends on.

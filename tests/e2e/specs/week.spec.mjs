@@ -29,25 +29,27 @@ const startPlanning = async (page) => {
   }
 };
 
-/* Item 51d: only the meal types actually in use get a row, so a Lunch slot on
-   a fresh week has to be revealed before it exists — via the "+" on that DAY.
-   That is the flow a person follows now, so the helper follows it too rather
-   than the tests quietly losing their coverage of the other three meal types. */
-const revealDay = async (page, day) => {
-  const plus = page.getByLabel(`Add another meal to ${day}`);
-  if (await plus.count()) {
-    await plus.first().click();
-    await page.waitForTimeout(300);
-  }
-};
-
+/* Item 51d: a day shows the meals on it plus one "Choose a meal" row, and the
+   meal TYPE is chosen in the picker rather than by which row was tapped. So
+   filling "Tue Lunch" is: open Tuesday's row, say Lunch, pick the meal — which
+   is the flow a person follows, and the helper follows it rather than the
+   tests quietly losing their coverage of the non-dinner meal types. */
 const pick = async (page, slot, recipe) => {
-  if (!/ Dinner$/.test(slot)) await revealDay(page, slot.split(" ")[0]);
-  await page.getByLabel(`Choose a meal for ${slot}`).click();
+  const [day, type] = slot.split(" ");
+  const filled = page.getByLabel(new RegExp(`^${day} ${type}: `));
+  // An occupied slot is re-picked from the meal itself; an empty one from the
+  // day's invitation, where the type still has to be named.
+  if (await filled.count()) await filled.first().click();
+  else {
+    await page.getByLabel(`Choose a meal for ${day}`).click();
+    await page.waitForTimeout(300);
+    const typeBtn = page.getByRole("button", { name: new RegExp(`^${type}$`) });
+    if (await typeBtn.count()) await typeBtn.first().click();
+  }
   await page.waitForTimeout(400);
   // Scope to the picker. Once a slot is filled, its own button also carries
   // the recipe name, so an unscoped click can hit the row behind the modal.
-  const picker = page.locator(`[aria-label="Choose a meal for ${slot}"]`).last();
+  const picker = page.locator(`[aria-label="Choose a meal for ${slot.split(" ")[0]}"]`).last();
   const inPicker = picker.locator("button").filter({ hasText: new RegExp(recipe) });
   const target = (await inPicker.count()) ? inPicker.first()
     : page.locator("button").filter({ hasText: new RegExp(recipe) }).last();

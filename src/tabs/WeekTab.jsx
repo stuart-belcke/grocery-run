@@ -6,8 +6,8 @@
 
 import { useMemo, useState } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
-import { Stripe, Btn, ConfirmDialog, SearchField } from "../ui";
-import { MEAL_TYPES, planTypesInUse, norm, planStageOf, plannedMealCount, daysInOrder, asArray, unplannedMeals, r2 } from "../lib";
+import { Stripe, Btn, ConfirmDialog, SearchField, Seg } from "../ui";
+import { MEAL_TYPES, norm, planStageOf, plannedMealCount, daysInOrder, asArray, unplannedMeals, r2 } from "../lib";
 
 export function WeekTab({ data, update, isGuest }) {
   // Presentation order only. Plan data stays keyed by day name, so a meal
@@ -25,21 +25,22 @@ export function WeekTab({ data, update, isGuest }) {
   const [unplannedOpen, setUnplannedOpen] = useState(false); // "Unplanned meals" disclosure
   // Item 51d. View state only — nothing about which types you PLAN is stored,
   // because planning one is what makes it stay.
-  /* Which days have been opened up to their unused meal types. PER DAY, and a
-     Set rather than one flag, because "add a meal" is a thing you do to
-     Tuesday — a global toggle put three empty rows on all seven days to let
-     you fill one. View state only: planning the meal is what makes its type
-     stay, so there is nothing to store. */
-  const [expandedDays, setExpandedDays] = useState(() => new Set());
-  const typesInUse = planTypesInUse(data.plan);
-  const typesFor = (day) => (expandedDays.has(day) ? MEAL_TYPES : typesInUse);
-  const toggleDay = (day) =>
-    setExpandedDays((prev) => {
-      const next = new Set(prev);
-      if (next.has(day)) next.delete(day);
-      else next.add(day);
-      return next;
-    });
+  /* A day shows the meals ON it, then one invitation to add another — the same
+     "Choose a meal" button an empty slot has always had. NOTHING IS HIDDEN and
+     there is nothing to reveal, which is what replaced both the four-rows-
+     always grid and the "+" that briefly stood in for it: a control you have
+     to find first is worse than a row that is simply there.
+     THE MEAL TYPE IS DECIDED WHEN YOU PICK THE MEAL, in the picker, rather
+     than by which row you tapped. That is the whole reason a day no longer
+     needs a row per type. */
+  const filledTypes = (day) => MEAL_TYPES.filter((t) => data.plan?.[day]?.[t]?.recipeId);
+  const freeTypes = (day) => MEAL_TYPES.filter((t) => !data.plan?.[day]?.[t]?.recipeId);
+  /* DINNER FIRST, not MEAL_TYPES order. This app exists to shop for dinners —
+     "a household that plans dinners uses 4-7 of 28 slots" is the measurement
+     the whole change came from — so the common case has to be one tap on the
+     meal and nothing else. First free in MEAL_TYPES order defaulted to
+     BREAKFAST, which journey.spec caught by reading the plan back. */
+  const defaultType = (day) => (freeTypes(day).includes("Dinner") ? "Dinner" : freeTypes(day)[0]);
 
   // Where the week is in its cycle, and what each stage lets you do.
   const stage = planStageOf(data);
@@ -321,36 +322,8 @@ export function WeekTab({ data, update, isGuest }) {
                 <div style={{ flex: 1 }}>
                   <Stripe />
                 </div>
-                {/* The way to add a second meal to a day whose other slots are
-                    hidden. A "+" rather than a sentence: it is the one glyph
-                    that needs no label, it belongs to the DAY it sits on, and
-                    it is 44px so a thumb can hit it (item 51a). Only on days
-                    that have something left to reveal. */}
-                {slotsEditable && typesInUse.length < MEAL_TYPES.length && (
-                  <button
-                    onClick={() => toggleDay(day)}
-                    aria-expanded={expandedDays.has(day)}
-                    aria-label={expandedDays.has(day) ? `Hide the other meals for ${day}` : `Add another meal to ${day}`}
-                    title={expandedDays.has(day) ? "Hide the empty meal slots" : "Add another meal to this day"}
-                    style={{
-                      width: 44,
-                      height: 44,
-                      flexShrink: 0,
-                      marginRight: -8,
-                      border: "none",
-                      background: "transparent",
-                      color: C.green,
-                      cursor: "pointer",
-                      fontSize: 22,
-                      lineHeight: 1,
-                      fontFamily: fontBody,
-                    }}
-                  >
-                    {expandedDays.has(day) ? "\u2212" : "+"}
-                  </button>
-                )}
               </div>
-              {typesFor(day).map((type) => {
+              {filledTypes(day).map((type) => {
                 const slot = data.plan?.[day]?.[type];
                 const recipe = slot?.recipeId ? data.recipes.find((r) => r.id === slot.recipeId) : null;
                 const base = recipe ? recipe.servings || 4 : 4;
@@ -510,6 +483,39 @@ export function WeekTab({ data, update, isGuest }) {
                   </div>
                 );
               })}
+
+              {/* ONE invitation per day, after whatever is already on it. This
+                  is the row that used to exist once per unused meal type — four
+                  rows on every day of the week to hold, on average, one meal.
+                  The meal TYPE is chosen in the picker now, so this row does
+                  not have to claim one in advance. */}
+              {/* !isGuest, NOT slotsEditable: an EMPTY slot has always been
+                  fillable in either mode — you do not press Edit to plan into
+                  a day with nothing on it — and gating this on slotsEditable
+                  quietly took that away. Three specs caught it. */}
+              {!isGuest && freeTypes(day).length > 0 && (
+                <div style={{ padding: "5px 0" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ width: 70, flexShrink: 0 }} />
+                    <button
+                      onClick={() => openPicker(day, defaultType(day))}
+                      aria-label={`Choose a meal for ${day}`}
+                      title="Tap to choose a meal"
+                      style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", fontFamily: fontBody, fontSize: 13, padding: "7px 10px", borderRadius: 8, cursor: "pointer", border: `1px solid ${C.line}`, background: "#fff", color: C.faint }}
+                    >
+                      <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>＋</span>
+                      Choose a meal
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* A guest reads the week but cannot fill it, so a day with
+                  nothing on it needs to say so rather than render as a bare
+                  heading with a blank underneath. */}
+              {filledTypes(day).length === 0 && isGuest && (
+                <div style={{ fontSize: 13, color: C.faint, padding: "5px 0" }}>Nothing planned</div>
+              )}
             </div>
           );
         })
@@ -519,7 +525,7 @@ export function WeekTab({ data, update, isGuest }) {
         <div
           role="dialog"
           aria-modal="true"
-          aria-label={picker.role === "side" ? `Add a side for ${picker.day} ${picker.type}` : `Choose a meal for ${picker.day} ${picker.type}`}
+          aria-label={picker.role === "side" ? `Add a side for ${picker.day} ${picker.type}` : `Choose a meal for ${picker.day}`}
           onClick={() => setPicker(null)}
           // Anchored to the top (not vertically centered) so that as the search
           // narrows the list and the panel shrinks, its top — and the search box
@@ -532,9 +538,9 @@ export function WeekTab({ data, update, isGuest }) {
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px 10px" }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 700, color: C.ink }}>{picker.day} · {picker.type}</div>
+                <div style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 700, color: C.ink }}>{picker.day}{picker.role === "side" ? ` · ${picker.type}` : ""}</div>
                 <div style={{ fontSize: 12, color: C.faint }}>
-                  {picker.role === "side" ? "Tap to add a side — pick as many as you like, then Add" : "Pick a meal for this slot"}
+                  {picker.role === "side" ? "Tap to add a side — pick as many as you like, then Add" : "Pick a meal, and say which meal of the day it is"}
                 </div>
               </div>
               <button
@@ -546,6 +552,21 @@ export function WeekTab({ data, update, isGuest }) {
                 ✕
               </button>
             </div>
+            {/* WHICH MEAL OF THE DAY, decided here rather than by which row was
+                tapped. Only the types still free on this day are offered plus
+                the one already selected — a day holds one meal per type, so an
+                option that would silently replace an existing meal is not an
+                option. Defaults to the first free type, so the common case
+                (one dinner) is a single tap on the meal and nothing else. */}
+            {picker.role !== "side" && (
+              <div style={{ padding: "0 16px 10px" }}>
+                <Seg
+                  options={MEAL_TYPES.filter((t) => t === picker.type || !data.plan?.[picker.day]?.[t]?.recipeId).map((t) => ({ value: t, label: t }))}
+                  value={picker.type}
+                  onChange={(t) => setPicker((p) => ({ ...p, type: t }))}
+                />
+              </div>
+            )}
             <div style={{ padding: "0 16px 10px" }}>
               <SearchField
                 autoFocus
