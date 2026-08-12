@@ -6,7 +6,7 @@
 import { useState, useMemo, useRef } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop, SuggestInput } from "../ui";
-import { UNASSIGNED, norm, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg } from "../lib";
+import { UNASSIGNED, keyForName, aisleKey, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg } from "../lib";
 
 export function ListTab({ data, update, updateCatalog, isGuest }) {
   const [view, setView] = useState("store");
@@ -80,8 +80,10 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
   const setAisle = (key, store, value) =>
     updateCatalog((c) => {
       const aisles = { ...normalizeCfg(c.ingredients[key]).aisles };
-      if (value === "") delete aisles[store];
-      else aisles[store] = Number(value);
+      // aisleKey, not the raw name: a store called "H.E.B." would make
+      // every catalog write fail the way item 53's item names did.
+      if (value === "") delete aisles[aisleKey(store)];
+      else aisles[aisleKey(store)] = Number(value);
       c.ingredients[key] = setIngredientCfg(c.ingredients[key], { aisles });
       return c;
     });
@@ -142,16 +144,32 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
   // silently empty the list — `bought` only clears on "Clear week", so changing
   // meals without pressing it left last week's purchases subtracting from this
   // week's needs.
-  const boughtRows = Object.entries(data.list.bought || {})
+  const boughtAll = Object.entries(data.list.bought || {})
     .filter(([, parts]) => parts && typeof parts === "object" && Object.keys(parts).length)
-    .map(([key, parts]) => ({ key, name: ingredientNameFor(data, key), label: qtyLabel(parts) }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .map(([key, parts]) => ({ key, name: ingredientNameFor(data, key), label: qtyLabel(parts) }));
+  const boughtRows = boughtAll.filter((r) => r.name).sort((a, b) => a.name.localeCompare(b.name));
+  /* Entries whose ingredient no longer exists. They came from "Restore starter
+     catalog", which used to mint fresh ids and leave the state pointing at the
+     old ones — so these listed themselves among the groceries as
+     "Ing_05jz04l4 · 1" on a real phone. They can never offset anything again,
+     since nothing on any list carries that id, so they are grouped and
+     explained rather than shown one by one as items. */
+  const boughtOrphans = boughtAll.filter((r) => !r.name);
 
   // Putting something back means "I don't actually have this": it stops
   // offsetting demand, so the item returns to the list at its full quantity.
   const unbuy = (key) =>
     update((d) => {
       delete d.list.bought[key];
+      return d;
+    });
+  /* ONE update() call, not one per key. update() snapshots localRef.current,
+     which only refreshes on the next render, so a forEach over unbuy() would
+     rebuild from the same stale base every time and clear exactly one of
+     them — with the button looking like it worked. */
+  const clearKeys = (keys) =>
+    update((d) => {
+      for (const k of keys) delete d.list.bought[k];
       return d;
     });
   const unbuyAll = () =>
@@ -206,7 +224,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
   const addExtra = () => {
     const name = extra.name.trim();
     if (!name) return;
-    // config is id-keyed, so looking it up by norm(name) never matched — every
+    // config is id-keyed, so looking it up by the normalized name never matched — every
     // add asked "remember this?" even for an ingredient you already have.
     if (!ingredientIdByName(data.config, name)) return setAskSave(name);
     commitExtra(false);
@@ -223,7 +241,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
     let key = ingredientIdByName(data.config, name);
     if (!key && saveToIngredients) {
       // Mints an `ing_` id AND stores the name as a field. The old code wrote
-      // c.ingredients[norm(name)] = { store, aisles } — a name-keyed entry
+      // c.ingredients[the normalized name] = { store, aisles } — a name-keyed entry
       // with no name in it, which showed up as a duplicate AND made
       // needsIngredientIds true, re-triggering the whole id migration.
       updateCatalog((c) => {
@@ -231,7 +249,9 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
         return c;
       });
     }
-    if (!key) key = norm(name);
+    // keyForName, not norm: a name with `.` `#` `$` `[` `]` or `/` in it
+    // makes a key the database refuses, and every write after it fails too.
+    if (!key) key = keyForName(name);
     update((d) => {
       d.list.extras[key] = { name, qty: Number(extra.qty) || 1, unit: extra.unit.trim() };
       // "Save to Ingredients" only means "remember this name so it's suggested
@@ -278,7 +298,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
     // Same rule as adding: attach to the ingredient's id when the name is one
     // we know, so a renamed hand-added item merges into that row instead of
     // becoming a store-less twin of it.
-    const newKey = ingredientIdByName(data.config, name) || norm(name);
+    const newKey = ingredientIdByName(data.config, name) || keyForName(name);
     update((d) => {
       delete d.list.extras[item.key];
       d.list.extras[newKey] = { name, qty: Number(editExtra.qty) || 1, unit: editExtra.unit.trim() };
@@ -456,7 +476,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
                     <input
                       type="number"
                       min="0"
-                      value={homeCfg.aisles[itemStore] ?? ""}
+                      value={aisleFor(homeCfg, itemStore)}
                       onChange={(e) => setAisle(item.key, itemStore, e.target.value === "" ? "" : Number(e.target.value))}
                       aria-label={`Aisle for ${item.name} at ${itemStore}`}
                       style={{ width: 52, fontSize: 13, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: C.greenSoft }}
@@ -610,7 +630,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
           you can open — a full-width bar with a disclosure caret — rather than
           a footnote among neutral counts. Gold, not tomato: suppression is
           correct behaviour most weeks and shouldn't read as an error. */}
-      {boughtRows.length > 0 && (
+      {(boughtRows.length > 0 || boughtOrphans.length > 0) && (
         <div style={{ background: C.goldSoft, border: `1px solid ${C.gold}`, borderRadius: 12, marginBottom: 12, overflow: "hidden" }}>
           <button
             onClick={() => setShowBought((v) => !v)}
@@ -629,8 +649,12 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
               color: C.gold,
             }}
           >
+            {/* boughtAll, not boughtRows: the count is how many entries the
+                cupboard is holding, and the ones with no name left are still
+                entries. Counting only the nameable ones read "0 items already
+                bought this week" above a panel listing thirty of them. */}
             <span style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 16 }}>
-              {boughtRows.length} item{boughtRows.length === 1 ? "" : "s"} already bought this week
+              {boughtAll.length} item{boughtAll.length === 1 ? "" : "s"} already bought this week
             </span>
             <span style={{ flex: 1 }} />
             <span aria-hidden style={{ fontSize: 13 }}>{showBought ? "▲" : "▾"}</span>
@@ -651,6 +675,17 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
                   </li>
                 ))}
               </ul>
+              {/* Grouped, and named for what they are. One row each, reading
+                  "Ing_05jz04l4", is how this looked on a phone — indistinguishable
+                  from groceries, and every one of them permanent. */}
+              {boughtOrphans.length > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: `1px solid ${C.line}` }}>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: C.faint }}>
+                    {boughtOrphans.length} of these {boughtOrphans.length === 1 ? "was" : "were"} bought before the ingredients were replaced, so there is no longer a name to show. They are not keeping anything off the list — clearing them changes nothing.
+                  </span>
+                  <Btn small onClick={() => clearKeys(boughtOrphans.map((r) => r.key))}>Clear</Btn>
+                </div>
+              )}
               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
                 <Btn small onClick={unbuyAll}>Put all back</Btn>
               </div>

@@ -20,7 +20,17 @@ import { planWrite, cleanCode, newInviteToken } from "./lib";
    console. Offline is NOT a failure here: the SDK queues writes in memory
    and flushes them on reconnect, so this only fires when the server actively
    REJECTS a write while connected. Cleared by the next write that succeeds,
-   the same self-correcting shape the update gate already uses.            */
+   the same self-correcting shape the update gate already uses.
+
+   WHAT IT REPORTS IS A DETAIL OBJECT, NOT A BOOLEAN, and that came from a
+   real report: a phone showed "Sync error — changes may not be saved" and
+   nothing anywhere — not the screen, not the state — said WHICH write had
+   been refused or why. `true` is not diagnosable. A phone has no console to
+   read, so whatever the app is going to know about a failure has to be
+   carried to the screen at the moment it happens or it is lost.
+     { where }   plain-words name of what was being saved
+     { code }    the database's own code, e.g. PERMISSION_DENIED
+     { message } the raw message, kept for the console line only          */
 const writeErrorListeners = new Set();
 
 export function watchWriteErrors(cb) {
@@ -28,13 +38,17 @@ export function watchWriteErrors(cb) {
   return () => writeErrorListeners.delete(cb);
 }
 
-function reportWriteError(e) {
-  console.error("Grocery Run: write rejected", e);
-  for (const cb of writeErrorListeners) cb(true);
+function reportWriteError(e, where) {
+  console.error(`Grocery Run: write rejected (${where})`, e);
+  // e.code is what the Firebase SDK sets on a rules refusal; e.name catches
+  // the other shape that lands here — a payload the SDK rejects before it
+  // ever reaches the network (an `undefined` in the object throws Error).
+  const detail = { where, code: (e && (e.code || e.name)) || "unknown", message: (e && e.message) || "" };
+  for (const cb of writeErrorListeners) cb(detail);
 }
 
 function reportWriteOk() {
-  for (const cb of writeErrorListeners) cb(false);
+  for (const cb of writeErrorListeners) cb(null);
 }
 
 // Runs write() calls to the same database node one at a time. Two flushes
@@ -314,7 +328,7 @@ async function doWriteCatalog(code, catalog) {
     lastCatalog = { code, catalog };
     reportWriteOk();
   } catch (e) {
-    reportWriteError(e);
+    reportWriteError(e, "recipes and ingredients");
   }
 }
 
@@ -398,7 +412,7 @@ async function doFlush(code, state) {
     // lastWritten deliberately stays put: the next flush then re-diffs from
     // the last state that actually landed, so a rejected edit is retried
     // rather than silently dropped from every future diff.
-    reportWriteError(e);
+    reportWriteError(e, "shopping list and week plan");
   }
 }
 
@@ -655,7 +669,7 @@ export async function recordHouseholdMembership(code, user) {
     return true;
   } catch (e) {
     if (e && e.code === "PERMISSION_DENIED") return false;
-    reportWriteError(e);
+    reportWriteError(e, "membership record for this device");
     return false;
   }
 }
@@ -698,7 +712,7 @@ export async function createInvite(code, user, { ttlMinutes = 60, role = "member
     reportWriteOk();
     return { token, role };
   } catch (e) {
-    reportWriteError(e);
+    reportWriteError(e, "invite link");
     return null;
   }
 }
@@ -712,7 +726,7 @@ export async function revokeInvite(code, token) {
     reportWriteOk();
     return true;
   } catch (e) {
-    reportWriteError(e);
+    reportWriteError(e, "invite you were revoking");
     return false;
   }
 }
@@ -764,7 +778,7 @@ export async function removeMember(code, uid) {
     reportWriteOk();
     return true;
   } catch (e) {
-    reportWriteError(e);
+    reportWriteError(e, "member you were removing");
     return false;
   }
 }

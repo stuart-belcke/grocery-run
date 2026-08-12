@@ -17,6 +17,12 @@ import {
   parseJoinHash,
   inviteLive,
   syncIndicator,
+  writeErrorAdvice,
+  keyForName,
+  aisleKey,
+  aisleFor,
+  remapStateIngredientIds,
+  safeKey,
   normalizeLocal,
   emptyLocal,
   diffPaths,
@@ -1260,8 +1266,99 @@ test("a key renders as its NAME, never as the raw id", () => {
   assert.equal(ingredientNameFor(data, "ing_a1"), "Applesauce");
   // A hand-added entry that never became an ingredient still has a name.
   assert.equal(ingredientNameFor(data, "ing_b2"), "Paper towels");
-  // Something deleted still shows SOMETHING rather than blank.
-  assert.equal(ingredientNameFor(data, "ing_gone"), "Ing_gone");
+  /* An id whose ingredient is GONE has no name, and says so. This used to
+     return "Ing_gone" on the reasoning that showing something beats showing
+     nothing — a screenshot from a real phone settled it: the already-bought
+     panel listed eight rows reading "Ing_05jz04l4 · 1" in among the
+     groceries. Empty is what lets the caller group them and explain them. */
+  assert.equal(ingredientNameFor(data, "ing_gone"), "");
+  // A NAME-key still returns itself: there the key IS the name, which is the
+  // whole reason the fallback existed.
+  assert.equal(ingredientNameFor(data, "paper towels"), "Paper towels");
+});
+
+/* ---- restoring the starter catalog must take the state with it ----
+   seedCatalog mints a fresh id for every ingredient, so a restore left every
+   id-keyed thing in the shopping state — ticked, bought, rerouted, staples
+   run out — pointing at an ingredient that no longer existed. */
+
+const catalogOf = (names) => ({
+  ingredients: Object.fromEntries(names.map((n, i) => [`ing_new${i}`, { name: n, store: "Aldi", aisles: {} }])),
+});
+
+test("restoring the catalog carries the shopping state onto the new ids", () => {
+  const oldConfig = { ing_old1: { name: "Broccoli" }, ing_old2: { name: "Orzo" } };
+  const fresh = catalogOf(["Broccoli", "Orzo"]);
+  const out = remapStateIngredientIds(
+    {
+      list: { checked: { ing_old1: true }, overrides: { ing_old2: "Costco" }, bought: { ing_old1: { lb: 2 } }, extras: {} },
+      stapleNeeds: { ing_old2: true },
+    },
+    oldConfig,
+    fresh
+  );
+  assert.deepEqual(out.list.checked, { ing_new0: true }, "what was ticked should still be ticked");
+  assert.deepEqual(out.list.overrides, { ing_new1: "Costco" });
+  assert.deepEqual(out.list.bought, { ing_new0: { lb: 2 } });
+  assert.deepEqual(out.stapleNeeds, { ing_new1: true });
+});
+
+test("an ingredient the new catalog doesn't have is dropped, not left as an id", () => {
+  // The row from the screenshot. It can never resolve later — the ingredient
+  // is gone outright — so keeping it means keeping "Ing_05jz04l4" forever.
+  const out = remapStateIngredientIds(
+    { list: { bought: { ing_old1: { ea: 1 }, ing_old9: { ea: 1 } }, checked: {}, overrides: {}, extras: {} }, stapleNeeds: {} },
+    { ing_old1: { name: "Broccoli" }, ing_old9: { name: "Something retired" } },
+    catalogOf(["Broccoli"])
+  );
+  assert.deepEqual(Object.keys(out.list.bought), ["ing_new0"]);
+});
+
+test("a hand-added item survives a restore even when nothing matches it", () => {
+  // It carries its own name, so it becomes an ad-hoc entry again rather than
+  // vanishing off the list.
+  const out = remapStateIngredientIds(
+    { list: { extras: { ing_old1: { name: "Birthday candles", qty: 1, unit: "" } }, checked: {}, overrides: {}, bought: {} }, stapleNeeds: {} },
+    { ing_old1: { name: "Birthday candles" } },
+    catalogOf(["Broccoli"])
+  );
+  const entries = Object.entries(out.list.extras);
+  assert.equal(entries.length, 1, "a hand-added item should never be dropped by a restore");
+  assert.equal(entries[0][1].name, "Birthday candles");
+  assert.doesNotMatch(entries[0][0], /^ing_/, "with no ingredient to point at it should key by its own name");
+});
+
+test("a key that was never an id is left exactly as it is", () => {
+  const out = remapStateIngredientIds(
+    { list: { checked: { "paper towels": true }, overrides: {}, bought: {}, extras: {} }, stapleNeeds: {} },
+    {},
+    catalogOf(["Broccoli"])
+  );
+  assert.deepEqual(out.list.checked, { "paper towels": true });
+});
+
+test("two old ids landing on one new one keep both the tick and the amount", () => {
+  // Restoring collapses duplicates that the household had merged apart. Losing
+  // a banked quantity here would silently put something back on the list.
+  const out = remapStateIngredientIds(
+    { list: { checked: { ing_a: false, ing_b: true }, bought: { ing_a: { lb: 1 }, ing_b: { lb: 2 } }, overrides: {}, extras: {} }, stapleNeeds: {} },
+    { ing_a: { name: "Broccoli" }, ing_b: { name: "broccoli" } },
+    catalogOf(["Broccoli"])
+  );
+  assert.equal(out.list.checked.ing_new0, true);
+  assert.deepEqual(out.list.bought.ing_new0, { lb: 3 });
+});
+
+test("unknown top-level fields survive a restore untouched", () => {
+  // Forward compatibility: this rewrites a state that a newer build may have
+  // extended, and it must not be the thing that prunes the new field.
+  const out = remapStateIngredientIds(
+    { version: 1, somethingNew: { a: 1 }, list: { checked: {}, overrides: {}, bought: {}, extras: {}, laterField: 7 }, stapleNeeds: {} },
+    {},
+    catalogOf([])
+  );
+  assert.deepEqual(out.somethingNew, { a: 1 });
+  assert.equal(out.list.laterField, 7);
 });
 
 
@@ -1623,6 +1720,181 @@ test("local-only builds never mention signing in", () => {
 test("a refused read outranks a refused write, because it explains it", () => {
   const out = syncIndicator({ ...base, accessDenied: true, writeError: true });
   assert.equal(out.text, "No access to this household");
+});
+
+/* The sentence under the dot. Reported from a phone: "Sync error — changes
+   may not be saved" with nothing anywhere saying which write or why, because
+   the signal was a bare `true`. These tests are about what the reader can DO
+   with the message, not about its wording. */
+
+test("nothing is said when no write has been refused", () => {
+  assert.equal(writeErrorAdvice(null), null);
+  assert.equal(writeErrorAdvice(undefined), null);
+  // A detail object with no `where` is a bug in the reporter, not a failure
+  // worth a red box — say nothing rather than "The last change to the .".
+  assert.equal(writeErrorAdvice({ code: "PERMISSION_DENIED" }), null);
+});
+
+test("the message names the write that failed and the database's own code", () => {
+  const out = writeErrorAdvice({ where: "recipes and ingredients", code: "PERMISSION_DENIED" });
+  assert.match(out, /recipes and ingredients/);
+  assert.match(out, /PERMISSION_DENIED/);
+});
+
+test("a refused write and a malformed one send the reader somewhere different", () => {
+  // The reason this is a function and not a string. PERMISSION_DENIED means
+  // the account is wrong — re-invite the phone. Anything else means the app
+  // sent something the database wouldn't take, and re-inviting fixes nothing.
+  const denied = writeErrorAdvice({ where: "shopping list and week plan", code: "PERMISSION_DENIED" });
+  const broken = writeErrorAdvice({ where: "shopping list and week plan", code: "Error" });
+  assert.match(denied, /invite/i);
+  assert.doesNotMatch(broken, /invite/i);
+  assert.match(broken, /[Rr]eload/);
+});
+
+test("an unknown code is left out rather than shown as the word unknown", () => {
+  const out = writeErrorAdvice({ where: "invite link", code: "unknown" });
+  assert.doesNotMatch(out, /unknown/);
+  assert.match(out, /invite link/);
+});
+
+/* ---------- keys the database will actually accept ----------
+   A hand-added "Dr. Pepper" was keyed norm(name) = "dr. pepper", and RTDB
+   refuses `.` in a key — so the SDK threw before the write left the phone,
+   and because a failed write deliberately keeps its baseline, EVERY later
+   write re-sent the same bad path. A permanently stuck "Sync error" that
+   reopening the app does not clear.
+   Verified against the real firebase package, not reasoned about: `.` `#`
+   `$` `[` `]` throw "values argument contains an invalid key"; `%` and `&`
+   are accepted; `/` is accepted and silently writes NESTED nodes, which is
+   worse than an error. */
+
+const ILLEGAL = /[.#$[\]/]/;
+
+test("every character the database refuses is taken out of a key", () => {
+  for (const [name, key] of [
+    ["Dr. Pepper", "dr pepper"],
+    ["A[1] sauce", "a 1 sauce"],
+    ["1/2 gallon milk", "1 2 gallon milk"],
+    ["#2 pencils", "2 pencils"],
+    ["$5 wine", "5 wine"],
+  ]) {
+    assert.equal(keyForName(name), key);
+    assert.doesNotMatch(keyForName(name), ILLEGAL);
+  }
+});
+
+test("characters the database accepts are left alone", () => {
+  // Stripping more than necessary would split items that are one item:
+  // "Ben & Jerry's" and "Milk 2%" both store fine.
+  assert.equal(keyForName("Milk 2%"), "milk 2%");
+  assert.equal(keyForName("Ben & Jerry's"), "ben & jerry's");
+});
+
+test("a legal key keeps its case, because ids are identities", () => {
+  // safeKey runs over keys that already exist, ingredient and recipe ids
+  // among them. Lowercasing one would orphan everything pointing at it.
+  assert.equal(safeKey("ing_2ym41inb"), "ing_2ym41inb");
+  assert.equal(safeKey("r-StirFry"), "r-StirFry");
+  assert.equal(safeKey("Dr. Pepper"), "Dr Pepper");
+});
+
+test("a name made only of refused characters still produces a usable key", () => {
+  // An empty key is refused too, so stripping to nothing is not a fix.
+  assert.equal(keyForName("..."), "item");
+  assert.notEqual(keyForName("$"), "");
+});
+
+test("a device already holding a refused key heals itself when state is read", () => {
+  // The part that actually unsticks a phone. The database never received the
+  // key — the write failed — so there is no shared copy to reconcile with.
+  const d = normalizeLocal({
+    list: {
+      extras: { "dr. pepper": { name: "Dr. Pepper", qty: 2, unit: "bottle" } },
+      checked: { "dr. pepper": true },
+      overrides: { "dr. pepper": "Costco" },
+      bought: { "dr. pepper": { bottle: 1 } },
+    },
+    stapleNeeds: { "a.1. sauce": true },
+  });
+  assert.deepEqual(Object.keys(d.list.extras), ["dr pepper"]);
+  assert.equal(d.list.extras["dr pepper"].name, "Dr. Pepper", "the punctuation belongs in the NAME, which is what is displayed");
+  assert.equal(d.list.checked["dr pepper"], true);
+  assert.equal(d.list.overrides["dr pepper"], "Costco");
+  assert.deepEqual(d.list.bought["dr pepper"], { bottle: 1 });
+  assert.deepEqual(Object.keys(d.stapleNeeds), ["a 1 sauce"]);
+});
+
+test("healing two names that differ only by punctuation loses neither", () => {
+  // "Dr. Pepper" and "Dr Pepper" collapse onto one key. Silently dropping a
+  // tick or a quantity here would be a second bug hiding inside the fix.
+  const d = normalizeLocal({
+    list: {
+      checked: { "dr. pepper": false, "dr pepper": true },
+      bought: { "dr. pepper": { bottle: 1 }, "dr pepper": { bottle: 2 } },
+    },
+  });
+  assert.equal(d.list.checked["dr pepper"], true, "a ticked item came back unticked");
+  assert.deepEqual(d.list.bought["dr pepper"], { bottle: 3 }, "banked quantities should add, not replace");
+});
+
+/* The same class, in the catalog rather than the state: an ingredient's
+   aisles are keyed by the STORE'S NAME, so "H.E.B." would make every catalog
+   write fail exactly the way "Dr. Pepper" made every state write fail. Fixed
+   differently because a store name is DISPLAYED — the name stays as typed and
+   only the key is derived. */
+
+test("a store name that works today keeps exactly the key it already has", () => {
+  /* NEEDS ITS OWN TEST, and this is why: reading an aisle back would pass
+     either way, because normalizeCfg puts the STORED map through aisleKey too,
+     so both sides agree whatever it does. What the rule buys is that upgrading
+     writes nothing at all — lowercasing would rewrite every ingredient's
+     aisles map on the first catalog edit and churn 146 entries through the
+     next exported catalog.json. Mutation-tested: with norm() in aisleKey every
+     browser test still passes and this one fails. */
+  for (const s of ["Aldi", "Costco", "Trader Joe's", "Sam's Club", "Unassigned", "H E B"]) {
+    assert.equal(aisleKey(s), s);
+  }
+});
+
+test("an aisle set at a store the database can't key is still readable", () => {
+  const cfg = setIngredientCfg({ name: "Orzo" }, { store: "H.E.B.", aisles: { "H.E.B.": 7 } });
+  for (const k of Object.keys(cfg.aisles)) assert.doesNotMatch(k, /[.#$[\]/]/, `the catalog is keyed "${k}", which the database refuses`);
+  // Read back by the DISPLAY name, which is what every caller has.
+  assert.equal(aisleFor(cfg, "H.E.B."), 7);
+  assert.equal(cfg.store, "H.E.B.", "the store's name is displayed, so it must survive as typed");
+});
+
+test("an aisles map written by an older build reads back the same", () => {
+  // Every existing household is in this shape, and it has to keep working
+  // without being rewritten first.
+  assert.equal(aisleFor({ store: "Aldi", aisles: { Aldi: 3 } }, "Aldi"), 3);
+  assert.equal(aisleFor({ store: "Aldi", aisle: 4 }, "Aldi"), 4, "the pre-aisles-map shape too");
+});
+
+test("nothing a flush sends can contain a key the database refuses", () => {
+  /* THE ASSERTION THAT WOULD HAVE CAUGHT THIS. Everything the app writes goes
+     through planWrite, so checking the paths it produces covers every screen
+     at once — no test of one tab could have. */
+  const before = normalizeLocal(emptyLocal());
+  const after = normalizeLocal({
+    ...emptyLocal(),
+    list: {
+      ...emptyLocal().list,
+      extras: { [keyForName("Dr. Pepper")]: { name: "Dr. Pepper", qty: 1, unit: "ea" } },
+      checked: { [keyForName("1/2 gallon milk")]: true },
+      bought: { [keyForName("A[1] sauce")]: { ea: 1 } },
+    },
+    stapleNeeds: { [keyForName("Mrs. Butterworth")]: true },
+  });
+  const plan = planWrite({ code: "home-abcdefgh", state: before }, "home-abcdefgh", after);
+  assert.equal(plan.kind, "update");
+  for (const path of Object.keys(plan.paths)) {
+    for (const segment of path.split("/")) {
+      assert.doesNotMatch(segment, /[.#$[\]]/, `the path ${path} has a segment the database refuses`);
+      assert.notEqual(segment, "", `the path ${path} has an empty segment`);
+    }
+  }
 });
 
 /* ------------------- invites (item 37) ------------------- */

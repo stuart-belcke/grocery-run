@@ -36,6 +36,7 @@ import {
   LOCAL_KEY,
   ONBOARDED_KEY,
   GUEST_PREVIEW_KEY,
+  STATUS_PREVIEW_KEY,
   CATALOG_KEY,
   storageOk,
   FALLBACK_CATALOG,
@@ -141,10 +142,13 @@ export default function App() {
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
   }, [linkInvite]);
   const [syncStatus, setSyncStatus] = useState(syncEnabled ? "connecting" : "local-only");
-  // A write the server actively rejected (rules, quota, a malformed payload) —
-  // NOT offline, which the SDK handles by queuing and never surfaces here.
-  // Self-correcting: cleared the moment any write succeeds again.
-  const [writeError, setWriteError] = useState(false);
+  /* A write the server actively rejected (rules, quota, a malformed payload) —
+     NOT offline, which the SDK handles by queuing and never surfaces here.
+     Self-correcting: cleared the moment any write succeeds again.
+     Holds the DETAIL of the refusal ({ where, code }) or null, so the Settings
+     tab can name the write that failed. A bare boolean here is what made a
+     real report undiagnosable. */
+  const [writeError, setWriteError] = useState(null);
   // Signed-in identity (item 37). Since CONTRACT this is what grants access
   // to the household, not just a label on it.
   const [user, setUser] = useState(null);
@@ -598,7 +602,20 @@ export default function App() {
   // In lib.js, and unit-tested there: the case this exists to prevent — a
   // connected socket over a refused read — is the one case a browser in this
   // sandbox can't reproduce, so it needs coverage that doesn't need a network.
-  const sync = syncIndicator({ syncEnabled, authReady, signedIn: !!user, accessDenied, writeError, syncStatus });
+  /* local-only builds only: see STATUS_PREVIEW_KEY. The preview names a
+     status and the REAL syncIndicator turns it into the label, so the e2e
+     suite measures the strings the app actually shows rather than a copy. */
+  const statusPreview = syncEnabled ? null : loadJSON(STATUS_PREVIEW_KEY);
+  const sync = statusPreview
+    ? syncIndicator({
+        syncEnabled: true,
+        authReady: true,
+        signedIn: statusPreview !== "signedOut",
+        accessDenied: statusPreview === "accessDenied",
+        writeError: statusPreview === "writeError",
+        syncStatus: statusPreview,
+      })
+    : syncIndicator({ syncEnabled, authReady, signedIn: !!user, accessDenied, writeError, syncStatus });
 
   /* Redeem an invite from the first-run screen. A GUEST link signs the
      browser in anonymously first — that is the whole point of the choice: you
@@ -661,9 +678,16 @@ export default function App() {
 
       <div style={{ maxWidth: 720, margin: "0 auto", padding: `20px 14px calc(${BOTTOM_NAV_H + 28}px + env(safe-area-inset-bottom, 0px))` }}>
         <header style={{ marginBottom: 18 }}>
+          {/* flexShrink 0 on the title, and the status allowed to wrap instead.
+              Both were shrinkable, so the longest status ("No access to this
+              household") took width off the title and broke "Grocery Run"
+              across two lines at 390px — the app's own name, rewrapped by a
+              message that is meant to be secondary. The status has min-width
+              auto, so it can't shrink past its longest word and nothing
+              overflows; it just becomes two short lines. */}
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
-            <h1 style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 30, margin: 0 }}>Grocery Run</h1>
-            <span style={{ fontSize: 12, color: sync.tone === "bad" || sync.tone === "warn" ? syncTone[sync.tone] : C.faint, display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <h1 style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 30, margin: 0, flexShrink: 0 }}>Grocery Run</h1>
+            <span style={{ fontSize: 12, color: sync.tone === "bad" || sync.tone === "warn" ? syncTone[sync.tone] : C.faint, display: "inline-flex", alignItems: "center", gap: 5, justifyContent: "flex-end", textAlign: "right" }}>
               {syncEnabled && (
                 <span aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: syncTone[sync.tone] }} />
               )}
@@ -734,6 +758,7 @@ export default function App() {
             code={code}
             setCode={setCode}
             sync={sync}
+            writeError={writeError}
             user={user}
             accessDenied={accessDenied}
             members={members}

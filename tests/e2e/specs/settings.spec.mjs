@@ -55,9 +55,10 @@ test("SHOULD: export is refused while two ingredients share a name", async () =>
 });
 
 test("SHOULD: restoring the starter catalog brings names back and keeps recipe ids", async () => {
-  // The documented recovery path. Ingredient ids are re-minted (so id-keyed
-  // trip state is orphaned, which is known); recipe ids come from the file
-  // and MUST be stable, or the week plan would break every time.
+  // The documented recovery path. Ingredient ids are re-minted; recipe ids
+  // come from the file and MUST be stable, or the week plan would break every
+  // time. The trip state moves onto the new ids with the catalog — that half
+  // is restorestate.spec.mjs, which is where it broke.
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
     const before = await page.readCatalog();

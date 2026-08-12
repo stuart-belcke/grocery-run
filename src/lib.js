@@ -22,6 +22,18 @@ export const ONBOARDED_KEY = "grocery-run-onboarded-v1";
    branch and never looks at this key, so it is a test seam and not a way in;
    the rules would refuse the writes regardless of what any client believes. */
 export const GUEST_PREVIEW_KEY = "grocery-run-e2e-guest-preview";
+
+/* Forces a sync status in a LOCAL-ONLY build, for the e2e suite. Same seam
+   and same rule as GUEST_PREVIEW_KEY above: only read when syncEnabled is
+   false, so a production build never looks at it.
+   It exists because the status is a LAYOUT problem as much as a message —
+   "Sync error — changes may not be saved" beside the "Household" heading
+   was drawn straight over it on a real phone — and a build with sync
+   compiled out can only ever produce the shortest of the seven strings.
+   The value is a status NAME ("writeError", "accessDenied", "offline",
+   "synced", "signedOut"); App turns it back into a label through the real
+   syncIndicator, so no test can assert on wording the app doesn't show. */
+export const STATUS_PREVIEW_KEY = "grocery-run-e2e-status-preview";
 export const CATALOG_KEY = "grocery-run-catalog-cache-v1";
 // The household's own catalog, cached so the app opens offline before the
 // database listener has said anything.
@@ -328,6 +340,84 @@ export function unitMatches(data, ingredientKey, typed, limit = 8) {
 export const norm = (s) => (s || "").trim().toLowerCase();
 export const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 export const uid = () => Math.random().toString(36).slice(2, 10);
+
+/* ------------------- keys the database will accept -------------------
+   RTDB refuses `.` `#` `$` `[` `]` in a key, and treats `/` as a path
+   separator. The list keys hand-added items by their own NAME — norm(name) —
+   so "Dr. Pepper" produced the path state/list/extras/dr. pepper, and the
+   Firebase SDK threw before the write ever left the phone:
+     "values argument contains an invalid key (dr. pepper)"
+   Verified against the real SDK, not reasoned about. `.` `#` `$` `[` `]` all
+   throw; `%` and `&` are fine.
+
+   THE FAILURE IS PERMANENT, WHICH IS THE PART THAT MATTERS. lastWritten
+   deliberately stays put on a failed write so nothing is dropped from a
+   future diff — so the bad path is re-sent on every write from then on, and
+   the "Sync error" never clears. Closing and reopening the app does not help;
+   the key is in the cached state.
+
+   `/` IS WORSE THAN REFUSED: it is accepted, and silently writes nested nodes
+   — "1/2 gallon milk" becomes a node "1" containing "2 gallon milk". No
+   error, wrong data.
+
+   safeKey only touches keys that are actually illegal, and never changes the
+   case: minted ingredient ids are base36 and recipe ids are hand-written, and
+   lowercasing a legal key would orphan everything pointing at it. */
+const RTDB_ILLEGAL_KEY = /[.#$[\]/]/;
+export const safeKey = (k) => {
+  const s = String(k);
+  if (!RTDB_ILLEGAL_KEY.test(s)) return s;
+  return s.replace(/[.#$[\]/]/g, " ").replace(/\s+/g, " ").trim() || "item";
+};
+// The key a hand-added item gets from what was typed. Same normalization as
+// before, then made storable.
+export const keyForName = (s) => safeKey(norm(s)) || "item";
+
+/* An ingredient's aisles are keyed by the STORE'S NAME, and a store called
+   "H.E.B." or "Sam's Club #8125" would break every catalog write exactly the
+   way "Dr. Pepper" broke every state write — same characters, same permanent
+   failure, different node.
+
+   NOT the same fix as keyForName, because a store name is DISPLAYED. It is
+   typed once and then shown on every heading and in every dropdown, so it
+   cannot be quietly rewritten the way an invisible key can. The display name
+   stays exactly as typed, in `catalog.stores`; only the aisles map's key is
+   derived from it.
+
+   NO CASE CHANGE, which is the point of deriving it with safeKey rather than
+   norm. Reads would survive either way — normalizeCfg puts the stored map
+   through aisleKey too, so both sides agree whatever it does — and that is
+   exactly why it needs its own test rather than being left to the ones that
+   read an aisle back. What the case rule buys is that every store name that
+   works today keys to ITSELF, byte for byte: upgrading writes nothing at all,
+   where lowercasing would rewrite every ingredient's aisles map on the first
+   catalog edit and churn 146 entries through the next exported catalog.json.
+
+   THE COST, WRITTEN DOWN: two stores whose names differ only in those
+   characters — "H.E.B." and "H E B" — would share one aisles entry per
+   ingredient. That is a strange pair of stores to have, and it is a better
+   outcome than a household whose catalog silently stops saving. */
+export const aisleKey = (store) => safeKey(store == null ? "" : store);
+
+/* Heals keys that are already in a device's cached state. A phone that hit
+   this is stuck until its own copy is fixed, and the database never received
+   the bad key — the write failed — so there is no shared copy to diverge
+   from and no expand-then-contract needed.
+   `merge` decides collisions, which happen when two names differ only by
+   punctuation: checked ORs, bought sums, everything else keeps what was
+   already there. Rare, and losing a tick or a quantity silently would be its
+   own bug. */
+export function withSafeKeys(obj, merge) {
+  const src = asObject(obj);
+  let changed = false;
+  const out = {};
+  for (const [k, v] of Object.entries(src)) {
+    const safe = safeKey(k);
+    if (safe !== k) changed = true;
+    out[safe] = safe in out ? (merge ? merge(out[safe], v) : out[safe]) : v;
+  }
+  return changed ? out : src;
+}
 export const r2 = (x) => Math.round(x * 100) / 100;
 
 // Render a value on a single line, matching the hand-authored catalog.json
@@ -395,12 +485,21 @@ export function formatCatalog(out) {
 // An ingredient config is { store: defaultStore, aisles: { storeName: number } }.
 // Older data used a single { store, aisle }; normalizeCfg upgrades it so the
 // legacy aisle becomes that store's entry in the aisles map.
+// Every aisles map goes through aisleKey on the way in, so one written by a
+// build that keyed it by the raw store name reads back the same either way,
+// and one holding a key the database refuses is healed rather than re-sent.
+const keyedAisles = (raw) => {
+  const out = {};
+  for (const [k, v] of Object.entries(raw && typeof raw === "object" ? raw : {})) out[aisleKey(k)] = v;
+  return out;
+};
+
 export function normalizeCfg(cfg) {
   if (!cfg) return { store: UNASSIGNED, aisles: {}, staple: false };
-  if (cfg.aisles) return { store: cfg.store || UNASSIGNED, aisles: { ...cfg.aisles }, staple: !!cfg.staple };
+  if (cfg.aisles) return { store: cfg.store || UNASSIGNED, aisles: keyedAisles(cfg.aisles), staple: !!cfg.staple };
   const aisles = {};
   if (cfg.aisle !== undefined && cfg.aisle !== null && cfg.aisle !== "" && cfg.store) {
-    aisles[cfg.store] = Number(cfg.aisle);
+    aisles[aisleKey(cfg.store)] = Number(cfg.aisle);
   }
   return { store: cfg.store || UNASSIGNED, aisles, staple: !!cfg.staple };
 }
@@ -447,7 +546,7 @@ export function setIngredientCfg(ing, patch) {
 // Aisle for a specific store, or "" if none set.
 export function aisleFor(cfg, store) {
   const n = normalizeCfg(cfg);
-  const a = n.aisles[store];
+  const a = n.aisles[aisleKey(store)];
   return a === undefined || a === null ? "" : a;
 }
 
@@ -801,16 +900,26 @@ export function normalizeLocal(raw) {
     // everyone. That is exactly how `bought` could vanish and already-purchased
     // items reappear on both phones. Top-level keys never had this problem
     // (`...d` above carries them through); `list` was the one place that did.
+    /* withSafeKeys on every map keyed by an ITEM. A key with `.` `#` `$` `[`
+       `]` in it is refused by the SDK on every write from then on, so the app
+       has to heal its own cached state or a phone that got one stays stuck
+       forever. Read-time, like the rest of this function, so it also catches a
+       state that arrived from another device. `selections` is keyed by recipe
+       id and `plan` by day, neither of which comes from typing. */
     list: {
       ...asObject(d.list),
       selections: asObject(d.list && d.list.selections),
-      overrides: asObject(d.list && d.list.overrides),
-      checked: asObject(d.list && d.list.checked),
-      extras: asKeyed(d.list && d.list.extras, (e) => norm(e.name)),
-      bought: asObject(d.list && d.list.bought),
+      overrides: withSafeKeys(d.list && d.list.overrides),
+      checked: withSafeKeys(d.list && d.list.checked, (a, b) => a || b),
+      extras: withSafeKeys(asKeyed(d.list && d.list.extras, (e) => keyForName(e.name))),
+      bought: withSafeKeys(d.list && d.list.bought, (a, b) => {
+        const out = { ...asObject(a) };
+        for (const [u, q] of Object.entries(asObject(b))) out[u] = r2((Number(out[u]) || 0) + (Number(q) || 0));
+        return out;
+      }),
     },
     plan: asObject(d.plan),
-    stapleNeeds: asObject(d.stapleNeeds),
+    stapleNeeds: withSafeKeys(d.stapleNeeds, (a, b) => a || b),
   };
 }
 
@@ -1188,6 +1297,71 @@ export function remapIngredientKeys(obj, index) {
     out[id || key] = v;
   }
   return out;
+}
+
+/* Move the shopping state onto a NEW SET OF INGREDIENT IDS, matching by name.
+
+   "Restore starter catalog" mints a fresh id for every ingredient — seedCatalog
+   calls ensureIngredientId, which is uid()-based — so the moment it runs, every
+   id-keyed thing in the shopping state points at an ingredient that no longer
+   exists. What that looked like on a real phone: eight rows in the
+   already-bought panel reading "Ing_05jz04l4 · 1", sitting there permanently,
+   because an orphan can never match anything on a list again.
+
+   MATCHED BY NAME, which is the only thing the two catalogs share. The old
+   config is the only place the old ids' names survive, so this has to be
+   called with it BEFORE it is replaced.
+
+   AN ENTRY THAT RESOLVES TO NOTHING IS DROPPED, and that is the opposite of
+   remapIngredientKeys above — deliberately. There, an unresolved key was a
+   stale key nothing reads, and keeping it cost nothing. Here it is an id whose
+   ingredient has been deleted outright, so it can never resolve later; keeping
+   it is exactly the row the screenshot showed. A hand-added ENTRY survives
+   either way, re-keyed by its own name, because it carries one. */
+export function remapStateIngredientIds(state, oldConfig, newCatalog) {
+  const byName = new Map();
+  for (const [id, ing] of Object.entries(asObject(newCatalog && newCatalog.ingredients))) {
+    const n = norm(normalizeIngredient(ing, id).name);
+    if (n && !byName.has(n)) byName.set(n, id);
+  }
+  const moved = new Map();
+  for (const [oldId, cfg] of Object.entries(asObject(oldConfig))) {
+    const n = norm(normalizeIngredient(cfg, oldId).name);
+    const to = n && byName.get(n);
+    if (to) moved.set(oldId, to);
+  }
+  // A key that was never an id — a hand-added item keyed by its own name — is
+  // not part of this and passes through untouched.
+  const move = (key) => (isIngredientId(key) ? moved.get(key) || null : key);
+  const remap = (obj, merge) => {
+    const out = {};
+    for (const [key, v] of Object.entries(asObject(obj))) {
+      const to = move(key);
+      if (!to) continue;
+      out[to] = to in out && merge ? merge(out[to], v) : to in out ? out[to] : v;
+    }
+    return out;
+  };
+  const list = asObject(state && state.list);
+  return {
+    ...state,
+    list: {
+      ...list,
+      overrides: remap(list.overrides),
+      checked: remap(list.checked, (a, b) => a || b),
+      bought: remap(list.bought, (a, b) => {
+        const out = { ...asObject(a) };
+        for (const [u, q] of Object.entries(asObject(b))) out[u] = r2((Number(out[u]) || 0) + (Number(q) || 0));
+        return out;
+      }),
+      // Extras carry their own name, so one whose ingredient is gone becomes an
+      // ad-hoc item again rather than disappearing off the list.
+      extras: Object.fromEntries(
+        Object.entries(asObject(list.extras)).map(([key, e]) => [move(key) || keyForName(e && e.name) || key, e])
+      ),
+    },
+    stapleNeeds: remap(state && state.stapleNeeds, (a, b) => a || b),
+  };
 }
 
 // Does this catalog still key ingredients by name? Deliberately NOT folded
@@ -1571,8 +1745,20 @@ export function ingredientNameFor(data, key) {
   if (cfg) return normalizeIngredient(cfg, key).name || cap(key);
   const extra = data && data.list && data.list.extras && data.list.extras[key];
   if (extra && extra.name) return cap(String(extra.name).trim());
-  return cap(key);
+  /* A MINTED ID IS NOT A NAME, and cap(key) treated it as one. This used to
+     return "Ing_gone" on the reasoning that showing something beats showing
+     nothing; a screenshot from a real phone settled it — the already-bought
+     panel listed eight rows reading "Ing_05jz04l4 · 1" among the groceries.
+     Empty is the honest answer, and it lets the caller group them and say
+     what they actually are. A NAME-key still returns itself, because there
+     the key IS the name. */
+  return isIngredientId(key) ? "" : cap(key);
 }
+
+// The shape seedCatalog and ensureIngredientId mint. Used wherever a key has
+// to be told apart from a name, which is the distinction the whole id
+// migration turns on.
+export const isIngredientId = (key) => /^ing_[a-z0-9]+$/i.test(String(key));
 
 // Every ingredient the household knows about, as { key, name }. The catalog is
 // the authority on names now that ingredients have ids — a recipe line carries
@@ -1973,6 +2159,34 @@ export function syncIndicator({ syncEnabled, authReady, signedIn, accessDenied, 
   if (syncStatus === "synced") return { text: "Synced", tone: "good" };
   if (syncStatus === "offline") return { text: "Offline — will sync", tone: "bad" };
   return { text: "Connecting…", tone: "faint" };
+}
+
+/* The sentence under the red dot: WHICH write was refused, and what to do.
+
+   "Sync error — changes may not be saved" is true and useless. It was
+   reported from a phone with no way to find out any more than that, and
+   there was nothing more to find: the failure signal was a bare `true`, so
+   even the console line it came from had been thrown away by then.
+
+   Takes the detail object watchWriteErrors now reports ({ where, code }).
+   Split out here, pure, because the two codes worth telling apart lead to
+   opposite actions — one is "you were removed or you are a guest", the
+   other is "something in the data is malformed, reload" — and getting that
+   wrong sends somebody to re-invite a phone that was never the problem. */
+export function writeErrorAdvice(detail) {
+  if (!detail || !detail.where) return null;
+  const code = String(detail.code || "");
+  const what = `The last change to the ${detail.where} was refused${code && code !== "unknown" ? ` (${code})` : ""}.`;
+  if (code === "PERMISSION_DENIED") {
+    return `${what} The database only allows that for a full member of this household — so this phone is signed in as a guest, is signed in to a different account than you think, or was removed. Check who is signed in at the bottom of this tab, then ask for a new invite link.`;
+  }
+  /* The database's own words, for this branch only. They are ugly, but this
+     is the branch where they say exactly what is wrong — "values argument
+     contains an invalid key (dr. pepper)" names the item. On the
+     PERMISSION_DENIED branch the raw message says nothing a person can act
+     on, so it is left out there. */
+  const raw = String(detail.message || "").trim();
+  return `${what} That is the app's own fault rather than a permissions one. Reload the app; if the message comes straight back, send this line: ${raw || "no further detail"}`;
 }
 
 /* ---------------------- invites (item 37) ----------------------------
