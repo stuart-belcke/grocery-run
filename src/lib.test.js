@@ -4,6 +4,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import fs from "node:fs";
 import { FAQS, HOW_IT_WORKS } from "./help.js";
 import {
@@ -20,6 +21,7 @@ import {
   writeErrorAdvice,
   keyForName,
   unitKeyFor,
+  normalizeCfg,
   resolveAgainstBought,
   NO_UNIT_KEY,
   aisleKey,
@@ -1961,6 +1963,133 @@ test("healing merges an empty key onto an existing sentinel rather than dropping
   // still had "" in its cache.
   const d = normalizeLocal({ list: { bought: { ing_x: { "": 1, [NO_UNIT_KEY]: 2 } } } });
   assert.deepEqual(d.list.bought.ing_x, { [NO_UNIT_KEY]: 3 });
+});
+
+/* ================= THE STANDING KEY AUDIT =================
+
+   Written after the empty-unit bug (item 55) shipped past a test that was
+   meant to prevent exactly it. Three lessons went into this one:
+
+     1. IT WALKS VALUES, NOT JUST PATHS. `bought` is written as one object per
+        ingredient, so its unit keys never appear as a path segment. Firebase
+        validates them just as strictly. Item 55 was invisible to a
+        path-segment check and stayed invisible for weeks.
+     2. IT COVERS BOTH WRITE SHAPES. planWrite returns an `update` (a diff)
+        once there is a baseline, and a `set` (the WHOLE node) before there is
+        one — which is the first write of every session. A set validates every
+        key in the entire object at once.
+     3. IT COVERS BOTH NODES. state and catalog go through the same planWrite,
+        so one audit covers everything the app can send anywhere.
+
+   Anything added later that keys by something a person typed is caught here
+   without anybody remembering to think about it. That is the point. */
+
+// `.` `#` `$` `[` `]` are refused outright; `/` is accepted and silently
+// writes NESTED nodes, which is worse. An empty key is refused too.
+const REFUSED_KEY = /[.#$[\]/]/;
+
+// Every key a write would carry: the segments of each path, and every key
+// inside each written value, all the way down.
+function offendingKeys(plan) {
+  const bad = [];
+  const checkKey = (k, where) => {
+    if (k === "") bad.push(`${where}: an EMPTY key`);
+    else if (REFUSED_KEY.test(k)) bad.push(`${where}: ${JSON.stringify(k)}`);
+  };
+  /* VALUES ARE CHECKED TOO, and for the same reason keys are: the SDK refuses
+     NaN, Infinity, undefined and functions before the write leaves the phone,
+     with the identical permanent-failure shape — verified against the real
+     firebase package. `Number("aisle 4")` is one typo away in any legacy
+     record. -0 and Date are accepted, so they are not flagged. */
+  const checkValue = (v, where) => {
+    if (v === undefined) bad.push(`${where}: undefined`);
+    else if (typeof v === "number" && !Number.isFinite(v)) bad.push(`${where}: ${v}`);
+    else if (typeof v === "function") bad.push(`${where}: a function`);
+  };
+  const walk = (v, where) => {
+    checkValue(v, where);
+    if (!v || typeof v !== "object") return;
+    if (Array.isArray(v)) { v.forEach((x, i) => walk(x, `${where}[${i}]`)); return; } // atomic, but still validated
+    for (const [k, child] of Object.entries(v)) {
+      checkKey(k, where);
+      walk(child, `${where}/${k}`);
+    }
+  };
+  if (plan.kind === "set") walk(plan.state, "set");
+  if (plan.kind === "update") {
+    for (const [path, value] of Object.entries(plan.paths)) {
+      for (const seg of path.split("/")) checkKey(seg, `path ${path}`);
+      walk(value, `value at ${path}`);
+    }
+  }
+  return bad;
+}
+
+// Both write shapes for one node: the first write of a session, and a diff.
+const auditNode = (before, after) => [
+  ...offendingKeys(planWrite(null, "home-abcdefgh", after)),
+  ...offendingKeys(planWrite({ code: "home-abcdefgh", state: before }, "home-abcdefgh", after)),
+];
+
+test("AUDIT: nothing in the shipped catalog produces a key the database refuses", () => {
+  /* Guards public/catalog.json itself, forever. It is hand-edited and pasted
+     back by "Restore starter catalog", and a recipe id or a store name typed
+     into it with a "." in it would break every catalog write for every
+     household on the next release. */
+  const file = JSON.parse(readFileSync(new URL("../public/catalog.json", import.meta.url), "utf8"));
+  const seeded = seedCatalog(file);
+  assert.deepEqual(auditNode(seedCatalog(file), seeded), []);
+});
+
+test("AUDIT: a household full of the worst names a person can type stays writable", () => {
+  /* Routed through the app's OWN entry points — normalizeLocal, normalizeCfg,
+     keyForName, unitKeyFor — because hand-building the already-safe shape
+     would prove nothing about the app. Every string here is something
+     somebody could actually type into the app today. */
+  const store = "H.E.B."; // a real chain, and a real store name
+  const catalog = normalizeCatalog({
+    version: 1,
+    stores: [store, "Sam's Club #8125", "Aldi"],
+    ingredients: {
+      ing_a1: setIngredientCfg({ name: "Dr. Pepper" }, { store, aisles: { [store]: 7 } }),
+      ing_b2: setIngredientCfg({ name: "1/2 & 1/2" }, { store: "Sam's Club #8125", aisles: { "Sam's Club #8125": 2 } }),
+    },
+    recipes: {
+      "r-stirfry": { id: "r-stirfry", name: "Mrs. Smith's stir-fry", mealTypes: ["Dinner"], servings: 4, ingredients: [{ ingredientId: "ing_a1", qty: 1, unit: "fl. oz", note: "the 28 oz can" }] },
+    },
+  });
+  const before = normalizeLocal(emptyLocal());
+  const after = normalizeLocal({
+    ...emptyLocal(),
+    list: {
+      ...emptyLocal().list,
+      selections: { "r-stirfry": 2 },
+      extras: { [keyForName("Dr. Pepper")]: { name: "Dr. Pepper", qty: 1, unit: "" } },
+      checked: { [keyForName("1/2 gallon milk")]: true },
+      overrides: { [keyForName("A[1] sauce")]: store },
+      // Every shape a banked amount comes in: unitless, punctuated, ordinary.
+      bought: { ing_a1: { [unitKeyFor("")]: 4, [unitKeyFor("fl. oz")]: 2, cup: 1 } },
+    },
+    stapleNeeds: { [keyForName("Mrs. Butterworth")]: true },
+    plan: { Mon: { Dinner: { recipeId: "r-stirfry", servings: 4 } } },
+  });
+
+  assert.deepEqual(auditNode(before, after), [], "the shopping state");
+  assert.deepEqual(auditNode(normalizeCatalog({ version: 1 }), catalog), [], "the catalog");
+  // The control: the audit has to be able to FAIL, or a green run means
+  // nothing. A raw empty unit key is the exact bug it exists to catch.
+  const broken = { ...after, list: { ...after.list, bought: { ing_a1: { "": 4 } } } };
+  assert.notDeepEqual(auditNode(before, broken), [], "the audit does not catch the bug it was written for");
+  const nan = { ...after, list: { ...after.list, bought: { ing_a1: { cup: NaN } } } };
+  assert.notDeepEqual(auditNode(before, nan), [], "the audit does not catch an unwritable VALUE");
+});
+
+test("an aisle that isn't a number is left out rather than written as NaN", () => {
+  // Legacy records only — but the database refuses NaN exactly as permanently
+  // as it refuses an illegal key, and legacy data is what nobody is watching.
+  const cfg = normalizeCfg({ store: "Aldi", aisle: "aisle 4" });
+  assert.deepEqual(cfg.aisles, {}, `a non-numeric aisle should be dropped, got ${JSON.stringify(cfg.aisles)}`);
+  assert.deepEqual(normalizeCfg({ store: "Aldi", aisle: "4" }).aisles, { Aldi: 4 }, "a numeric one still works");
 });
 
 /* ------------------- invites (item 37) ------------------- */

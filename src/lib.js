@@ -550,7 +550,10 @@ export function normalizeCfg(cfg) {
   if (!cfg) return { store: UNASSIGNED, aisles: {}, staple: false };
   if (cfg.aisles) return { store: cfg.store || UNASSIGNED, aisles: keyedAisles(cfg.aisles), staple: !!cfg.staple };
   const aisles = {};
-  if (cfg.aisle !== undefined && cfg.aisle !== null && cfg.aisle !== "" && cfg.store) {
+  // isFinite, not just "not empty": Number("aisle 4") is NaN, and the database
+  // refuses NaN with the same permanent failure an illegal key gets. Legacy
+  // data is the only source, which is exactly the data nobody is watching.
+  if (cfg.aisle !== undefined && cfg.aisle !== null && cfg.aisle !== "" && cfg.store && Number.isFinite(Number(cfg.aisle))) {
     aisles[aisleKey(cfg.store)] = Number(cfg.aisle);
   }
   return { store: cfg.store || UNASSIGNED, aisles, staple: !!cfg.staple };
@@ -974,7 +977,14 @@ export function normalizeLocal(raw) {
         return out;
       })),
     },
-    plan: asObject(d.plan),
+    /* The week plan is keyed by day and then by meal type, both of which come
+       from DAYS and MEAL_TYPES rather than from anything typed — so this is
+       belt and braces, not a known failure. It costs two lines and closes the
+       one route that could ever put something else there: an imported backup,
+       which is a hand-editable file. */
+    plan: withSafeKeys(
+      Object.fromEntries(Object.entries(asObject(d.plan)).map(([day, slots]) => [day, withSafeKeys(slots)]))
+    ),
     stapleNeeds: withSafeKeys(d.stapleNeeds, (a, b) => a || b),
   };
 }
