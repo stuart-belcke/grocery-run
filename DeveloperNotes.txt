@@ -2099,12 +2099,9 @@ one pass rather than a one-off.
     is not a tapping problem. Contrast with item 51e's Ingredients tab at 12
     screens — that one IS long, which is what search and back-to-top are for.
 
-    D. `maximum-scale=1` IN index.html BLOCKS PINCH-ZOOM ON ANDROID. iOS has
-    ignored it since iOS 10, so it costs these two phones nothing, and it is
-    what stops iOS auto-zooming when a 14px input takes focus. Removing it
-    means raising every input to 16px first. NOT CHANGED, recorded as the
-    trade-off it is: it is a real WCAG 1.4.4 failure on a browser this
-    household does not use.
+    D. `maximum-scale=1` IN index.html BLOCKS PINCH-ZOOM ON ANDROID. Recorded
+    here as a trade-off and NOT changed at the time; item 61 fixed it at the
+    source instead, which turned out to be the better answer.
 
 59. [DONE] 51d: THE WEEK PLAN SHOWS ONLY THE MEAL TYPES YOU ACTUALLY PLAN.
     4 types x 7 days is 28 slots and a household that plans dinners fills 4-7;
@@ -2176,3 +2173,40 @@ one pass rather than a one-off.
     THE WEIGHT AND THE COLOUR ARE ASSERTED, because they ARE the change: a
     later tidy-up that put the bar back to 500, or back to `faint`, would
     leave every other test in the file green.
+
+61. [DONE] THE FIELDS ARE 16px, SO NOTHING HAS TO BAN PINCH ZOOM.
+    index.html carried `maximum-scale=1`, and its stated reason was real: iOS
+    Safari zooms the page whenever a focused field's computed size is under
+    16px. The cure was worse than the disease, though — it blocks PINCH zoom
+    on Android for everyone, permanently, which is a WCAG 1.4.4 failure and
+    takes away the one tool somebody with poor eyesight has on any page.
+
+    THE THRESHOLD IS THE FIX. 16px is not a look, it is the number Safari
+    checks. Every field in the app is 16px now — inputStyle, the two store
+    dropdowns, the four aisle boxes (52px wide -> 60px to hold the bigger
+    digits), the recipe notes textarea, and the three monospace backup/export
+    boxes — so there is nothing left to suppress and the ban could go.
+    THE ALTERNATIVES WERE CONSIDERED AND ARE WORSE: `font-size: 16px` on
+    :focus only works, but the text jumps size under the cursor mid-typing; a
+    transform: scale() wrapper breaks tap targets. Sizing the fields properly
+    is also just better — 16px is easier to read and to hit.
+    THE COST, PLAINLY: the export and backup textareas went from 11-12px
+    monospace to 16px, so a backup blob is a good deal bigger on screen. It is
+    a thing you copy, not a thing you read, and an exception would make the
+    rule ("no field under 16") one nobody can check.
+
+    BOTH HALVES ARE ASSERTED, because either alone rots back into the old
+    behaviour: one 14px field put back brings the zoom-on-focus with it, and
+    the next person to notice will "fix" it by restoring the ban.
+
+    IT BROKE A LAYOUT, AND 164 BROWSER TESTS DID NOT NOTICE. The bigger "Add a
+    store" field pushed its button 6px off a 320px screen. listrow, tabbar and
+    reach each check the one row they are about, and between them they missed
+    it — the cause was a missing `minWidth: 0` on one flex input, which the
+    identical row eight lines below already had.
+    fits.spec.mjs is the answer: every tab, at 320 and 390, WITH THE PANELS
+    OPENED, nothing off the side and no sideways page scroll. Half the app's
+    fields live behind a disclosure, so a sweep of the collapsed screens would
+    have missed exactly this. A rule that holds everywhere needs one test that
+    looks everywhere, or it is only ever as good as the last place somebody
+    remembered to check.

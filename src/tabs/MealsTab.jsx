@@ -554,7 +554,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
                 rows={8}
                 autoFocus
                 aria-label="Pasted recipe text"
-                style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 8, fontSize: 12 }}
+                style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 8 }}
               />
               <div style={{ display: "flex", gap: 8 }}>
                 <div style={{ flex: 1 }} />

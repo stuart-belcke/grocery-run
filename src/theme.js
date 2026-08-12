@@ -28,7 +28,14 @@ export const C = {
 export const fontDisplay = "'Fraunces', Georgia, serif";
 export const fontBody = "'Space Grotesk', system-ui, -apple-system, sans-serif";
 
-export const inputStyle = { padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.line}`, fontFamily: fontBody, fontSize: 14 };
+/* 16px IS NOT A LOOK, IT IS THE iOS ZOOM THRESHOLD. Safari zooms the page
+   whenever a focused field's computed size is under 16px, and the app used to
+   stop that by banning zoom outright in index.html — which also banned PINCH
+   zoom on Android, for everyone, permanently. Sizing the fields properly
+   removes the reason for the ban. Nothing below 16 anywhere on a field;
+   screenreader.spec.mjs asserts it, because one 14px field put back would
+   quietly restore the behaviour the ban existed to prevent. */
+export const inputStyle = { padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.line}`, fontFamily: fontBody, fontSize: 16 };
 
 // The sync indicator's four tones. Here rather than next to the logic that
 // picks one, because two places draw that indicator (the header and the

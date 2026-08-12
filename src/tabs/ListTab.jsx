@@ -468,7 +468,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
                   value={itemStore}
                   onChange={(e) => pickStore(item, e.target.value)}
                   aria-label={`Store for ${item.name}`}
-                  style={{ fontSize: 14, padding: "7px 8px", borderRadius: 6, border: `1px solid ${C.line}`, background: data.list.overrides[item.key] != null ? C.greenSoft : "#fff", maxWidth: 200 }}
+                  style={{ fontSize: 16, padding: "7px 8px", borderRadius: 6, border: `1px solid ${C.line}`, background: data.list.overrides[item.key] != null ? C.greenSoft : "#fff", maxWidth: 200 }}
                 >
                   {storeOptions.map((s) => (
                     <option key={s} value={s}>
@@ -485,7 +485,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
                       value={aisleFor(homeCfg, itemStore)}
                       onChange={(e) => setAisle(item.key, itemStore, e.target.value === "" ? "" : Number(e.target.value))}
                       aria-label={`Aisle for ${item.name} at ${itemStore}`}
-                      style={{ width: 52, fontSize: 13, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: C.greenSoft }}
+                      style={{ width: 60, fontSize: 16, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: C.greenSoft }}
                     />
                   </label>
                 )}

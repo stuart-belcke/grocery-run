@@ -308,7 +308,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
           ))}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <input aria-label="Add a store" placeholder="Add a store (e.g. Aldi)" value={newStore} onChange={(e) => setNewStore(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addStore()} style={{ ...inputStyle, flex: 1 }} />
+          <input aria-label="Add a store" placeholder="Add a store (e.g. Aldi)" value={newStore} onChange={(e) => setNewStore(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addStore()} style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
           <Btn kind="primary" onClick={addStore}>Add store</Btn>
         </div>
       </div>
@@ -605,7 +605,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                         <div style={groupLabel}>Where it lives</div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                           <label style={{ fontSize: 11, color: C.faint }}>Usually at</label>
-                          <select aria-label={`Default store for ${name}`} value={cfg.store || UNASSIGNED} onChange={(e) => setCfg(key, { store: e.target.value })} aria-label={`Default store for ${name}`} style={{ fontSize: 13, padding: "6px 6px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", maxWidth: 160 }}>
+                          <select aria-label={`Default store for ${name}`} value={cfg.store || UNASSIGNED} onChange={(e) => setCfg(key, { store: e.target.value })} aria-label={`Default store for ${name}`} style={{ fontSize: 16, padding: "6px 6px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", maxWidth: 170 }}>
                             {[...data.stores, UNASSIGNED].map((s) => (
                               <option key={s} value={s}>
                                 {s}
@@ -624,7 +624,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                                 value={aisleFor(cfg, cfg.store)}
                                 onChange={(e) => setAisle(key, cfg.store, e.target.value === "" ? "" : Number(e.target.value))}
                                 aria-label={`Aisle for ${name} at ${cfg.store}`}
-                                style={{ width: 52, fontSize: 13, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: C.greenSoft }}
+                                style={{ width: 60, fontSize: 16, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: C.greenSoft }}
                               />
                             </label>
                           )}
@@ -649,7 +649,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                                       value={aisleFor(cfg, s)}
                                       onChange={(e) => setAisle(key, s, e.target.value === "" ? "" : Number(e.target.value))}
                                       aria-label={`Aisle for ${name} at ${s}`}
-                                      style={{ width: 52, fontSize: 13, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: "#fff" }}
+                                      style={{ width: 60, fontSize: 16, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: "#fff" }}
                                     />
                                   </label>
                                 ))}

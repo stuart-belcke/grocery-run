@@ -547,7 +547,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                         value={linkFor(newInvite)}
                         onFocus={(e) => e.target.select()}
                         aria-label="Invite link"
-                        style={{ ...inputStyle, width: "100%", boxSizing: "border-box", fontFamily: "ui-monospace, Menlo, monospace", fontSize: 11 }}
+                        style={{ ...inputStyle, width: "100%", boxSizing: "border-box", fontFamily: "ui-monospace, Menlo, monospace" }}
                       />
                       <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
                         <Btn kind="primary" small onClick={() => copyInvite(newInvite)}>Copy link</Btn>
@@ -762,7 +762,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
               </label>
               <span style={{ fontSize: 12, color: C.faint }}>or paste a backup below:</span>
             </div>
-            <textarea value={importText} onChange={(e) => setImportText(e.target.value)} placeholder="Paste backup data here" rows={5} style={{ ...inputStyle, width: "100%", boxSizing: "border-box", fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12 }} />
+            <textarea value={importText} onChange={(e) => setImportText(e.target.value)} placeholder="Paste backup data here" rows={5} style={{ ...inputStyle, width: "100%", boxSizing: "border-box", fontFamily: "ui-monospace, Menlo, monospace" }} />
             <div style={{ display: "flex", marginTop: 8 }}>
               <div style={{ flex: 1 }} />
               <Btn kind="primary" onClick={() => importText.trim() ? applyImport(importText.trim()) : setMsg("Paste backup data or choose a file first.")}>Restore &amp; replace</Btn>
@@ -837,7 +837,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
           value={copyFallback || ""}
           onFocus={(e) => e.target.select()}
           rows={8}
-          style={{ ...inputStyle, width: "100%", boxSizing: "border-box", fontFamily: "ui-monospace, Menlo, monospace", fontSize: 11 }}
+          style={{ ...inputStyle, width: "100%", boxSizing: "border-box", fontFamily: "ui-monospace, Menlo, monospace" }}
         />
       </AlertDialog>
     </div>

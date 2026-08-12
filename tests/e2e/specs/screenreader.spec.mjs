@@ -136,3 +136,57 @@ test("something that changes on its own is announced rather than appearing silen
     await page.done();
   }
 });
+
+/* ---- zoom: fields at 16px so nothing has to ban pinch ----
+
+   index.html used to carry `maximum-scale=1`. Its stated reason was real —
+   iOS Safari zooms the page whenever a focused field's computed size is under
+   16px — but the cure blocked PINCH zoom on Android for everyone,
+   permanently. That is a WCAG 1.4.4 failure and it takes away the one tool
+   somebody with poor eyesight has on any page.
+   Fixed at the source: every field is 16px, so there is nothing to suppress.
+   BOTH HALVES NEED ASSERTING, because either alone rots into the old
+   behaviour — a single 14px field put back brings the zoom-on-focus with it
+   and someone will "fix" it by restoring the ban. */
+
+test("no field is small enough to make iOS zoom the page", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog(), state: stocked() });
+  try {
+    const small = [];
+    for (const tab of TABS) {
+      await page.tab(tab);
+      await page.waitForTimeout(400);
+      // Open the panels that hold the rest of the fields — an aisle box or a
+      // backup textarea is exactly where a small one hides.
+      for (const re of [/Ingredients & recipe/, /^Show where/, /How it works/, /Preferences/, /Household/, /Export & recover/, /Sort and filter/]) {
+        const b = page.locator("button").filter({ hasText: re }).first();
+        if (await b.count()) { await b.click().catch(() => {}); await page.waitForTimeout(150); }
+      }
+      small.push(...await page.evaluate((where) =>
+        [...document.querySelectorAll("input, select, textarea")]
+          .filter((el) => !["checkbox", "radio", "file", "hidden", "range"].includes(el.type))
+          .filter((el) => parseFloat(getComputedStyle(el).fontSize) < 16)
+          .map((el) => `${where}: ${el.tagName.toLowerCase()}[${el.type || ""}] "${el.getAttribute("aria-label") || el.placeholder || ""}" at ${getComputedStyle(el).fontSize}`),
+      tab));
+    }
+    assert.deepEqual(small, [], "these fields will zoom the page on iOS when they take focus");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("the page does not forbid pinch zoom", async () => {
+  const page = await openApp(BASE, { catalog: cleanCatalog() });
+  try {
+    const content = await page.evaluate(() => {
+      const m = document.querySelector('meta[name="viewport"]');
+      return m ? m.getAttribute("content") : "";
+    });
+    assert.doesNotMatch(content, /maximum-scale/, `the viewport caps zoom: "${content}"`);
+    assert.doesNotMatch(content, /user-scalable\s*=\s*(no|0)/, `the viewport forbids zoom: "${content}"`);
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
