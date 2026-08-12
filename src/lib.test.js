@@ -19,6 +19,9 @@ import {
   syncIndicator,
   writeErrorAdvice,
   keyForName,
+  unitKeyFor,
+  resolveAgainstBought,
+  NO_UNIT_KEY,
   aisleKey,
   aisleFor,
   remapStateIngredientIds,
@@ -1873,9 +1876,16 @@ test("an aisles map written by an older build reads back the same", () => {
 });
 
 test("nothing a flush sends can contain a key the database refuses", () => {
-  /* THE ASSERTION THAT WOULD HAVE CAUGHT THIS. Everything the app writes goes
-     through planWrite, so checking the paths it produces covers every screen
-     at once — no test of one tab could have. */
+  /* THE ASSERTION THAT WOULD HAVE CAUGHT BOTH OF THESE. Everything the app
+     writes goes through planWrite, so checking what it produces covers every
+     screen at once — no test of one tab could have.
+
+     IT WALKS THE VALUES, NOT JUST THE PATHS, and that is the whole lesson of
+     the second bug. The first version checked path SEGMENTS only, and passed
+     on the build that was breaking a real shop every week: `bought` is written
+     as one object per ingredient, so its unit keys — including the empty one a
+     unitless item produces — travel inside a VALUE, never as a segment.
+     Firebase validates those exactly as strictly. */
   const before = normalizeLocal(emptyLocal());
   const after = normalizeLocal({
     ...emptyLocal(),
@@ -1883,18 +1893,74 @@ test("nothing a flush sends can contain a key the database refuses", () => {
       ...emptyLocal().list,
       extras: { [keyForName("Dr. Pepper")]: { name: "Dr. Pepper", qty: 1, unit: "ea" } },
       checked: { [keyForName("1/2 gallon milk")]: true },
-      bought: { [keyForName("A[1] sauce")]: { ea: 1 } },
+      // A unitless item — "Lemon · 1" — which is most of a real list.
+      bought: { [keyForName("A[1] sauce")]: { ea: 1 }, ing_3jskfrr8: { [unitKeyFor("")]: 4 } },
     },
     stapleNeeds: { [keyForName("Mrs. Butterworth")]: true },
   });
   const plan = planWrite({ code: "home-abcdefgh", state: before }, "home-abcdefgh", after);
   assert.equal(plan.kind, "update");
-  for (const path of Object.keys(plan.paths)) {
-    for (const segment of path.split("/")) {
-      assert.doesNotMatch(segment, /[.#$[\]]/, `the path ${path} has a segment the database refuses`);
-      assert.notEqual(segment, "", `the path ${path} has an empty segment`);
+
+  const checkKey = (k, where) => {
+    assert.doesNotMatch(k, /[.#$[\]]/, `${where}: the key ${JSON.stringify(k)} is one the database refuses`);
+    assert.notEqual(k, "", `${where}: an empty key, which the database refuses as firmly as a "."`);
+  };
+  const walk = (v, where) => {
+    if (!v || typeof v !== "object" || Array.isArray(v)) return;
+    for (const [k, child] of Object.entries(v)) {
+      checkKey(k, where);
+      walk(child, `${where}/${k}`);
     }
+  };
+  for (const [path, value] of Object.entries(plan.paths)) {
+    for (const segment of path.split("/")) checkKey(segment, `path ${path}`);
+    walk(value, `value at ${path}`);
   }
+});
+
+/* ---- the unit as a key: what actually broke a shop, twice ---- */
+
+test("a unitless amount is stored under a key the database accepts", () => {
+  assert.equal(unitKeyFor(""), NO_UNIT_KEY);
+  assert.equal(unitKeyFor(null), NO_UNIT_KEY);
+  assert.equal(unitKeyFor("   "), NO_UNIT_KEY);
+  assert.notEqual(NO_UNIT_KEY, "", "the sentinel cannot itself be the empty key");
+});
+
+test("a real unit is stored as itself, and a punctuated one is made storable", () => {
+  assert.equal(unitKeyFor("cup"), "cup");
+  assert.equal(unitKeyFor("fl oz"), "fl oz");
+  assert.equal(unitKeyFor("fl. oz"), "fl oz");
+});
+
+test("a unitless amount is still SHOWN without a unit", () => {
+  // The sentinel must never reach the screen. "4 _" in the already-bought
+  // panel would be the fix leaking.
+  assert.equal(qtyLabel({ [NO_UNIT_KEY]: 4 }), "4");
+  assert.equal(qtyLabel({ [NO_UNIT_KEY]: 4, cup: 2 }), "4 + 2 cup");
+});
+
+test("a unitless purchase still comes off a unitless need", () => {
+  /* The point of the whole thing. If the stored key stopped matching the need,
+     writes would succeed and the shopping list would quietly stop suppressing
+     what you already bought — a worse bug than the one being fixed, and a
+     silent one. */
+  assert.deepEqual(resolveAgainstBought({ "": 4 }, {}, { [NO_UNIT_KEY]: 3 }), { "": 1 });
+  assert.deepEqual(resolveAgainstBought({ "": 4 }, {}, { [NO_UNIT_KEY]: 4 }), {}, "a need fully covered should drop off the list");
+});
+
+test("a device already holding the empty unit key heals itself when state is read", () => {
+  // Every phone that pressed Done shopping on the broken build has one.
+  const d = normalizeLocal({ list: { bought: { ing_x: { "": 4, cup: 2 } } } });
+  assert.deepEqual(d.list.bought.ing_x, { [NO_UNIT_KEY]: 4, cup: 2 });
+  for (const k of Object.keys(d.list.bought.ing_x)) assert.notEqual(k, "");
+});
+
+test("healing merges an empty key onto an existing sentinel rather than dropping one", () => {
+  // A household mid-upgrade can hold both: one phone wrote "_", the other
+  // still had "" in its cache.
+  const d = normalizeLocal({ list: { bought: { ing_x: { "": 1, [NO_UNIT_KEY]: 2 } } } });
+  assert.deepEqual(d.list.bought.ing_x, { [NO_UNIT_KEY]: 3 });
 });
 
 /* ------------------- invites (item 37) ------------------- */

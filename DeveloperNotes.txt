@@ -1888,3 +1888,55 @@ one pass rather than a one-off.
     tests assert on the PERSISTED state, because a fix that only stopped
     rendering these would leave a list quietly subtracting quantities that
     belong to ingredients nobody can name.
+
+55. [DONE] THE ACTUAL CAUSE: A UNITLESS ITEM COULD NOT BE BANKED. Reported
+    twice, weeks apart, with the same sequence and nothing else in common —
+    "checked off a bunch of stuff, hit Done shopping, came back later" and
+    "checked everything off, then hit done shopping and the sync broke".
+
+    `bought` is keyed by ingredient AND THEN BY UNIT: { ing_x: { lb: 2 } }. A
+    unitless item — "Lemon · 1", "Large potatoes · 4", which is most of a real
+    list — has the unit "", and an empty string is not a legal RTDB key.
+    Reproduced against the real firebase package, driving the paths diffPaths
+    actually produces:
+      update failed: values argument contains an invalid key ()
+      in property '...state.list.bought.ing_3jskfrr8'.
+      Keys must be non-empty strings
+    Done shopping is the ONLY thing that writes `bought`, which is why that one
+    press is where it always appeared, and — since a failed write keeps its
+    baseline (item 21) — why nothing after it could succeed either.
+
+    THE ITEM-NAME BUG (53) WAS REAL BUT WAS NOT THIS. Their household's
+    catalog has no refused character in any of 146 ingredient names, 5 stores
+    or any unit. The empty unit needs no unusual data at all: every household
+    hits it the first time it finishes a shop with one unitless item on the
+    list.
+
+    THE TEST THAT SHOULD HAVE CAUGHT IT DID NOT, and that is the lesson worth
+    keeping. Item 53's planWrite test checked the PATH SEGMENTS of everything a
+    flush sends — and passed, every run, on the build that was breaking a shop
+    every week. `bought` is written as one object per ingredient, so the unit
+    keys travel INSIDE A VALUE, never as a segment. Firebase validates those
+    exactly as strictly. The test now walks the values too, which is the
+    version that fails on the old build.
+
+    THE STORED SHAPE IS THE STORABLE ONE. unitKeyFor turns "" into NO_UNIT_KEY
+    on the way in; the two reads that care — groupPartsByDimension and
+    qtyLabel, already the single funnels for "what unit is this" — turn it back.
+    Translating at the sync seam instead was considered and rejected: the write
+    baseline and the in-memory state would then disagree about their own shape,
+    which is a subtler bug than the one being fixed.
+    THE SENTINEL IS "_" and could collide with somebody typing `_` as a unit.
+    Not a case worth a mechanism: unitInfo has never known it, so it has never
+    added up with anything.
+    HEALING IS THE OTHER HALF. Every phone that pressed Done shopping on the
+    broken build has `{ "": 4 }` in its cache and is re-sending it on every
+    write; normalizeLocal rewrites it, and merges rather than overwrites, since
+    a household mid-upgrade can hold both "" and "_" for one ingredient.
+    THE SUPPRESSION IS WHAT THE FIX COULD HAVE BROKEN QUIETLY: a stored key
+    that no longer matched the need would make every write succeed and the
+    cupboard silently stop working. That has its own test, in both directions.
+
+    Three mutations, each caught by a different test: the raw unit written
+    again (1 browser test), the healing removed (2 unit tests), and the
+    sentinel never mapped back (2 unit tests — display and suppression).
