@@ -234,6 +234,10 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
     setDraft({ ...draft, ingredients: list });
   };
 
+  /* A capitalised variable so JSX treats it as a tag. Grouped, each card sits
+     under a meal-type h2; in A-Z there is no group above it. */
+  const CardHeading = mealView === "az" ? "h2" : "h3";
+
   const renderCard = (r) => {
     const base = r.servings || 4;
     const servings = data.list.selections[r.id] || 0;
@@ -270,6 +274,15 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
         </button>
 
         <div style={{ paddingRight: 22 }}>
+          {/* The card's title is a HEADING as well as a button — the same
+              disclosure pattern Section uses. The default A-Z view is a flat
+              run of 22 cards with no headings at all, so a screen reader had
+              no way to move between meals except one control at a time.
+              THE LEVEL FOLLOWS THE VIEW, which is the whole reason it is a
+              variable: grouped, each card sits under a meal-type h2 and is an
+              h3; in A-Z there is no group, so an h3 would skip a level under
+              the app's h1. */}
+          <CardHeading style={{ margin: 0, font: "inherit", fontWeight: "inherit" }}>
           <button
             onClick={() => setDetailOpen(detailShown ? null : r.id)}
             aria-expanded={detailShown}
@@ -306,6 +319,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
               {detailShown ? "Hide details ▲" : "Ingredients & recipe ▾"}
             </div>
           </button>
+          </CardHeading>
           {detailShown && <RecipeDetail recipe={r} />}
         </div>
 
@@ -426,7 +440,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
           <input
-            placeholder="Search meals or ingredients"
+            aria-label="Search meals" placeholder="Search meals or ingredients"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Escape" && setQuery("")}
@@ -829,7 +843,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
               .map((g) => (
                 <section key={g.label} style={{ marginBottom: 18 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "10px 0 8px" }}>
-                    <h3 style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 700, margin: 0 }}>{g.label}</h3>
+                    <h2 style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 700, margin: 0 }}>{g.label}</h2>
                     <div style={{ flex: 1 }}>
                       <Stripe />
                     </div>

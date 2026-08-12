@@ -590,7 +590,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
       return (
         <section key={store} style={{ marginBottom: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0 4px" }}>
-            <h3 style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 700, margin: 0 }}>{store}</h3>
+            <h2 style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 700, margin: 0 }}>{store}</h2>
             <span style={{ fontSize: 12, color: C.faint }}>{left} to buy</span>
             <div style={{ flex: 1 }}>
               <Stripe />
@@ -714,7 +714,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
           <div style={{ display: "flex", gap: 8, flexWrap: "nowrap", alignItems: "center" }}>
           <div style={{ position: "relative", flex: 1, minWidth: 92 }}>
             <input
-              placeholder="Add shopping item (e.g. paper towels)"
+              aria-label="Add shopping item" placeholder="Add shopping item (e.g. paper towels)"
               value={extra.name}
               ref={nameRef}
               onChange={(e) => {

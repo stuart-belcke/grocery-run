@@ -289,7 +289,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
           need in a shop — they just can't change the store list itself. */}
       {!isGuest && (
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
-        <h3 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 10px" }}>Your stores</h3>
+        <h2 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 10px" }}>Your stores</h2>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
           {data.stores.map((s) => (
             /* The ✕ measured 11x15. Removing a store is the furthest-reaching
@@ -308,14 +308,14 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
           ))}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <input placeholder="Add a store (e.g. Aldi)" value={newStore} onChange={(e) => setNewStore(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addStore()} style={{ ...inputStyle, flex: 1 }} />
+          <input aria-label="Add a store" placeholder="Add a store (e.g. Aldi)" value={newStore} onChange={(e) => setNewStore(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addStore()} style={{ ...inputStyle, flex: 1 }} />
           <Btn kind="primary" onClick={addStore}>Add store</Btn>
         </div>
       </div>
       )}
 
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
-        <h3 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 2px" }}>Your ingredients</h3>
+        <h2 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 2px" }}>Your ingredients</h2>
         <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
           {isGuest
             ? "Everything the household buys. Tap \u2699 on a row to see where it lives and which meals use it \u2014 changing any of it belongs to the household's own accounts."
@@ -329,7 +329,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
             List tab. */}
         {!isGuest && (
         <div style={{ display: "flex", gap: 8, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 10, padding: 10 }}>
-          <input placeholder="Add an item (e.g. coffee, paper towels)" value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addItem()} style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
+          <input aria-label="Add an ingredient" placeholder="Add an item (e.g. coffee, paper towels)" value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addItem()} style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
           <Btn kind="primary" onClick={addItem}>Add item</Btn>
         </div>
         )}
@@ -343,7 +343,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
                 <input
-                  placeholder="Search ingredients"
+                  aria-label="Search ingredients" placeholder="Search ingredients"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Escape" && setQuery("")}

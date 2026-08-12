@@ -293,7 +293,7 @@ export function WeekTab({ data, update, isGuest }) {
           return (
             <div key={day} style={{ background: C.card, border: `1px solid ${dayHasMeals ? C.green : C.line}`, borderRadius: 12, padding: "12px 16px", marginBottom: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                <h3 style={{ fontFamily: fontDisplay, fontSize: 17, fontWeight: 700, margin: 0, width: 44 }}>{day}</h3>
+                <h2 style={{ fontFamily: fontDisplay, fontSize: 17, fontWeight: 700, margin: 0, width: 44 }}>{day}</h2>
                 <div style={{ flex: 1 }}>
                   <Stripe />
                 </div>
@@ -497,7 +497,7 @@ export function WeekTab({ data, update, isGuest }) {
             <div style={{ padding: "0 16px 10px", position: "relative" }}>
               <input
                 autoFocus
-                placeholder="Search meals or ingredients"
+                aria-label="Search meals" placeholder="Search meals or ingredients"
                 value={pickQuery}
                 onChange={(e) => setPickQuery(e.target.value)}
                 onKeyDown={(e) => {

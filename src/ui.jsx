@@ -319,6 +319,12 @@ export function Section({ title, aside, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, marginBottom: 12, overflow: "hidden" }}>
+      {/* The button lives INSIDE an h2, which is the standard disclosure
+          pattern: the heading is what a screen reader navigates by, the button
+          is what it operates. Without it the Settings tab had exactly one
+          heading — the app's name — and no structure at all to move through.
+          Zero margin so nothing about the layout changes. */}
+      <h2 style={{ margin: 0, font: "inherit", fontWeight: "inherit" }}>
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
@@ -351,6 +357,7 @@ export function Section({ title, aside, children, defaultOpen = false }) {
         {aside}
         <span aria-hidden style={{ color: C.faint, fontSize: 13, flexShrink: 0 }}>{open ? "\u25b2" : "\u25be"}</span>
       </button>
+      </h2>
       {open && <div style={{ padding: "0 16px 16px" }}>{children}</div>}
     </div>
   );

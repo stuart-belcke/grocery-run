@@ -687,7 +687,12 @@ export default function App() {
               overflows; it just becomes two short lines. */}
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
             <h1 style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 30, margin: 0, flexShrink: 0 }}>Grocery Run</h1>
-            <span style={{ fontSize: 12, color: sync.tone === "bad" || sync.tone === "warn" ? syncTone[sync.tone] : C.faint, display: "inline-flex", alignItems: "center", gap: 5, justifyContent: "flex-end", textAlign: "right" }}>
+            {/* role="status" (polite): the sync state changes on its own, and a
+                screen reader had no way to learn that it had. Polite rather
+                than assertive — "Synced" must not interrupt what you are
+                doing, and "Sync error" is not urgent enough to cut across a
+                sentence either, since nothing is lost yet. */}
+            <span role="status" style={{ fontSize: 12, color: sync.tone === "bad" || sync.tone === "warn" ? syncTone[sync.tone] : C.faint, display: "inline-flex", alignItems: "center", gap: 5, justifyContent: "flex-end", textAlign: "right" }}>
               {syncEnabled && (
                 <span aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: syncTone[sync.tone] }} />
               )}

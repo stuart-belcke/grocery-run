@@ -457,7 +457,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
            textAlign/justifyContent matter because this wraps: the longest
            status is three times the width of the heading beside it. */
         aside={
-          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 5, fontSize: 12, fontFamily: fontBody, fontWeight: 400, textAlign: "right", color: sync.tone === "bad" || sync.tone === "warn" ? syncTone[sync.tone] : C.faint }}>
+          <span role="status" style={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 5, fontSize: 12, fontFamily: fontBody, fontWeight: 400, textAlign: "right", color: sync.tone === "bad" || sync.tone === "warn" ? syncTone[sync.tone] : C.faint }}>
             {syncEnabled && <span aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: syncTone[sync.tone], flexShrink: 0 }} />}
             {sync.text}
           </span>
@@ -525,7 +525,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                     <Btn onClick={() => makeInvite("member")} disabled={inviting}>{inviting ? "Creating…" : "Invite another phone"}</Btn>
                     <Btn onClick={() => makeInvite("guest")} disabled={inviting}>Guest link</Btn>
                   </div>
-                  {inviteMsg && <div style={{ fontSize: 13, fontWeight: 500, color: C.tomato, marginTop: 8 }}>{inviteMsg}</div>}
+                  {inviteMsg && <div role="status" style={{ fontSize: 13, fontWeight: 500, color: C.tomato, marginTop: 8 }}>{inviteMsg}</div>}
 
                   {/* The link, right where the button was pressed. The old code
                       reported success into a `msg` that renders inside the
@@ -604,7 +604,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
               <Btn kind="primary" onClick={joinCode}>Use this code</Btn>
               <Btn onClick={() => copyText(code, "Code copied — enter it on your other phone.")}>Copy code</Btn>
             </div>
-            {codeMsg && <div style={{ fontSize: 12, color: C.faint, marginTop: 8 }}>{codeMsg}</div>}
+            {codeMsg && <div role="status" style={{ fontSize: 12, color: C.faint, marginTop: 8 }}>{codeMsg}</div>}
             <p style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
               The code alone no longer lets anyone in — joining a household you&apos;re not already in needs an invite from someone who is. Switching household makes this phone adopt that household&apos;s data (this phone&apos;s current list is replaced, so export a backup first if you need it).
             </p>
@@ -673,7 +673,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
             <Btn kind="primary" onClick={startGoogleSignIn} disabled={googleStarting}>
               {googleStarting ? "Opening Google…" : "Sign in with Google"}
             </Btn>
-            {googleMsg && <div style={{ fontSize: 13, fontWeight: 500, color: C.tomato, marginTop: 8 }}>{googleMsg}</div>}
+            {googleMsg && <div role="status" style={{ fontSize: 13, fontWeight: 500, color: C.tomato, marginTop: 8 }}>{googleMsg}</div>}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 12 }}>
               <input
                 type="email"
@@ -687,7 +687,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
               <Btn onClick={sendLink} disabled={emailSending}>{emailSending ? "Sending…" : "Email me a sign-in link"}</Btn>
             </div>
             {emailMsg && (
-              <div style={{ fontSize: 13, fontWeight: 500, color: emailMsg.ok ? C.green : C.tomato, marginTop: 8 }}>{emailMsg.text}</div>
+              <div role="status" style={{ fontSize: 13, fontWeight: 500, color: emailMsg.ok ? C.green : C.tomato, marginTop: 8 }}>{emailMsg.text}</div>
             )}
           </>
         )}
@@ -752,7 +752,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
           </div>
         </div>
 
-        {msg && <div style={{ fontSize: 12, color: C.faint, marginTop: 10 }}>{msg}</div>}
+        {msg && <div role="status" style={{ fontSize: 12, color: C.faint, marginTop: 10 }}>{msg}</div>}
         {importOpen && (
           <div style={{ marginTop: 12, borderTop: `1px dashed ${C.line}`, paddingTop: 12 }}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 10 }}>

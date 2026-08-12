@@ -2038,3 +2038,70 @@ one pass rather than a one-off.
     still checked for every control, on screen or not.
     Five mutations, all caught: both old target sizes, the old truncating
     subtitle, the negative-margin overlap, and a lightened `faint`.
+
+58. [DONE] THE THREE THINGS THE UX EVALUATION SAID IT HAD NOT MEASURED.
+    Item 51 ended "no VoiceOver pass, no one-handed reach testing, no timing
+    of a real shop". All three are now measured. Two produced real defects,
+    one came back clean, and two findings are decisions rather than faults.
+
+    A. THE MECHANICAL HALF OF A SCREEN-READER PASS. Driven on all five tabs
+    at 390x844 against the real catalog. STILL NOT A VOICEOVER PASS on a real
+    iPhone, and the difference matters: this proves the app is not SILENT, not
+    that it is pleasant to use by ear.
+      - SIX TEXT INPUTS HAD NO ACCESSIBLE NAME: both "Add …" fields on
+        Ingredients, "Add shopping item" on List, and all three search boxes.
+        A PLACEHOLDER IS NOT A NAME — VoiceOver falls back to it, but it is
+        gone the moment there is a value in the field, and "Add shopping item"
+        carries role="combobox", which announced nothing at all.
+      - ZERO LIVE REGIONS IN THE ENTIRE APP. The sync status changes with
+        nothing the user did — "Synced" to "Sync error — changes may not be
+        saved" — so there is no reason to go and look at it, and every
+        confirmation ("Copied", "Imported.", "Starter catalog restored.",
+        "Sent to …") appears and vanishes. role="status" (polite) on all of
+        them. Polite, not assertive: none of it is urgent enough to cut across
+        a sentence, and "Synced" interrupting would be worse than silence.
+      - THE HEADING STRUCTURE WENT h1 THEN h3, and Section's title is a
+        BUTTON — so the Settings tab had exactly ONE heading, the app's name.
+        The five tab-level h3s became h2, and Section's button now lives
+        inside an h2 (heading + button is the standard disclosure pattern,
+        zero margin so nothing moves).
+      - THE MEALS A-Z VIEW HAD NO HEADINGS AT ALL: 22 recipe cards, titles
+        rendered as buttons. The card title is now a heading too, and ITS
+        LEVEL FOLLOWS THE VIEW — h3 grouped, where a meal-type h2 sits above
+        it, h2 in A-Z, where nothing does. A fixed h3 skips a level; that is
+        mutation-tested.
+    The test computes the accessible name the way a screen reader roughly
+    does and DELIBERATELY DOES NOT CONSULT THE PLACEHOLDER. Playwright's own
+    accessibility snapshot resolves placeholders into names and reports all
+    six of those fields as fine, which is why it is not used here.
+    Four mutations, four different tests: labels removed, the status no longer
+    live, Section back to a bare button, the card heading level fixed at h3.
+
+    B. ONE-HANDED REACH, measured on a 390x844 phone: where each control sits,
+    unscrolled, split at 62% and 33% of the viewport height.
+      List        11 controls   5 easy   0 mid   6 stretch
+      Meals       22            13       5       4
+      Week plan   18            11       4       3
+      Ingredients 24            17       2       5
+      Settings    10            5        2       3
+    Most of the stretch-zone controls are set-and-forget (the view toggles at
+    y=125, the section headers). ONE IS NOT: "Done shopping" at y=202, which
+    is pressed at the end of a shop, one-handed, holding a trolley. That is a
+    layout decision, not a defect, and is open.
+
+    C. WHAT A WEEK ACTUALLY COSTS, in the two things that can be counted.
+    Four dinners planned from the real catalog: 9 taps. The list that comes
+    out is 23 rows, 1615px, 1.9 SCREENS at 844px tall. The shop itself is 25
+    taps (one per row, plus Done shopping and its confirmation). 35 taps for
+    the week, start to finish.
+    THIS CAME BACK CLEAN and is recorded so nobody optimises it on instinct:
+    1.9 screens for a full week's list is not a scrolling problem, and 35 taps
+    is not a tapping problem. Contrast with item 51e's Ingredients tab at 12
+    screens — that one IS long, which is what search and back-to-top are for.
+
+    D. `maximum-scale=1` IN index.html BLOCKS PINCH-ZOOM ON ANDROID. iOS has
+    ignored it since iOS 10, so it costs these two phones nothing, and it is
+    what stops iOS auto-zooming when a 14px input takes focus. Removing it
+    means raising every input to 16px first. NOT CHANGED, recorded as the
+    trade-off it is: it is a real WCAG 1.4.4 failure on a browser this
+    household does not use.
