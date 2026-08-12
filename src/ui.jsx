@@ -4,7 +4,7 @@
 /* ------------------------------------------------------------------ */
 
 import { useEffect, useRef, useState } from "react";
-import { C, fontBody, fontDisplay, BOTTOM_NAV_H } from "./theme";
+import { C, fontBody, fontDisplay, inputStyle, BOTTOM_NAV_H } from "./theme";
 import { parseTabMarkup, keyboardIsOpen } from "./lib";
 
 /* Pins a tab's controls to the top of the viewport once you scroll past them.
@@ -139,6 +139,65 @@ export function BackToTop({ showAfter = 500 }) {
           chevrons. */}
       <span aria-hidden>{"\u2191"}</span>
     </button>
+  );
+}
+
+/* The search box on Meals and Ingredients, and in the meal picker.
+
+   ONE DEFINITION, THREE CALLERS. It was three copies of the same twenty lines,
+   already drifting — different right-offsets on the clear button, different
+   aria-labels for the same field — and it is the control this app's two long
+   tabs are unusable without.
+
+   IT MAKES A STATEMENT ON PURPOSE. Reported from real use: on a paper-coloured
+   page, a hairline border round a white box reads as decoration, and the one
+   thing that makes a 12-screen tab navigable looked like a caption. It now
+   carries the app's own "this is interactive" language — the soft green fill
+   and green rule the selected tab uses — plus a magnifier, which is the one
+   glyph nobody has to learn. */
+export function SearchField({ value, onChange, onEscape, label, placeholder, autoFocus = false, clearOffset = 6, style }) {
+  return (
+    <div style={{ position: "relative", ...style }}>
+      <span
+        aria-hidden
+        style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", fontSize: 14, lineHeight: 1, pointerEvents: "none", opacity: 0.75 }}
+      >
+        {"\u{1F50D}"}
+      </span>
+      <input
+        autoFocus={autoFocus}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key !== "Escape") return;
+          if (value) onChange("");
+          else if (onEscape) onEscape();
+        }}
+        aria-label={label}
+        placeholder={placeholder}
+        style={{
+          ...inputStyle,
+          width: "100%",
+          boxSizing: "border-box",
+          // Room for the magnifier on the left and the clear button on the right.
+          paddingLeft: 32,
+          paddingRight: 30,
+          background: C.greenSoft,
+          border: `1px solid ${C.green}`,
+          fontWeight: 500,
+        }}
+      />
+      {value && (
+        <button
+          onClick={() => onChange("")}
+          title="Clear search"
+          aria-label="Clear search"
+          style={{ position: "absolute", right: clearOffset, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", color: C.green, cursor: "pointer", fontSize: 15, padding: 4, lineHeight: 1 }}
+        >
+          {"\u2715"}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -319,6 +378,12 @@ export function Section({ title, aside, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, marginBottom: 12, overflow: "hidden" }}>
+      {/* The button lives INSIDE an h2, which is the standard disclosure
+          pattern: the heading is what a screen reader navigates by, the button
+          is what it operates. Without it the Settings tab had exactly one
+          heading — the app's name — and no structure at all to move through.
+          Zero margin so nothing about the layout changes. */}
+      <h2 style={{ margin: 0, font: "inherit", fontWeight: "inherit" }}>
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
@@ -351,6 +416,7 @@ export function Section({ title, aside, children, defaultOpen = false }) {
         {aside}
         <span aria-hidden style={{ color: C.faint, fontSize: 13, flexShrink: 0 }}>{open ? "\u25b2" : "\u25be"}</span>
       </button>
+      </h2>
       {open && <div style={{ padding: "0 16px 16px" }}>{children}</div>}
     </div>
   );

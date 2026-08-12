@@ -37,7 +37,7 @@ test("plan a meal, shop it, finish the trip, then rename an ingredient", async (
   try {
     /* --- 1. plan a meal onto a day ------------------------------------ */
     await page.tab("Week plan");
-    await page.getByLabel("Choose a meal for Mon Dinner").click();
+    await page.getByLabel("Choose a meal for Mon").click();
     await page.waitForTimeout(400);
     await page.locator("button").filter({ hasText: /Stir-fry/ }).first().click();
     await page.waitForTimeout(600);

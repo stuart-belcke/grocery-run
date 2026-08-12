@@ -5,6 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { C } from "./theme.js";
 import fs from "node:fs";
 import { FAQS, HOW_IT_WORKS } from "./help.js";
 import {
@@ -21,6 +22,7 @@ import {
   writeErrorAdvice,
   keyForName,
   unitKeyFor,
+  contrastRatio,
   normalizeCfg,
   resolveAgainstBought,
   NO_UNIT_KEY,
@@ -1963,6 +1965,44 @@ test("healing merges an empty key onto an existing sentinel rather than dropping
   // still had "" in its cache.
   const d = normalizeLocal({ list: { bought: { ing_x: { "": 1, [NO_UNIT_KEY]: 2 } } } });
   assert.deepEqual(d.list.bought.ing_x, { [NO_UNIT_KEY]: 3 });
+});
+
+/* ---------------- palette contrast (item 51b) ----------------
+   Four text colours had failed WCAG AA since the app was written, two of them
+   the PRIMARY ACTION on their tab. Nobody was going to see that by looking —
+   they are all marginal, 4.09 to 4.33 against a 4.5 floor — which is why this
+   is arithmetic and not an opinion.
+   A shop is often the worst lighting a phone gets used in. */
+
+const AA_BODY = 4.5;
+
+test("every text colour the app draws clears WCAG AA on every background it uses", () => {
+  // The pairs the app actually renders, read off the components rather than
+  // imagined: soft-background pills, plain text on paper and on a card, and
+  // white on the two solid fills.
+  const pairs = [
+    ["ink", C.ink, "paper", C.paper], ["ink", C.ink, "card", C.card],
+    ["faint", C.faint, "paper", C.paper], ["faint", C.faint, "card", C.card],
+    ["faint", C.faint, "greenSoft", C.greenSoft], ["faint", C.faint, "goldSoft", C.goldSoft],
+    ["faint", C.faint, "tomatoSoft", C.tomatoSoft],
+    ["tomato", C.tomato, "tomatoSoft", C.tomatoSoft], ["tomato", C.tomato, "paper", C.paper], ["tomato", C.tomato, "card", C.card],
+    ["gold", C.gold, "goldSoft", C.goldSoft], ["gold", C.gold, "paper", C.paper], ["gold", C.gold, "card", C.card],
+    ["green", C.green, "greenSoft", C.greenSoft], ["green", C.green, "paper", C.paper], ["green", C.green, "card", C.card],
+    ["white", "#FFFFFF", "green", C.green], ["white", "#FFFFFF", "gold", C.gold], ["white", "#FFFFFF", "tomato", C.tomato],
+  ];
+  const failing = pairs
+    .map(([fg, a, bg, b]) => [`${fg} on ${bg}`, contrastRatio(a, b)])
+    .filter(([, r]) => r < AA_BODY)
+    .map(([name, r]) => `${name} ${r}:1`);
+  assert.deepEqual(failing, []);
+});
+
+test("the contrast maths agrees with known values", () => {
+  // A guard on the guard: a broken formula would pass everything silently.
+  assert.equal(contrastRatio("#000000", "#FFFFFF"), 21);
+  assert.equal(contrastRatio("#FFFFFF", "#FFFFFF"), 1);
+  assert.equal(contrastRatio("#767676", "#FFFFFF"), 4.54); // the textbook AA boundary grey
+  assert.equal(contrastRatio("#000000", "#FFFFFF"), contrastRatio("#FFFFFF", "#000000"), "order must not matter");
 });
 
 /* ================= THE STANDING KEY AUDIT =================

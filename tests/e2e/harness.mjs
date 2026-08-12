@@ -236,6 +236,45 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
     await page.waitForTimeout(350);
   };
 
+  /* Plan a meal onto a day and meal type, the way a person does it.
+
+     ONE DEFINITION, because five specs had their own copy and all five broke
+     together the day the Week tab stopped carrying a row per meal type. A day
+     now shows the meals on it plus one "Choose a meal" row, and the TYPE is
+     chosen inside the picker — so the flow is: open the day, say which meal of
+     the day it is, pick the recipe.
+
+     `slot` is "Mon Dinner", matching how the app's own labels read. */
+  page.planMeal = async (slot, recipe) => {
+    const [day, type] = slot.split(" ");
+    await page.tab("Week plan");
+    // Slots are only editable while planning, or behind Edit once you are
+    // shopping — the same step a person takes.
+    for (const re of [/^Start planning$/, /^Edit$/]) {
+      const b = page.locator("button").filter({ hasText: re }).first();
+      if (await b.count()) {
+        await b.click();
+        await page.waitForTimeout(400);
+        break;
+      }
+    }
+    const filled = page.getByLabel(new RegExp(`^${day} ${type}: `));
+    if (await filled.count()) {
+      await filled.first().click();
+    } else {
+      await page.getByLabel(`Choose a meal for ${day}`).click();
+      await page.waitForTimeout(300);
+      const typeBtn = page.getByRole("button", { name: new RegExp(`^${type}$`) });
+      if (await typeBtn.count()) await typeBtn.first().click();
+    }
+    await page.waitForTimeout(400);
+    const picker = page.getByRole("dialog", { name: `Choose a meal for ${day}` });
+    const scoped = picker.locator("button").filter({ hasText: new RegExp(recipe) });
+    const target = (await scoped.count()) ? scoped.first() : page.locator("button").filter({ hasText: new RegExp(recipe) }).last();
+    await target.click();
+    await page.waitForTimeout(500);
+  };
+
   page.clickText = async (re, nth = 0) => {
     await page.locator("button").filter({ hasText: re }).nth(nth).click();
     await page.waitForTimeout(400);

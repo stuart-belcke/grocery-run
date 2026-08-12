@@ -345,6 +345,25 @@ export const norm = (s) => (s || "").trim().toLowerCase();
 export const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 export const uid = () => Math.random().toString(36).slice(2, 10);
 
+/* WCAG contrast between two hex colours. Pure maths, so the palette can be
+   tested rather than eyeballed — which is the only reason four colours that
+   had failed since the app was written were ever found.
+
+   Here rather than in theme.js because that file is values only, and a
+   contrast test needs something to compute with. The formula is WCAG 2.x:
+   channel to linear light, relative luminance, (L1+0.05)/(L2+0.05). */
+const CHANNEL = (c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+export function contrastRatio(a, b) {
+  const lum = (hex) => {
+    const h = String(hex).replace("#", "");
+    const [r, g, bl] = [0, 2, 4].map((i) => CHANNEL(parseInt(h.slice(i, i + 2), 16) / 255));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [l1, l2] = [lum(a), lum(b)];
+  const [hi, lo] = l1 > l2 ? [l1, l2] : [l2, l1];
+  return Math.round(((hi + 0.05) / (lo + 0.05)) * 100) / 100;
+}
+
 /* ------------------- keys the database will accept -------------------
    RTDB refuses `.` `#` `$` `[` `]` in a key, and treats `/` as a path
    separator. The list keys hand-added items by their own NAME — norm(name) —

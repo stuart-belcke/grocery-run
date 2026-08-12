@@ -52,6 +52,27 @@ const measureBar = (page) =>
       labels: btns.map((b) => b.textContent.trim()),
       // Ellipsised labels: "Ingredien…" reads as a bug and hides which tab it is.
       clipped: btns.filter((b) => b.scrollWidth > b.clientWidth + 1).map((b) => b.textContent.trim()),
+      /* HEADROOM, not just "does it fit". The suite runs with no network, so
+         Space Grotesk never loads and every width here is system-ui's. A label
+         sitting one pixel inside its box in the sandbox can still ellipsise on
+         the phone, which is where it matters. */
+      tight: btns
+        .map((b) => {
+          // A Range over the text, NOT scrollWidth: the button clips its
+          // overflow, so scrollWidth is just the box again and can never
+          // report how much room the label actually has.
+          const range = document.createRange();
+          range.selectNodeContents(b);
+          return { label: b.textContent.trim(), needs: range.getBoundingClientRect().width, has: b.clientWidth };
+        })
+        .filter((x) => x.needs > x.has * 0.97)
+        .map((x) => `${x.label} ${Math.round(x.needs)}/${x.has}`),
+      // The bar is the app's only navigation, so how it READS is load-bearing
+      // and not a detail to be quietly undone.
+      style: btns.map((b) => {
+        const cs = getComputedStyle(b);
+        return { weight: Number(cs.fontWeight), color: cs.color, current: b.getAttribute("aria-current") === "page" };
+      }),
       hits: btns.map((b) => {
         const q = b.getBoundingClientRect();
         const t = document.elementFromPoint(q.x + q.width / 2, q.y + q.height / 2);
@@ -110,6 +131,31 @@ test("switching tabs from deep in a scroll works without going back to the top",
   }
 });
 
+test("the tab bar reads as navigation rather than as a footnote", async () => {
+  /* Reported from real use: the bar was easy to miss. It was 12px at weight
+     500 with the unselected tabs in `faint`, which is the colour used for
+     secondary text you are meant to skim past — the opposite of what the only
+     navigation in the app should look like.
+     Asserted because it is the whole point of the change: a later tidy-up that
+     dropped the weight back would leave every other test in this file green. */
+  const page = await openScrolled(390);
+  try {
+    const m = await measureBar(page);
+    for (const b of m.style) {
+      assert.ok(b.weight >= 700, `a tab label is weight ${b.weight} — the bar is meant to be bold`);
+    }
+    const faint = "rgb(99, 105, 91)"; // C.faint
+    const unselected = m.style.filter((b) => !b.current);
+    assert.equal(unselected.length, TABS.length - 1, "exactly one tab should be current");
+    for (const b of unselected) {
+      assert.notEqual(b.color, faint, "an unselected tab is drawn in the skim-past colour");
+    }
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
 for (const width of [320, 390]) {
   test(`every tab label fits and is tappable at ${width}px`, async () => {
     // "Ingredients" is 68px at 12px type and each tab gets 64px at 320px, so
@@ -118,6 +164,7 @@ for (const width of [320, 390]) {
     try {
       const m = await measureBar(page);
       assert.deepEqual(m.clipped, [], `labels cut off at ${width}px: ${JSON.stringify(m.clipped)}`);
+      assert.deepEqual(m.tight, [], `labels with no room to spare at ${width}px — they will cut off on a device whose font is a shade wider: ${JSON.stringify(m.tight)}`);
       assert.deepEqual(m.hits, TABS.map(() => "self"));
       assert.equal(m.pageScrollWidth, m.vw, `the bar widened the page to ${m.pageScrollWidth} on a ${m.vw}px screen`);
       assertNoPageErrors(page, assert);

@@ -5,7 +5,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
-import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop, SuggestInput } from "../ui";
+import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop, SuggestInput, SearchField } from "../ui";
 import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, ingredientNames, normalizeCfg, ingredientMatches, existingIngredientSuggestions, unitMatches, ensureIngredientId, asArray, planSlotsFor, parseRecipeText } from "../lib";
 import { RecipeDetail } from "../RecipeDetail";
 
@@ -234,6 +234,10 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
     setDraft({ ...draft, ingredients: list });
   };
 
+  /* A capitalised variable so JSX treats it as a tag. Grouped, each card sits
+     under a meal-type h2; in A-Z there is no group above it. */
+  const CardHeading = mealView === "az" ? "h2" : "h3";
+
   const renderCard = (r) => {
     const base = r.servings || 4;
     const servings = data.list.selections[r.id] || 0;
@@ -260,12 +264,25 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
           onClick={() => setConfirmDelete(r)}
           aria-label={`Delete ${r.name}`}
           title="Delete this meal"
-          style={{ position: "absolute", top: 8, right: 10, border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 4 }}
+          /* Measured 21x24. Deleting a meal is destructive and was the
+             smallest target on the tab; the button is absolutely positioned,
+             so growing it to 44 costs the layout nothing. Nudged out to the
+             card's corner so the visible ✕ stays where it was. */
+          style={{ position: "absolute", top: 0, right: 0, width: 44, height: 44, border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0, display: "inline-flex", alignItems: "flex-start", justifyContent: "flex-end", paddingTop: 8, paddingRight: 10 }}
         >
           ✕
         </button>
 
         <div style={{ paddingRight: 22 }}>
+          {/* The card's title is a HEADING as well as a button — the same
+              disclosure pattern Section uses. The default A-Z view is a flat
+              run of 22 cards with no headings at all, so a screen reader had
+              no way to move between meals except one control at a time.
+              THE LEVEL FOLLOWS THE VIEW, which is the whole reason it is a
+              variable: grouped, each card sits under a meal-type h2 and is an
+              h3; in A-Z there is no group, so an h3 would skip a level under
+              the app's h1. */}
+          <CardHeading style={{ margin: 0, font: "inherit", fontWeight: "inherit" }}>
           <button
             onClick={() => setDetailOpen(detailShown ? null : r.id)}
             aria-expanded={detailShown}
@@ -302,6 +319,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
               {detailShown ? "Hide details ▲" : "Ingredients & recipe ▾"}
             </div>
           </button>
+          </CardHeading>
           {detailShown && <RecipeDetail recipe={r} />}
         </div>
 
@@ -420,26 +438,13 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
           unusable. */}
       <StickyBar>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
-          <input
-            placeholder="Search meals or ingredients"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Escape" && setQuery("")}
-            aria-label="Search meals or ingredients"
-            style={{ ...inputStyle, width: "100%", boxSizing: "border-box", paddingRight: 28 }}
-          />
-          {query && (
-            <button
-              onClick={() => setQuery("")}
-              title="Clear search"
-              aria-label="Clear search"
-              style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 4 }}
-            >
-              ✕
-            </button>
-          )}
-        </div>
+        <SearchField
+          style={{ flex: 1, minWidth: 0 }}
+          value={query}
+          onChange={setQuery}
+          label="Search meals or ingredients"
+          placeholder="Search meals or ingredients"
+        />
         <div style={{ position: "relative", flexShrink: 0 }}>
           <button
             onClick={() => setFilterOpen((v) => !v)}
@@ -536,7 +541,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
                 rows={8}
                 autoFocus
                 aria-label="Pasted recipe text"
-                style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 8, fontSize: 12 }}
+                style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 8 }}
               />
               <div style={{ display: "flex", gap: 8 }}>
                 <div style={{ flex: 1 }} />
@@ -825,7 +830,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
               .map((g) => (
                 <section key={g.label} style={{ marginBottom: 18 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "10px 0 8px" }}>
-                    <h3 style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 700, margin: 0 }}>{g.label}</h3>
+                    <h2 style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 700, margin: 0 }}>{g.label}</h2>
                     <div style={{ flex: 1 }}>
                       <Stripe />
                     </div>

@@ -673,6 +673,10 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;700&display=swap');
         input, select, textarea { font-family: ${fontBody}; color: ${C.ink}; }
+        /* The browser default is around #757575, which is 4.0:1 on the search
+           field's soft-green fill — under the 4.5 body-text floor. Named here
+           because a placeholder cannot be styled inline. */
+        ::placeholder { color: ${C.faint}; opacity: 1; }
         input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid ${C.green}; outline-offset: 1px; }
       `}</style>
 
@@ -687,7 +691,12 @@ export default function App() {
               overflows; it just becomes two short lines. */}
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
             <h1 style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 30, margin: 0, flexShrink: 0 }}>Grocery Run</h1>
-            <span style={{ fontSize: 12, color: sync.tone === "bad" || sync.tone === "warn" ? syncTone[sync.tone] : C.faint, display: "inline-flex", alignItems: "center", gap: 5, justifyContent: "flex-end", textAlign: "right" }}>
+            {/* role="status" (polite): the sync state changes on its own, and a
+                screen reader had no way to learn that it had. Polite rather
+                than assertive — "Synced" must not interrupt what you are
+                doing, and "Sync error" is not urgent enough to cut across a
+                sentence either, since nothing is lost yet. */}
+            <span role="status" style={{ fontSize: 12, color: sync.tone === "bad" || sync.tone === "warn" ? syncTone[sync.tone] : C.faint, display: "inline-flex", alignItems: "center", gap: 5, justifyContent: "flex-end", textAlign: "right" }}>
               {syncEnabled && (
                 <span aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: syncTone[sync.tone] }} />
               )}
@@ -830,14 +839,31 @@ export default function App() {
                 // "Ingredien…". clamp shrinks the label only on the phones
                 // that need it and leaves 12px everywhere there is room —
                 // 10px at 320, 11.6px at 375, 12px from 388 up.
-                fontSize: "clamp(10px, 3.1vw, 12px)",
-                fontWeight: 500,
+                /* RE-MEASURED FOR BOLD, which is wider — the old
+                   clamp(10px, 3.1vw, 12px) was measured at weight 500 and
+                   ellipsised "Ingredients" at 320 AND 390 the moment the
+                   weight went up. "Ingredients" needs 6.49px of width per 1px
+                   of type at 700, and each of five tabs gets (width/5 - 2)px:
+                   62px at 320, 76px at 390. These numbers leave ~6% headroom
+                   rather than sitting on the limit, because the sandbox that
+                   measured them falls back to system-ui — Space Grotesk 700
+                   on a real phone is not guaranteed to be identical.
+                   The net is about 1px smaller and a great deal heavier.
+                   tabbar.spec.mjs asserts no label ellipsises at any width. */
+                fontSize: "clamp(9px, 2.85vw, 11.5px)",
+                letterSpacing: "-0.01em",
+                fontWeight: 700,
                 padding: "0 1px",
                 border: "none",
                 borderTop: `3px solid ${tab === t.id ? C.green : "transparent"}`,
                 cursor: "pointer",
                 background: tab === t.id ? C.greenSoft : "transparent",
-                color: tab === t.id ? C.green : C.faint,
+                // Ink rather than faint for the tabs you are NOT on. `faint` is
+                // for secondary text you are meant to skim past, which is the
+                // opposite of what the only navigation in the app should read
+                // as. The selected tab stays green, and keeps the soft
+                // background and the 3px rule doing that work.
+                color: tab === t.id ? C.green : C.ink,
                 // One line, always: a label that wraps changes the bar's
                 // height and shifts every other tab under the thumb.
                 whiteSpace: "nowrap",

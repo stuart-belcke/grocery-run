@@ -50,13 +50,10 @@ const startPlanning = async (page) => {
   }
 };
 
-const pickMain = async (page, slot, recipe) => {
-  await page.getByLabel(`Choose a meal for ${slot}`).click();
-  await page.waitForTimeout(400);
-  const picker = page.getByRole("dialog", { name: `Choose a meal for ${slot}` });
-  await picker.locator("button").filter({ hasText: new RegExp(recipe) }).first().click();
-  await page.waitForTimeout(500);
-};
+// page.planMeal in the harness: a day shows one "Choose a meal" row and the
+// meal type is chosen in the picker, so the flow is the same for every spec
+// and lives in one place.
+const pickMain = (page, slot, recipe) => page.planMeal(slot, recipe);
 
 const openSidePicker = async (page, slot) => {
   // getByRole("button"), not getByLabel: the modal itself carries the same
@@ -240,7 +237,7 @@ test("SHOULD: replacing the main clears the sides that were paired with it", asy
 
     await page.getByLabel(/^Mon Dinner: Stir-fry/).click();
     await page.waitForTimeout(400);
-    await page.getByRole("dialog", { name: "Choose a meal for Mon Dinner" })
+    await page.getByRole("dialog", { name: "Choose a meal for Mon" })
       .locator("button").filter({ hasText: /Rice bowl/ }).first().click();
     await page.waitForTimeout(600);
     await page.roundTrip();

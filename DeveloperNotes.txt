@@ -2031,3 +2031,311 @@ one pass rather than a one-off.
     and on a NaN — because an audit that cannot fail is worse than none.
     Mutation: reverting keyForName, unitKeyFor and aisleKey together fails 9
     tests, the audit among them, naming the empty key at its exact path.
+
+57. [DONE] THE THREE UX FINDINGS THAT WERE NOT MATTERS OF TASTE (51a-c).
+    Each was a number the page reported about itself, so each has a test that
+    reproduces the number.
+
+    51a. THE MOST DESTRUCTIVE CONTROLS HAD THE SMALLEST TARGETS. "Remove
+    <store>" was 11x15px — it unassigns every ingredient that lived there —
+    and "Delete <recipe>" was 21x24. Both a third of the 44px a thumb reliably
+    hits, both the smallest thing on their screen, both beside something
+    harmless.
+    THE PILL GREW RATHER THAN THE BUTTON OVERFLOWING IT, and that is the only
+    interesting decision here. Expanding a small button past its container
+    with negative margins is the usual trick, and it is WRONG for these: the
+    store pills wrap and sit 8px apart, so the hit areas would overlap and a
+    mis-tap would offer to delete the WRONG store. The test asserts
+    non-overlap as well as size, and mutation-testing the negative-margin
+    version fails it by name ("Remove Costco" and "Remove Schnucks" overlap).
+    The Meals ✕ is absolutely positioned, so growing it to 44 costs the layout
+    nothing; it sits in the card's corner with padding so the glyph did not
+    move.
+
+    51b. FOUR TEXT COLOURS HAD FAILED WCAG AA SINCE THE APP WAS WRITTEN, two
+    of them the primary action on their tab ("Done shopping", "Start a new
+    plan" at 4.09:1). All marginal — 4.06 to 4.33 against a 4.5 floor — which
+    is exactly why nobody was ever going to see it by looking.
+    THE INK DARKENED, NOT THE BACKGROUND LIGHTENED, so the soft-pill treatment
+    is unchanged: same hue, same saturation, lower lightness.
+      tomato #C2452D -> #B4402A   4.09 -> 4.62 on tomatoSoft
+      gold   #8A6D1D -> #83681C   4.26 -> 4.61 on goldSoft, 4.49 -> 4.86 on paper
+      faint  #6B7263 -> #63695B   4.06/4.15/4.33 -> 4.62/4.72/4.93 on the three
+                                  soft backgrounds, 4.57 -> 5.20 on paper
+    `faint` was failing on ALL THREE soft backgrounds; the evaluation only saw
+    greenSoft because that is what happened to be on screen. Arithmetic found
+    the other two.
+    contrastRatio lives in lib.js — pure WCAG 2.x maths — because theme.js is
+    values only and a test needs something to compute with. The test walks
+    every pair the app actually renders and reports the failures as a list, so
+    a regression names the colour and the number. It also checks the formula
+    against known values (black/white = 21, #767676 on white = 4.54), because
+    a broken formula would pass everything silently.
+
+    51c. THE INGREDIENT SUBTITLE CLIPPED AT 320px: "Grocery store · aisle 8"
+    needs 132px and was given 108, and nowrap+ellipsis cuts from the RIGHT, so
+    the store name — the thing you scan the row for — was the half that went.
+    It wraps now. A second line on a narrow phone is cheaper than losing the
+    name, and it costs nothing at 390px, where it still fits on one.
+
+    THE HIT TEST HAD TO LEARN TWO THINGS ABOUT THIS APP. elementFromPoint only
+    answers for the visible viewport, and Ingredients is 12 screens long, so
+    "below the fold" is not a failure; and the fixed tab bar covers the bottom
+    of the viewport BY DESIGN, with matching page padding, so a control under
+    it is not unreachable either. The bar's own bounding box is read rather
+    than BOTTOM_NAV_H being hardcoded a fourth time. Size and overlap are
+    still checked for every control, on screen or not.
+    Five mutations, all caught: both old target sizes, the old truncating
+    subtitle, the negative-margin overlap, and a lightened `faint`.
+
+58. [DONE] THE THREE THINGS THE UX EVALUATION SAID IT HAD NOT MEASURED.
+    Item 51 ended "no VoiceOver pass, no one-handed reach testing, no timing
+    of a real shop". All three are now measured. Two produced real defects,
+    one came back clean, and two findings are decisions rather than faults.
+
+    A. THE MECHANICAL HALF OF A SCREEN-READER PASS. Driven on all five tabs
+    at 390x844 against the real catalog. STILL NOT A VOICEOVER PASS on a real
+    iPhone, and the difference matters: this proves the app is not SILENT, not
+    that it is pleasant to use by ear.
+      - THREE TEXT INPUTS HAD NO ACCESSIBLE NAME: both "Add …" fields on
+        Ingredients and "Add shopping item" on List. A PLACEHOLDER IS NOT A
+        NAME — VoiceOver falls back to it, but it is gone the moment there is
+        a value in the field, and "Add shopping item" carries role="combobox",
+        which announced nothing at all.
+        (Recorded as six at the time. The three SEARCH boxes already had
+        aria-labels and were never flagged by the audit; labels were added to
+        them anyway, which left a duplicate attribute on each. Removed.)
+      - ZERO LIVE REGIONS IN THE ENTIRE APP. The sync status changes with
+        nothing the user did — "Synced" to "Sync error — changes may not be
+        saved" — so there is no reason to go and look at it, and every
+        confirmation ("Copied", "Imported.", "Starter catalog restored.",
+        "Sent to …") appears and vanishes. role="status" (polite) on all of
+        them. Polite, not assertive: none of it is urgent enough to cut across
+        a sentence, and "Synced" interrupting would be worse than silence.
+      - THE HEADING STRUCTURE WENT h1 THEN h3, and Section's title is a
+        BUTTON — so the Settings tab had exactly ONE heading, the app's name.
+        The five tab-level h3s became h2, and Section's button now lives
+        inside an h2 (heading + button is the standard disclosure pattern,
+        zero margin so nothing moves).
+      - THE MEALS A-Z VIEW HAD NO HEADINGS AT ALL: 22 recipe cards, titles
+        rendered as buttons. The card title is now a heading too, and ITS
+        LEVEL FOLLOWS THE VIEW — h3 grouped, where a meal-type h2 sits above
+        it, h2 in A-Z, where nothing does. A fixed h3 skips a level; that is
+        mutation-tested.
+    The test computes the accessible name the way a screen reader roughly
+    does and DELIBERATELY DOES NOT CONSULT THE PLACEHOLDER. Playwright's own
+    accessibility snapshot resolves placeholders into names and reports all
+    six of those fields as fine, which is why it is not used here.
+    Four mutations, four different tests: labels removed, the status no longer
+    live, Section back to a bare button, the card heading level fixed at h3.
+
+    B. ONE-HANDED REACH, measured on a 390x844 phone: where each control sits,
+    unscrolled, split at 62% and 33% of the viewport height.
+      List        11 controls   5 easy   0 mid   6 stretch
+      Meals       22            13       5       4
+      Week plan   18            11       4       3
+      Ingredients 24            17       2       5
+      Settings    10            5        2       3
+    Most of the stretch-zone controls are set-and-forget (the view toggles at
+    y=125, the section headers). ONE IS NOT: "Done shopping" at y=202, which
+    is pressed at the end of a shop, one-handed, holding a trolley. That is a
+    layout decision, not a defect, and is open.
+
+    C. WHAT A WEEK ACTUALLY COSTS, in the two things that can be counted.
+    Four dinners planned from the real catalog: 9 taps. The list that comes
+    out is 23 rows, 1615px, 1.9 SCREENS at 844px tall. The shop itself is 25
+    taps (one per row, plus Done shopping and its confirmation). 35 taps for
+    the week, start to finish.
+    THIS CAME BACK CLEAN and is recorded so nobody optimises it on instinct:
+    1.9 screens for a full week's list is not a scrolling problem, and 35 taps
+    is not a tapping problem. Contrast with item 51e's Ingredients tab at 12
+    screens — that one IS long, which is what search and back-to-top are for.
+
+    D. `maximum-scale=1` IN index.html BLOCKS PINCH-ZOOM ON ANDROID. Recorded
+    here as a trade-off and NOT changed at the time; item 61 fixed it at the
+    source instead, which turned out to be the better answer.
+
+59. [DONE] 51d: THE WEEK PLAN SHOWS ONLY THE MEAL TYPES YOU ACTUALLY PLAN.
+    4 types x 7 days is 28 slots and a household that plans dinners fills 4-7;
+    reading four dinners took 2.5 screens, and Sunday alone filled one to show
+    a single meal. Now 0.9 screens for the same four.
+
+    HIDING TYPES, NOT DAYS, and that was the choice. The emptiness is almost
+    entirely along the TYPE axis rather than scattered, so collapsing empty
+    days would have produced a ragged layout for much less. Offered both ways
+    with mockups; this is what was picked.
+    A TYPE IN USE ON ANY DAY SHOWS ON EVERY DAY. The tab's whole value is that
+    a slot is always in the same place — a row that came and went per day
+    would be a worse trade than the scrolling it saves.
+    AN EMPTY WEEK STILL SHOWS ONE ROW (Dinner), or there is nowhere to plan
+    into and the tab reads as broken rather than compact. Mutation-tested: the
+    version that collapses to nothing fails.
+    NOTHING IS STORED about which types you plan. `showAllTypes` is view state
+    and planning a breakfast is what makes Breakfast stay — so there is no new
+    preference to sync, migrate, or disagree about between two phones.
+    THE REVEAL IS KEYED TO typesInUse, NOT TO THE TOGGLE. Keyed to the toggle
+    the control removed ITSELF the moment it was used, which made the extra
+    rows a one-way door for the rest of the session. Caught by the test, not
+    by reading it.
+    dayHasMeals STILL READS ALL FOUR TYPES: the green border is what says "this
+    day has something" at a glance, and deriving it from the VISIBLE rows would
+    make a day whose only meal is hidden look empty.
+
+    THE COST, ACCEPTED AND WRITTEN DOWN: planning a lunch on a fresh week now
+    takes one extra tap. The e2e helper was changed to take that tap rather
+    than the suite quietly losing its coverage of the other three meal types —
+    a test that routes around a new step stops describing the app.
+
+    ALSO DECIDED, NOT CHANGED: "Done shopping" sits at y=202 on an 844px
+    screen, in the hardest quarter to reach one-handed, and it is pressed at
+    the end of a shop while holding a trolley. Left where it is deliberately —
+    it is once per trip, already behind a confirmation, and moving it down by
+    the tab bar puts a destructive control under the thumb that is ticking
+    items off for the whole shop.
+
+60. [DONE] THE TAB BAR READ AS A FOOTNOTE. Reported from real use: the only
+    navigation in the app was easy to miss. It was 12px at weight 500 with the
+    unselected tabs in `faint` — the colour used for secondary text you are
+    meant to SKIM PAST, which is the opposite of what navigation should be.
+    Weight 700, and the unselected tabs in `ink`. The selected one stays green
+    and keeps the soft background and the 3px rule doing that work.
+
+    BOLD IS WIDER, AND THAT COST A RE-MEASURE. The old clamp(10px, 3.1vw,
+    12px) was measured at weight 500; at 700 it ellipsised "Ingredients" at
+    320px AND 390px the moment the weight changed. The existing test caught it
+    on the first run, which is the whole reason that assertion exists.
+    "Ingredients" needs 6.49px of width per 1px of type at weight 700, and
+    each of five tabs gets (viewport/5 - 2)px: 62px at 320, 76px at 390.
+    clamp(9px, 2.85vw, 11.5px) with -0.01em leaves ~6% headroom. Net: about
+    1px smaller and a great deal heavier, which is the trade the report asked
+    for.
+
+    THE HEADROOM ASSERTION IS NEW AND IS THE USEFUL PART. "Does it fit" is not
+    enough here: the suite runs with no network, so Space Grotesk never loads
+    and every width it measures is system-ui's. A label one pixel inside its
+    box in the sandbox can still ellipsise on the phone. The new check fails
+    anything using more than 97% of its box — and it proved itself
+    immediately, catching the old clamp at 390px with "Ingredients 77/78",
+    which FITS in the sandbox and would not have on a device.
+    IT MEASURES A RANGE OVER THE TEXT, NOT scrollWidth. The button clips its
+    overflow, so scrollWidth is just the box again and can never report how
+    much room a label that fits actually has — the first version of this
+    reported every tab as 64/64 and failed everything.
+
+    THE WEIGHT AND THE COLOUR ARE ASSERTED, because they ARE the change: a
+    later tidy-up that put the bar back to 500, or back to `faint`, would
+    leave every other test in the file green.
+
+61. [DONE] THE FIELDS ARE 16px, SO NOTHING HAS TO BAN PINCH ZOOM.
+    index.html carried `maximum-scale=1`, and its stated reason was real: iOS
+    Safari zooms the page whenever a focused field's computed size is under
+    16px. The cure was worse than the disease, though — it blocks PINCH zoom
+    on Android for everyone, permanently, which is a WCAG 1.4.4 failure and
+    takes away the one tool somebody with poor eyesight has on any page.
+
+    THE THRESHOLD IS THE FIX. 16px is not a look, it is the number Safari
+    checks. Every field in the app is 16px now — inputStyle, the two store
+    dropdowns, the four aisle boxes (52px wide -> 60px to hold the bigger
+    digits), the recipe notes textarea, and the three monospace backup/export
+    boxes — so there is nothing left to suppress and the ban could go.
+    THE ALTERNATIVES WERE CONSIDERED AND ARE WORSE: `font-size: 16px` on
+    :focus only works, but the text jumps size under the cursor mid-typing; a
+    transform: scale() wrapper breaks tap targets. Sizing the fields properly
+    is also just better — 16px is easier to read and to hit.
+    THE COST, PLAINLY: the export and backup textareas went from 11-12px
+    monospace to 16px, so a backup blob is a good deal bigger on screen. It is
+    a thing you copy, not a thing you read, and an exception would make the
+    rule ("no field under 16") one nobody can check.
+
+    BOTH HALVES ARE ASSERTED, because either alone rots back into the old
+    behaviour: one 14px field put back brings the zoom-on-focus with it, and
+    the next person to notice will "fix" it by restoring the ban.
+
+    IT BROKE A LAYOUT, AND 164 BROWSER TESTS DID NOT NOTICE. The bigger "Add a
+    store" field pushed its button 6px off a 320px screen. listrow, tabbar and
+    reach each check the one row they are about, and between them they missed
+    it — the cause was a missing `minWidth: 0` on one flex input, which the
+    identical row eight lines below already had.
+    fits.spec.mjs is the answer: every tab, at 320 and 390, WITH THE PANELS
+    OPENED, nothing off the side and no sideways page scroll. Half the app's
+    fields live behind a disclosure, so a sweep of the collapsed screens would
+    have missed exactly this. A rule that holds everywhere needs one test that
+    looks everywhere, or it is only ever as good as the last place somebody
+    remembered to check.
+
+62. [DONE] TWO REPORTS FROM REAL USE: the search box blended in, and a week
+    showing only Dinner needed a way to add a meal.
+
+    A. SEARCHFIELD, ONE DEFINITION FOR THREE COPIES. Meals, Ingredients and the
+    meal picker each carried the same twenty lines, already drifting — the
+    clear button sat at right:4 in two of them and right:20 in the third, and
+    the same field was labelled "Search meals" in one place and "Search meals
+    or ingredients" in another. It is also the control both long tabs are
+    unusable without: 12 screens of ingredients, 6.8 of meals.
+    IT MAKES A STATEMENT NOW, which is what was asked for. On a paper-coloured
+    page a hairline border round a white box reads as decoration. It carries
+    the app's own "this is interactive" language — the soft green fill and
+    green rule the selected tab already uses — plus a magnifier, the one glyph
+    nobody has to learn.
+    THE PLACEHOLDER COLOUR IS NOW NAMED. The browser default is around #757575,
+    which is 4.0:1 on that fill, under the 4.5 floor item 51b just fixed
+    everywhere else. `::placeholder` in App's style block, since a placeholder
+    cannot be styled inline. C.faint gives 4.72.
+
+    B. [SUPERSEDED BY ITEM 63 — the "+" was the wrong answer.] THE "+" IS PER
+    DAY, AND THAT IS THE WHOLE POINT. Item 59 collapsed the
+    week to the meal types in use and put the rest behind one button at the top
+    reading "Add breakfast, lunch, dessert" — wordy, easy to miss, and GLOBAL:
+    it put three empty rows on all seven days so you could fill one, which is
+    most of the emptiness the collapse had just removed. "Add a meal" is a
+    thing you do to Tuesday.
+    Each day's heading now carries a 44px "+" (item 51a's rule — it is the
+    control the tab exists for), revealing that day's unused slots and nothing
+    else. Mutation-tested: the version that reveals every day fails with "only
+    Tuesday should have gained a Lunch row, found 7".
+    IT FOLLOWS slotsEditable like every other slot control, so on a week you
+    are already shopping for it sits behind Edit. A stray "+" cannot start
+    rearranging a plan you are buying against.
+    Still nothing stored: planning the meal is what makes its type stay.
+
+    The e2e helpers take the same step a person does — the day's "+", not a
+    global reveal. A test that routes around a new control stops describing the
+    app.
+
+63. [DONE] THE WEEK PLAN: WHAT IS ON THE DAY, PLUS ONE "CHOOSE A MEAL".
+    Third shape for item 51d, and the one that was right. Worth keeping the
+    other two, because the mistake is easy to repeat:
+      - 4 types x 7 days, always. 28 slots to hold 4-7 meals; 2.5 screens to
+        read four dinners.
+      - types-in-use + a "+" to reveal the rest (items 59, 62B). Compact, but
+        it hid something behind a control you had to find first, and the
+        report on it was "no plus sign, that is hard to see". A glyph you have
+        to discover is not more discoverable than a row that is simply there.
+      - NOW: a day shows the meals ON it, then one "Choose a meal" row — the
+        same button an empty slot always had. Nothing hidden, nothing to
+        reveal, no new control to learn.
+
+    THE MEAL TYPE IS CHOSEN WHEN THE MEAL IS. That is the piece that makes it
+    work: a day no longer needs a row per type to let you say "this is a
+    lunch", because the picker asks. The Seg offers only the types still FREE
+    on that day plus the one selected — a day holds one meal per type, so an
+    option that would silently replace an existing meal is not an option.
+    DEFAULTS TO DINNER, not to the first free type in MEAL_TYPES order, which
+    is BREAKFAST. This app exists to shop for dinners — that is where the
+    "4-7 of 28" measurement came from — so the common case is one tap on the
+    meal and nothing else. journey.spec caught the wrong default by reading
+    the plan back; on screen the two are identical.
+    !isGuest, NOT slotsEditable, on the "Choose a meal" row. An EMPTY slot has
+    always been fillable in either mode — you do not press Edit to plan into a
+    day with nothing on it — and gating the new row on slotsEditable quietly
+    took that away. Three specs caught it.
+
+    planTypesInUse is GONE, with its tests: the design that needed it is the
+    one that was replaced. So is the "a type in use anywhere shows everywhere"
+    rule — the rows are what is actually on the day now, so a Sunday breakfast
+    appears on Sunday and nowhere else.
+
+    page.planMeal MOVED INTO THE HARNESS. Five specs had their own copy of
+    "plan a meal onto a day", and all five broke together the moment the Week
+    tab stopped carrying a row per meal type. One definition of a flow the
+    whole suite depends on.

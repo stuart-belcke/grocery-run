@@ -7,20 +7,35 @@ export const C = {
   paper: "#F7F5EF",
   card: "#FFFFFF",
   ink: "#24301F",
-  faint: "#6B7263",
+  // Darkened from #6B7263. It failed WCAG AA on every soft background it is
+  // used on (4.06 on tomatoSoft, 4.15 on greenSoft, 4.33 on goldSoft) — and a
+  // shop is often the worst lighting a phone gets used in. Same hue and
+  // saturation, lower lightness: 4.62 / 4.72 / 4.93, 5.20 on paper.
+  faint: "#63695B",
   green: "#3E6B3A",
   greenSoft: "#E4EDE0",
   line: "#E3E0D4",
-  tomato: "#C2452D",
+  // Darkened from #C2452D: 4.09 on tomatoSoft, which is the PRIMARY ACTION on
+  // two tabs ("Done shopping", "Start a new plan"). Now 4.62.
+  tomato: "#B4402A",
   tomatoSoft: "#F7E4DF",
-  gold: "#8A6D1D",
+  // Darkened from #8A6D1D: 4.26 on goldSoft (the "Easy" pill) and 4.49 on
+  // paper, both under the 4.5 body-text floor. Now 4.61 / 4.86.
+  gold: "#83681C",
   goldSoft: "#F6EFD7",
 };
 
 export const fontDisplay = "'Fraunces', Georgia, serif";
 export const fontBody = "'Space Grotesk', system-ui, -apple-system, sans-serif";
 
-export const inputStyle = { padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.line}`, fontFamily: fontBody, fontSize: 14 };
+/* 16px IS NOT A LOOK, IT IS THE iOS ZOOM THRESHOLD. Safari zooms the page
+   whenever a focused field's computed size is under 16px, and the app used to
+   stop that by banning zoom outright in index.html — which also banned PINCH
+   zoom on Android, for everyone, permanently. Sizing the fields properly
+   removes the reason for the ban. Nothing below 16 anywhere on a field;
+   screenreader.spec.mjs asserts it, because one 14px field put back would
+   quietly restore the behaviour the ban existed to prevent. */
+export const inputStyle = { padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.line}`, fontFamily: fontBody, fontSize: 16 };
 
 // The sync indicator's four tones. Here rather than next to the logic that
 // picks one, because two places draw that indicator (the header and the

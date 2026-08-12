@@ -6,7 +6,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
-import { Btn, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop , SuggestInput} from "../ui";
+import { Btn, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop, SearchField, SuggestInput } from "../ui";
 import { UNASSIGNED, norm, cap, r2, aisleKey, aisleFor, normalizeCfg, ingredientNames, unitMatches, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient, ensureIngredientId, ingredientIdByName, mergeIngredients, setIngredientCfg, planIngredientRename } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
@@ -289,24 +289,33 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
           need in a shop — they just can't change the store list itself. */}
       {!isGuest && (
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
-        <h3 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 10px" }}>Your stores</h3>
+        <h2 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 10px" }}>Your stores</h2>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
           {data.stores.map((s) => (
-            <span key={s} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: C.greenSoft, color: C.green, fontWeight: 500, fontSize: 13, padding: "5px 10px", borderRadius: 999 }}>
+            /* The ✕ measured 11x15. Removing a store is the furthest-reaching
+               action on this tab — it unassigns every ingredient that lived
+               there — and it was the smallest thing on the screen, a third of
+               the 44px a thumb reliably hits.
+               THE PILL GREW RATHER THAN THE BUTTON OVERFLOWING IT. Expanding
+               the button past its pill with negative margins is the usual
+               trick and is wrong here: these pills wrap and sit 8px apart, so
+               the hit areas would overlap and a mis-tap would offer to delete
+               the WRONG store. */
+            <span key={s} style={{ display: "inline-flex", alignItems: "center", gap: 2, background: C.greenSoft, color: C.green, fontWeight: 500, fontSize: 13, paddingLeft: 12, borderRadius: 999, minHeight: 44 }}>
               {s}
-              <button onClick={() => setConfirmStore(s)} aria-label={`Remove ${s}`} style={{ border: "none", background: "transparent", color: C.green, cursor: "pointer", fontSize: 13, padding: 0 }}>✕</button>
+              <button onClick={() => setConfirmStore(s)} aria-label={`Remove ${s}`} style={{ border: "none", background: "transparent", color: C.green, cursor: "pointer", fontSize: 15, width: 44, height: 44, borderRadius: 999, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }}>✕</button>
             </span>
           ))}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <input placeholder="Add a store (e.g. Aldi)" value={newStore} onChange={(e) => setNewStore(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addStore()} style={{ ...inputStyle, flex: 1 }} />
+          <input aria-label="Add a store" placeholder="Add a store (e.g. Aldi)" value={newStore} onChange={(e) => setNewStore(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addStore()} style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
           <Btn kind="primary" onClick={addStore}>Add store</Btn>
         </div>
       </div>
       )}
 
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
-        <h3 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 2px" }}>Your ingredients</h3>
+        <h2 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 2px" }}>Your ingredients</h2>
         <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
           {isGuest
             ? "Everything the household buys. Tap \u2699 on a row to see where it lives and which meals use it \u2014 changing any of it belongs to the household's own accounts."
@@ -320,7 +329,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
             List tab. */}
         {!isGuest && (
         <div style={{ display: "flex", gap: 8, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 10, padding: 10 }}>
-          <input placeholder="Add an item (e.g. coffee, paper towels)" value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addItem()} style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
+          <input aria-label="Add an ingredient" placeholder="Add an item (e.g. coffee, paper towels)" value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addItem()} style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
           <Btn kind="primary" onClick={addItem}>Add item</Btn>
         </div>
         )}
@@ -332,26 +341,13 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                 occasional, and two pinned bands would eat the screen. */}
             <StickyBar>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
-                <input
-                  placeholder="Search ingredients"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === "Escape" && setQuery("")}
-                  aria-label="Search ingredients"
-                  style={{ ...inputStyle, width: "100%", boxSizing: "border-box", paddingRight: 28 }}
-                />
-                {query && (
-                  <button
-                    onClick={() => setQuery("")}
-                    title="Clear search"
-                    aria-label="Clear search"
-                    style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 4 }}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
+              <SearchField
+                style={{ flex: 1, minWidth: 0 }}
+                value={query}
+                onChange={setQuery}
+                label="Search ingredients"
+                placeholder="Search ingredients"
+              />
 
               {/* Store + staples live behind one Filter button, with a count of
                   what's active so it's obvious the list is narrowed. */}
@@ -496,7 +492,13 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                             being clipped to "Dij…". Stacked, it gets the full width. */}
                         <span style={{ flex: 1, minWidth: 0 }}>
                           <span style={{ display: "block", fontSize: 16, fontWeight: 600, lineHeight: 1.25, overflowWrap: "break-word" }}>{name}</span>
-                          <span style={{ display: "block", fontSize: 12, color: C.faint, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {/* WRAPS RATHER THAN TRUNCATES. At 320px this line
+                              needs 132px and is given 108, so nowrap+ellipsis
+                              cut it to "Grocery store · ais…" — and the store
+                              name is the half that identifies the row when you
+                              are scanning. A second line on a narrow phone is
+                              cheaper than losing it. */}
+                          <span style={{ display: "block", fontSize: 12, color: C.faint, lineHeight: 1.35, overflowWrap: "break-word" }}>
                             {cfg.store === UNASSIGNED ? "no store set" : cfg.store}
                             {homeAisle != null && homeAisle !== "" ? ` · aisle ${homeAisle}` : ""}
                           </span>
@@ -590,7 +592,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                         <div style={groupLabel}>Where it lives</div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                           <label style={{ fontSize: 11, color: C.faint }}>Usually at</label>
-                          <select aria-label={`Default store for ${name}`} value={cfg.store || UNASSIGNED} onChange={(e) => setCfg(key, { store: e.target.value })} aria-label={`Default store for ${name}`} style={{ fontSize: 13, padding: "6px 6px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", maxWidth: 160 }}>
+                          <select aria-label={`Default store for ${name}`} value={cfg.store || UNASSIGNED} onChange={(e) => setCfg(key, { store: e.target.value })} aria-label={`Default store for ${name}`} style={{ fontSize: 16, padding: "6px 6px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", maxWidth: 170 }}>
                             {[...data.stores, UNASSIGNED].map((s) => (
                               <option key={s} value={s}>
                                 {s}
@@ -609,7 +611,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                                 value={aisleFor(cfg, cfg.store)}
                                 onChange={(e) => setAisle(key, cfg.store, e.target.value === "" ? "" : Number(e.target.value))}
                                 aria-label={`Aisle for ${name} at ${cfg.store}`}
-                                style={{ width: 52, fontSize: 13, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: C.greenSoft }}
+                                style={{ width: 60, fontSize: 16, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: C.greenSoft }}
                               />
                             </label>
                           )}
@@ -634,7 +636,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                                       value={aisleFor(cfg, s)}
                                       onChange={(e) => setAisle(key, s, e.target.value === "" ? "" : Number(e.target.value))}
                                       aria-label={`Aisle for ${name} at ${s}`}
-                                      style={{ width: 52, fontSize: 13, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: "#fff" }}
+                                      style={{ width: 60, fontSize: 16, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: "#fff" }}
                                     />
                                   </label>
                                 ))}
