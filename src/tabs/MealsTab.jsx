@@ -260,7 +260,11 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
           onClick={() => setConfirmDelete(r)}
           aria-label={`Delete ${r.name}`}
           title="Delete this meal"
-          style={{ position: "absolute", top: 8, right: 10, border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 4 }}
+          /* Measured 21x24. Deleting a meal is destructive and was the
+             smallest target on the tab; the button is absolutely positioned,
+             so growing it to 44 costs the layout nothing. Nudged out to the
+             card's corner so the visible ✕ stays where it was. */
+          style={{ position: "absolute", top: 0, right: 0, width: 44, height: 44, border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0, display: "inline-flex", alignItems: "flex-start", justifyContent: "flex-end", paddingTop: 8, paddingRight: 10 }}
         >
           ✕
         </button>

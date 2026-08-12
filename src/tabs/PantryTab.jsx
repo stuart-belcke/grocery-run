@@ -292,9 +292,18 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
         <h3 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 10px" }}>Your stores</h3>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
           {data.stores.map((s) => (
-            <span key={s} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: C.greenSoft, color: C.green, fontWeight: 500, fontSize: 13, padding: "5px 10px", borderRadius: 999 }}>
+            /* The ✕ measured 11x15. Removing a store is the furthest-reaching
+               action on this tab — it unassigns every ingredient that lived
+               there — and it was the smallest thing on the screen, a third of
+               the 44px a thumb reliably hits.
+               THE PILL GREW RATHER THAN THE BUTTON OVERFLOWING IT. Expanding
+               the button past its pill with negative margins is the usual
+               trick and is wrong here: these pills wrap and sit 8px apart, so
+               the hit areas would overlap and a mis-tap would offer to delete
+               the WRONG store. */
+            <span key={s} style={{ display: "inline-flex", alignItems: "center", gap: 2, background: C.greenSoft, color: C.green, fontWeight: 500, fontSize: 13, paddingLeft: 12, borderRadius: 999, minHeight: 44 }}>
               {s}
-              <button onClick={() => setConfirmStore(s)} aria-label={`Remove ${s}`} style={{ border: "none", background: "transparent", color: C.green, cursor: "pointer", fontSize: 13, padding: 0 }}>✕</button>
+              <button onClick={() => setConfirmStore(s)} aria-label={`Remove ${s}`} style={{ border: "none", background: "transparent", color: C.green, cursor: "pointer", fontSize: 15, width: 44, height: 44, borderRadius: 999, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }}>✕</button>
             </span>
           ))}
         </div>
@@ -496,7 +505,13 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                             being clipped to "Dij…". Stacked, it gets the full width. */}
                         <span style={{ flex: 1, minWidth: 0 }}>
                           <span style={{ display: "block", fontSize: 16, fontWeight: 600, lineHeight: 1.25, overflowWrap: "break-word" }}>{name}</span>
-                          <span style={{ display: "block", fontSize: 12, color: C.faint, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {/* WRAPS RATHER THAN TRUNCATES. At 320px this line
+                              needs 132px and is given 108, so nowrap+ellipsis
+                              cut it to "Grocery store · ais…" — and the store
+                              name is the half that identifies the row when you
+                              are scanning. A second line on a narrow phone is
+                              cheaper than losing it. */}
+                          <span style={{ display: "block", fontSize: 12, color: C.faint, lineHeight: 1.35, overflowWrap: "break-word" }}>
                             {cfg.store === UNASSIGNED ? "no store set" : cfg.store}
                             {homeAisle != null && homeAisle !== "" ? ` · aisle ${homeAisle}` : ""}
                           </span>

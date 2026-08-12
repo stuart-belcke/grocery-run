@@ -1982,3 +1982,59 @@ one pass rather than a one-off.
     and on a NaN — because an audit that cannot fail is worse than none.
     Mutation: reverting keyForName, unitKeyFor and aisleKey together fails 9
     tests, the audit among them, naming the empty key at its exact path.
+
+57. [DONE] THE THREE UX FINDINGS THAT WERE NOT MATTERS OF TASTE (51a-c).
+    Each was a number the page reported about itself, so each has a test that
+    reproduces the number.
+
+    51a. THE MOST DESTRUCTIVE CONTROLS HAD THE SMALLEST TARGETS. "Remove
+    <store>" was 11x15px — it unassigns every ingredient that lived there —
+    and "Delete <recipe>" was 21x24. Both a third of the 44px a thumb reliably
+    hits, both the smallest thing on their screen, both beside something
+    harmless.
+    THE PILL GREW RATHER THAN THE BUTTON OVERFLOWING IT, and that is the only
+    interesting decision here. Expanding a small button past its container
+    with negative margins is the usual trick, and it is WRONG for these: the
+    store pills wrap and sit 8px apart, so the hit areas would overlap and a
+    mis-tap would offer to delete the WRONG store. The test asserts
+    non-overlap as well as size, and mutation-testing the negative-margin
+    version fails it by name ("Remove Costco" and "Remove Schnucks" overlap).
+    The Meals ✕ is absolutely positioned, so growing it to 44 costs the layout
+    nothing; it sits in the card's corner with padding so the glyph did not
+    move.
+
+    51b. FOUR TEXT COLOURS HAD FAILED WCAG AA SINCE THE APP WAS WRITTEN, two
+    of them the primary action on their tab ("Done shopping", "Start a new
+    plan" at 4.09:1). All marginal — 4.06 to 4.33 against a 4.5 floor — which
+    is exactly why nobody was ever going to see it by looking.
+    THE INK DARKENED, NOT THE BACKGROUND LIGHTENED, so the soft-pill treatment
+    is unchanged: same hue, same saturation, lower lightness.
+      tomato #C2452D -> #B4402A   4.09 -> 4.62 on tomatoSoft
+      gold   #8A6D1D -> #83681C   4.26 -> 4.61 on goldSoft, 4.49 -> 4.86 on paper
+      faint  #6B7263 -> #63695B   4.06/4.15/4.33 -> 4.62/4.72/4.93 on the three
+                                  soft backgrounds, 4.57 -> 5.20 on paper
+    `faint` was failing on ALL THREE soft backgrounds; the evaluation only saw
+    greenSoft because that is what happened to be on screen. Arithmetic found
+    the other two.
+    contrastRatio lives in lib.js — pure WCAG 2.x maths — because theme.js is
+    values only and a test needs something to compute with. The test walks
+    every pair the app actually renders and reports the failures as a list, so
+    a regression names the colour and the number. It also checks the formula
+    against known values (black/white = 21, #767676 on white = 4.54), because
+    a broken formula would pass everything silently.
+
+    51c. THE INGREDIENT SUBTITLE CLIPPED AT 320px: "Grocery store · aisle 8"
+    needs 132px and was given 108, and nowrap+ellipsis cuts from the RIGHT, so
+    the store name — the thing you scan the row for — was the half that went.
+    It wraps now. A second line on a narrow phone is cheaper than losing the
+    name, and it costs nothing at 390px, where it still fits on one.
+
+    THE HIT TEST HAD TO LEARN TWO THINGS ABOUT THIS APP. elementFromPoint only
+    answers for the visible viewport, and Ingredients is 12 screens long, so
+    "below the fold" is not a failure; and the fixed tab bar covers the bottom
+    of the viewport BY DESIGN, with matching page padding, so a control under
+    it is not unreachable either. The bar's own bounding box is read rather
+    than BOTTOM_NAV_H being hardcoded a fourth time. Size and overlap are
+    still checked for every control, on screen or not.
+    Five mutations, all caught: both old target sizes, the old truncating
+    subtitle, the negative-margin overlap, and a lightened `faint`.
