@@ -114,13 +114,17 @@ test("an id with no ingredient behind it is never shown as if it were a name", a
   });
   try {
     await page.tab("List");
+    // The COUNT is over everything the cupboard holds, nameable or not. Left
+    // counting only the nameable ones, a phone whose entries were all orphans
+    // read "0 items already bought this week" above a panel listing thirty.
+    assert.match(await page.textContent("body"), /3 items already bought this week/, "the count should be every entry, not just the ones with names");
     await page.clickText(/already bought this week/);
     const body = await page.textContent("body");
 
     assert.doesNotMatch(body, /Ing_[a-z0-9]/i, "an ingredient id is being shown where a name belongs");
     assert.match(body, /Broccoli/, "the entries that CAN be named must still be listed normally");
     // Named for what they are, and clearable — otherwise they sit there forever.
-    assert.match(body, /2 more were bought/, "the unnameable entries should be grouped and explained");
+    assert.match(body, /2 of these were bought/, "the unnameable entries should be grouped and explained");
 
     await page.clickText(/^Clear$/);
     await page.roundTrip();

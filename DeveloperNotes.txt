@@ -1855,6 +1855,12 @@ one pass rather than a one-off.
         them is gone — so explaining and clearing is the whole of what can be
         done for them.
 
+    THE PANEL'S COUNT IS OVER EVERY ENTRY, nameable or not. Splitting the
+    rows in two made it easy to count only the named ones, which reads
+    "0 items already bought this week" as the header of a panel listing
+    thirty. Caught by a second screenshot, from a phone where EVERY entry was
+    an orphan — the case the first screenshot did not contain.
+
     ONE update() CALL FOR THE CLEAR, not one per key. update() snapshots
     localRef.current, which only refreshes on the next render, so a forEach
     over unbuy() rebuilds from the same stale base every time and clears

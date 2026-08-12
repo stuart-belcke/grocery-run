@@ -647,8 +647,12 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
               color: C.gold,
             }}
           >
+            {/* boughtAll, not boughtRows: the count is how many entries the
+                cupboard is holding, and the ones with no name left are still
+                entries. Counting only the nameable ones read "0 items already
+                bought this week" above a panel listing thirty of them. */}
             <span style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 16 }}>
-              {boughtRows.length} item{boughtRows.length === 1 ? "" : "s"} already bought this week
+              {boughtAll.length} item{boughtAll.length === 1 ? "" : "s"} already bought this week
             </span>
             <span style={{ flex: 1 }} />
             <span aria-hidden style={{ fontSize: 13 }}>{showBought ? "▲" : "▾"}</span>
@@ -675,7 +679,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
               {boughtOrphans.length > 0 && (
                 <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: `1px solid ${C.line}` }}>
                   <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: C.faint }}>
-                    {boughtOrphans.length} more {boughtOrphans.length === 1 ? "was" : "were"} bought before the ingredients were replaced, so there is no longer a name to show. Clearing them changes nothing on the list.
+                    {boughtOrphans.length} of these {boughtOrphans.length === 1 ? "was" : "were"} bought before the ingredients were replaced, so there is no longer a name to show. They are not keeping anything off the list — clearing them changes nothing.
                   </span>
                   <Btn small onClick={() => clearKeys(boughtOrphans.map((r) => r.key))}>Clear</Btn>
                 </div>
