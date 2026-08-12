@@ -23,6 +23,7 @@ import {
   keyForName,
   unitKeyFor,
   contrastRatio,
+  planTypesInUse,
   normalizeCfg,
   resolveAgainstBought,
   NO_UNIT_KEY,
@@ -1965,6 +1966,34 @@ test("healing merges an empty key onto an existing sentinel rather than dropping
   // still had "" in its cache.
   const d = normalizeLocal({ list: { bought: { ing_x: { "": 1, [NO_UNIT_KEY]: 2 } } } });
   assert.deepEqual(d.list.bought.ing_x, { [NO_UNIT_KEY]: 3 });
+});
+
+/* ------- which meal types the Week plan shows (item 51d) -------
+   28 slots, 4-7 filled, 2.5 screens to read four dinners. The emptiness is
+   along the TYPE axis, so hiding unused types is what collapses it. */
+
+test("only the meal types actually planned get a row", () => {
+  const plan = { Mon: { Dinner: { recipeId: "r1" } }, Wed: { Dinner: { recipeId: "r2" } } };
+  assert.deepEqual(planTypesInUse(plan), ["Dinner"]);
+});
+
+test("a type used on ANY day shows on every day", () => {
+  // The tab's value is that a slot is always in the same place. A row that
+  // came and went per day would be a worse trade than the scrolling.
+  const plan = { Mon: { Dinner: { recipeId: "r1" } }, Sat: { Breakfast: { recipeId: "r2" } } };
+  assert.deepEqual(planTypesInUse(plan), ["Breakfast", "Dinner"], "and in MEAL_TYPES order, not the order they were found");
+});
+
+test("an empty week still offers somewhere to plan into", () => {
+  // Hiding every row would leave a tab that looks broken rather than compact.
+  assert.deepEqual(planTypesInUse({}), ["Dinner"]);
+  assert.deepEqual(planTypesInUse(null), ["Dinner"]);
+});
+
+test("an empty slot does not count as using its type", () => {
+  // A slot the app has written but never filled — cleared, or servings-only —
+  // must not pin its row open forever.
+  assert.deepEqual(planTypesInUse({ Mon: { Dinner: { recipeId: "r1" }, Lunch: { servings: 4 } } }), ["Dinner"]);
 });
 
 /* ---------------- palette contrast (item 51b) ----------------

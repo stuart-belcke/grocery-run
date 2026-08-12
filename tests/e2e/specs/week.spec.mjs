@@ -29,7 +29,20 @@ const startPlanning = async (page) => {
   }
 };
 
+/* Item 51d: only the meal types actually in use get a row, so a Lunch slot on
+   a fresh week has to be revealed before it exists. That is the flow a person
+   follows now, so the helper follows it too rather than the tests quietly
+   losing their coverage of the other three meal types. */
+const revealAllTypes = async (page) => {
+  const reveal = page.locator("button").filter({ hasText: /Add breakfast, lunch, dessert/i }).first();
+  if (await reveal.count()) {
+    await reveal.click();
+    await page.waitForTimeout(300);
+  }
+};
+
 const pick = async (page, slot, recipe) => {
+  if (!/ Dinner$/.test(slot)) await revealAllTypes(page);
   await page.getByLabel(`Choose a meal for ${slot}`).click();
   await page.waitForTimeout(400);
   // Scope to the picker. Once a slot is filled, its own button also carries

@@ -1993,6 +1993,32 @@ export function commonUnitFor(data, key) {
 //
 // State saved before this shipped has no stage, so a week with meals in it
 // reads as "shopping" — which is where such a household actually was.
+/* Which meal types the Week plan should show a row for (item 51d).
+
+   Four meal types x seven days is 28 slots, and a household that plans dinners
+   fills 4-7 of them — measured: 2.5 screens of mostly empty rows to read four
+   dinners. The emptiness is almost entirely along the TYPE axis rather than
+   scattered, which is why hiding types collapses it and hiding empty days
+   would not.
+
+   ANY DAY USING A TYPE SHOWS IT ON EVERY DAY. The point of the tab is that a
+   slot is always in the same place; a row that appears and disappears per day
+   would be a worse trade than the scrolling.
+
+   A WEEK WITH NOTHING PLANNED STILL SHOWS ONE ROW, or there would be nowhere
+   to plan into and the tab would look broken. Dinner, because that is the meal
+   this app exists to shop for. */
+export function planTypesInUse(plan) {
+  const used = new Set();
+  for (const day of Object.values(asObject(plan))) {
+    for (const [type, slot] of Object.entries(asObject(day))) {
+      if (slot && slot.recipeId) used.add(type);
+    }
+  }
+  const shown = MEAL_TYPES.filter((t) => used.has(t));
+  return shown.length ? shown : [MEAL_TYPES.includes("Dinner") ? "Dinner" : MEAL_TYPES[0]];
+}
+
 export function planStageOf(data) {
   const stage = data && data.planStage;
   if (stage === "planning" || stage === "shopping") return stage;

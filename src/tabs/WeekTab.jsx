@@ -7,7 +7,7 @@
 import { useMemo, useState } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, ConfirmDialog } from "../ui";
-import { MEAL_TYPES, norm, planStageOf, plannedMealCount, daysInOrder, asArray, unplannedMeals, r2 } from "../lib";
+import { MEAL_TYPES, planTypesInUse, norm, planStageOf, plannedMealCount, daysInOrder, asArray, unplannedMeals, r2 } from "../lib";
 
 export function WeekTab({ data, update, isGuest }) {
   // Presentation order only. Plan data stays keyed by day name, so a meal
@@ -23,6 +23,11 @@ export function WeekTab({ data, update, isGuest }) {
   const [editing, setEditing] = useState(false); // whole-plan edit mode: reveals per-slot change + clear
   const [confirmClear, setConfirmClear] = useState(false);
   const [unplannedOpen, setUnplannedOpen] = useState(false); // "Unplanned meals" disclosure
+  // Item 51d. View state only — nothing about which types you PLAN is stored,
+  // because planning one is what makes it stay.
+  const [showAllTypes, setShowAllTypes] = useState(false);
+  const typesInUse = planTypesInUse(data.plan);
+  const shownTypes = showAllTypes ? MEAL_TYPES : typesInUse;
 
   // Where the week is in its cycle, and what each stage lets you do.
   const stage = planStageOf(data);
@@ -283,12 +288,30 @@ export function WeekTab({ data, update, isGuest }) {
         </div>
       )}
 
+      {/* Item 51d: 4 meal types x 7 days is 28 slots and a household that plans
+          dinners fills 4-7 — 2.5 screens to read four dinners. Only the types
+          actually in use get a row, with the rest one tap away. `showAllTypes`
+          is view state, not stored: planning a breakfast puts Breakfast in use,
+          so it stays visible on its own from then on. */}
+      {/* typesInUse, NOT shownTypes: keyed to the toggle, the control removed
+          itself the moment it was used and the extra rows became a one-way
+          door for the rest of the session. */}
+      {recipesSorted.length > 0 && typesInUse.length < MEAL_TYPES.length && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+          <Btn small onClick={() => setShowAllTypes((v) => !v)}>
+            {showAllTypes ? "Just the meals you plan" : `Add ${MEAL_TYPES.filter((t) => !typesInUse.includes(t)).join(", ").toLowerCase()}`}
+          </Btn>
+        </div>
+      )}
+
       {recipesSorted.length === 0 ? (
         <div style={{ textAlign: "center", padding: "48px 16px", color: C.faint, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12 }}>
           Add some meals on the Meals tab first, then plan them here.
         </div>
       ) : (
         days.map((day) => {
+          // MEAL_TYPES, not shownTypes: a day with a hidden type filled is
+          // still a planned day, and the border is what says so at a glance.
           const dayHasMeals = MEAL_TYPES.some((t) => data.plan?.[day]?.[t]?.recipeId);
           return (
             <div key={day} style={{ background: C.card, border: `1px solid ${dayHasMeals ? C.green : C.line}`, borderRadius: 12, padding: "12px 16px", marginBottom: 10 }}>
@@ -298,7 +321,7 @@ export function WeekTab({ data, update, isGuest }) {
                   <Stripe />
                 </div>
               </div>
-              {MEAL_TYPES.map((type) => {
+              {shownTypes.map((type) => {
                 const slot = data.plan?.[day]?.[type];
                 const recipe = slot?.recipeId ? data.recipes.find((r) => r.id === slot.recipeId) : null;
                 const base = recipe ? recipe.servings || 4 : 4;
