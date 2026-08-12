@@ -25,7 +25,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { openApp, assertNoPageErrors } from "../harness.mjs";
-import { cleanCatalog } from "../fixtures.mjs";
+import { cleanCatalog, idOf } from "../fixtures.mjs";
 
 const BASE = process.env.E2E_BASE_URL;
 
@@ -103,6 +103,63 @@ test("ticking and banking a punctuated item keeps every key storable", async () 
 
     const after = await page.readState();
     for (const k of allKeys(after)) assert.doesNotMatch(k, REFUSED, `after Done shopping, the state is keyed "${k}"`);
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* The same class in the CATALOG rather than the state: an ingredient's aisles
+   are keyed by the store's name, so a household shopping at "H.E.B." would
+   have had every catalog write refused — the recipes and ingredients simply
+   stop saving, with the same permanent stuck error.
+   Fixed differently to the list keys, because a store name is DISPLAYED: the
+   name stays exactly as typed and only the key is derived from it. */
+
+test("an aisle at a store whose name the database can't key is still saved and shown", async () => {
+  const catalog = cleanCatalog();
+  catalog.stores = ["H.E.B.", ...catalog.stores];
+  const id = idOf(catalog, "Bananas");
+  catalog.ingredients[id].store = "H.E.B.";
+  const page = await openApp(BASE, { catalog });
+  try {
+    await page.tab("Ingredients");
+    await page.searchIngredients("Bananas");
+    await page.expandRow("Bananas");
+    await page.getByLabel("Aisle for Bananas at H.E.B.").fill("9");
+    await page.waitForTimeout(600);
+    await page.roundTrip();
+
+    const entry = (await page.readCatalog()).ingredients[id];
+    for (const k of Object.keys(entry.aisles || {})) {
+      assert.doesNotMatch(k, REFUSED, `the catalog is keyed "${k}", which the database refuses — the whole catalog stops saving`);
+    }
+    assert.equal(Object.values(entry.aisles)[0], 9, `the aisle should have been stored, got ${JSON.stringify(entry.aisles)}`);
+    assert.equal(entry.store, "H.E.B.", "the store's name is displayed, so it must survive exactly as typed");
+    // And it reads back at the display name, which is all any caller has.
+    await page.tab("Ingredients");
+    await page.searchIngredients("Bananas");
+    await page.expandRow("Bananas");
+    assert.equal(await page.getByLabel("Aisle for Bananas at H.E.B.").inputValue(), "9", "the aisle came back empty on the screen that set it");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("an aisle written by an older build, keyed by the raw store name, still reads", async () => {
+  // Every existing household is in that shape. This has to keep working with
+  // nothing rewritten first, which is what makes the change migration-free.
+  const catalog = cleanCatalog();
+  const id = idOf(catalog, "Bananas");
+  catalog.ingredients[id].store = "Aldi";
+  catalog.ingredients[id].aisles = { Aldi: 4 };
+  const page = await openApp(BASE, { catalog });
+  try {
+    await page.tab("Ingredients");
+    await page.searchIngredients("Bananas");
+    await page.expandRow("Bananas");
+    assert.equal(await page.getByLabel("Aisle for Bananas at Aldi").inputValue(), "4", "an aisle from an older build was not read");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

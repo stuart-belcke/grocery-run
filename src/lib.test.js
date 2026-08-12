@@ -19,6 +19,8 @@ import {
   syncIndicator,
   writeErrorAdvice,
   keyForName,
+  aisleKey,
+  aisleFor,
   remapStateIngredientIds,
   safeKey,
   normalizeLocal,
@@ -1834,6 +1836,40 @@ test("healing two names that differ only by punctuation loses neither", () => {
   });
   assert.equal(d.list.checked["dr pepper"], true, "a ticked item came back unticked");
   assert.deepEqual(d.list.bought["dr pepper"], { bottle: 3 }, "banked quantities should add, not replace");
+});
+
+/* The same class, in the catalog rather than the state: an ingredient's
+   aisles are keyed by the STORE'S NAME, so "H.E.B." would make every catalog
+   write fail exactly the way "Dr. Pepper" made every state write fail. Fixed
+   differently because a store name is DISPLAYED — the name stays as typed and
+   only the key is derived. */
+
+test("a store name that works today keeps exactly the key it already has", () => {
+  /* NEEDS ITS OWN TEST, and this is why: reading an aisle back would pass
+     either way, because normalizeCfg puts the STORED map through aisleKey too,
+     so both sides agree whatever it does. What the rule buys is that upgrading
+     writes nothing at all — lowercasing would rewrite every ingredient's
+     aisles map on the first catalog edit and churn 146 entries through the
+     next exported catalog.json. Mutation-tested: with norm() in aisleKey every
+     browser test still passes and this one fails. */
+  for (const s of ["Aldi", "Costco", "Trader Joe's", "Sam's Club", "Unassigned", "H E B"]) {
+    assert.equal(aisleKey(s), s);
+  }
+});
+
+test("an aisle set at a store the database can't key is still readable", () => {
+  const cfg = setIngredientCfg({ name: "Orzo" }, { store: "H.E.B.", aisles: { "H.E.B.": 7 } });
+  for (const k of Object.keys(cfg.aisles)) assert.doesNotMatch(k, /[.#$[\]/]/, `the catalog is keyed "${k}", which the database refuses`);
+  // Read back by the DISPLAY name, which is what every caller has.
+  assert.equal(aisleFor(cfg, "H.E.B."), 7);
+  assert.equal(cfg.store, "H.E.B.", "the store's name is displayed, so it must survive as typed");
+});
+
+test("an aisles map written by an older build reads back the same", () => {
+  // Every existing household is in this shape, and it has to keep working
+  // without being rewritten first.
+  assert.equal(aisleFor({ store: "Aldi", aisles: { Aldi: 3 } }, "Aldi"), 3);
+  assert.equal(aisleFor({ store: "Aldi", aisle: 4 }, "Aldi"), 4, "the pre-aisles-map shape too");
 });
 
 test("nothing a flush sends can contain a key the database refuses", () => {

@@ -7,7 +7,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Btn, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop , SuggestInput} from "../ui";
-import { UNASSIGNED, norm, cap, r2, normalizeCfg, ingredientNames, unitMatches, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient, ensureIngredientId, ingredientIdByName, mergeIngredients, setIngredientCfg, planIngredientRename } from "../lib";
+import { UNASSIGNED, norm, cap, r2, aisleKey, aisleFor, normalizeCfg, ingredientNames, unitMatches, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient, ensureIngredientId, ingredientIdByName, mergeIngredients, setIngredientCfg, planIngredientRename } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
 // "how many of this on the list" reads the same everywhere in the app.
@@ -77,8 +77,10 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
   const setAisle = (key, store, value) =>
     updateCatalog((c) => {
       const aisles = { ...normalizeCfg(c.ingredients[key]).aisles };
-      if (value === "") delete aisles[store];
-      else aisles[store] = Number(value);
+      // aisleKey, not the raw name: a store called "H.E.B." would make
+      // every catalog write fail the way item 53's item names did.
+      if (value === "") delete aisles[aisleKey(store)];
+      else aisles[aisleKey(store)] = Number(value);
       c.ingredients[key] = setIngredientCfg(c.ingredients[key], { aisles });
       return c;
     });
@@ -454,7 +456,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
             const open = openItem === key;
             const renaming = editItem && editItem.key === key;
             // Aisle set at the item's default store, shown as a collapsed-row hint.
-            const homeAisle = cfg.store !== UNASSIGNED ? cfg.aisles[cfg.store] : undefined;
+            const homeAisle = cfg.store !== UNASSIGNED ? aisleFor(cfg, cfg.store) : undefined;
             // Every store except this item's default — those aisles hide behind a reveal.
             const otherStores = data.stores.filter((s) => s !== cfg.store);
             const listed = listEntry(key);
@@ -604,7 +606,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                               <input
                                 type="number"
                                 min="0"
-                                value={cfg.aisles[cfg.store] ?? ""}
+                                value={aisleFor(cfg, cfg.store)}
                                 onChange={(e) => setAisle(key, cfg.store, e.target.value === "" ? "" : Number(e.target.value))}
                                 aria-label={`Aisle for ${name} at ${cfg.store}`}
                                 style={{ width: 52, fontSize: 13, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: C.greenSoft }}
@@ -629,7 +631,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                                     <input
                                       type="number"
                                       min="0"
-                                      value={cfg.aisles[s] ?? ""}
+                                      value={aisleFor(cfg, s)}
                                       onChange={(e) => setAisle(key, s, e.target.value === "" ? "" : Number(e.target.value))}
                                       aria-label={`Aisle for ${name} at ${s}`}
                                       style={{ width: 52, fontSize: 13, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: "#fff" }}

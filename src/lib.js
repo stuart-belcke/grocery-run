@@ -373,6 +373,32 @@ export const safeKey = (k) => {
 // before, then made storable.
 export const keyForName = (s) => safeKey(norm(s)) || "item";
 
+/* An ingredient's aisles are keyed by the STORE'S NAME, and a store called
+   "H.E.B." or "Sam's Club #8125" would break every catalog write exactly the
+   way "Dr. Pepper" broke every state write — same characters, same permanent
+   failure, different node.
+
+   NOT the same fix as keyForName, because a store name is DISPLAYED. It is
+   typed once and then shown on every heading and in every dropdown, so it
+   cannot be quietly rewritten the way an invisible key can. The display name
+   stays exactly as typed, in `catalog.stores`; only the aisles map's key is
+   derived from it.
+
+   NO CASE CHANGE, which is the point of deriving it with safeKey rather than
+   norm. Reads would survive either way — normalizeCfg puts the stored map
+   through aisleKey too, so both sides agree whatever it does — and that is
+   exactly why it needs its own test rather than being left to the ones that
+   read an aisle back. What the case rule buys is that every store name that
+   works today keys to ITSELF, byte for byte: upgrading writes nothing at all,
+   where lowercasing would rewrite every ingredient's aisles map on the first
+   catalog edit and churn 146 entries through the next exported catalog.json.
+
+   THE COST, WRITTEN DOWN: two stores whose names differ only in those
+   characters — "H.E.B." and "H E B" — would share one aisles entry per
+   ingredient. That is a strange pair of stores to have, and it is a better
+   outcome than a household whose catalog silently stops saving. */
+export const aisleKey = (store) => safeKey(store == null ? "" : store);
+
 /* Heals keys that are already in a device's cached state. A phone that hit
    this is stuck until its own copy is fixed, and the database never received
    the bad key — the write failed — so there is no shared copy to diverge
@@ -459,12 +485,21 @@ export function formatCatalog(out) {
 // An ingredient config is { store: defaultStore, aisles: { storeName: number } }.
 // Older data used a single { store, aisle }; normalizeCfg upgrades it so the
 // legacy aisle becomes that store's entry in the aisles map.
+// Every aisles map goes through aisleKey on the way in, so one written by a
+// build that keyed it by the raw store name reads back the same either way,
+// and one holding a key the database refuses is healed rather than re-sent.
+const keyedAisles = (raw) => {
+  const out = {};
+  for (const [k, v] of Object.entries(raw && typeof raw === "object" ? raw : {})) out[aisleKey(k)] = v;
+  return out;
+};
+
 export function normalizeCfg(cfg) {
   if (!cfg) return { store: UNASSIGNED, aisles: {}, staple: false };
-  if (cfg.aisles) return { store: cfg.store || UNASSIGNED, aisles: { ...cfg.aisles }, staple: !!cfg.staple };
+  if (cfg.aisles) return { store: cfg.store || UNASSIGNED, aisles: keyedAisles(cfg.aisles), staple: !!cfg.staple };
   const aisles = {};
   if (cfg.aisle !== undefined && cfg.aisle !== null && cfg.aisle !== "" && cfg.store) {
-    aisles[cfg.store] = Number(cfg.aisle);
+    aisles[aisleKey(cfg.store)] = Number(cfg.aisle);
   }
   return { store: cfg.store || UNASSIGNED, aisles, staple: !!cfg.staple };
 }
@@ -511,7 +546,7 @@ export function setIngredientCfg(ing, patch) {
 // Aisle for a specific store, or "" if none set.
 export function aisleFor(cfg, store) {
   const n = normalizeCfg(cfg);
-  const a = n.aisles[store];
+  const a = n.aisles[aisleKey(store)];
   return a === undefined || a === null ? "" : a;
 }
 

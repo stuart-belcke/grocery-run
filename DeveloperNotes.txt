@@ -1807,13 +1807,27 @@ one pass rather than a one-off.
     read back what was PERSISTED — the row rendered perfectly on the broken
     build, the item just never left the phone.
 
-    STILL OPEN, SAME CLASS: `aisles` is keyed by STORE NAME, and a store
-    called "St. Louis Market" would break every catalog write the same way.
-    Not fixed here because a store name is DISPLAYED, so it cannot simply be
-    stripped — the key needs to stop being the display name, which is the
-    ingredient-id migration again for stores. Item 52's error message now
-    quotes the database's own words for this branch, which name the offending
-    key, so it will be identifiable rather than mysterious.
+    THE SAME CLASS IN THE CATALOG, fixed with it: `aisles` is keyed by STORE
+    NAME, so a household shopping at "H.E.B." would have had every catalog
+    write refused — the recipes and ingredients simply stop saving, same
+    permanent stuck error, different node.
+    DIFFERENT FIX, because a store name is DISPLAYED. It is typed once and
+    then shown on every heading and in every dropdown, so it cannot be quietly
+    rewritten the way an invisible key can. The name stays exactly as typed in
+    `catalog.stores`; only the aisles map's key is derived, by aisleKey.
+    NO CASE CHANGE, and that rule needed its own test rather than being left
+    to the ones that read an aisle back: reads survive either way, because
+    normalizeCfg puts the STORED map through aisleKey too and both sides then
+    agree whatever it does. What the rule buys is that every store name that
+    works today keys to ITSELF, byte for byte — upgrading writes nothing at
+    all, where lowercasing would rewrite every ingredient's aisles map on the
+    first catalog edit and churn 146 entries through the next exported
+    catalog.json. Mutation-tested both ways: the raw name (1 unit + 1 browser
+    test fail) and norm() (2 unit tests fail, every browser test still green).
+    THE COST, WRITTEN DOWN: two stores whose names differ only in those
+    characters — "H.E.B." and "H E B" — share one aisles entry per ingredient.
+    A strange pair of stores to have, and better than a catalog that silently
+    stops saving.
 
 54. [DONE] "RESTORE STARTER CATALOG" ORPHANED THE SHOPPING STATE, AND THE
     ORPHANS LISTED THEMSELVES AS GROCERIES. Reported as a screenshot: eight

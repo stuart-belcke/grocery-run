@@ -6,7 +6,7 @@
 import { useState, useMemo, useRef } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop, SuggestInput } from "../ui";
-import { UNASSIGNED, keyForName, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg } from "../lib";
+import { UNASSIGNED, keyForName, aisleKey, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg } from "../lib";
 
 export function ListTab({ data, update, updateCatalog, isGuest }) {
   const [view, setView] = useState("store");
@@ -80,8 +80,10 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
   const setAisle = (key, store, value) =>
     updateCatalog((c) => {
       const aisles = { ...normalizeCfg(c.ingredients[key]).aisles };
-      if (value === "") delete aisles[store];
-      else aisles[store] = Number(value);
+      // aisleKey, not the raw name: a store called "H.E.B." would make
+      // every catalog write fail the way item 53's item names did.
+      if (value === "") delete aisles[aisleKey(store)];
+      else aisles[aisleKey(store)] = Number(value);
       c.ingredients[key] = setIngredientCfg(c.ingredients[key], { aisles });
       return c;
     });
@@ -474,7 +476,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
                     <input
                       type="number"
                       min="0"
-                      value={homeCfg.aisles[itemStore] ?? ""}
+                      value={aisleFor(homeCfg, itemStore)}
                       onChange={(e) => setAisle(item.key, itemStore, e.target.value === "" ? "" : Number(e.target.value))}
                       aria-label={`Aisle for ${item.name} at ${itemStore}`}
                       style={{ width: 52, fontSize: 13, padding: "5px 6px", borderRadius: 6, border: `1px solid ${C.line}`, fontVariantNumeric: "tabular-nums", background: C.greenSoft }}
