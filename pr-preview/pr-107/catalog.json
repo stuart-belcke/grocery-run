@@ -1,0 +1,2463 @@
+{
+ "catalogVersion": 14,
+ "stores": [
+  "Grocery store",
+  "Costco",
+  "Aldi",
+  "Sams",
+  "Schnucks"
+ ],
+ "recipes": [
+  {
+   "id": "baked-chicken-veggie-meatballs",
+   "name": "Baked Chicken & Veggie Meatballs",
+   "mealTypes": [
+    "Lunch",
+    "Dinner"
+   ],
+   "easy": false,
+   "servings": 4,
+   "notes": "Yields about 24-30 1-inch meatballs (age 6 months+). \nPreheat oven to 400F and line a baking sheet with parchment. Shred the carrots. Chop the spinach. Chop the green onion. Combine all ingredients in a large bowl and gently fold together until just incorporated; let sit 5 min. Roll into 1-inch balls, wetting hands as needed. Bake 15-20 min until cooked through and lightly browned. Let cool and serve. Season with salt and pepper to taste. Store in the fridge up to 4 days or freezer up to 3 months.\n\nSource: https://babyfoode.com/blog/mini-chicken-carrot-meatballs-for-baby/",
+   "ingredients": [
+    {
+     "name": "Ground chicken",
+     "qty": 1,
+     "unit": "lb"
+    },
+    {
+     "name": "Applesauce",
+     "qty": 0.25,
+     "unit": "cup"
+    },
+    {
+     "name": "Carrots",
+     "qty": 0.5,
+     "unit": "cup"
+    },
+    {
+     "name": "Spinach",
+     "qty": 0.5,
+     "unit": "cup"
+    },
+    {
+     "name": "Green onion",
+     "qty": 0.25,
+     "unit": "cup"
+    },
+    {
+     "name": "Eggs",
+     "qty": 1,
+     "unit": ""
+    },
+    {
+     "name": "Breadcrumbs",
+     "qty": 0.5,
+     "unit": "cup"
+    },
+    {
+     "name": "Olive oil",
+     "qty": 1,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Ground cumin",
+     "qty": 0.5,
+     "unit": "tsp"
+    }
+   ]
+  },
+  {
+   "id": "baked-cod-lemon-garlic",
+   "name": "Baked Cod with Lemon and Garlic",
+   "mealTypes": [
+    "Dinner"
+   ],
+   "easy": false,
+   "servings": 5,
+   "notes": "Preheat oven to 400F. Mix lemon juice, olive oil, and melted butter in a shallow bowl (no garlic yet); set aside. In another shallow bowl, mix flour, coriander, paprika, cumin, salt, and pepper. Pat fish dry, dip in the lemon sauce then the flour mixture, shaking off excess; reserve the remaining lemon sauce. Heat 2 tbsp olive oil in a cast iron or oven-safe skillet over medium-high and sear fish about 2 min per side for color, then remove from heat. Stir the minced garlic into the reserved lemon sauce and drizzle over the fish. Bake until the fish flakes easily, about 10 min. Sprinkle with parsley and serve immediately.\n\nSource: https://www.themediterraneandish.com/baked-cod-recipe-lemon-garlic/",
+   "ingredients": [
+    {
+     "name": "Cod fillets",
+     "qty": 1.5,
+     "unit": "lb"
+    },
+    {
+     "name": "Lemon juice",
+     "qty": 5,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Olive oil",
+     "qty": 7,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Butter",
+     "qty": 2,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Garlic",
+     "qty": 5,
+     "unit": "cloves"
+    },
+    {
+     "name": "All-purpose flour",
+     "qty": 0.33,
+     "unit": "cups"
+    },
+    {
+     "name": "Ground coriander",
+     "qty": 1,
+     "unit": "tsp"
+    },
+    {
+     "name": "Paprika",
+     "qty": 0.75,
+     "unit": "tsp"
+    },
+    {
+     "name": "Ground cumin",
+     "qty": 0.75,
+     "unit": "tsp"
+    },
+    {
+     "name": "Salt",
+     "qty": 0.75,
+     "unit": "tsp"
+    },
+    {
+     "name": "Black pepper",
+     "qty": 0.5,
+     "unit": "tsp"
+    }
+   ]
+  },
+  {
+   "id": "baked-creamy-orzo-chickpeas-spinach",
+   "name": "Baked Creamy Orzo with Chickpeas & Spinach",
+   "mealTypes": [
+    "Dinner"
+   ],
+   "easy": false,
+   "servings": 4,
+   "notes": "Preheat oven to 375F. Add all ingredients except the lemon juice to a 9x13 casserole dish and stir well. Cover tightly with foil and bake 30 min. Stir, then bake uncovered another 15-20 min until the orzo is tender and creamy. Finish with lemon juice and season with salt and pepper to taste.",
+   "ingredients": [
+    {
+     "name": "Orzo",
+     "qty": 1.5,
+     "unit": "cups"
+    },
+    {
+     "name": "Chickpeas",
+     "qty": 1,
+     "unit": "can",
+     "note": "14 oz"
+    },
+    {
+     "name": "Red onion",
+     "qty": 1,
+     "unit": ""
+    },
+    {
+     "name": "Sun-dried tomatoes",
+     "qty": 0.5,
+     "unit": "cup"
+    },
+    {
+     "name": "Garlic",
+     "qty": 4,
+     "unit": "cloves"
+    },
+    {
+     "name": "Paprika",
+     "qty": 1,
+     "unit": "tsp"
+    },
+    {
+     "name": "Vegetable broth",
+     "qty": 3.5,
+     "unit": "cups"
+    },
+    {
+     "name": "Cashew cream",
+     "qty": 1,
+     "unit": "cup"
+    },
+    {
+     "name": "Spinach",
+     "qty": 2.5,
+     "unit": "cups"
+    },
+    {
+     "name": "Lemon",
+     "qty": 1,
+     "unit": ""
+    }
+   ]
+  },
+  {
+   "id": "nm2o64fa",
+   "name": "Black Bean–Quinoa Bowl",
+   "mealTypes": [
+    "Dinner"
+   ],
+   "easy": false,
+   "servings": 4,
+   "notes": "Combine ¾ cup beans (rinsed) and ⅔ cup quinoa in a bowl. Stir ¼ cup hummus and 1 tablespoon lime juice together in a small bowl; thin with water to desired consistency. Drizzle the hummus dressing over the beans and quinoa. Top with avocado (diced), 3 tablespoons pico de gallo and 2 tablespoons cilantro.\n\nLink: https://www.eatingwell.com/recipe/260726/black-bean-quinoa-buddha-bowl/",
+   "ingredients": [
+    {
+     "name": "Black beans",
+     "qty": 1.5,
+     "unit": "cups"
+    },
+    {
+     "name": "Quinoa",
+     "qty": 1.33,
+     "unit": "cups"
+    },
+    {
+     "name": "Hummus",
+     "qty": 0.5,
+     "unit": "cup"
+    },
+    {
+     "name": "Lime juice",
+     "qty": 2,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Avocado",
+     "qty": 0.5,
+     "unit": ""
+    },
+    {
+     "name": "Pico de gallo",
+     "qty": 6,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Fresh cilantro",
+     "qty": 4,
+     "unit": "tbsp"
+    }
+   ]
+  },
+  {
+   "id": "chicken-spaghetti-with-burrata",
+   "name": "Chicken Spaghetti with Burrata",
+   "mealTypes": [
+    "Dinner"
+   ],
+   "easy": false,
+   "servings": 4,
+   "notes": "Preheat oven to 400F. Toss halved cherry tomatoes with 2 tbsp olive oil, minced garlic, salt, and pepper; spread on a parchment-lined sheet and roast about 20 min. Slice each chicken breast in half horizontally and season with salt, smoked paprika, and Italian seasoning. Heat 2 tbsp olive oil in a large skillet over medium and cook chicken about 5 min per side until cooked through; remove and slice thinly. In the same skillet, add lemon slices, garlic, and butter; cook a couple minutes over low-medium heat to release the lemon juice and soften the garlic, then remove the lemon slices. Cook spaghetti per package instructions, drain, and toss with the lemon-butter-garlic skillet. Top the pasta with sliced chicken and roasted tomatoes; divide burrata among plates and finish with chopped basil and toasted pine nuts.\n\nSource: https://juliasalbum.com/chicken-spaghetti-with-burrata/",
+   "ingredients": [
+    {
+     "name": "Cherry tomatoes",
+     "qty": 10,
+     "unit": "oz"
+    },
+    {
+     "name": "Olive oil",
+     "qty": 4,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Garlic",
+     "qty": 7,
+     "unit": "cloves"
+    },
+    {
+     "name": "Salt",
+     "qty": 0.25,
+     "unit": "tsp",
+     "note": "plus to taste"
+    },
+    {
+     "name": "Black pepper",
+     "qty": 1,
+     "unit": "pinch",
+     "note": "to taste"
+    },
+    {
+     "name": "Chicken breast",
+     "qty": 1.5,
+     "unit": "lb"
+    },
+    {
+     "name": "Smoked paprika",
+     "qty": 2,
+     "unit": "tsp"
+    },
+    {
+     "name": "Italian seasoning",
+     "qty": 1,
+     "unit": "tsp"
+    },
+    {
+     "name": "Lemon",
+     "qty": 0.5,
+     "unit": ""
+    },
+    {
+     "name": "Butter",
+     "qty": 4,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Spaghetti",
+     "qty": 8,
+     "unit": "oz"
+    },
+    {
+     "name": "Burrata cheese",
+     "qty": 8,
+     "unit": "oz"
+    },
+    {
+     "name": "Fresh basil",
+     "qty": 0.5,
+     "unit": "cup"
+    },
+    {
+     "name": "Pine nuts",
+     "qty": 0.33,
+     "unit": "cup"
+    }
+   ]
+  },
+  {
+   "id": "chicken-stir-fry",
+   "name": "Chicken Stir-Fry",
+   "mealTypes": [
+    "Lunch",
+    "Dinner"
+   ],
+   "easy": false,
+   "servings": 2,
+   "notes": "High heat, cook chicken first, vegetables second, sauce last.",
+   "ingredients": [
+    {
+     "name": "Chicken breast",
+     "qty": 1.5,
+     "unit": "lb"
+    },
+    {
+     "name": "Broccoli",
+     "qty": 1,
+     "unit": "head"
+    },
+    {
+     "name": "Soy sauce",
+     "qty": 1,
+     "unit": "bottle"
+    },
+    {
+     "name": "Jasmine rice",
+     "qty": 2,
+     "unit": "cups"
+    }
+   ]
+  },
+  {
+   "id": "creamy-chicken-sausage-orzo-skillet",
+   "name": "Creamy Chicken Sausage Orzo Skillet",
+   "mealTypes": [
+    "Dinner"
+   ],
+   "easy": false,
+   "servings": 4,
+   "notes": "Cook sausage in olive oil over medium-high heat, 6-7 min, until browned. Add garlic, saute 30 sec. Add orzo, toast 60 sec. Pour in broth to deglaze, then add coconut milk, soy sauce, seasonings, and thyme. Bring to a boil, cover, reduce heat, and simmer 10-12 min, stirring occasionally, until orzo is tender and liquid is absorbed. Stir in spinach until wilted, then mix in parmesan. Season with extra salt and pepper to taste.\n\nSource: https://www.eatyourselfskinny.com/creamy-chicken-sausage-orzo-skillet/",
+   "ingredients": [
+    {
+     "name": "Olive oil",
+     "qty": 1,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Chicken sausage",
+     "qty": 12,
+     "unit": "oz"
+    },
+    {
+     "name": "Garlic",
+     "qty": 6,
+     "unit": "cloves"
+    },
+    {
+     "name": "Orzo",
+     "qty": 1,
+     "unit": "cups"
+    },
+    {
+     "name": "Chicken broth",
+     "qty": 2,
+     "unit": "cups"
+    },
+    {
+     "name": "Coconut milk",
+     "qty": 0.25,
+     "unit": "cup"
+    },
+    {
+     "name": "Soy sauce",
+     "qty": 1,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Onion powder",
+     "qty": 1,
+     "unit": "tsp"
+    },
+    {
+     "name": "Red pepper flakes",
+     "qty": 0.5,
+     "unit": "tsp"
+    },
+    {
+     "name": "Black pepper",
+     "qty": 0.5,
+     "unit": "tsp"
+    },
+    {
+     "name": "Salt",
+     "qty": 0.25,
+     "unit": "tsp"
+    },
+    {
+     "name": "Thyme",
+     "qty": 1,
+     "unit": "tsp"
+    },
+    {
+     "name": "Parmesan",
+     "qty": 0.5,
+     "unit": "cup"
+    },
+    {
+     "name": "Baby spinach",
+     "qty": 2,
+     "unit": "cups"
+    }
+   ]
+  },
+  {
+   "id": "crockpot-chicken-tikka-masala-bowls",
+   "name": "Crockpot Chicken Tikka Masala Bowls",
+   "mealTypes": [
+    "Lunch"
+   ],
+   "easy": true,
+   "servings": 6,
+   "notes": "Cut chicken into chunks and dice the onion. Combine chicken, onion, garlic, crushed tomatoes, tomato paste, and the spices (garam masala through cayenne) in the crockpot. Cook on low 6-7 hr (or high 3-4 hr) until the chicken is tender. Stir in the coconut milk during the last 20 min to warm through. Serve over rice (cooked separately — the sauce is too thick for raw rice to cook evenly in the pot), topped with cilantro.\n\nSubstitute: 3 tbsp store-bought garam masala blend in place of the individual spices if you want to skip measuring.",
+   "ingredients": [
+    {
+     "name": "Chicken thighs",
+     "qty": 2.5,
+     "unit": "lb",
+     "note": "boneless skinless"
+    },
+    {
+     "name": "Yellow onion",
+     "qty": 1,
+     "unit": ""
+    },
+    {
+     "name": "Garlic",
+     "qty": 4,
+     "unit": "cloves"
+    },
+    {
+     "name": "Crushed tomatoes",
+     "qty": 1,
+     "unit": "can",
+     "note": "28 oz"
+    },
+    {
+     "name": "Tomato paste",
+     "qty": 2,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Coconut milk",
+     "qty": 1,
+     "unit": "can",
+     "note": "13.5 oz"
+    },
+    {
+     "name": "Jasmine rice",
+     "qty": 2,
+     "unit": "cups",
+     "note": "cooked separately"
+    },
+    {
+     "name": "Fresh cilantro",
+     "qty": 1,
+     "unit": "handful"
+    },
+    {
+     "name": "Garam masala",
+     "qty": 1.5,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Ground cumin",
+     "qty": 1,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Smoked paprika",
+     "qty": 1,
+     "unit": "tsp"
+    },
+    {
+     "name": "Ground ginger",
+     "qty": 1,
+     "unit": "tsp"
+    },
+    {
+     "name": "Salt",
+     "qty": 1.5,
+     "unit": "tsp"
+    },
+    {
+     "name": "Cayenne powder",
+     "qty": 0.25,
+     "unit": "tsp"
+    }
+   ]
+  },
+  {
+   "id": "crockpot-greek-chicken-meatballs-tomato-orzo",
+   "name": "Crockpot Greek Chicken Meatballs with Creamy Tomato Orzo",
+   "mealTypes": [
+    "Dinner"
+   ],
+   "easy": false,
+   "servings": 6,
+   "notes": "Mix ground chicken, parmesan, shallot, 2 chopped garlic cloves, oregano, paprika, and balsamic vinegar in a bowl; season with salt, pepper, and red pepper flakes. Roll into 15-16 tablespoon-size meatballs with oiled hands. Drizzle with olive oil and place in the crockpot along with the cherry tomatoes, wine, 1/2 cup water, and the 6 whole garlic cloves. Cover and cook on low 3-4 hr or high 1-2 hr.\n\nMove the meatballs and garlic to a baking sheet. Turn the crockpot to high, stir in the orzo and 1 cup water, cover, and cook 20-30 min until the orzo is al dente (add more water if it looks dry); stir in the cream. Meanwhile, broil the meatballs and garlic 1-3 min until crisp. Peel and chop the garlic, mix with the butter, rosemary, and thyme on the sheet pan, and toss the meatballs in it. Serve the meatballs over the orzo with feta, basil, and dill.\n\nSource: Half Baked Harvest (Tieghan Gerard)\nLink: https://www.olivetomato.com/greek-style-roasted-lemon-and-garlic-chicken-with-potatoes-and-carrots/",
+   "ingredients": [
+    {
+     "name": "Ground chicken",
+     "qty": 1.5,
+     "unit": "lb"
+    },
+    {
+     "name": "Parmesan cheese",
+     "qty": 0.5,
+     "unit": "cup",
+     "note": "grated"
+    },
+    {
+     "name": "Shallot",
+     "qty": 1,
+     "unit": ""
+    },
+    {
+     "name": "Garlic",
+     "qty": 8,
+     "unit": "cloves",
+     "note": "2 chopped, 6 whole"
+    },
+    {
+     "name": "Fresh oregano",
+     "qty": 0.25,
+     "unit": "cup",
+     "note": "chopped"
+    },
+    {
+     "name": "Paprika",
+     "qty": 2,
+     "unit": "tsp"
+    },
+    {
+     "name": "Balsamic vinegar",
+     "qty": 1,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Salt",
+     "qty": 1,
+     "unit": "tsp"
+    },
+    {
+     "name": "Black pepper",
+     "qty": 0.5,
+     "unit": "tsp"
+    },
+    {
+     "name": "Red pepper flakes",
+     "qty": 0.25,
+     "unit": "tsp"
+    },
+    {
+     "name": "Olive oil",
+     "qty": 2,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Cherry tomatoes",
+     "qty": 1.5,
+     "unit": "cups"
+    },
+    {
+     "name": "Dry white wine",
+     "qty": 1,
+     "unit": "cup"
+    },
+    {
+     "name": "Orzo",
+     "qty": 2,
+     "unit": "cups"
+    },
+    {
+     "name": "Heavy whipping cream",
+     "qty": 0.5,
+     "unit": "cup"
+    },
+    {
+     "name": "Salted butter",
+     "qty": 6,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Rosemary",
+     "qty": 1,
+     "unit": "sprigs"
+    },
+    {
+     "name": "Fresh thyme",
+     "qty": 4,
+     "unit": "sprigs"
+    },
+    {
+     "name": "Feta",
+     "qty": 0.5,
+     "unit": "cup"
+    },
+    {
+     "name": "Fresh basil",
+     "qty": 1,
+     "unit": "handful"
+    },
+    {
+     "name": "Fresh dill",
+     "qty": 1,
+     "unit": "handful"
+    }
+   ]
+  },
+  {
+   "id": "crockpot-taco-burritos",
+   "name": "Crockpot Taco Burritos",
+   "mealTypes": [
+    "Lunch"
+   ],
+   "easy": false,
+   "servings": 10,
+   "notes": "Cook ground beef first. Then combine beef, onions, bell peppers, jalapeno, black beans, brown rice, broth, and the taco seasoning spices (chili powder through red pepper flakes) in the crockpot; cook until the rice is tender. Warm tortillas, fill with the taco rice mixture, and top with feta. \n\nSubstitute: in place of the homemade seasoning spices, you can use 2 store-bought taco seasoning packets. Swap the garlic powder for onion powder if you prefer.",
+   "ingredients": [
+    {
+     "name": "Ground beef",
+     "qty": 2.15,
+     "unit": "lb"
+    },
+    {
+     "name": "Yellow onion",
+     "qty": 2,
+     "unit": ""
+    },
+    {
+     "name": "Bell peppers",
+     "qty": 3,
+     "unit": ""
+    },
+    {
+     "name": "Jalapeno",
+     "qty": 6,
+     "unit": ""
+    },
+    {
+     "name": "Black beans",
+     "qty": 2,
+     "unit": "can",
+     "note": "15 oz"
+    },
+    {
+     "name": "Brown rice",
+     "qty": 2,
+     "unit": "cups"
+    },
+    {
+     "name": "Chicken or beef broth",
+     "qty": 32,
+     "unit": "oz"
+    },
+    {
+     "name": "Tortillas",
+     "qty": 8,
+     "unit": ""
+    },
+    {
+     "name": "Feta",
+     "qty": 1,
+     "unit": "container"
+    },
+    {
+     "name": "Chili powder",
+     "qty": 2,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Ground cumin",
+     "qty": 1,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Smoked paprika",
+     "qty": 1,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Salt",
+     "qty": 2,
+     "unit": "tsp"
+    },
+    {
+     "name": "Black pepper",
+     "qty": 1,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Garlic powder",
+     "qty": 1,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Dried oregano",
+     "qty": 1,
+     "unit": "tsp"
+    },
+    {
+     "name": "Red pepper flakes",
+     "qty": 0.125,
+     "unit": "tsp",
+     "note": "pinch, optional"
+    }
+   ]
+  },
+  {
+   "id": "garlicky-pesto-flatbread-pizza",
+   "name": "Garlicky Pesto Flatbread Pizza with Tomatoes and Arugula",
+   "mealTypes": [
+    "Dinner"
+   ],
+   "easy": false,
+   "servings": 4,
+   "notes": "Preheat oven to 425F. Brush flatbreads with garlic puree and bake 3-5 min to crisp up. Spread red pesto over flatbreads, top with mozzarella, chicken, and tomato slices, season with salt and pepper, and bake on a sheet pan 10-13 min until cheese is bubbling and edges are crisp. Top with torn basil and balsamic glaze. Slice and serve.\n\nSource: https://www.eatyourselfskinny.com/garlicky-pesto-flatbread-pizza-with-tomatoes-arugula/",
+   "ingredients": [
+    {
+     "name": "Naan flatbreads",
+     "qty": 2,
+     "unit": ""
+    },
+    {
+     "name": "Garlic puree",
+     "qty": 1,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Red pesto",
+     "qty": 0.5,
+     "unit": "cup"
+    },
+    {
+     "name": "Fresh mozzarella",
+     "qty": 6,
+     "unit": "slices"
+    },
+    {
+     "name": "Tomatoes",
+     "qty": 0.5,
+     "unit": "lb"
+    },
+    {
+     "name": "Fresh basil",
+     "qty": 1,
+     "unit": "handful",
+     "note": "torn"
+    },
+    {
+     "name": "Canned chicken",
+     "qty": 0.5,
+     "unit": "jar"
+    },
+    {
+     "name": "Balsamic glaze",
+     "qty": 1,
+     "unit": "tbsp"
+    }
+   ]
+  },
+  {
+   "id": "dww72nzq",
+   "name": "Greek Style Roasted Lemon and Garlic Chicken with Potatoes and Carrots",
+   "mealTypes": [],
+   "easy": false,
+   "servings": 4,
+   "notes": "Preheat oven at 425 degrees Fahrenheit (220 degrees Celsius). Rub salt and pepper into the chicken. Push under the skin of each piece 1/4th piece of lemon and 2 garlic clove halves. Place chicken on a large pan (large enough to fit potatoes and carrots in one layer). Cut potato and carrots in smallish pieces 1 ½ -2 inches and put in a bowl along with sliced onion. Add 4 tablespoon olive oil to the vegetables, pepper, and the oregano and mix well, until all vegetables are coated well. Spread vegetables around the chicken. Brush chicken generously with olive oil on both sides, roast skin facing up. Roast for about 45 minutes-1 hour (if you are roasting a whole chicken it will take longer about a ½ hour more). Check chicken, juices should be clear, although I prefer a meat thermometer, temperature at thickest part should be 165 F (74 C). If chicken is done, but vegetables are not, remove chicken and cover with aluminum foil, and roast until vegetables are crunchy on the outside and soft on the inside. Link: https://www.olivetomato.com/greek-style-roasted-lemon-and-garlic-chicken-with-potatoes-and-carrots/",
+   "ingredients": [
+    {
+     "name": "Chicken thighs",
+     "qty": 1.5,
+     "unit": "lb"
+    },
+    {
+     "name": "Olive oil",
+     "qty": 0.5,
+     "unit": "cup"
+    },
+    {
+     "name": "Lemon",
+     "qty": 1,
+     "unit": ""
+    },
+    {
+     "name": "Garlic",
+     "qty": 4,
+     "unit": "cloves"
+    },
+    {
+     "name": "Dried oregano",
+     "qty": 1,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Salt",
+     "qty": 1,
+     "unit": "pinch",
+     "note": "to taste"
+    },
+    {
+     "name": "Carrots",
+     "qty": 4,
+     "unit": "",
+     "note": "cut into sticks"
+    },
+    {
+     "name": "Large potatoes",
+     "qty": 4,
+     "unit": ""
+    },
+    {
+     "name": "Yellow onion",
+     "qty": 1,
+     "unit": ""
+    },
+    {
+     "name": "Black pepper",
+     "qty": 1,
+     "unit": "pinch",
+     "note": "to taste"
+    }
+   ]
+  },
+  {
+   "id": "lemon-herb-salmon-asparagus-sheet-pan",
+   "name": "Lemon Herb Salmon & Asparagus Sheet Pan",
+   "mealTypes": [
+    "Dinner"
+   ],
+   "easy": false,
+   "servings": 4,
+   "notes": "Preheat oven to 400F and line a sheet pan with parchment. Toss asparagus with half the olive oil, salt, and pepper, and spread on one half of the pan. Whisk the remaining olive oil, garlic, Dijon, juice of one lemon, dill/parsley, salt, and pepper. Place salmon on the other half of the pan, spoon sauce over the fillets, top with capers, and lay slices from the second lemon over top. Roast 12-15 min until salmon flakes easily and asparagus is lightly crispy.",
+   "ingredients": [
+    {
+     "name": "Salmon fillets",
+     "qty": 4,
+     "unit": "fillets",
+     "note": "6 oz ea"
+    },
+    {
+     "name": "Asparagus",
+     "qty": 1.5,
+     "unit": "lb"
+    },
+    {
+     "name": "Lemon",
+     "qty": 2,
+     "unit": ""
+    },
+    {
+     "name": "Garlic",
+     "qty": 3,
+     "unit": "cloves"
+    },
+    {
+     "name": "Olive oil",
+     "qty": 3,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Fresh dill or parsley",
+     "qty": 3,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Dijon mustard",
+     "qty": 1,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Capers",
+     "qty": 1,
+     "unit": "tbsp",
+     "note": "optional"
+    },
+    {
+     "name": "Salt",
+     "qty": 1,
+     "unit": "tsp"
+    },
+    {
+     "name": "Black pepper",
+     "qty": 0.5,
+     "unit": "tsp"
+    }
+   ]
+  },
+  {
+   "id": "mediterranean-baked-crispy-chicken-pasta",
+   "name": "Mediterranean Baked Crispy Chicken and Pasta",
+   "mealTypes": [
+    "Dinner"
+   ],
+   "easy": false,
+   "servings": 4,
+   "notes": "Stir together salt, pepper, chili powder, and smoked paprika. Score the skin side of the chicken thighs, rub with the spice mix, cover, and refrigerate at least 2 hours (up to overnight); let sit out 20-30 min before cooking. Preheat oven to 350F. Sear chicken skin-side down in 1-2 tbsp olive oil over medium-high heat about 3 min without disturbing it, then remove and set aside. Add more olive oil and saute the onion, red pepper, and optional serrano about 3 min; add garlic and saute 1 min. Stir in lemon zest, lemon juice, cumin, thyme, and white wine. Return the chicken to the skillet, sprinkle in the feta, cherry tomatoes, and olives, and bake about 20 min until the chicken reaches 175F. Meanwhile, boil the pasta 2 min short of package directions, reserving some pasta water. Remove the chicken from the skillet, mash the remaining sauce ingredients together, and thin with pasta water as needed. Toss in the cooked pasta, return the chicken to the skillet, and bake 5 more min until warmed through. Season to taste and garnish with fresh herbs before serving.\n\nSource: https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/",
+   "ingredients": [
+    {
+     "name": "Salt",
+     "qty": 1,
+     "unit": "tsp"
+    },
+    {
+     "name": "Black pepper",
+     "qty": 1,
+     "unit": "tsp"
+    },
+    {
+     "name": "Chili powder",
+     "qty": 1,
+     "unit": "tsp"
+    },
+    {
+     "name": "Smoked paprika",
+     "qty": 1,
+     "unit": "tsp"
+    },
+    {
+     "name": "Chicken thighs",
+     "qty": 4,
+     "unit": "",
+     "note": "skin-on, bone-in"
+    },
+    {
+     "name": "Olive oil",
+     "qty": 5,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Yellow onion",
+     "qty": 0.5,
+     "unit": "cup",
+     "note": "diced"
+    },
+    {
+     "name": "Red bell pepper",
+     "qty": 0.5,
+     "unit": "",
+     "note": "medium"
+    },
+    {
+     "name": "Serrano chile pepper",
+     "qty": 1,
+     "unit": "",
+     "note": "optional"
+    },
+    {
+     "name": "Garlic",
+     "qty": 4,
+     "unit": "cloves"
+    },
+    {
+     "name": "Lemon",
+     "qty": 1,
+     "unit": ""
+    },
+    {
+     "name": "Ground cumin",
+     "qty": 1,
+     "unit": "tsp"
+    },
+    {
+     "name": "Dried thyme",
+     "qty": 0.5,
+     "unit": "tsp"
+    },
+    {
+     "name": "Chicken broth",
+     "qty": 0.5,
+     "unit": "cup"
+    },
+    {
+     "name": "Dry white wine",
+     "qty": 0.5,
+     "unit": "cup"
+    },
+    {
+     "name": "Feta",
+     "qty": 8,
+     "unit": "oz"
+    },
+    {
+     "name": "Cherry tomatoes",
+     "qty": 0.75,
+     "unit": "cup"
+    },
+    {
+     "name": "Kalamata olives",
+     "qty": 0.5,
+     "unit": "cup"
+    },
+    {
+     "name": "Bowtie pasta",
+     "qty": 8,
+     "unit": "oz"
+    }
+   ]
+  },
+  {
+   "id": "mediterranean-chicken-sun-dried-tomatoes-artichokes",
+   "name": "Mediterranean Chicken with Sun-Dried Tomatoes & Artichokes",
+   "mealTypes": [
+    "Dinner"
+   ],
+   "easy": true,
+   "servings": 4,
+   "notes": "Season chicken with salt and pepper, then dredge in flour. Heat 2 tbsp olive oil in a large skillet over medium-high and brown the chicken about 4 min per side; remove to a plate. Add artichokes, sun-dried tomatoes, capers, and lemon juice to the same skillet and stir over medium heat; reduce heat to medium-low and stir in the remaining 2-3 tbsp olive oil. Push the vegetables to the sides, return the chicken to the skillet, cover, and cook over low-medium heat 5-10 more min until the chicken is cooked through. Serve immediately, spooning the olive oil and vegetables over the chicken.\n\nSource: https://juliasalbum.com/mediterranean-chicken-sun-dried-tomatoes-artichokes/",
+   "ingredients": [
+    {
+     "name": "Chicken breast",
+     "qty": 1.5,
+     "unit": "lb"
+    },
+    {
+     "name": "Salt",
+     "qty": 0.5,
+     "unit": "tsp"
+    },
+    {
+     "name": "Black pepper",
+     "qty": 0.25,
+     "unit": "tsp"
+    },
+    {
+     "name": "All-purpose flour",
+     "qty": 0.25,
+     "unit": "cup"
+    },
+    {
+     "name": "Olive oil",
+     "qty": 5,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Artichoke hearts",
+     "qty": 8,
+     "unit": "oz"
+    },
+    {
+     "name": "Sun-dried tomatoes",
+     "qty": 6,
+     "unit": "oz"
+    },
+    {
+     "name": "Capers",
+     "qty": 3,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Lemon juice",
+     "qty": 2,
+     "unit": "tbsp"
+    }
+   ]
+  },
+  {
+   "id": "herb-roasted-pork-loin-potatoes-carrots",
+   "name": "One-Pan Herb Roasted Pork Loin with Potatoes & Carrots",
+   "mealTypes": [
+    "Dinner"
+   ],
+   "easy": true,
+   "servings": 6,
+   "notes": "Preheat oven to 425F and pat pork dry. Rub pork with a mix of Dijon, garlic, salt, and pepper. Toss potatoes and carrots with olive oil, salt, and pepper directly in a roasting pan. Sear pork on all sides in the remaining oil, about 2 min per side, then nestle into the vegetables. Lay rosemary and thyme sprigs over top and pour chicken broth into the pan. Roast uncovered 45-55 min until pork reaches 145F internal and vegetables are golden. Rest pork 10 min before slicing; serve with pan juices.",
+   "ingredients": [
+    {
+     "name": "Pork loin roast",
+     "qty": 2.5,
+     "unit": "lb"
+    },
+    {
+     "name": "Baby potatoes",
+     "qty": 1.5,
+     "unit": "lb"
+    },
+    {
+     "name": "Carrots",
+     "qty": 4,
+     "unit": ""
+    },
+    {
+     "name": "Olive oil",
+     "qty": 4,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Garlic",
+     "qty": 4,
+     "unit": "cloves"
+    },
+    {
+     "name": "Rosemary",
+     "qty": 3,
+     "unit": "sprigs"
+    },
+    {
+     "name": "Thyme",
+     "qty": 4,
+     "unit": "sprigs"
+    },
+    {
+     "name": "Chicken broth",
+     "qty": 0.5,
+     "unit": "cup"
+    },
+    {
+     "name": "Dijon mustard",
+     "qty": 2,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Salt",
+     "qty": 1.5,
+     "unit": "tsp"
+    },
+    {
+     "name": "Black pepper",
+     "qty": 1,
+     "unit": "tsp"
+    }
+   ]
+  },
+  {
+   "id": "vanilla-marshmallow-boob-cake",
+   "name": "One-Year Breastfeeding Cake (Vanilla Marshmallow \"Boob Cake\")",
+   "mealTypes": [],
+   "easy": false,
+   "servings": 12,
+   "notes": "Preheat oven to 350F; grease and line two 8-9in round pans. Whisk flour, baking powder, and salt. Cream butter and granulated sugar 2-3 min until fluffy, then mix in egg whites and vanilla. Alternate adding the flour mixture and milk in three additions, mixing just until combined. Divide batter into pans and bake 25-30 min; cool completely. For the filling, whip the cream with powdered sugar to soft peaks, then fold in marshmallow fluff and vanilla; chill. Stack the cooled cakes, carve a center hole leaving about a 1in base, fill with marshmallow filling, and replace the top piece; carve into a smooth dome. For the buttercream, beat the butter, then gradually add powdered sugar, milk/cream, vanilla, and a pinch of salt until fluffy. Apply a thin crumb coat and chill 20-30 min, then frost smoothly into a dome shape. Tint a small amount of frosting pink and pipe a circle in the center. Refrigerate up to 3 days; bring to room temp before serving.",
+   "ingredients": [
+    {
+     "name": "'1' candle",
+     "qty": 1,
+     "unit": ""
+    },
+    {
+     "name": "All-purpose flour",
+     "qty": 2.5,
+     "unit": "cups"
+    },
+    {
+     "name": "Baking powder",
+     "qty": 2.5,
+     "unit": "tsp"
+    },
+    {
+     "name": "Salt",
+     "qty": 0.5,
+     "unit": "tsp",
+     "note": "plus a pinch"
+    },
+    {
+     "name": "Granulated sugar",
+     "qty": 1.75,
+     "unit": "cups"
+    },
+    {
+     "name": "Powdered sugar",
+     "qty": 4,
+     "unit": "cups",
+     "note": "about"
+    },
+    {
+     "name": "Unsalted butter",
+     "qty": 3,
+     "unit": "sticks"
+    },
+    {
+     "name": "Milk",
+     "qty": 1,
+     "unit": "cup"
+    },
+    {
+     "name": "Heavy whipping cream",
+     "qty": 0.5,
+     "unit": "cup"
+    },
+    {
+     "name": "Eggs",
+     "qty": 1,
+     "unit": "dozen"
+    },
+    {
+     "name": "Vanilla extract",
+     "qty": 1.5,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Marshmallow fluff",
+     "qty": 1,
+     "unit": "jar",
+     "note": "7-8 oz"
+    },
+    {
+     "name": "Pink food coloring",
+     "qty": 1,
+     "unit": "bottle"
+    }
+   ]
+  },
+  {
+   "id": "utegi5r2",
+   "name": "Shrimp Pesto Pasta with Cherry Tomatoes and Spinach",
+   "mealTypes": [
+    "Dinner"
+   ],
+   "easy": false,
+   "servings": 4,
+   "notes": "Halve the tomatoes. Season the shrimp. Sprinkle the shrimp with a pinch each of salt, pepper, and baking soda, if you like. Toss to coat. Boil the pasta. Bring a large pot of generously salted water to a boil. Cook the spaghetti until al dente according to package directions. Before draining, reserve about a cup of the pasta cooking water. Drain pasta through a colander, but don’t rinse, and set aside. Sauté the shrimp. While the pasta cooks, heat 2 tablespoons olive oil in a large skillet over medium-high heat. Add them to the skillet in a single layer and cook for about 1 to 2 minutes per side, or until opaque and just cooked through. Transfer the shrimp to a plate and set aside. Sauté the tomatoes. In the same skillet, lower heat to medium and add the remaining tablespoon of olive oil. Stir in the garlic and cook just until fragrant (about 30 seconds), then add the cherry tomatoes and a pinch of salt. Sauté for 2 to 3 minutes, or until the tomatoes soften somewhat. Add the spinach and stir to wilt. If using, stir in the red pepper flakes. Combine and toss. Return the shrimp to the skillet along with the cooked pasta. Add the pesto and a splash of the reserved pasta water. Toss everything together gently to coat, adding more pasta water as needed to reach your desired consistency. Finish and serve. Taste and adjust seasoning with more salt and pepper. Transfer to a serving bowl and top with grated Parmesan and torn basil, if desired.\n\nLink: https://www.themediterraneandish.com/shrimp-pesto-pasta-with-cherry-tomatoes-and-spinach/",
+   "ingredients": [
+    {
+     "name": "Jumbo shrimp",
+     "qty": 1,
+     "unit": "lb"
+    },
+    {
+     "name": "Kosher salt",
+     "qty": 1,
+     "unit": "pinch",
+     "note": "to taste"
+    },
+    {
+     "name": "Black pepper",
+     "qty": 1,
+     "unit": "pinch",
+     "note": "to taste"
+    },
+    {
+     "name": "Baking soda",
+     "qty": 1,
+     "unit": "",
+     "note": "optional"
+    },
+    {
+     "name": "Spaghetti",
+     "qty": 12,
+     "unit": "oz"
+    },
+    {
+     "name": "Olive oil",
+     "qty": 3,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Garlic",
+     "qty": 2,
+     "unit": "cloves"
+    },
+    {
+     "name": "Cherry tomatoes",
+     "qty": 2.5,
+     "unit": "cups"
+    },
+    {
+     "name": "Basil pesto",
+     "qty": 0.75,
+     "unit": "cup"
+    },
+    {
+     "name": "Red pepper flakes",
+     "qty": 0.25,
+     "unit": "tsp"
+    },
+    {
+     "name": "Baby spinach",
+     "qty": 3,
+     "unit": "cup"
+    },
+    {
+     "name": "Parmesan cheese",
+     "qty": 1,
+     "unit": "",
+     "note": "optional"
+    },
+    {
+     "name": "Fresh basil",
+     "qty": 1,
+     "unit": "",
+     "note": "optional"
+    }
+   ]
+  },
+  {
+   "id": "spaghetti-meat-sauce",
+   "name": "Spaghetti & Meat Sauce",
+   "mealTypes": [
+    "Dinner"
+   ],
+   "easy": false,
+   "servings": 4,
+   "notes": "",
+   "ingredients": [
+    {
+     "name": "Spaghetti",
+     "qty": 1,
+     "unit": "lb"
+    },
+    {
+     "name": "Marinara sauce",
+     "qty": 1,
+     "unit": "jar"
+    },
+    {
+     "name": "Ground beef",
+     "qty": 1,
+     "unit": "lb"
+    },
+    {
+     "name": "Parmesan",
+     "qty": 4,
+     "unit": "oz"
+    },
+    {
+     "name": "Yellow onion",
+     "qty": 1,
+     "unit": ""
+    }
+   ]
+  },
+  {
+   "id": "taco-night",
+   "name": "Taco Night",
+   "mealTypes": [
+    "Dinner"
+   ],
+   "easy": false,
+   "servings": 4,
+   "notes": "Brown the beef with taco seasoning. Warm tortillas in a dry skillet.",
+   "ingredients": [
+    {
+     "name": "Ground beef",
+     "qty": 1,
+     "unit": "lb"
+    },
+    {
+     "name": "Tortillas",
+     "qty": 12,
+     "unit": ""
+    },
+    {
+     "name": "Cheddar cheese",
+     "qty": 8,
+     "unit": "oz"
+    },
+    {
+     "name": "Salsa",
+     "qty": 1,
+     "unit": "jar"
+    },
+    {
+     "name": "Yellow onion",
+     "qty": 1,
+     "unit": ""
+    }
+   ]
+  },
+  {
+   "id": "tex-mex-beef-black-bean-casserole",
+   "name": "Tex-Mex Beef & Black Bean Casserole",
+   "mealTypes": [
+    "Dinner"
+   ],
+   "easy": true,
+   "servings": 6,
+   "notes": "Preheat oven to 375F. Heat olive oil in an oven-safe skillet and cook onion until softened, about 4 min; add garlic and cook 1 min more. Add beef and cook until browned, breaking it up, then drain fat and stir in taco seasoning. Stir in black beans, corn, Rotel, and enchilada sauce; simmer 3-4 min. Layer half the beef mixture, tortilla strips, and cheese in a 9x13 dish; repeat layers. Bake uncovered 20-25 min until bubbly. Rest 5 min, then serve with sour cream.",
+   "ingredients": [
+    {
+     "name": "Ground beef",
+     "qty": 1.5,
+     "unit": "lb"
+    },
+    {
+     "name": "Yellow onion",
+     "qty": 1,
+     "unit": ""
+    },
+    {
+     "name": "Garlic",
+     "qty": 3,
+     "unit": "cloves"
+    },
+    {
+     "name": "Black beans",
+     "qty": 1,
+     "unit": "can",
+     "note": "15 oz"
+    },
+    {
+     "name": "Corn",
+     "qty": 1,
+     "unit": "can",
+     "note": "15 oz"
+    },
+    {
+     "name": "Diced tomatoes with green chiles (rotel)",
+     "qty": 1,
+     "unit": "can",
+     "note": "10 oz"
+    },
+    {
+     "name": "Red enchilada sauce",
+     "qty": 1,
+     "unit": "can",
+     "note": "10 oz"
+    },
+    {
+     "name": "Mexican blend cheese",
+     "qty": 2,
+     "unit": "cups"
+    },
+    {
+     "name": "Corn tortillas",
+     "qty": 8,
+     "unit": ""
+    },
+    {
+     "name": "Taco seasoning",
+     "qty": 2,
+     "unit": "packets"
+    },
+    {
+     "name": "Olive oil",
+     "qty": 1,
+     "unit": "tbsp"
+    },
+    {
+     "name": "Sour cream",
+     "qty": 0.5,
+     "unit": "cup"
+    }
+   ]
+  },
+  {
+   "id": "turkey-sausage-chili",
+   "name": "Turkey & Sausage Chili",
+   "mealTypes": [
+    "Dinner"
+   ],
+   "easy": false,
+   "servings": 12,
+   "notes": "Cook the ground turkey and sausage until browned, then combine with the onions, peppers, beans, tomatoes, and seasoning in a large pot. Simmer until heated through and flavors meld.",
+   "ingredients": [
+    {
+     "name": "Ground turkey",
+     "qty": 3.6,
+     "unit": "lb"
+    },
+    {
+     "name": "Ground sausage",
+     "qty": 16,
+     "unit": "oz"
+    },
+    {
+     "name": "Red onion",
+     "qty": 1,
+     "unit": "",
+     "note": "medium"
+    },
+    {
+     "name": "Yellow onion",
+     "qty": 1,
+     "unit": "",
+     "note": "small/medium"
+    },
+    {
+     "name": "Sweet peppers",
+     "qty": 24,
+     "unit": "oz"
+    },
+    {
+     "name": "Banana peppers",
+     "qty": 6,
+     "unit": "",
+     "note": "large, 7-8 in"
+    },
+    {
+     "name": "Kidney beans",
+     "qty": 3,
+     "unit": "can",
+     "note": "15 oz"
+    },
+    {
+     "name": "Pinto beans",
+     "qty": 2,
+     "unit": "can",
+     "note": "16 oz"
+    },
+    {
+     "name": "Great northern beans",
+     "qty": 1,
+     "unit": "can",
+     "note": "15.8 oz"
+    },
+    {
+     "name": "Crushed tomatoes",
+     "qty": 1,
+     "unit": "can",
+     "note": "28 oz"
+    },
+    {
+     "name": "Tomato sauce",
+     "qty": 3,
+     "unit": "can",
+     "note": "8 oz"
+    },
+    {
+     "name": "Diced tomatoes",
+     "qty": 3,
+     "unit": "can",
+     "note": "14.5 oz"
+    },
+    {
+     "name": "Chili powder",
+     "qty": 0.125,
+     "unit": "cup"
+    },
+    {
+     "name": "Paprika",
+     "qty": 0.125,
+     "unit": "cup"
+    },
+    {
+     "name": "Ground cumin",
+     "qty": 0.125,
+     "unit": "cup"
+    },
+    {
+     "name": "Onion powder",
+     "qty": 0.125,
+     "unit": "cup"
+    },
+    {
+     "name": "Garlic powder",
+     "qty": 0.125,
+     "unit": "cup"
+    },
+    {
+     "name": "Cayenne powder",
+     "qty": 0.125,
+     "unit": "cup"
+    },
+    {
+     "name": "Salt",
+     "qty": 4,
+     "unit": "tsp",
+     "note": "can omit"
+    },
+    {
+     "name": "Black pepper",
+     "qty": 0.125,
+     "unit": "cup"
+    }
+   ]
+  }
+ ],
+ "config": {
+  "'1' candle": {
+   "store": "Schnucks",
+   "aisles": {
+    "Grocery store": 9,
+    "Schnucks": 1
+   }
+  },
+  "all-purpose flour": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 9
+   },
+   "staple": true
+  },
+  "apple": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "applesauce": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 9
+   }
+  },
+  "artichoke hearts": {
+   "store": "Schnucks",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "arugula": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "asparagus": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "avocado": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "baby potatoes": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "baby spinach": {
+   "store": "Aldi",
+   "aisles": {
+    "Aldi": 1
+   }
+  },
+  "baking powder": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 9
+   },
+   "staple": true
+  },
+  "baking soda": {
+   "store": "Aldi",
+   "aisles": {},
+   "staple": true
+  },
+  "balsamic glaze": {
+   "store": "Schnucks",
+   "aisles": {},
+   "staple": true
+  },
+  "balsamic vinegar": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "banana peppers": {
+   "store": "Schnucks",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "bananas": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "basil pesto": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "bell peppers": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "black beans": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "black pepper": {
+   "store": "Sams",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "bowtie pasta": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 5
+   }
+  },
+  "breadcrumbs": {
+   "store": "Schnucks",
+   "aisles": {
+    "Grocery store": 9
+   },
+   "staple": true
+  },
+  "broccoli": {
+   "store": "Aldi",
+   "aisles": {
+    "Aldi": 1
+   }
+  },
+  "brown rice": {
+   "store": "Sams",
+   "aisles": {
+    "Grocery store": 5
+   }
+  },
+  "burrata cheese": {
+   "store": "Schnucks",
+   "aisles": {
+    "Grocery store": 11
+   }
+  },
+  "butter": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 11
+   }
+  },
+  "canned chicken": {
+   "store": "Unassigned",
+   "aisles": {}
+  },
+  "capers": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "carrots": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "cashew cream": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "cayenne powder": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "cheddar cheese": {
+   "store": "Aldi",
+   "aisles": {
+    "Aldi": 11
+   }
+  },
+  "cheerios": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "cheerios (honey-nut)": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "cheerios (plain)": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "cherry tomatoes": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "chicken breast": {
+   "store": "Costco",
+   "aisles": {
+    "Aldi": 14,
+    "Costco": 3
+   }
+  },
+  "chicken broth": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "chicken or beef broth": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "chicken sausage": {
+   "store": "Aldi",
+   "aisles": {
+    "Aldi": 12
+   }
+  },
+  "chicken thighs": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 13
+   }
+  },
+  "chickpeas": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "chili powder": {
+   "store": "Sams",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "coconut milk": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "cod fillets": {
+   "store": "Sams",
+   "aisles": {
+    "Grocery store": 13
+   }
+  },
+  "corn": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "corn (canned, salt-free)": {
+   "store": "Schnucks",
+   "aisles": {}
+  },
+  "corn tortillas": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 6
+   }
+  },
+  "craisins": {
+   "store": "Sams",
+   "aisles": {},
+   "staple": true
+  },
+  "crushed tomatoes": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "diced tomatoes": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "diced tomatoes with green chiles (rotel)": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "dijon mustard": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "dried oregano": {
+   "store": "Sams",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "dried thyme": {
+   "store": "Sams",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "dry white wine": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "eggs": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 11
+   }
+  },
+  "english muffin": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "feta": {
+   "store": "Sams",
+   "aisles": {
+    "Grocery store": 11
+   }
+  },
+  "fresh basil": {
+   "store": "Schnucks",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "fresh cilantro": {
+   "store": "Schnucks",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "fresh dill": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "fresh dill or parsley": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "fresh mozzarella": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 11
+   }
+  },
+  "fresh oregano": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "fresh parsley": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "fresh thyme": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "garam masala": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "garlic": {
+   "store": "Aldi",
+   "aisles": {
+    "Aldi": 1
+   }
+  },
+  "garlic powder": {
+   "store": "Sams",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "garlic puree": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 7
+   },
+   "staple": true
+  },
+  "granulated sugar": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 9
+   },
+   "staple": true
+  },
+  "grapefruit": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "great northern beans": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "green beans (canned, salt-free)": {
+   "store": "Schnucks",
+   "aisles": {}
+  },
+  "green onion": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "ground beef": {
+   "store": "Aldi",
+   "aisles": {
+    "Aldi": 12
+   }
+  },
+  "ground chicken": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 12
+   }
+  },
+  "ground coriander": {
+   "store": "Sams",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "ground cumin": {
+   "store": "Sams",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "ground ginger": {
+   "store": "Sams",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "ground sausage": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 12
+   }
+  },
+  "ground turkey": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 12
+   }
+  },
+  "heavy whipping cream": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 11
+   }
+  },
+  "hummus": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "italian seasoning": {
+   "store": "Sams",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "jalapeno": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "jasmine rice": {
+   "store": "Costco",
+   "aisles": {
+    "Costco": 5
+   }
+  },
+  "jumbo shrimp": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "kalamata olives": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "kidney beans": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "kosher salt": {
+   "store": "Sams",
+   "aisles": {},
+   "staple": true
+  },
+  "large potatoes": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "lemon": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "lemon juice": {
+   "store": "Schnucks",
+   "aisles": {
+    "Grocery store": 1
+   },
+   "staple": true
+  },
+  "lime juice": {
+   "store": "Schnucks",
+   "aisles": {}
+  },
+  "marinara sauce": {
+   "store": "Aldi",
+   "aisles": {
+    "Aldi": 5
+   }
+  },
+  "marshmallow fluff": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 9
+   }
+  },
+  "mexican blend cheese": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 11
+   }
+  },
+  "milk": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 11
+   }
+  },
+  "naan flatbreads": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 6
+   }
+  },
+  "olive oil": {
+   "store": "Schnucks",
+   "aisles": {
+    "Sams": 8
+   },
+   "staple": true
+  },
+  "onion powder": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "orzo": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 5
+   }
+  },
+  "paprika": {
+   "store": "Sams",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "parmesan": {
+   "store": "Aldi",
+   "aisles": {
+    "Aldi": 11,
+    "Costco": 8
+   }
+  },
+  "parmesan cheese": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "pasta sauce": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "pesto": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 5
+   }
+  },
+  "pico de gallo": {
+   "store": "Schnucks",
+   "aisles": {}
+  },
+  "pine nuts": {
+   "store": "Schnucks",
+   "aisles": {
+    "Grocery store": 9
+   }
+  },
+  "pink food coloring": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 9
+   }
+  },
+  "pinto beans": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "pork loin roast": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 12
+   }
+  },
+  "powdered sugar": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 9
+   },
+   "staple": true
+  },
+  "quinoa": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "red bell pepper": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "red enchilada sauce": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "red onion": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "red pepper flakes": {
+   "store": "Schnucks",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "red pesto": {
+   "store": "Aldi",
+   "aisles": {}
+  },
+  "rosemary": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 1
+   },
+   "staple": true
+  },
+  "salmon fillets": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 13
+   }
+  },
+  "salsa": {
+   "store": "Aldi",
+   "aisles": {
+    "Aldi": 6
+   }
+  },
+  "salt": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "salted butter": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 11
+   }
+  },
+  "serrano chile pepper": {
+   "store": "Schnucks",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "shallot": {
+   "store": "Schnucks",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "smoked paprika": {
+   "store": "Sams",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "sour cream": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 11
+   }
+  },
+  "soy sauce": {
+   "store": "Aldi",
+   "aisles": {
+    "Aldi": 7
+   },
+   "staple": true
+  },
+  "spaghetti": {
+   "store": "Aldi",
+   "aisles": {
+    "Aldi": 5
+   }
+  },
+  "spinach": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "sun-dried tomatoes": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "sweet peppers": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "taco seasoning": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "thyme": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 8
+   },
+   "staple": true
+  },
+  "tomato paste": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "tomato sauce": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "tomatoes": {
+   "store": "Aldi",
+   "aisles": {
+    "Grocery store": 1
+   }
+  },
+  "tortillas": {
+   "store": "Aldi",
+   "aisles": {
+    "Aldi": 6
+   }
+  },
+  "unsalted butter": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 11
+   }
+  },
+  "vanilla extract": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 9
+   },
+   "staple": true
+  },
+  "vegan mac and cheese": {
+   "store": "Schnucks",
+   "aisles": {}
+  },
+  "vegetable broth": {
+   "store": "Grocery store",
+   "aisles": {
+    "Grocery store": 7
+   }
+  },
+  "yellow onion": {
+   "store": "Aldi",
+   "aisles": {
+    "Aldi": 1
+   }
+  }
+ },
+ "appBuild": "2026-08-12 01:42 UTC · 67eeddd",
+ "appDataVersion": 3
+}
