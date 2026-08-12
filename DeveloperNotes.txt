@@ -781,6 +781,55 @@ rather than saving them for a cleanup that never gets scheduled.
     revoke everyone else's. The narrow grant would be "delete a token whose
     id equals the `invite` field on your own member record".
 
+51. UX EVALUATION — measured, not assessed. Driven in a real browser at 390px
+    and 320px against the REAL catalog (22 recipes, 146 ingredients) with four
+    dinners planned, not a fixture. Everything below is a number the page
+    reported about itself; nothing here is a matter of taste.
+    WHAT CAME BACK CLEAN, and is worth recording so nobody re-audits it:
+      - NO horizontal page overflow on any tab, at either width. The item 47
+        and 104 work held under the real catalog's longest names.
+      - NO clipped text at 390px anywhere.
+      - Settings is clean on every measure.
+
+    RANKED BY WHAT IT COSTS:
+
+    51a. THE MOST DESTRUCTIVE CONTROLS HAVE THE SMALLEST TARGETS. On
+        Ingredients, "Remove <store>" is 11x15px — removing a store is the
+        furthest-reaching action on that tab and it is a third the width of
+        the 44px a thumb reliably hits. "Delete <recipe>" on Meals is 21x24.
+        Both are destructive, both are the smallest things on their screen,
+        and both sit next to something harmless. Fix the size, or put them
+        behind the row's panel where the other editing lives.
+
+    51b. FOUR TEXT COLOURS FAIL WCAG AA (4.5:1 for body text):
+            "Done shopping"     4.09:1 @14px   (tomato on tomatoSoft)
+            "Start a new plan"  4.09:1 @14px   (same pair)
+            "4 sv"              4.15:1 @12px
+            "Easy" pill         4.26:1 @11px   (gold on goldSoft)
+        All are marginal, all are the soft-background pill treatments, and
+        two of them are the primary action on their tab. A shop is often the
+        worst lighting a phone gets used in. Darkening the ink rather than
+        lightening the background keeps the treatment.
+
+    51c. THE INGREDIENTS ROW SUBTITLE CLIPS AT 320px. "Grocery store · aisle
+        8" needs 132px and is given 108. The store name is what identifies
+        the row when scanning, and it is the half that gets cut.
+
+    51d. THE WEEK PLAN IS THREE-QUARTERS EMPTY ROWS. Four meal types x seven
+        days is 28 slots; a household that plans dinners uses 4-7 of them.
+        Sunday alone fills a screen to show one planned meal. 2.5 screens to
+        read four dinners. Collapsing empty slots, or showing only the meal
+        types actually in use, would make the tab scan in one screen.
+
+    51e. SCALE, for anyone sizing future work: at 390px the real catalog makes
+        Ingredients 9,614px (12 screens) and Meals 5,449px (6.8). That is
+        what back-to-top and the pinned tab bar exist for, and it is why
+        search on those tabs is not optional.
+
+    NOT MEASURED, and worth saying so: no VoiceOver pass, no one-handed reach
+    testing, no timing of a real shop. The tap-target and contrast numbers are
+    the mechanical floor, not the whole of usability.
+
 MEASURED AND DELIBERATELY NOT PROBLEMS
     Recorded so nobody optimises them on instinct.
       - Bundle at 253 KB / 76 KB gzipped. Firebase is already dynamically
