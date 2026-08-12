@@ -129,3 +129,50 @@ test("an ingredient's store and aisle are readable at 320px rather than cut off"
     await page.done();
   }
 });
+
+
+/* The search box was reported as blending in. On a paper-coloured page a
+   hairline border round a white box reads as decoration, and this is the one
+   control that makes a 12-screen tab navigable.
+
+   ASSERTED, not admired: it must be visibly distinct from the page it sits on
+   and carry a magnifier. Both are the change, and a later tidy-up that put it
+   back to `inputStyle` would leave every other test in the suite green. */
+
+const SEARCHES = [["Ingredients", "Search ingredients"], ["Meals", "Search meals or ingredients"]];
+
+for (const [tab, label] of SEARCHES) {
+  test(`the search box on ${tab} stands out from the page`, async () => {
+    const page = await openApp(BASE, { catalog: cleanCatalog() });
+    try {
+      await page.tab(tab);
+      await page.waitForTimeout(400);
+      const m = await page.evaluate((lab) => {
+        const el = document.querySelector(`input[aria-label="${lab}"]`);
+        if (!el) return { error: `no field labelled ${lab}` };
+        const cs = getComputedStyle(el);
+        const page = getComputedStyle(document.body).backgroundColor;
+        const parent = getComputedStyle(el.parentElement);
+        return {
+          background: cs.backgroundColor,
+          borderColor: cs.borderTopColor,
+          borderWidth: cs.borderTopWidth,
+          pageBackground: page,
+          fontSize: parseFloat(cs.fontSize),
+          // The magnifier is a sibling, positioned over the field's left pad.
+          glyph: (parent.position === "relative" ? el.parentElement.textContent : "").trim(),
+        };
+      }, label);
+      assert.ok(!m.error, m.error);
+      assert.notEqual(m.background, "rgba(0, 0, 0, 0)", `${tab}: the search box has no fill of its own`);
+      assert.notEqual(m.background, "rgb(255, 255, 255)", `${tab}: the search box is white on a near-white page`);
+      assert.equal(m.borderColor, "rgb(62, 107, 58)", `${tab}: the border is not the app's accent (C.green)`);
+      assert.match(m.glyph, /\u{1F50D}/u, `${tab}: no magnifier on the search box`);
+      // It is still a field, so item 61's rule applies to it too.
+      assert.ok(m.fontSize >= 16, `${tab}: the search box is ${m.fontSize}px and will zoom the page on iOS`);
+      assertNoPageErrors(page, assert);
+    } finally {
+      await page.done();
+    }
+  });
+}

@@ -2048,11 +2048,14 @@ one pass rather than a one-off.
     at 390x844 against the real catalog. STILL NOT A VOICEOVER PASS on a real
     iPhone, and the difference matters: this proves the app is not SILENT, not
     that it is pleasant to use by ear.
-      - SIX TEXT INPUTS HAD NO ACCESSIBLE NAME: both "Add …" fields on
-        Ingredients, "Add shopping item" on List, and all three search boxes.
-        A PLACEHOLDER IS NOT A NAME — VoiceOver falls back to it, but it is
-        gone the moment there is a value in the field, and "Add shopping item"
-        carries role="combobox", which announced nothing at all.
+      - THREE TEXT INPUTS HAD NO ACCESSIBLE NAME: both "Add …" fields on
+        Ingredients and "Add shopping item" on List. A PLACEHOLDER IS NOT A
+        NAME — VoiceOver falls back to it, but it is gone the moment there is
+        a value in the field, and "Add shopping item" carries role="combobox",
+        which announced nothing at all.
+        (Recorded as six at the time. The three SEARCH boxes already had
+        aria-labels and were never flagged by the audit; labels were added to
+        them anyway, which left a duplicate attribute on each. Removed.)
       - ZERO LIVE REGIONS IN THE ENTIRE APP. The sync status changes with
         nothing the user did — "Synced" to "Sync error — changes may not be
         saved" — so there is no reason to go and look at it, and every
@@ -2210,3 +2213,41 @@ one pass rather than a one-off.
     have missed exactly this. A rule that holds everywhere needs one test that
     looks everywhere, or it is only ever as good as the last place somebody
     remembered to check.
+
+62. [DONE] TWO REPORTS FROM REAL USE: the search box blended in, and a week
+    showing only Dinner needed a way to add a meal.
+
+    A. SEARCHFIELD, ONE DEFINITION FOR THREE COPIES. Meals, Ingredients and the
+    meal picker each carried the same twenty lines, already drifting — the
+    clear button sat at right:4 in two of them and right:20 in the third, and
+    the same field was labelled "Search meals" in one place and "Search meals
+    or ingredients" in another. It is also the control both long tabs are
+    unusable without: 12 screens of ingredients, 6.8 of meals.
+    IT MAKES A STATEMENT NOW, which is what was asked for. On a paper-coloured
+    page a hairline border round a white box reads as decoration. It carries
+    the app's own "this is interactive" language — the soft green fill and
+    green rule the selected tab already uses — plus a magnifier, the one glyph
+    nobody has to learn.
+    THE PLACEHOLDER COLOUR IS NOW NAMED. The browser default is around #757575,
+    which is 4.0:1 on that fill, under the 4.5 floor item 51b just fixed
+    everywhere else. `::placeholder` in App's style block, since a placeholder
+    cannot be styled inline. C.faint gives 4.72.
+
+    B. THE "+" IS PER DAY, AND THAT IS THE WHOLE POINT. Item 59 collapsed the
+    week to the meal types in use and put the rest behind one button at the top
+    reading "Add breakfast, lunch, dessert" — wordy, easy to miss, and GLOBAL:
+    it put three empty rows on all seven days so you could fill one, which is
+    most of the emptiness the collapse had just removed. "Add a meal" is a
+    thing you do to Tuesday.
+    Each day's heading now carries a 44px "+" (item 51a's rule — it is the
+    control the tab exists for), revealing that day's unused slots and nothing
+    else. Mutation-tested: the version that reveals every day fails with "only
+    Tuesday should have gained a Lunch row, found 7".
+    IT FOLLOWS slotsEditable like every other slot control, so on a week you
+    are already shopping for it sits behind Edit. A stray "+" cannot start
+    rearranging a plan you are buying against.
+    Still nothing stored: planning the meal is what makes its type stay.
+
+    The e2e helpers take the same step a person does — the day's "+", not a
+    global reveal. A test that routes around a new control stops describing the
+    app.

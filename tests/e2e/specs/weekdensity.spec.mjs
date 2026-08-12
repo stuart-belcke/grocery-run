@@ -36,14 +36,30 @@ const openWeek = async (state) => {
   return page;
 };
 
+/* Once a week has meals on it, planStageOf reports "shopping" and every slot
+   control sits behind the Edit toggle — a stray tap must not drop a meal you
+   are buying for. The "+" follows the same rule as every other slot control,
+   deliberately, so a test that wants it has to take the same step a person
+   does. */
+const startEditing = async (page) => {
+  const edit = page.locator("button").filter({ hasText: /^Edit$/ }).first();
+  if (await edit.count()) {
+    await edit.click();
+    await page.waitForTimeout(300);
+  }
+};
+
 // What the tab costs to read, and which type rows it is showing.
 const measure = (page) =>
   page.evaluate(() => ({
     height: document.body.scrollHeight,
     viewport: document.documentElement.clientHeight,
-    typeLabels: [...new Set([...document.querySelectorAll("span")]
-      .map((s) => s.textContent.trim())
-      .filter((t) => ["Breakfast", "Lunch", "Dinner", "Dessert"].includes(t)))],
+    // In MEAL_TYPES order, not DOM order: with one day expanded the first
+    // "Dinner" is drawn above that day's "Breakfast", and an order-sensitive
+    // assertion would be testing which day happens to come first.
+    typeLabels: ["Breakfast", "Lunch", "Dinner", "Dessert"].filter((t) =>
+      [...document.querySelectorAll("span")].some((s) => s.textContent.trim() === t)
+    ),
   }));
 
 test("a week of dinners shows dinner rows only, and fits in about a screen", async () => {
@@ -89,17 +105,45 @@ test("an empty week still offers somewhere to plan into", async () => {
   }
 });
 
-test("the meal types you don't plan are one tap away, and come back", async () => {
+test("the + on a day reveals its other meal slots, and only that day's", async () => {
+  /* PER DAY, which is the point of the control: "add a meal" is a thing you do
+     to Tuesday. A global reveal put three empty rows on all seven days to let
+     you fill one, which is most of the emptiness the collapse just removed. */
   const page = await openWeek(planWith(fourDinners));
   try {
-    // Unanchored: the button's text content carries JSX whitespace, which an
-    // anchored regex does not survive.
-    await page.clickText(/Add breakfast, lunch, dessert/i);
-    const shown = await measure(page);
-    assert.deepEqual(shown.typeLabels, ["Breakfast", "Lunch", "Dinner", "Dessert"], "revealing should show all four");
-    // And back, so it is a view toggle rather than a one-way door.
-    await page.clickText(/Just the meals you plan/i);
+    await startEditing(page);
+    await page.getByLabel("Add another meal to Tue").click();
+    await page.waitForTimeout(300);
+    assert.deepEqual((await measure(page)).typeLabels, ["Breakfast", "Lunch", "Dinner", "Dessert"], "the opened day should offer all four");
+
+    const rows = await page.evaluate(() =>
+      [...document.querySelectorAll("span")].filter((s) => s.textContent.trim() === "Lunch").length
+    );
+    assert.equal(rows, 1, `only Tuesday should have gained a Lunch row, found ${rows}`);
+
+    // And back, so it is a toggle rather than a one-way door.
+    await page.getByLabel("Hide the other meals for Tue").click();
+    await page.waitForTimeout(300);
     assert.deepEqual((await measure(page)).typeLabels, ["Dinner"]);
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("every day offers the +, and it is a thumb-sized target", async () => {
+  // Adding a meal is the tab's whole job; item 51a's 44px rule applies to the
+  // control that does it.
+  const page = await openWeek(planWith(fourDinners));
+  try {
+    await startEditing(page);
+    const boxes = await page.evaluate(() =>
+      [...document.querySelectorAll("button")]
+        .filter((b) => /^Add another meal to /.test(b.getAttribute("aria-label") || ""))
+        .map((b) => ({ label: b.getAttribute("aria-label"), w: Math.round(b.getBoundingClientRect().width), h: Math.round(b.getBoundingClientRect().height) }))
+    );
+    assert.equal(boxes.length, 7, `every day should offer a +, found ${boxes.length}`);
+    for (const b of boxes) assert.ok(b.w >= 44 && b.h >= 44, `"${b.label}" is ${b.w}x${b.h}px`);
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

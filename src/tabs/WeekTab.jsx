@@ -6,7 +6,7 @@
 
 import { useMemo, useState } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
-import { Stripe, Btn, ConfirmDialog } from "../ui";
+import { Stripe, Btn, ConfirmDialog, SearchField } from "../ui";
 import { MEAL_TYPES, planTypesInUse, norm, planStageOf, plannedMealCount, daysInOrder, asArray, unplannedMeals, r2 } from "../lib";
 
 export function WeekTab({ data, update, isGuest }) {
@@ -25,9 +25,21 @@ export function WeekTab({ data, update, isGuest }) {
   const [unplannedOpen, setUnplannedOpen] = useState(false); // "Unplanned meals" disclosure
   // Item 51d. View state only — nothing about which types you PLAN is stored,
   // because planning one is what makes it stay.
-  const [showAllTypes, setShowAllTypes] = useState(false);
+  /* Which days have been opened up to their unused meal types. PER DAY, and a
+     Set rather than one flag, because "add a meal" is a thing you do to
+     Tuesday — a global toggle put three empty rows on all seven days to let
+     you fill one. View state only: planning the meal is what makes its type
+     stay, so there is nothing to store. */
+  const [expandedDays, setExpandedDays] = useState(() => new Set());
   const typesInUse = planTypesInUse(data.plan);
-  const shownTypes = showAllTypes ? MEAL_TYPES : typesInUse;
+  const typesFor = (day) => (expandedDays.has(day) ? MEAL_TYPES : typesInUse);
+  const toggleDay = (day) =>
+    setExpandedDays((prev) => {
+      const next = new Set(prev);
+      if (next.has(day)) next.delete(day);
+      else next.add(day);
+      return next;
+    });
 
   // Where the week is in its cycle, and what each stage lets you do.
   const stage = planStageOf(data);
@@ -290,20 +302,9 @@ export function WeekTab({ data, update, isGuest }) {
 
       {/* Item 51d: 4 meal types x 7 days is 28 slots and a household that plans
           dinners fills 4-7 — 2.5 screens to read four dinners. Only the types
-          actually in use get a row, with the rest one tap away. `showAllTypes`
-          is view state, not stored: planning a breakfast puts Breakfast in use,
-          so it stays visible on its own from then on. */}
-      {/* typesInUse, NOT shownTypes: keyed to the toggle, the control removed
-          itself the moment it was used and the extra rows became a one-way
-          door for the rest of the session. */}
-      {recipesSorted.length > 0 && typesInUse.length < MEAL_TYPES.length && (
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
-          <Btn small onClick={() => setShowAllTypes((v) => !v)}>
-            {showAllTypes ? "Just the meals you plan" : `Add ${MEAL_TYPES.filter((t) => !typesInUse.includes(t)).join(", ").toLowerCase()}`}
-          </Btn>
-        </div>
-      )}
-
+          actually in use get a row; the "+" on each day reveals the rest for
+          THAT day. Nothing about it is stored — planning a breakfast is what
+          makes Breakfast stay, on every day, from then on. */}
       {recipesSorted.length === 0 ? (
         <div style={{ textAlign: "center", padding: "48px 16px", color: C.faint, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12 }}>
           Add some meals on the Meals tab first, then plan them here.
@@ -320,8 +321,36 @@ export function WeekTab({ data, update, isGuest }) {
                 <div style={{ flex: 1 }}>
                   <Stripe />
                 </div>
+                {/* The way to add a second meal to a day whose other slots are
+                    hidden. A "+" rather than a sentence: it is the one glyph
+                    that needs no label, it belongs to the DAY it sits on, and
+                    it is 44px so a thumb can hit it (item 51a). Only on days
+                    that have something left to reveal. */}
+                {slotsEditable && typesInUse.length < MEAL_TYPES.length && (
+                  <button
+                    onClick={() => toggleDay(day)}
+                    aria-expanded={expandedDays.has(day)}
+                    aria-label={expandedDays.has(day) ? `Hide the other meals for ${day}` : `Add another meal to ${day}`}
+                    title={expandedDays.has(day) ? "Hide the empty meal slots" : "Add another meal to this day"}
+                    style={{
+                      width: 44,
+                      height: 44,
+                      flexShrink: 0,
+                      marginRight: -8,
+                      border: "none",
+                      background: "transparent",
+                      color: C.green,
+                      cursor: "pointer",
+                      fontSize: 22,
+                      lineHeight: 1,
+                      fontFamily: fontBody,
+                    }}
+                  >
+                    {expandedDays.has(day) ? "\u2212" : "+"}
+                  </button>
+                )}
               </div>
-              {shownTypes.map((type) => {
+              {typesFor(day).map((type) => {
                 const slot = data.plan?.[day]?.[type];
                 const recipe = slot?.recipeId ? data.recipes.find((r) => r.id === slot.recipeId) : null;
                 const base = recipe ? recipe.servings || 4 : 4;
@@ -517,31 +546,15 @@ export function WeekTab({ data, update, isGuest }) {
                 ✕
               </button>
             </div>
-            <div style={{ padding: "0 16px 10px", position: "relative" }}>
-              <input
+            <div style={{ padding: "0 16px 10px" }}>
+              <SearchField
                 autoFocus
-                aria-label="Search meals" placeholder="Search meals or ingredients"
                 value={pickQuery}
-                onChange={(e) => setPickQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") {
-                    if (pickQuery) setPickQuery("");
-                    else setPicker(null);
-                  }
-                }}
-                aria-label="Search meals"
-                style={{ ...inputStyle, width: "100%", boxSizing: "border-box", paddingRight: 28 }}
+                onChange={setPickQuery}
+                onEscape={() => setPicker(null)}
+                label="Search meals"
+                placeholder="Search meals or ingredients"
               />
-              {pickQuery && (
-                <button
-                  onClick={() => setPickQuery("")}
-                  title="Clear search"
-                  aria-label="Clear search"
-                  style={{ position: "absolute", right: 20, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 4 }}
-                >
-                  ✕
-                </button>
-              )}
             </div>
             <div style={{ overflowY: "auto", padding: "0 8px 8px" }}>
               {activeSlotRecipeId && (

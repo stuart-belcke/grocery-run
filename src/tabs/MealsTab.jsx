@@ -5,7 +5,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
-import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop, SuggestInput } from "../ui";
+import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop, SuggestInput, SearchField } from "../ui";
 import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, ingredientNames, normalizeCfg, ingredientMatches, existingIngredientSuggestions, unitMatches, ensureIngredientId, asArray, planSlotsFor, parseRecipeText } from "../lib";
 import { RecipeDetail } from "../RecipeDetail";
 
@@ -438,26 +438,13 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
           unusable. */}
       <StickyBar>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
-          <input
-            aria-label="Search meals" placeholder="Search meals or ingredients"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Escape" && setQuery("")}
-            aria-label="Search meals or ingredients"
-            style={{ ...inputStyle, width: "100%", boxSizing: "border-box", paddingRight: 28 }}
-          />
-          {query && (
-            <button
-              onClick={() => setQuery("")}
-              title="Clear search"
-              aria-label="Clear search"
-              style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 4 }}
-            >
-              ✕
-            </button>
-          )}
-        </div>
+        <SearchField
+          style={{ flex: 1, minWidth: 0 }}
+          value={query}
+          onChange={setQuery}
+          label="Search meals or ingredients"
+          placeholder="Search meals or ingredients"
+        />
         <div style={{ position: "relative", flexShrink: 0 }}>
           <button
             onClick={() => setFilterOpen((v) => !v)}

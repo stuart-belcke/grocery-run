@@ -6,7 +6,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
-import { Btn, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop , SuggestInput} from "../ui";
+import { Btn, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop, SearchField, SuggestInput } from "../ui";
 import { UNASSIGNED, norm, cap, r2, aisleKey, aisleFor, normalizeCfg, ingredientNames, unitMatches, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient, ensureIngredientId, ingredientIdByName, mergeIngredients, setIngredientCfg, planIngredientRename } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
@@ -341,26 +341,13 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                 occasional, and two pinned bands would eat the screen. */}
             <StickyBar>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
-                <input
-                  aria-label="Search ingredients" placeholder="Search ingredients"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === "Escape" && setQuery("")}
-                  aria-label="Search ingredients"
-                  style={{ ...inputStyle, width: "100%", boxSizing: "border-box", paddingRight: 28 }}
-                />
-                {query && (
-                  <button
-                    onClick={() => setQuery("")}
-                    title="Clear search"
-                    aria-label="Clear search"
-                    style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 4 }}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
+              <SearchField
+                style={{ flex: 1, minWidth: 0 }}
+                value={query}
+                onChange={setQuery}
+                label="Search ingredients"
+                placeholder="Search ingredients"
+              />
 
               {/* Store + staples live behind one Filter button, with a count of
                   what's active so it's obvious the list is narrowed. */}

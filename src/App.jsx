@@ -673,6 +673,10 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Space+Grotesk:wght@400;500;700&display=swap');
         input, select, textarea { font-family: ${fontBody}; color: ${C.ink}; }
+        /* The browser default is around #757575, which is 4.0:1 on the search
+           field's soft-green fill — under the 4.5 body-text floor. Named here
+           because a placeholder cannot be styled inline. */
+        ::placeholder { color: ${C.faint}; opacity: 1; }
         input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid ${C.green}; outline-offset: 1px; }
       `}</style>
 
