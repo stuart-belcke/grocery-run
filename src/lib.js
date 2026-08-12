@@ -208,7 +208,11 @@ export function pickDisplayUnit(units, baseQty, bySys, unitsPref) {
 // keeps "2 can" and "1 bunch" separate and untouched.
 export function groupPartsByDimension(parts) {
   const groups = new Map();
-  for (const [unit, qty] of Object.entries(parts || {})) {
+  for (const [key, qty] of Object.entries(parts || {})) {
+    // One of the two places the stored unit key becomes a unit again. `bought`
+    // keys unitless amounts by NO_UNIT_KEY because "" is not a legal database
+    // key; everything above this line has always worked in units.
+    const unit = unitFromKey(key);
     const info = unitInfo(unit);
     const gk = info ? `dim:${info.dim}` : `raw:${unit}`;
     if (!groups.has(gk)) groups.set(gk, { units: [], base: 0, bySys: {}, convertible: !!info });
@@ -399,6 +403,37 @@ export const keyForName = (s) => safeKey(norm(s)) || "item";
    outcome than a household whose catalog silently stops saving. */
 export const aisleKey = (store) => safeKey(store == null ? "" : store);
 
+/* THE UNIT AS A DATABASE KEY, and the one that was actually breaking a shop.
+
+   `bought` — what an earlier trip already covered — is keyed by ingredient and
+   then BY UNIT: { ing_x: { lb: 2 } }. A unitless item, which is most of a
+   list ("Lemon · 1", "Large potatoes · 4"), has the unit "", and RTDB refuses
+   an empty key as firmly as it refuses `.`:
+
+     update failed: values argument contains an invalid key ()
+     in property '...state.list.bought.ing_3jskfrr8'.
+     Keys must be non-empty strings
+
+   Reproduced against the real firebase package with the paths diffPaths
+   actually produces. That is why "check everything off, then Done shopping"
+   broke sync twice with nothing else in common: `bought` is written at Done
+   shopping and nowhere else, and one unitless item is enough. Everything after
+   it fails too, because a failed write keeps its baseline.
+
+   THE STORED SHAPE IS THE STORABLE ONE, and the translation happens on the two
+   reads that care — groupPartsByDimension and qtyLabel, which are already the
+   single funnels for "what unit is this". Translating at the sync seam instead
+   would mean the write baseline and the in-memory state disagreed about their
+   own shape, which is a subtler bug than the one being fixed.
+
+   THE SENTINEL IS "_", and it could in principle collide with somebody typing
+   `_` as a unit. That is not a case worth a mechanism: unitInfo has never
+   known it, so it has never been a unit that adds up with anything, and an
+   accepted collision here beats a second shape to keep in step. */
+export const NO_UNIT_KEY = "_";
+export const unitKeyFor = (u) => safeKey(String(u == null ? "" : u).trim()) || NO_UNIT_KEY;
+export const unitFromKey = (k) => (k === NO_UNIT_KEY ? "" : String(k == null ? "" : k));
+
 /* Heals keys that are already in a device's cached state. A phone that hit
    this is stuck until its own copy is fixed, and the database never received
    the bad key — the write failed — so there is no shared copy to diverge
@@ -485,6 +520,23 @@ export function formatCatalog(out) {
 // An ingredient config is { store: defaultStore, aisles: { storeName: number } }.
 // Older data used a single { store, aisle }; normalizeCfg upgrades it so the
 // legacy aisle becomes that store's entry in the aisles map.
+/* Every `bought` entry's unit keys, made storable. Merges rather than
+   overwrites, because "" and "_" both mean "no unit" and a phone that wrote
+   one before this shipped can hold both. */
+const boughtUnits = (obj) => {
+  const out = {};
+  for (const [key, parts] of Object.entries(obj && typeof obj === "object" ? obj : {})) {
+    if (!parts || typeof parts !== "object") { out[key] = parts; continue; }
+    const merged = {};
+    for (const [u, q] of Object.entries(parts)) {
+      const k = unitKeyFor(u);
+      merged[k] = r2((Number(merged[k]) || 0) + (Number(q) || 0));
+    }
+    out[key] = merged;
+  }
+  return out;
+};
+
 // Every aisles map goes through aisleKey on the way in, so one written by a
 // build that keyed it by the raw store name reads back the same either way,
 // and one holding a key the database refuses is healed rather than re-sent.
@@ -498,7 +550,10 @@ export function normalizeCfg(cfg) {
   if (!cfg) return { store: UNASSIGNED, aisles: {}, staple: false };
   if (cfg.aisles) return { store: cfg.store || UNASSIGNED, aisles: keyedAisles(cfg.aisles), staple: !!cfg.staple };
   const aisles = {};
-  if (cfg.aisle !== undefined && cfg.aisle !== null && cfg.aisle !== "" && cfg.store) {
+  // isFinite, not just "not empty": Number("aisle 4") is NaN, and the database
+  // refuses NaN with the same permanent failure an illegal key gets. Legacy
+  // data is the only source, which is exactly the data nobody is watching.
+  if (cfg.aisle !== undefined && cfg.aisle !== null && cfg.aisle !== "" && cfg.store && Number.isFinite(Number(cfg.aisle))) {
     aisles[aisleKey(cfg.store)] = Number(cfg.aisle);
   }
   return { store: cfg.store || UNASSIGNED, aisles, staple: !!cfg.staple };
@@ -912,13 +967,24 @@ export function normalizeLocal(raw) {
       overrides: withSafeKeys(d.list && d.list.overrides),
       checked: withSafeKeys(d.list && d.list.checked, (a, b) => a || b),
       extras: withSafeKeys(asKeyed(d.list && d.list.extras, (e) => keyForName(e.name))),
-      bought: withSafeKeys(d.list && d.list.bought, (a, b) => {
+      /* boughtUnits heals the INNER keys — the units — which is where the
+         empty one lives. A phone that ran Done shopping on the broken build
+         has `bought: { ing_x: { "": 4 } }` sitting in its cache, and it is
+         re-sent and refused on every write until this rewrites it. */
+      bought: boughtUnits(withSafeKeys(d.list && d.list.bought, (a, b) => {
         const out = { ...asObject(a) };
         for (const [u, q] of Object.entries(asObject(b))) out[u] = r2((Number(out[u]) || 0) + (Number(q) || 0));
         return out;
-      }),
+      })),
     },
-    plan: asObject(d.plan),
+    /* The week plan is keyed by day and then by meal type, both of which come
+       from DAYS and MEAL_TYPES rather than from anything typed — so this is
+       belt and braces, not a known failure. It costs two lines and closes the
+       one route that could ever put something else there: an imported backup,
+       which is a hand-editable file. */
+    plan: withSafeKeys(
+      Object.fromEntries(Object.entries(asObject(d.plan)).map(([day, slots]) => [day, withSafeKeys(slots)]))
+    ),
     stapleNeeds: withSafeKeys(d.stapleNeeds, (a, b) => a || b),
   };
 }
@@ -2129,9 +2195,10 @@ export function aggregateItems(data) {
 }
 
 export function qtyLabel(parts) {
+  // The other one. Reads `bought` directly, so it sees the stored key.
   return Object.entries(parts)
     .filter(([, q]) => q > 0)
-    .map(([u, q]) => (u ? `${r2(q)} ${u}` : `${r2(q)}`))
+    .map(([k, q]) => { const u = unitFromKey(k); return u ? `${r2(q)} ${u}` : `${r2(q)}`; })
     .join(" + ");
 }
 

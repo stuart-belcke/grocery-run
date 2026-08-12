@@ -109,6 +109,77 @@ test("ticking and banking a punctuated item keeps every key storable", async () 
   }
 });
 
+/* THE ONE THAT WAS ACTUALLY BREAKING A SHOP, reported twice with the same
+   sequence and nothing else in common: check everything off, press Done
+   shopping, sync breaks.
+
+   `bought` is keyed by ingredient and then BY UNIT, and a unitless item —
+   "Lemon · 1", "Large potatoes · 4", most of a real list — has the unit "".
+   An empty key is refused as firmly as a ".":
+
+     update failed: values argument contains an invalid key ()
+     in property '...state.list.bought.ing_3jskfrr8'
+
+   Done shopping is the only thing that writes `bought`, which is why that one
+   press is where it always appeared, and why everything after it failed too.
+
+   The unit travels inside a written VALUE rather than as a path segment, which
+   is exactly what the first version of the planWrite test missed. */
+
+const allBoughtUnits = (state) => Object.values(state.list.bought || {}).flatMap((p) => Object.keys(p || {}));
+
+test("a unitless item can be banked, and the whole state stays writable", async () => {
+  const page = await openApp(BASE, { catalog: cleanCatalog() });
+  try {
+    // Deliberately no unit: this is what typing a name and pressing Add gives.
+    await addAdHoc(page, "Lemons");
+    await page.locator('li input[type="checkbox"]').first().check();
+    await page.waitForTimeout(400);
+    await page.clickText(/^Done shopping$/);
+    const dialog = page.locator("button").filter({ hasText: /^Done shopping$/ }).last();
+    if (await dialog.count()) await dialog.click();
+    await page.waitForTimeout(500);
+    await page.roundTrip();
+
+    const state = await page.readState();
+    const units = allBoughtUnits(state);
+    assert.ok(units.length > 0, "Done shopping banked nothing — the test is not exercising the write");
+    for (const u of units) {
+      assert.notEqual(u, "", `bought is keyed by "" — the database refuses that, and every write after it fails too`);
+      assert.doesNotMatch(u, REFUSED, `bought is keyed "${u}", which the database refuses`);
+    }
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("what was banked without a unit still reads back as a plain number", async () => {
+  // The sentinel must not reach the screen, and the amount must still suppress
+  // the item — a fix that stored a key nothing matched would pass the test
+  // above and quietly stop the cupboard working.
+  const page = await openApp(BASE, { catalog: cleanCatalog() });
+  try {
+    await addAdHoc(page, "Lemons");
+    await page.locator('li input[type="checkbox"]').first().check();
+    await page.waitForTimeout(400);
+    await page.clickText(/^Done shopping$/);
+    const dialog = page.locator("button").filter({ hasText: /^Done shopping$/ }).last();
+    if (await dialog.count()) await dialog.click();
+    await page.waitForTimeout(500);
+    await page.roundTrip();
+
+    await page.tab("List");
+    await page.clickText(/already bought this week/);
+    const body = await page.textContent("body");
+    assert.match(body, /Lemons · 1(?!\d)/, `the banked amount should read as a plain number, got: ${body.slice(body.indexOf("Lemons") - 20, body.indexOf("Lemons") + 40)}`);
+    assert.doesNotMatch(body, /Lemons · 1 _/, "the storage sentinel is being shown as a unit");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
 /* The same class in the CATALOG rather than the state: an ingredient's aisles
    are keyed by the store's name, so a household shopping at "H.E.B." would
    have had every catalog write refused — the recipes and ingredients simply

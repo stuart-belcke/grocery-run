@@ -6,7 +6,7 @@
 import { useState, useMemo, useRef } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop, SuggestInput } from "../ui";
-import { UNASSIGNED, keyForName, aisleKey, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg } from "../lib";
+import { UNASSIGNED, keyForName, aisleKey, unitKeyFor, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg } from "../lib";
 
 export function ListTab({ data, update, updateCatalog, isGuest }) {
   const [view, setView] = useState("store");
@@ -204,7 +204,13 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
       const bought = { ...d.list.bought };
       for (const [key, parts] of Object.entries(banked)) {
         const merged = { ...(typeof bought[key] === "object" ? bought[key] : {}) };
-        for (const [u, q] of Object.entries(parts)) merged[u] = r2((merged[u] || 0) + q);
+        // unitKeyFor: `parts` is keyed by unit, and a unitless item's unit is
+        // "" — not a legal database key, and enough to break every write from
+        // this one onwards. Most of a list is unitless.
+        for (const [u, q] of Object.entries(parts)) {
+          const k = unitKeyFor(u);
+          merged[k] = r2((merged[k] || 0) + q);
+        }
         if (Object.keys(merged).length) bought[key] = merged;
       }
       // A store reroute is only meaningful while its item is still listed.

@@ -1888,3 +1888,97 @@ one pass rather than a one-off.
     tests assert on the PERSISTED state, because a fix that only stopped
     rendering these would leave a list quietly subtracting quantities that
     belong to ingredients nobody can name.
+
+55. [DONE] THE ACTUAL CAUSE: A UNITLESS ITEM COULD NOT BE BANKED. Reported
+    twice, weeks apart, with the same sequence and nothing else in common —
+    "checked off a bunch of stuff, hit Done shopping, came back later" and
+    "checked everything off, then hit done shopping and the sync broke".
+
+    `bought` is keyed by ingredient AND THEN BY UNIT: { ing_x: { lb: 2 } }. A
+    unitless item — "Lemon · 1", "Large potatoes · 4", which is most of a real
+    list — has the unit "", and an empty string is not a legal RTDB key.
+    Reproduced against the real firebase package, driving the paths diffPaths
+    actually produces:
+      update failed: values argument contains an invalid key ()
+      in property '...state.list.bought.ing_3jskfrr8'.
+      Keys must be non-empty strings
+    Done shopping is the ONLY thing that writes `bought`, which is why that one
+    press is where it always appeared, and — since a failed write keeps its
+    baseline (item 21) — why nothing after it could succeed either.
+
+    THE ITEM-NAME BUG (53) WAS REAL BUT WAS NOT THIS. Their household's
+    catalog has no refused character in any of 146 ingredient names, 5 stores
+    or any unit. The empty unit needs no unusual data at all: every household
+    hits it the first time it finishes a shop with one unitless item on the
+    list.
+
+    THE TEST THAT SHOULD HAVE CAUGHT IT DID NOT, and that is the lesson worth
+    keeping. Item 53's planWrite test checked the PATH SEGMENTS of everything a
+    flush sends — and passed, every run, on the build that was breaking a shop
+    every week. `bought` is written as one object per ingredient, so the unit
+    keys travel INSIDE A VALUE, never as a segment. Firebase validates those
+    exactly as strictly. The test now walks the values too, which is the
+    version that fails on the old build.
+
+    THE STORED SHAPE IS THE STORABLE ONE. unitKeyFor turns "" into NO_UNIT_KEY
+    on the way in; the two reads that care — groupPartsByDimension and
+    qtyLabel, already the single funnels for "what unit is this" — turn it back.
+    Translating at the sync seam instead was considered and rejected: the write
+    baseline and the in-memory state would then disagree about their own shape,
+    which is a subtler bug than the one being fixed.
+    THE SENTINEL IS "_" and could collide with somebody typing `_` as a unit.
+    Not a case worth a mechanism: unitInfo has never known it, so it has never
+    added up with anything.
+    HEALING IS THE OTHER HALF. Every phone that pressed Done shopping on the
+    broken build has `{ "": 4 }` in its cache and is re-sending it on every
+    write; normalizeLocal rewrites it, and merges rather than overwrites, since
+    a household mid-upgrade can hold both "" and "_" for one ingredient.
+    THE SUPPRESSION IS WHAT THE FIX COULD HAVE BROKEN QUIETLY: a stored key
+    that no longer matched the need would make every write succeed and the
+    cupboard silently stop working. That has its own test, in both directions.
+
+    Three mutations, each caught by a different test: the raw unit written
+    again (1 browser test), the healing removed (2 unit tests), and the
+    sentinel never mapped back (2 unit tests — display and suppression).
+
+56. [DONE] THE STANDING KEY AUDIT, and the sweep that produced it. Item 55
+    shipped past a test written to prevent exactly it, so the question was no
+    longer "is this one fixed" but "what else is there".
+
+    EVERY DYNAMIC KEY THE APP CAN WRITE, walked by hand and then pinned by a
+    test. Both nodes go through planWrite, so one audit covers everything:
+      state/list/{checked,overrides,extras,bought}, stapleNeeds
+                              ingredient keys — keyForName / minted ids  [55/53]
+      state/list/bought/*/*   THE UNIT — the one that was breaking shops  [55]
+      state/list/selections   recipe ids: uid(), or the shipped file
+      state/plan/*/*          DAYS and MEAL_TYPES constants; now healed anyway,
+                              because an imported backup is hand-editable
+      catalog/ingredients/*   minted ing_ ids
+      catalog/ingredients/*/aisles/*   STORE NAME — aisleKey             [53]
+      catalog/recipes/*       uid(), or the shipped file
+      catalog/stores, recipes/*/ingredients   arrays, written atomically
+      members/$uid, invites/$token, users/$uid, $code   uid / generated / cleanCode
+    Nothing else in the app writes a key it did not mint or derive.
+
+    THE AUDIT TEST IS THE POINT, not the sweep — a sweep is only true on the
+    day it is done. Three things it does that the item-53 test did not:
+      - IT WALKS VALUES, NOT JUST PATHS. `bought` is written as one object per
+        ingredient, so its unit keys never appear as a path segment. That is
+        precisely why item 55 was invisible for weeks.
+      - IT COVERS BOTH WRITE SHAPES. planWrite returns an `update` once there
+        is a baseline and a `set` — the WHOLE node — before there is one,
+        which is the first write of every session.
+      - IT CHECKS UNWRITABLE VALUES TOO. Verified against the real firebase
+        package: NaN, Infinity, undefined and functions all throw with the
+        same permanent-failure shape as an illegal key. -0 and Date are
+        accepted. Every Number() in the app was checked; all are guarded by a
+        `> 0` or `=== ""` test except normalizeCfg's legacy `aisle`, where
+        Number("aisle 4") is NaN — now dropped rather than written.
+    It also audits the SHIPPED public/catalog.json, which is hand-edited and
+    pasted back by "Restore starter catalog": a store name or recipe id typed
+    into that file with a "." in it would break every catalog write for every
+    household on the next release.
+    The test asserts its own control — that it still FAILS on a raw empty key
+    and on a NaN — because an audit that cannot fail is worse than none.
+    Mutation: reverting keyForName, unitKeyFor and aisleKey together fails 9
+    tests, the audit among them, naming the empty key at its exact path.
