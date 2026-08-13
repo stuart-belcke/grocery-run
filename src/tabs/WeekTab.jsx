@@ -574,7 +574,7 @@ export function WeekTab({ data, update, isGuest }) {
                 onChange={setPickQuery}
                 onEscape={() => setPicker(null)}
                 label="Search meals"
-                placeholder="Search meals or ingredients"
+                placeholder="Search"
               />
             </div>
             <div style={{ overflowY: "auto", padding: "0 8px 8px" }}>

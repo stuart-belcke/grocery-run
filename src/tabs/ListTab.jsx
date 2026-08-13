@@ -714,7 +714,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
           <div style={{ display: "flex", gap: 8, flexWrap: "nowrap", alignItems: "center" }}>
           <div style={{ position: "relative", flex: 1, minWidth: 92 }}>
             <input
-              aria-label="Add shopping item" placeholder="Add shopping item (e.g. paper towels)"
+              aria-label="Add shopping item" placeholder="Add an item"
               value={extra.name}
               ref={nameRef}
               onChange={(e) => {

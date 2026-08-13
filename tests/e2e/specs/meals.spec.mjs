@@ -201,7 +201,7 @@ test("SHOULD: pasting a recipe fills in the add-meal form, and the parsed ingred
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
     await page.tab("Meals");
-    await page.getByRole("button", { name: /^Add$/ }).click();
+    await page.getByRole("button", { name: /^Add a meal$/ }).click();
     await page.waitForTimeout(300);
 
     await page.getByRole("button", { name: /Paste a recipe to fill this in/ }).click();
@@ -235,7 +235,7 @@ test("SHOULD: pasting into a draft that already has a name and ingredients adds 
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
     await page.tab("Meals");
-    await page.getByRole("button", { name: /^Add$/ }).click();
+    await page.getByRole("button", { name: /^Add a meal$/ }).click();
     await page.waitForTimeout(300);
     await page.getByPlaceholder("Meal name").fill("My Custom Meal");
     await page.getByPlaceholder("Ingredient", { exact: true }).first().fill("Butter");

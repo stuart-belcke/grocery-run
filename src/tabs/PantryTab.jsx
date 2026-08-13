@@ -308,7 +308,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
           ))}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <input aria-label="Add a store" placeholder="Add a store (e.g. Aldi)" value={newStore} onChange={(e) => setNewStore(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addStore()} style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
+          <input aria-label="Add a store" placeholder="Store name" value={newStore} onChange={(e) => setNewStore(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addStore()} style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
           <Btn kind="primary" onClick={addStore}>Add store</Btn>
         </div>
       </div>
@@ -329,7 +329,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
             List tab. */}
         {!isGuest && (
         <div style={{ display: "flex", gap: 8, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 10, padding: 10 }}>
-          <input aria-label="Add an ingredient" placeholder="Add an item (e.g. coffee, paper towels)" value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addItem()} style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
+          <input aria-label="Add an ingredient" placeholder="Item name" value={newItem} onChange={(e) => setNewItem(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addItem()} style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
           <Btn kind="primary" onClick={addItem}>Add item</Btn>
         </div>
         )}
@@ -346,7 +346,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                 value={query}
                 onChange={setQuery}
                 label="Search ingredients"
-                placeholder="Search ingredients"
+                placeholder="Search"
               />
 
               {/* Store + staples live behind one Filter button, with a count of

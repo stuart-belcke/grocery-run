@@ -72,3 +72,43 @@ for (const width of [320, 390]) {
     });
   }
 }
+
+test("no placeholder is wider than the field it sits in", async () => {
+  /* A placeholder that overflows does not widen anything or scroll the page —
+     it is simply cut off, so the sweep above cannot see it. "Search meals or
+     ingredients" rendered as "Search meals or ingre" on the Meals tab and
+     nothing failed.
+     Measured in the FIELD'S OWN FONT against the room inside its padding: the
+     magnifier and the clear button take 62px of a search box, which is most of
+     why it did not fit. */
+  for (const width of [320, 390]) {
+    const page = await openApp(BASE, { catalog: smallCatalog(), state: busy() });
+    try {
+      await page.setViewportSize({ width, height: 844 });
+      const cut = [];
+      for (const tab of TABS) {
+        await page.tab(tab);
+        await page.waitForTimeout(400);
+        cut.push(...await page.evaluate((where) =>
+          [...document.querySelectorAll("input[placeholder], textarea[placeholder]")]
+            .filter((el) => el.getBoundingClientRect().width > 0)
+            .map((el) => {
+              const cs = getComputedStyle(el);
+              const probe = document.createElement("span");
+              probe.style.cssText = `position:absolute;visibility:hidden;white-space:nowrap;font:${cs.font}`;
+              probe.textContent = el.placeholder;
+              document.body.appendChild(probe);
+              const needs = Math.round(probe.getBoundingClientRect().width);
+              probe.remove();
+              const room = Math.round(el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight));
+              return needs > room ? `${where}: "${el.placeholder}" needs ${needs}px, has ${room}` : null;
+            })
+            .filter(Boolean), tab));
+      }
+      assert.deepEqual(cut, [], `placeholders cut off at ${width}px`);
+      assertNoPageErrors(page, assert);
+    } finally {
+      await page.done();
+    }
+  }
+});

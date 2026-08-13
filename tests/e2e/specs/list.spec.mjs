@@ -9,11 +9,11 @@ const BASE = process.env.E2E_BASE_URL;
 
 const addFromList = async (page, name) => {
   await page.tab("List");
-  await page.locator('input[placeholder*="Add shopping item" i]').first().fill(name);
+  await page.getByLabel("Add shopping item").first().fill(name);
   await page.waitForTimeout(300);
   const add = page.locator("button").filter({ hasText: /^Add$/ }).first();
   if (await add.count()) await add.click();
-  else await page.locator('input[placeholder*="Add shopping item" i]').first().press("Enter");
+  else await page.getByLabel("Add shopping item").first().press("Enter");
   await page.waitForTimeout(500);
 };
 

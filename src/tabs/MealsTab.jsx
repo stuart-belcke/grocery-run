@@ -429,9 +429,22 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
 
   return (
     <div>
-      {/* Search + one Filter button + the primary action, matching the
-          Ingredients tab. Sort and the Easy filter live inside the popover so
-          the row stays on a single line at phone widths.
+      {/* ADD SITS ABOVE, PINNED ROW IS SEARCH + FILTER — the same split the
+          Ingredients tab already had. Three controls on one line squeezed the
+          search box until its placeholder read "Search meals or ingre", and
+          adding a meal is occasional where finding one is what you do while
+          scrolling. Not inside the StickyBar for that reason: two pinned bands
+          would eat the screen.
+
+          A guest cannot add a recipe, so the band is theirs to not have. */}
+      {!isGuest && (
+        <div style={{ display: "flex", marginBottom: 10 }}>
+          <Btn kind="primary" onClick={startNew}>Add a meal</Btn>
+        </div>
+      )}
+
+      {/* Sort and the Easy filter live inside the popover so this row stays on
+          a single line at phone widths.
 
           Pinned: at three hundred recipes you scroll a long way, and having to
           scroll back to reach the search box is what makes a list that size
@@ -443,7 +456,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
           value={query}
           onChange={setQuery}
           label="Search meals or ingredients"
-          placeholder="Search meals or ingredients"
+          placeholder="Search"
         />
         <div style={{ position: "relative", flexShrink: 0 }}>
           <button
@@ -512,7 +525,6 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
             cannot make. Hidden rather than disabled: a greyed-out button asks
             "how do I un-grey it?", and the answer isn't something they can do.
             Adding a meal to the LIST stays — that is a list write. */}
-        {!isGuest && <Btn kind="primary" onClick={startNew} style={{ flexShrink: 0 }}>Add</Btn>}
       </div>
       </StickyBar>
       <p style={{ margin: "0 0 12px", fontSize: 13, color: C.faint }}>

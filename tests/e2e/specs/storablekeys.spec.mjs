@@ -36,11 +36,11 @@ const REFUSED = /[.#$[\]]/;
 
 const addAdHoc = async (page, name) => {
   await page.tab("List");
-  await page.locator('input[placeholder*="Add shopping item" i]').first().fill(name);
+  await page.getByLabel("Add shopping item").first().fill(name);
   await page.waitForTimeout(300);
   const add = page.locator("button").filter({ hasText: /^Add$/ }).first();
   if (await add.count()) await add.click();
-  else await page.locator('input[placeholder*="Add shopping item" i]').first().press("Enter");
+  else await page.getByLabel("Add shopping item").first().press("Enter");
   await page.waitForTimeout(400);
   // Unknown items ask whether to remember them; an ad-hoc one is the case
   // that keys by its name, which is the case this spec is about.

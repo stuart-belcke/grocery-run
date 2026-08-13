@@ -20,7 +20,7 @@ const BASE = process.env.E2E_BASE_URL;
 
 const newDraft = async (page) => {
   await page.tab("Meals");
-  await page.getByRole("button", { name: /^Add$/ }).click();
+  await page.getByRole("button", { name: /^Add a meal$/ }).click();
   await page.waitForTimeout(300);
 };
 
