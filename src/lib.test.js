@@ -2733,7 +2733,7 @@ test("the FAQ does not claim a guest link is single-use", () => {
      requires role != 'guest'), so a guest link stays live for its full hour.
      Asserted because it is the kind of sentence that reads fine and is
      wrong — see item 50. */
-  const invite = FAQS.find((f) => /add the other phone/i.test(f.q));
+  const invite = FAQS.find((f) => /add another phone/i.test(f.q));
   const guest = FAQS.find((f) => /guest link/i.test(f.q));
   assert.match(invite.a, /works once/, "the full-invite answer should still say it is single-use");
   assert.match(guest.a, /not used up|more than one person|keeps working/i, "the guest answer must not imply single use");

@@ -80,7 +80,7 @@ export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError, i
         <h1 style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 30, margin: "0 0 10px" }}>Grocery Run</h1>
         <Stripe />
         <p style={{ fontSize: 15, margin: "14px 0 12px" }}>
-          Meal planning and a shopping list, shared between two phones.
+          Meal planning and a shopping list, shared live with whoever you shop with.
         </p>
         {/* WHAT THE APP IS, before it asks anything. The screen used to open
             with three ways to get in and no answer to "in to what", so someone

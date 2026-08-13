@@ -781,6 +781,59 @@ rather than saving them for a cleanup that never gets scheduled.
     revoke everyone else's. The narrow grant would be "delete a token whose
     id equals the `invite` field on your own member record".
 
+51. UX EVALUATION — measured, not assessed. Driven in a real browser at 390px
+    and 320px against the REAL catalog (22 recipes, 146 ingredients) with four
+    dinners planned, not a fixture. Everything below is a number the page
+    reported about itself; nothing here is a matter of taste.
+    WHAT CAME BACK CLEAN, and is worth recording so nobody re-audits it:
+      - NO horizontal page overflow on any tab, at either width. The item 47
+        and 104 work held under the real catalog's longest names.
+      - NO clipped text at 390px anywhere.
+      - Settings is clean on every measure.
+
+    RANKED BY WHAT IT COSTS:
+
+    51a. THE MOST DESTRUCTIVE CONTROLS HAVE THE SMALLEST TARGETS. On
+        Ingredients, "Remove <store>" is 11x15px — removing a store is the
+        furthest-reaching action on that tab and it is a third the width of
+        the 44px a thumb reliably hits. "Delete <recipe>" on Meals is 21x24.
+        Both are destructive, both are the smallest things on their screen,
+        and both sit next to something harmless. Fix the size, or put them
+        behind the row's panel where the other editing lives.
+
+    51b. FOUR TEXT COLOURS FAIL WCAG AA (4.5:1 for body text):
+            "Done shopping"     4.09:1 @14px   (tomato on tomatoSoft)
+            "Start a new plan"  4.09:1 @14px   (same pair)
+            "4 sv"              4.15:1 @12px
+            "Easy" pill         4.26:1 @11px   (gold on goldSoft)
+        All are marginal, all are the soft-background pill treatments, and
+        two of them are the primary action on their tab. A shop is often the
+        worst lighting a phone gets used in. Darkening the ink rather than
+        lightening the background keeps the treatment.
+
+    51c. THE INGREDIENTS ROW SUBTITLE CLIPS AT 320px. "Grocery store · aisle
+        8" needs 132px and is given 108. The store name is what identifies
+        the row when scanning, and it is the half that gets cut.
+
+    51d. THE WEEK PLAN IS THREE-QUARTERS EMPTY ROWS. Four meal types x seven
+        days is 28 slots; a household that plans dinners uses 4-7 of them.
+        Sunday alone fills a screen to show one planned meal. 2.5 screens to
+        read four dinners. Collapsing empty slots, or showing only the meal
+        types actually in use, would make the tab scan in one screen.
+
+    51e. SCALE, for anyone sizing future work: at 390px the real catalog makes
+        Ingredients 9,614px (12 screens) and Meals 5,449px (6.8). That is
+        what back-to-top and the pinned tab bar exist for, and it is why
+        search on those tabs is not optional.
+
+    NOT MEASURED, and worth saying so: no VoiceOver pass, no one-handed reach
+    testing, no timing of a real shop. The tap-target and contrast numbers are
+    the mechanical floor, not the whole of usability.
+    [All three were measured later — see item 58.]
+
+    51a, 51b, 51c ALL [DONE] — item 57. 51d [DONE] — items 59 and 63, in two
+    goes. 51e was information, not a fault.
+
 MEASURED AND DELIBERATELY NOT PROBLEMS
     Recorded so nobody optimises them on instinct.
       - Bundle at 253 KB / 76 KB gzipped. Firebase is already dynamically
@@ -1689,10 +1742,8 @@ isn't sold), so adding a store widened every ingredient's panel. Fixed by:
 The Meals and Ingredients control rows also collapsed to search + a single
 Filter button + the primary action, which fits one line on a phone.
 
-Still open: the List row (checkbox, name, staple tag, qty, store select,
-info) carries the same pressure. The fix there is the same shared pattern —
-"a row with a few primary bits and a details panel" — so it's worth doing as
-one pass rather than a one-off.
+[DONE, item 104] The List row carried the same pressure and got the same
+treatment: the store moved into the details panel and the name grew.
 
 52. [DONE] THE SYNC STATUS WAS DRAWN THROUGH THE "HOUSEHOLD" HEADING, AND SAID
     NOTHING USEFUL WHEN IT DID. Reported from a real phone as a screenshot:
@@ -2106,7 +2157,9 @@ one pass rather than a one-off.
     here as a trade-off and NOT changed at the time; item 61 fixed it at the
     source instead, which turned out to be the better answer.
 
-59. [DONE] 51d: THE WEEK PLAN SHOWS ONLY THE MEAL TYPES YOU ACTUALLY PLAN.
+59. [SUPERSEDED BY ITEM 63] 51d: THE WEEK PLAN SHOWS ONLY THE MEAL TYPES YOU
+    ACTUALLY PLAN. Kept for the reasoning and the mutations; the SHAPE it
+    describes lasted two changes.
     4 types x 7 days is 28 slots and a household that plans dinners fills 4-7;
     reading four dinners took 2.5 screens, and Sunday alone filled one to show
     a single meal. Now 0.9 screens for the same four.
@@ -2346,3 +2399,53 @@ one pass rather than a one-off.
         household of any size. Asked for, not started.
       - item 50: whether a guest link should be single-use. Undecided, and the
         rules would have to do it, not the client.
+
+66. [DONE] A PASS OVER THE PROSE — displayed copy, code comments, and this
+    file. Nothing tests prose against code, so a comment is only as true as
+    the last person who read it next to what it describes.
+
+    COMMENTS THAT DESCRIBED A DESIGN THAT NO LONGER EXISTS:
+      - WeekTab still explained the "+" that reveals a day's other meal types
+        (items 59/62B), which item 63 replaced two changes ago, and named
+        `shownTypes`, a variable that is gone.
+      - ui.jsx's BackToTop said the sticky bar is "search + one Filter button
+        + the primary action". Add moved out of it in item 64; the comment
+        was the reason someone would put it back.
+      - ListTab twice called the store control "the row's store dropdown". It
+        has been in the item's PANEL since item 104, and it asks rather than
+        having two fields.
+      - The UI-density note ended "Still open: the List row", done in 104.
+      - Item 59's shape was superseded by 63 and item 62B's "+" by the same;
+        both now say so where a reader lands, rather than leaving three live
+        descriptions of one tab.
+
+    DISPLAYED COPY THAT ASSUMED EXACTLY TWO PHONES. Asked for a while back.
+    The app has been a household of any size since item 37 — a guest is a
+    third participant by design — but the words had not caught up:
+      first-run screen   "shared between two phones" -> "shared live with
+                         whoever you shop with"
+      How it works       "Both phones see the same {List}" -> "Everyone in
+                         the household"
+      the store question "on both phones" -> "for everyone in the household"
+      preferences        "so both phones agree" -> "so everyone sees the same
+                         thing"
+      restore warning    "discarded, on both phones" -> "for everyone in the
+                         household"
+      invite help        "on the other phone" -> "on the joining device"
+      code copied        "your other phone" -> "the other device"
+      FAQ                "How do I add the other phone?" -> "...another phone
+                         or another person?"
+    ARCHITECTURE COMMENTS KEEP "TWO PHONES" and that is deliberate: in
+    lib.js, sync.js and main.jsx it names the real concurrency case the
+    narrow-write machinery exists for. It is a concrete example, not a claim
+    about who may use the app.
+
+    ITEM 51 WAS MISSING FROM THIS FILE, and I deleted it. #105 landed the UX
+    evaluation in main while my branch was cut from an older main; restarting
+    the branch with `git diff origin/main HEAD` then carried a deletion of it
+    as part of "my" changes. Nine references to 51a-51e were dangling.
+    Restored from main, with a line saying which parts are done.
+    THE LESSON FOR THE NEXT RESTART: `git diff origin/main HEAD` is not "my
+    work" once main has moved — it is my work PLUS the undoing of everybody
+    else's. Prefer format-patch of the specific commits, and diff the result
+    against main before pushing.

@@ -21,7 +21,7 @@
 export const HOW_IT_WORKS = [
   "Choose what you feel like cooking on {Meals}, and give the week a shape on {Week plan}.",
   "{List} then builds itself from those recipes — every ingredient added up, and grouped by the store and aisle you keep on {Ingredients}.",
-  "Both phones see the same {List}, so whoever is out can tick things off as they go.",
+  "Everyone in the household sees the same {List}, so whoever is out can tick things off as they go.",
 ];
 
 /* Every entry is a question somebody actually asked, or a confusion the app
@@ -45,7 +45,7 @@ export const FAQS = [
   },
   {
     q: "How do I change where something is bought?",
-    a: "Tap the round i on the {List} row, then pick a store under Where to buy it. It asks whether that is just for this trip or from now on, because those are different things and the app cannot tell which you meant. Just this trip goes back afterwards; Always makes it the item's home on both phones, the same setting the {Ingredients} tab shows.",
+    a: "Tap the round i on the {List} row, then pick a store under Where to buy it. It asks whether that is just for this trip or from now on, because those are different things and the app cannot tell which you meant. Just this trip goes back afterwards; Always makes it the item's home for everyone in the household, the same setting the {Ingredients} tab shows.",
     keywords: ["store", "shop", "supermarket", "reroute", "override", "aisle", "permanent", "today", "dropdown"],
   },
   {
@@ -74,9 +74,9 @@ export const FAQS = [
     keywords: ["staple", "need", "pantry", "run out", "cupboard", "home", "out of"],
   },
   {
-    q: "How do I add the other phone?",
+    q: "How do I add another phone or another person?",
     a: "On this tab, under Household, press Invite another phone and send the link. Tapping it opens the app with the invite filled in; they sign in and they're in. A full invite lasts an hour and works once — it is used up the moment somebody joins with it.",
-    keywords: ["invite", "share", "add person", "second phone", "join", "household"],
+    keywords: ["invite", "share", "add person", "second phone", "another device", "join", "household"],
   },
   {
     q: "What is a guest link?",

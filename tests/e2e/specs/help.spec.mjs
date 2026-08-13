@@ -39,7 +39,7 @@ test("the workflow explanation is readable again from Settings", async () => {
     const body = await page.textContent("body");
     assert.match(body, /Choose what you feel like cooking/, "the first-run explanation is not reachable from Settings");
     assert.match(body, /builds itself from those recipes/);
-    assert.match(body, /Both phones see the same/);
+    assert.match(body, /sees? the same \{?List\}?|Everyone in the household sees the same/);
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
