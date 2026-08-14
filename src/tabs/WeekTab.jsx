@@ -425,10 +425,15 @@ export function WeekTab({ data, update, isGuest }) {
                         </button>
                       )}
                     </div>
+                    {/* FULL WIDTH OF THE DAY CARD, not indented under the
+                        meal-type label like the controls are. An opened
+                        recipe is the same thing the Meals tab opens, and
+                        it is what you are reading while you cook — 78px of
+                        left margin bought nothing and cost a column of
+                        ingredient names on a phone. The label column is for
+                        the slot's CONTROLS; the recipe is not one. */}
                     {recipe && recipeOpen === recipeKey(day, type) && (
-                      <div style={{ marginLeft: 78 }}>
-                        <RecipeDetail recipe={recipe} servings={Number(slot.servings) || base} />
-                      </div>
+                      <RecipeDetail recipe={recipe} servings={Number(slot.servings) || base} />
                     )}
                     {recipe && slotsEditable && (
                       <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 5, marginTop: 6, marginLeft: 78, fontSize: 12, color: C.faint }}>
@@ -461,14 +466,19 @@ export function WeekTab({ data, update, isGuest }) {
                         amount input and a remove ✕. Each row is a small
                         bordered chip rather than bare text, so a side reads
                         as part of the meal instead of an easy-to-miss aside. */}
+                    {/* THE INDENT IS ON THE ROWS, NOT ON THIS CONTAINER, so a
+                        side's opened recipe can run the full width of the day
+                        card exactly as the main's does. With the margin out
+                        here, every child inherited it and the recipe sat in a
+                        78px-narrower column than the one above it. */}
                     {recipe && (sideEntries.length > 0 || slotsEditable) && (
-                      <div style={{ marginTop: 4, marginLeft: 78 }}>
+                      <div style={{ marginTop: 4 }}>
                         {sideEntries.map((s) => {
                           const sideBase = s.recipe.servings || 4;
                           return (
                             <Fragment key={s.index}>
                               <div
-                                style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.ink, padding: "4px 8px", marginBottom: 4, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 7 }}
+                                style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.ink, padding: "4px 8px", marginBottom: 4, marginLeft: 78, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 7 }}
                               >
                                 <span aria-hidden style={{ color: C.green, flexShrink: 0 }}>+</span>
                                 <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.recipe.easy ? "⚡ " : ""}{s.recipe.name}</span>
@@ -517,7 +527,7 @@ export function WeekTab({ data, update, isGuest }) {
                           <button
                             onClick={() => openPicker(day, type, "side")}
                             aria-label={`Add a side for ${day} ${type}`}
-                            style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", boxSizing: "border-box", textAlign: "left", fontFamily: fontBody, fontSize: 12, fontWeight: 500, padding: "5px 8px", borderRadius: 7, cursor: "pointer", border: `1px dashed ${C.line}`, background: "transparent", color: C.faint }}
+                            style={{ display: "flex", alignItems: "center", gap: 6, width: "calc(100% - 78px)", marginLeft: 78, boxSizing: "border-box", textAlign: "left", fontFamily: fontBody, fontSize: 12, fontWeight: 500, padding: "5px 8px", borderRadius: 7, cursor: "pointer", border: `1px dashed ${C.line}`, background: "transparent", color: C.faint }}
                           >
                             <span aria-hidden style={{ fontSize: 13, lineHeight: 1 }}>＋</span>
                             Add a side

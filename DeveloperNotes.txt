@@ -2720,3 +2720,56 @@ treatment: the store moved into the details panel and the name grew.
     waits on real conditions would cut more, but it touches every spec and
     trades a slow suite for a possibly flaky one, so it wants its own pass
     and its own evidence.
+
+    ONE ERGONOMIC COST, worth knowing before it wastes an hour: an ad-hoc
+    script that imports harness.mjs OUTSIDE `node --test` now hangs at
+    exit, because the teardown hook is a node:test hook and never fires, so
+    the browser is never closed. Throwaway probes either run under
+    `node --test` or close the browser themselves.
+
+74. [DONE] THREE CORRECTIONS FROM LOOKING AT 67/69/71 ON A PHONE.
+
+    A. THE CONVERTER'S EXPLANATORY NOTE IS GONE. It listed the convertible
+       units and then said they were "the same units this app already uses
+       on recipes and the shopping list" — the first half duplicates what
+       the unit box's own autocomplete offers, and the second half is the
+       IMPLEMENTATION's rationale (item 71's whole point was reusing
+       convertQty), which is a fact about the code, not something a person
+       converting 750 ml needs. It was the note explaining why the feature
+       was built, sitting inside the feature.
+
+    B. THE CONVERTER CONVERTS BOTH WAYS. There is now an amount box beside
+       the "To" unit as well, and typing in either one answers in the
+       other, so "how many lb is 48 oz" doesn't need a swap first. The swap
+       button stays — it is still the fastest way to flip a pairing you are
+       going to use repeatedly.
+       ONE NUMBER IN STATE, NOT TWO: `amount` plus a `side` flag saying
+       which box it was typed into, with the other box DERIVED. Two stored
+       numbers syncing on each other's change is the version that drifts —
+       the derived value is rounded for display (r2), so feeding it back
+       turns 1 cup into 236.59 ml into 0.9999 cup, and the box you are not
+       touching wanders while you watch.
+       SWAP MIRRORS THE WHOLE EQUATION, flipping `side` along with the
+       units, so 2 lb = 32 oz becomes 32 oz = 2 lb. Swapping units alone
+       would leave the typed 2 on the left and quietly ask a different
+       question (2 oz = ? lb) on a screen that looks identical. Covered by
+       a test that asserts all four fields after the swap, not just the
+       two units.
+
+    C. AN OPENED RECIPE ON THE WEEK TAB IS FULL WIDTH. It was indented 78px
+       to line up under the meal-type label, which is the right column for
+       the slot's CONTROLS and the wrong one for the thing you actually
+       read while cooking — on a 390px phone it cost a fifth of the width
+       for no gain. The main's panel just lost its wrapper; the sides
+       needed the indent moved OFF their container and ONTO the side rows
+       themselves, since every child of that container was inheriting it
+       (the "Add a side" button keeps the indent, with its width reduced to
+       match, or it would overhang the card).
+
+    D. THE WAKE-LOCK PILL SAYS HOW LONG IT LASTS. "30 min" sits beside it
+       rather than inside it: "keep the screen on" and "for how long" are
+       two facts, and one capsule holding both was the widest thing on the
+       row. The number comes from WAKE_LOCK_MINUTES, exported from
+       wakeLock.js and used for the timer itself — written twice, the label
+       and the duration drift the first time one is tuned, and the label is
+       the half nobody re-checks.

@@ -15,7 +15,7 @@
 import { useEffect, useState } from "react";
 import { C, fontBody } from "./theme";
 import { r2 } from "./lib";
-import { startWakeLock, stopWakeLock, wakeLockActive, wakeLockSupported, subscribeWakeLock } from "./wakeLock";
+import { startWakeLock, stopWakeLock, wakeLockActive, wakeLockSupported, subscribeWakeLock, WAKE_LOCK_MINUTES } from "./wakeLock";
 
 export function RecipeDetail({ recipe, servings }) {
   const base = recipe.servings || 4;
@@ -36,30 +36,37 @@ export function RecipeDetail({ recipe, servings }) {
         </div>
         {/* Hidden rather than shown-disabled when the API doesn't exist —
             same rule the guest-only buttons follow elsewhere: a control
-            nobody can turn on is not worth explaining. */}
+            nobody can turn on is not worth explaining.
+            THE DURATION IS BESIDE THE PILL, NOT INSIDE IT: "keep the screen
+            on" and "for how long" are two facts, and crowding both into one
+            capsule made the pill the widest thing on the row. Outside, it
+            reads as the quiet caveat it is — and it answers the question the
+            button raises before you have to tap it to find out. */}
         {wakeLockSupported() && (
-          <button
-            onClick={() => (awake ? stopWakeLock() : startWakeLock())}
-            aria-pressed={awake}
-            title={awake ? "Screen will stay on for up to 30 minutes while you cook — tap to stop" : "Keep the screen on for 30 minutes while you cook"}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 5,
-              fontFamily: fontBody,
-              fontSize: 11,
-              fontWeight: 500,
-              padding: "3px 9px",
-              borderRadius: 999,
-              cursor: "pointer",
-              border: `1px solid ${awake ? C.green : C.line}`,
-              background: awake ? C.greenSoft : "#fff",
-              color: awake ? C.green : C.faint,
-              flexShrink: 0,
-            }}
-          >
-            {awake ? "📱 Screen staying on" : "📱 Keep screen on"}
-          </button>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+            <button
+              onClick={() => (awake ? stopWakeLock() : startWakeLock())}
+              aria-pressed={awake}
+              title={awake ? `Screen will stay on for up to ${WAKE_LOCK_MINUTES} minutes while you cook — tap to stop` : `Keep the screen on for ${WAKE_LOCK_MINUTES} minutes while you cook`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                fontFamily: fontBody,
+                fontSize: 11,
+                fontWeight: 500,
+                padding: "3px 9px",
+                borderRadius: 999,
+                cursor: "pointer",
+                border: `1px solid ${awake ? C.green : C.line}`,
+                background: awake ? C.greenSoft : "#fff",
+                color: awake ? C.green : C.faint,
+              }}
+            >
+              {awake ? "📱 Screen staying on" : "📱 Keep screen on"}
+            </button>
+            <span style={{ fontSize: 11, color: C.faint, whiteSpace: "nowrap" }}>{WAKE_LOCK_MINUTES} min</span>
+          </span>
         )}
       </div>
       {ingredients.length > 0 ? (

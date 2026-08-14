@@ -58,6 +58,20 @@ test("SHOULD: tapping the wake-lock button requests a real screen wake lock", as
   }
 });
 
+test("SHOULD: say how long it lasts, without having to tap it to find out", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await openStirFryDetail(page);
+    assert.ok(
+      (await page.textContent("body")).includes("30 min"),
+      "the duration should be visible next to the pill, not only in its tooltip"
+    );
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
 test("SHOULD: tapping it again releases the lock", async () => {
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {

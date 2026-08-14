@@ -14,7 +14,11 @@
     doing nothing.                                                        */
 /* ------------------------------------------------------------------ */
 
-const DURATION_MS = 30 * 60 * 1000;
+/* Exported so the button can SAY how long it lasts without a second copy of
+   the number. Written twice, the label and the timer drift the first time
+   one of them is tuned, and the label is the half nobody re-checks. */
+export const WAKE_LOCK_MINUTES = 30;
+const DURATION_MS = WAKE_LOCK_MINUTES * 60 * 1000;
 
 let sentinel = null;
 let intentOn = false;

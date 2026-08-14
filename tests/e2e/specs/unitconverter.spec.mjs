@@ -18,16 +18,34 @@ const openConverter = async (page) => {
   await page.waitForTimeout(300);
 };
 
-test("SHOULD: converting within a dimension gives the exact answer", async () => {
+test("SHOULD: typing on the left answers on the right", async () => {
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
     await openConverter(page);
-    await page.locator("#conv-qty").fill("2");
     await page.locator("#conv-from").fill("lb");
     await page.locator("#conv-to").fill("oz");
+    await page.locator("#conv-qty").fill("2");
     await page.waitForTimeout(300);
 
-    assert.ok((await page.textContent("body")).includes("2 lb = 32 oz"), "2 lb should convert to exactly 32 oz");
+    assert.equal(await page.locator("#conv-qty-to").inputValue(), "32", "2 lb should convert to exactly 32 oz");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: typing on the RIGHT answers on the left — it converts both ways", async () => {
+  // The whole reason there are two amount boxes: "how many lb is 48 oz" is
+  // the same question asked backwards, and it shouldn't need a swap first.
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await openConverter(page);
+    await page.locator("#conv-from").fill("lb");
+    await page.locator("#conv-to").fill("oz");
+    await page.locator("#conv-qty-to").fill("48");
+    await page.waitForTimeout(300);
+
+    assert.equal(await page.locator("#conv-qty").inputValue(), "3", "48 oz should convert back to exactly 3 lb");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
@@ -43,9 +61,8 @@ test("SHOULD: refuse to convert across weight and volume, rather than guess", as
     await page.locator("#conv-to").fill("lb");
     await page.waitForTimeout(300);
 
-    const body = await page.textContent("body");
-    assert.ok(body.includes("measure different things"), "cup and lb shouldn't silently convert");
-    assert.ok(!body.includes("= "), "no bogus answer should be shown alongside the refusal");
+    assert.ok((await page.textContent("body")).includes("measure different things"), "cup and lb shouldn't silently convert");
+    assert.equal(await page.locator("#conv-qty-to").inputValue(), "", "the other box should be empty, not carrying a bogus answer");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
@@ -66,18 +83,24 @@ test("SHOULD: name an unrecognised unit rather than silently show nothing", asyn
   }
 });
 
-test("SHOULD: the swap button exchanges the two units", async () => {
+test("SHOULD: swapping mirrors the whole equation, not just the units", async () => {
+  /* 2 lb = 32 oz must become 32 oz = 2 lb. Swapping the units alone would
+     leave the typed 2 on the left and silently ask a different question
+     (2 oz = ? lb), which looks like the same screen and isn't. */
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
     await openConverter(page);
     await page.locator("#conv-from").fill("lb");
     await page.locator("#conv-to").fill("oz");
-    await page.waitForTimeout(200);
+    await page.locator("#conv-qty").fill("2");
+    await page.waitForTimeout(300);
     await page.getByLabel("Swap the two units").click();
     await page.waitForTimeout(300);
 
     assert.equal(await page.locator("#conv-from").inputValue(), "oz");
     assert.equal(await page.locator("#conv-to").inputValue(), "lb");
+    assert.equal(await page.locator("#conv-qty").inputValue(), "32", "the 32 oz should now be the left-hand amount");
+    assert.equal(await page.locator("#conv-qty-to").inputValue(), "2", "and the 2 lb the right-hand one");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
