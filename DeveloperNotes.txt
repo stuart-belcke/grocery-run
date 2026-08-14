@@ -2556,3 +2556,43 @@ treatment: the store moved into the details panel and the name grew.
     navigator.wakeLock.request itself and asserts it was actually CALLED,
     so a button that only ever flips a CSS class without touching the real
     API would have been caught too.
+
+70. [DONE] THE FIRST-RUN SCREEN TREATED EVERY ARRIVAL THE SAME. Requested
+    from real use: a guest link, a full invite, and a plain first open all
+    showed the identical three cards in the identical order, Sign in first —
+    even though a guest never needs an account at all, which meant the
+    single most relevant card for that arrival was also the LAST one on the
+    page. Two of the three pieces this was asked for were already built —
+    a guest link already asked for a name before "Join as guest" (item 41/
+    item 48 area), and classifyJoinInput already distinguished guest from
+    full invite. What was missing was using that distinction to change what
+    the page actually SHOWS, not just what it validates.
+
+    Onboarding.jsx now names three cases explicitly — `guestInvite`,
+    `memberInvite`, `noInvite` (an empty invite box, i.e. nobody sent this
+    browser here) — and:
+      - a banner above the cards says what's about to happen, in each case's
+        own words, rather than making the arrival infer it from which card
+        happens to apply once they've read all three.
+      - a guest link REORDERS the cards to [Join as a guest, Just me, Sign
+        in] — the join card retitled and reworded for the fact its invite
+        box is already filled in — because Sign in is the one card a guest
+        provably does not need, and leaving it first was the actual bug.
+      - a full invite and a plain open keep the ORIGINAL order (Sign in
+        first) untouched, and the reasoning for that order — a full invite
+        needs an account, so leading with anything else sends you straight
+        back up anyway — is exactly as true as it was, and is left as the
+        prior comment said it, not rewritten.
+
+    THE CARDS ARE BUILT ONCE AND REORDERED, not duplicated per case: three
+    JSX variables (signInCard/joinCard/justMeCard) assembled once, returned
+    as one of two fixed arrays depending on guestInvite. Three copies of the
+    same markup diverging quietly across a copy edit is exactly the "written
+    twice, one goes stale" failure this file already warns about elsewhere
+    (item 66, the HOW_IT_WORKS/help.js split) — reordering one set avoids it
+    by construction rather than by discipline.
+
+    Covered by three new onboarding.spec.mjs tests: the guest-link order and
+    its banner, the full-invite order staying put with its own banner, and
+    the plain-open nudge ("New here?") appearing only when nothing was
+    actually sent. Full suite: 190/190.

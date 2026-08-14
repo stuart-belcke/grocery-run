@@ -112,6 +112,18 @@ test("the screen says what the app IS before it asks for anything", async () => 
   }
 });
 
+test("a plain first open (no link) gets a nudge, not an instruction for a case that doesn't apply", async () => {
+  const page = await freshApp();
+  try {
+    const body = await page.textContent("body");
+    assert.match(body, /New here\?/, "a fresh open with nothing pre-filled should get its own framing");
+    assert.doesNotMatch(body, /You.ve been invited/, "nobody sent this browser here, so it shouldn't claim otherwise");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
 test("signing in is offered first, and the invite box points UP at it", async () => {
   /* The order matters because of what a full invite costs: it is redeemed for
      an ACCOUNT, so the invite card has to say "sign in first". With the invite
@@ -143,6 +155,44 @@ test("a guest link needs no account, and does not send you to sign in", async ()
     const body = await page.textContent("body");
     assert.match(body, /No account needed/, "a guest link should say it needs no account");
     assert.doesNotMatch(body, /Sign in above first/, "a guest link was told to sign in");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("a guest link leads with Join, not Sign in — a guest never needs an account", async () => {
+  // The default order puts Sign in first because a full invite needs an
+  // account. A guest link is the one route that needs NEITHER an account
+  // NOR the "just me" fallback, so making it lead with the one card that
+  // actually applies is what "know exactly what to do next" means here.
+  const page = await freshApp();
+  try {
+    await page.locator("#onboard-invite").fill("home-cx2ur9zg~abcdefgh1234~g");
+    await page.waitForTimeout(250);
+
+    const order = await page.evaluate(() => [...document.querySelectorAll("h2")].map((h) => h.textContent.trim()));
+    assert.deepEqual(order, ["Join as a guest", "Just me, on this device", "Sign in"]);
+
+    const body = await page.textContent("body");
+    assert.match(body, /You.ve been invited to help with the shopping/, "should say what's about to happen, not just how to do it");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("a full invite keeps Sign in first, and says what's about to happen", async () => {
+  const page = await freshApp();
+  try {
+    await page.locator("#onboard-invite").fill("home-cx2ur9zg~abcdefgh1234");
+    await page.waitForTimeout(250);
+
+    const order = await page.evaluate(() => [...document.querySelectorAll("h2")].map((h) => h.textContent.trim()));
+    assert.deepEqual(order, ["Sign in", "Join a household", "Just me, on this device"], "a full invite doesn't change the order — it's why Sign in leads");
+
+    const body = await page.textContent("body");
+    assert.match(body, /You.ve been invited to join a household/, "should name the invite before the generic Sign in card explains itself");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
