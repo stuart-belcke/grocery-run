@@ -2479,3 +2479,49 @@ treatment: the store moved into the details panel and the name grew.
     Week-tab ones plus the Meals-tab unplanned-servings one) — 181 others
     stayed green, meaning nothing else in the suite was accidentally
     covering this. Restored, reran: 185/185.
+
+68. [DONE] AN INVITE TOOK TWO TAPS TO COPY. Reported from real use: "Invite
+    another phone" / "Guest link" made the link, but getting it onto the
+    clipboard needed a second tap on "Copy link" underneath.
+
+    THAT SECOND TAP WAS NOT LAZINESS IN THE ORIGINAL CODE — it was the fix
+    for a real bug (item 48-adjacent): calling the clipboard right after
+    `await createInvite(...)` got the write refused on Safari every time,
+    because Safari drops the user-gesture context across an await, and a
+    clipboard write outside a gesture is exactly what the browser exists to
+    block. The link was shown instead, with its own Copy button, because
+    THAT tap is a fresh gesture.
+
+    THE ACTUAL FIX ISN'T TO WAIT LESS, IT'S TO NOT NEED TO. createInvite
+    picks its own random token (newInviteToken(), a pure function, no
+    network) before it ever touches the database — so nothing stops the
+    caller from picking that token FIRST. makeInvite (SettingsTab.jsx) now
+    does exactly that: mints the token, builds the link, and calls
+    `navigator.clipboard.writeText` as the very first thing in the click
+    handler — zero awaits before it, so the gesture is still live. THEN it
+    calls createInvite with that exact token (sync.js's createInvite grew an
+    optional `token` option for this — write it as given instead of minting
+    a different one), so the database ends up storing precisely the link
+    that's already on the clipboard, not a description of it.
+    If that write fails, the existing error path fires exactly as before —
+    a copied link nobody can redeem is still worse than no copy, so the
+    failure message stays load-bearing, not decorative. If the automatic
+    copy itself was blocked, the link still renders with its own Copy
+    button, same fallback as always.
+    The flash moved from a small word next to the buttons to the panel's
+    heading ("✓ Copied to clipboard") — it needed to be the first thing
+    read, since the whole point is that there's nothing left to click
+    before the link is already usable.
+
+    NOT VERIFIED IN A BROWSER, and said plainly rather than implied: this
+    entire flow lives behind `user && !accessDenied && !isGuest`, and `user`
+    can only ever be non-null through real Firebase Auth — there is no
+    preview seam for it the way GUEST_PREVIEW_KEY fakes guest-ness, and the
+    e2e build compiles sync out entirely (VITE_LOCAL_ONLY), so `user` is
+    always null there regardless of harness tricks. invitelink.spec.mjs
+    already documents this exact gap for the join side of invites; this is
+    the same gap on the creating side. Unit tests, lint and a production
+    build all pass, and the change was reviewed by hand against exactly the
+    failure mode item 48's comment described — but nobody has watched it
+    copy a real link on a real phone. Worth doing by hand before trusting it
+    fully, especially on Safari/iOS, which is where the original bug lived.

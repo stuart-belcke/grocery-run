@@ -7,7 +7,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { C, fontBody, inputStyle, syncTone } from "../theme";
 import { Btn, ConfirmDialog, AlertDialog, Section, Seg, HelpText } from "../ui";
-import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, remapStateIngredientIds, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, inviteLive, searchHelp, writeErrorAdvice } from "../lib";
+import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, remapStateIngredientIds, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, inviteLive, newInviteToken, searchHelp, writeErrorAdvice } from "../lib";
 import { syncEnabled } from "../sync";
 import { HOW_IT_WORKS, FAQS } from "../help";
 
@@ -157,22 +157,42 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
   const makeInvite = async (role) => {
     setInviting(true);
     setInviteMsg("");
-    const made = await createInvite({ ttlMinutes: 60, role });
+    /* COPY BEFORE THE AWAIT, NOT AFTER. The previous version showed the link
+       with its own Copy button and made someone tap twice — Invite, then
+       Copy — because calling the clipboard straight after createInvite's
+       await used to be how this worked, and Safari drops the user-gesture
+       context across an await, so that write was refused every time.
+       The fix isn't to wait less; it's to not need to: the token is minted
+       HERE, synchronously in the click, so the link can be copied in the
+       same gesture — then handed to createInvite so the database write uses
+       this exact token rather than minting its own. If the write later
+       fails, the copied link is invalidated by the error message below;
+       nothing is ever shown as live before it's confirmed stored. */
+    const token = newInviteToken();
+    const link = inviteUrl(typeof window !== "undefined" ? window.location.href : "", code, token, role);
+    let copiedOk = false;
+    try {
+      await navigator.clipboard.writeText(link);
+      copiedOk = true;
+    } catch {
+      // No fallback dialog here — the link is about to render with its own
+      // Copy button (below), and that tap is a fresh gesture to retry with.
+    }
+    const made = await createInvite({ ttlMinutes: 60, role, token });
     setInviting(false);
     if (!made) {
       setInviteMsg("Couldn't create an invite. You have to be a full member of this household to invite someone.");
       return;
     }
-    /* SHOWN, NOT AUTO-COPIED. It used to call the clipboard straight after
-       this await, and Safari drops the user-gesture context across an await —
-       so the write was refused and the "your browser blocked the clipboard"
-       fallback came up every time, which reads as the button being broken.
-       The link now appears with its own Copy button; that tap is a fresh
-       gesture, which is the only kind the clipboard accepts.
-       made.role, not the `role` asked for: the link has to describe what the
-       database actually stored, or it is a link that cannot be redeemed. */
+    // made.role, not the `role` asked for: the link has to describe what the
+    // database actually stored, or it is a link that cannot be redeemed.
     setNewInvite({ token: made.token, role: made.role });
-    setCopied("");
+    if (copiedOk) {
+      setCopied(made.token);
+      setTimeout(() => setCopied((t) => (t === made.token ? "" : t)), 2500);
+    } else {
+      setCopied("");
+    }
   };
 
   // One string carrying both halves: a token alone doesn't say which household
@@ -534,8 +554,16 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                       it did nothing at all. */}
                   {newInvite && (
                     <div style={{ marginTop: 12, padding: 12, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 10 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
+                      {/* The flash lives on the heading, not buried below the
+                          link box, since it's now the FIRST thing to say
+                          after tapping Invite/Guest link — the whole point of
+                          copying in the same gesture is that there's nothing
+                          left to click before the link is usable. */}
+                      <div role="status" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
                         {newInvite.role === "guest" ? "Guest link — send this" : "Invite link — send this"}
+                        {copied === newInvite.token && (
+                          <span style={{ fontSize: 12, fontWeight: 700, color: C.green }}>✓ Copied to clipboard</span>
+                        )}
                       </div>
                       <p style={{ fontSize: 12, color: C.faint, margin: "0 0 8px" }}>
                         {newInvite.role === "guest"
@@ -550,11 +578,11 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                         style={{ ...inputStyle, width: "100%", boxSizing: "border-box", fontFamily: "ui-monospace, Menlo, monospace" }}
                       />
                       <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
+                        {/* Still here for the case the automatic copy above
+                            was blocked (or the flash already faded) — a tap
+                            here is its own fresh gesture, same as before. */}
                         <Btn kind="primary" small onClick={() => copyInvite(newInvite)}>Copy link</Btn>
                         <Btn small onClick={() => setNewInvite(null)}>Done</Btn>
-                        {copied === newInvite.token && (
-                          <span style={{ fontSize: 12, fontWeight: 500, color: C.green }}>Copied</span>
-                        )}
                       </div>
                     </div>
                   )}
