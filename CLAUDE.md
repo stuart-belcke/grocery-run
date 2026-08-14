@@ -22,11 +22,39 @@ wasted trip or a duplicate purchase rather than a support ticket.
 | `src/sync.js` | the database seam | the ONLY file allowed to import Firebase |
 | `src/tabs/*.jsx` | features | assembled from the above |
 
-`npm test` (node --test), `npm run lint`, `npm run build`. CI runs all three
-before deploying, in that order.
+## Running the tests
 
-`npm run test:e2e` drives the real build in a real browser (`tests/e2e/`).
-CI runs it too, between `npm test` and the build — a failure stops the deploy.
+**`npm run check` is the whole gate, in one command.** It runs lint, the unit
+tests, the rules tests, the integration tests and the production build — in
+that order, stopping at the first failure — which is exactly what CI does
+before it deploys. If it passes locally, CI should agree.
+
+The order is not arbitrary, so prefer `npm run check` over running the parts
+by hand: `test:e2e` compiles its own `VITE_LOCAL_ONLY=1` bundle with sync
+stripped out, so it MUST finish before the real `build`. Deploying that bundle
+would give an app that looks fine and silently syncs nothing. The runner also
+deletes it when it finishes — the step order is the second guard, not the
+only one.
+
+The parts, if you need one on its own:
+
+| Command | Runs |
+|---|---|
+| `npm run lint` | eslint |
+| `npm test` | unit tests, `node --test` over `src/**/*.test.js` |
+| `npm run test:rules` | `database.rules.json` against the real emulator |
+| `npm run test:e2e` | the real build in a real browser |
+| `npm run build` | the production bundle |
+
+One caveat on a local green: `test:rules` SKIPS without a JVM and the emulator
+jar, so `npm run check` can pass on a machine that never tested the rules at
+all. It is only a skip locally — in CI the suite fails outright rather than
+reporting a green step it hasn't earned. Run `npm run emulator:fetch` once if
+you are changing `database.rules.json`.
+
+`npm run test:e2e` is self-contained — it builds, serves `dist/`, runs every
+spec in `tests/e2e/`, and deletes the local-only build afterwards. Nothing to
+start or clean up by hand.
 
 `npm run test:rules` runs the real Firebase database emulator against the real
 `database.rules.json` (`tests/rules/`). Needs a JVM and the emulator jar
@@ -40,12 +68,6 @@ into the Firebase console by hand, so a mistake in it is invisible until it
 locks a phone out of the shopping list or lets a stranger read it. Test any
 change to it. Passing tests still don't prove the console matches the file;
 that's a manual paste either way.
-
-**It must run BEFORE the build.** It compiles its own bundle with
-`VITE_LOCAL_ONLY=1`, so sync is stripped out and no test can reach the real
-household database. Deploying that bundle would give an app that looks fine
-and silently syncs nothing, so the runner also deletes the local-only `dist/`
-when it finishes — the step order is the second guard, not the only one.
 
 **The unit tests cannot catch the bugs that actually shipped.** Every one of
 them lived in the wiring, not in a function: a store change that erased an

@@ -91,12 +91,20 @@ const getBrowser = async () => {
   return sharedBrowser;
 };
 
-after(async () => {
-  if (!sharedBrowser) return; // a spec file that never opened the app
+/* Exported for the one case the hook above cannot cover: a throwaway script
+   that imports this harness and runs OUTSIDE `node --test`. after() is a
+   node:test hook, so nothing fires it there, the browser is never closed,
+   and its open handles keep the process alive — the script does all its
+   work, prints its output, and then just hangs. Ad-hoc probes end with
+   `await closeSharedBrowser()` in a finally. */
+export async function closeSharedBrowser() {
+  if (!sharedBrowser) return; // never opened the app, or already closed
   const browser = await sharedBrowser;
   sharedBrowser = null;
   await browser.close();
-});
+}
+
+after(closeSharedBrowser);
 
 const DEVICE_KEY = "grocery-run-device-v1";
 const CATALOG_PREFIX = "grocery-run-household-catalog-v1-";

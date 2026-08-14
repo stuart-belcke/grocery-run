@@ -2773,3 +2773,44 @@ treatment: the store moved into the details panel and the name grew.
        wakeLock.js and used for the timer itself — written twice, the label
        and the duration drift the first time one is tuned, and the label is
        the half nobody re-checks.
+
+75. [DONE] `npm run check` — THE WHOLE GATE IN ONE COMMAND. Asked for after
+    a fair question: is the test setup half-built?
+
+    IT WASN'T, QUITE — `npm run test:e2e` has always been self-contained
+    (builds local-only, serves dist/, runs every spec, deletes the unsafe
+    bundle after). But there were FIVE things CI runs before it deploys —
+    lint, unit, rules, e2e, build — and no way to run them as one locally.
+    A person had to know the list AND the order, and the order is load-
+    bearing: e2e compiles a VITE_LOCAL_ONLY bundle with sync stripped out,
+    so it has to finish before the real build or the thing that gets
+    deployed is an app that looks fine and silently syncs nothing.
+    Knowing that was the price of running the tests at all, which is the
+    kind of thing that stays in one person's head. It is a script now, in
+    CI's exact order, failing fast. Verified end to end from a clean tree
+    (rm -rf dist): exit 0, all five stages ran, and the dist/ it leaves is
+    the REAL bundle — checked by grepping the output for firebaseio.com,
+    which the local-only build does not contain.
+
+    STATED IN CLAUDE.md, INCLUDING THE ONE WAY A LOCAL GREEN LIES: rules
+    tests SKIP without a JVM and the emulator jar, so `check` can pass on a
+    machine that never tested the rules. That was already true of
+    `test:rules` on its own; folding it into a single command makes it
+    easier to miss, so it is written down next to the command rather than
+    three paragraphs away. CI is unaffected — rules.test.mjs fails outright
+    when process.env.CI is set and the emulator is missing.
+
+    ALSO FIXED, RATHER THAN LEFT AS A DOCUMENTED TRAP: item 73's note that
+    an ad-hoc script importing harness.mjs outside `node --test` hangs at
+    exit. closeSharedBrowser() is exported now, so a throwaway probe can
+    end with it in a finally. Measured: the script that hung until it was
+    killed at 120s now exits on its own in 1.2s. Writing the sharp edge
+    down was not the same as removing it.
+
+    AND ONE DOC BUG FOUND WHILE EDITING: CLAUDE.md's "It must run BEFORE
+    the build" paragraph sat directly under the RULES-file paragraph, so
+    "It" read as the rules suite while the content — the VITE_LOCAL_ONLY
+    bundle — was about e2e. Same class as item 72's "Clear week": prose
+    that drifted from what it describes. Folded into the new section,
+    where the sentence has its subject next to it, and the stale copy
+    deleted rather than left to say it a second, wronger way.
