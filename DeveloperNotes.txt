@@ -2596,3 +2596,25 @@ treatment: the store moved into the details panel and the name grew.
     its banner, the full-invite order staying put with its own banner, and
     the plain-open nudge ("New here?") appearing only when nothing was
     actually sent. Full suite: 190/190.
+
+71. [DONE] A STANDALONE UNIT CONVERTER. Requested, and noted as reusable —
+    it is: convertQty (lib.js) already IS the unit converter, used
+    internally to total a shopping-list group and, as of item 67, to scale
+    a recipe's servings. This just gives it its own screen instead of
+    keeping it locked inside those two features, so "how many cups is
+    750 ml" doesn't need a recipe or a shopping list to ask through.
+
+    UnitConverter.jsx (new, top-level like RecipeDetail — presentational,
+    takes no household data) sits in Settings under its own Section, right
+    after "How it works". Amount + From + To, a ⇄ swap, live result. THE
+    SAME REFUSAL RULE AS EVERYWHERE ELSE: weight and volume don't convert
+    into each other (convertQty returns null across dimensions, same as it
+    always has for resolveAgainstBought), and the message says so by name
+    rather than showing nothing or guessing. An unrecognised unit is named
+    too ("Don't know the unit "x""), not silently swallowed.
+
+    MUTATION-TESTED: made `result` return the input unchanged instead of
+    calling convertQty. Exactly the two tests that check real arithmetic
+    failed (the exact-answer one and the refuses-to-guess one); the
+    unknown-unit and swap tests correctly stayed green, since neither
+    depends on the conversion itself. Restored, 194/194.

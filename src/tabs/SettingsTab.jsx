@@ -10,6 +10,7 @@ import { Btn, ConfirmDialog, AlertDialog, Section, Seg, HelpText } from "../ui";
 import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, remapStateIngredientIds, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, inviteLive, newInviteToken, searchHelp, writeErrorAdvice } from "../lib";
 import { syncEnabled } from "../sync";
 import { HOW_IT_WORKS, FAQS } from "../help";
+import { UnitConverter } from "../UnitConverter";
 
 export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, sync, writeError, user, accessDenied, members, invites, isGuest, createInvite, revokeInvite, joinWithInvite, removeMember, authError, signInWithGoogle, sendEmailSignInLink, signOutUser, initialInvite = "" }) {
   const prefs = data.prefs;
@@ -418,6 +419,10 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
             })}
           </ul>
         )}
+      </Section>
+
+      <Section title="Unit converter">
+        <UnitConverter />
       </Section>
 
       <Section title="Preferences">
