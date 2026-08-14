@@ -2670,3 +2670,53 @@ treatment: the store moved into the details panel and the name grew.
     factually WRONG against current behaviour, which "Clear week" was and
     everything else checked was not. A slower editorial pass is still
     open, same as item 65 left one open for restore's wording.
+
+73. [DONE] THE E2E SUITE LAUNCHED A BROWSER PER TEST. 194 tests, 194
+    `chromium.launch()` calls, and launching Chromium is by far the most
+    expensive thing the suite does — each browser started, did a few hundred
+    milliseconds of actual work, and was thrown away.
+
+    A test now takes a fresh browser CONTEXT out of one shared browser
+    process, set up on first use and torn down once at the end of the file.
+    MEASURED, both ends: 205.9s before, 154.7s after, same 194/194. That is
+    51 seconds (25%) off every run, and off every CI deploy.
+
+    WHY A CONTEXT IS THE RIGHT ISOLATION BOUNDARY, and how that was checked
+    rather than assumed. A context has its own localStorage, cookies and
+    cache, and localStorage is the entire state this app persists. Proved
+    it directly before switching: wrote a key in one context, opened a
+    second context on the same URL, confirmed it could not see the key or
+    the cookie. Then proved the SUITE would notice if that stopped being
+    true — the mutation test for this change is "make every test share one
+    context", which fails 4 of week.spec's 10 tests. Isolation here is
+    load-bearing and is actually protected, not merely believed.
+    Also instrumented a real run to confirm the reuse happens rather than
+    inferring it from the clock: week.spec.mjs now reports 1 browser launch
+    and 10 contexts, where it used to be 10 launches.
+
+    ONE BROWSER PER FILE, NOT PER SUITE, and that is the ceiling worth
+    taking. `node --test` runs each spec file in its own child process, so
+    31 files means 31 launches — down from 194. Going further needs
+    launchServer plus child processes connecting over a websocket, which
+    swaps a pipe for a socket on every single Playwright call; the cost
+    here is startup, not per-call chatter, so that trade is the wrong way
+    round.
+
+    TWO THINGS THAT HAD TO BE DONE A PARTICULAR WAY, both found by probing:
+      - THE TEARDOWN HOOK IS TOP-LEVEL. Registering `after()` lazily inside
+        openApp reads better and is wrong: it attaches to whatever test is
+        running at the time, not to the file, so the browser closes after
+        the FIRST test. A probe of the lazy version did exactly that.
+      - serveDist MOVED TO tests/e2e/server.mjs. harness.mjs now imports
+        node:test for that hook, and importing node:test makes a process
+        emit its own TAP report — including run.mjs, which is not a test
+        process and only ever wanted the file server. The split keeps the
+        runner's output clean and draws a boundary worth having anyway:
+        the thing that serves files vs. the thing that drives a browser.
+
+    NOT CHANGED, and the obvious next thing if this needs to get faster
+    again: the specs are full of fixed `page.waitForTimeout(350-500)`
+    sleeps, which now dominate the remaining 154s. Replacing them with
+    waits on real conditions would cut more, but it touches every spec and
+    trades a slow suite for a possibly flaky one, so it wants its own pass
+    and its own evidence.
