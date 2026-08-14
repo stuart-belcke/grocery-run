@@ -404,7 +404,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         <p style={{ fontSize: 12, color: C.faint, margin: "8px 0 4px" }}>
           {isGuest
             ? "Units and week start are the household's own settings, shared by everyone in it. You can see what they are; changing them belongs to the household's accounts."
-            : "Shared by the whole household, so both phones agree. These change how things are SHOWN \u2014 nothing is rewritten, so you can switch back at any time."}
+            : "Shared by the whole household, so everyone sees the same thing. These change how things are SHOWN \u2014 nothing is rewritten, so you can switch back at any time."}
         </p>
 
         <div style={{ ...row, borderTop: `1px dashed ${C.line}` }}>
@@ -584,7 +584,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                     </div>
                   )}
                   <p style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
-                    Either link expires in an hour and is pasted into the box above on the other phone, signed in. A <b>guest link</b> gives someone the shopping list — ticking off, adding items, flagging a staple as run out — but not recipes, ingredients or the week plan. Removing someone takes their access away for good; the code alone won&apos;t let them back in.
+                    Either link expires in an hour and is pasted into the box above on the joining device, signed in. A <b>guest link</b> gives someone the shopping list — ticking off, adding items, flagging a staple as run out — but not recipes, ingredients or the week plan. Removing someone takes their access away for good; the code alone won&apos;t let them back in.
                   </p>
                 </div>
               )}
@@ -602,7 +602,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                 style={{ ...inputStyle, flex: 1, minWidth: 180, fontFamily: "ui-monospace, Menlo, monospace" }}
               />
               <Btn kind="primary" onClick={joinCode}>Use this code</Btn>
-              <Btn onClick={() => copyText(code, "Code copied — enter it on your other phone.")}>Copy code</Btn>
+              <Btn onClick={() => copyText(code, "Code copied — enter it on the other device.")}>Copy code</Btn>
             </div>
             {codeMsg && <div role="status" style={{ fontSize: 12, color: C.faint, marginTop: 8 }}>{codeMsg}</div>}
             <p style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
@@ -823,7 +823,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
       >
         <p style={{ margin: "0 0 8px" }}>
           Replaces this household&apos;s catalog with the one the app ships with. Every recipe, ingredient and store you have added or
-          edited is discarded, on both phones.
+          edited is discarded, for everyone in the household.
         </p>
         <p style={{ margin: 0 }}>Export a snapshot first if you might want any of it back.</p>
       </ConfirmDialog>

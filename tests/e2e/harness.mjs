@@ -211,7 +211,7 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
   };
 
   page.searchIngredients = async (q) => {
-    await page.locator('input[placeholder="Search ingredients"]').fill(q);
+    await page.getByLabel("Search ingredients").fill(q);
     await page.waitForTimeout(350);
   };
 

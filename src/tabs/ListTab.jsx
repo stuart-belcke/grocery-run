@@ -69,8 +69,9 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
 
      The same two writes the Ingredients tab makes, deliberately: one
      setIngredientCfg call each, so there is no second way to write a store.
-     Distinct from the row's store dropdown, which is `overrides` — a reroute
-     for TODAY. This changes where the item lives from now on. */
+     Distinct from `overrides`, which is a reroute for TODAY. Both are set from
+     the same control in the panel now — it asks which you meant — so this is
+     the "Always" half of that question. */
   const setDefaultStore = (key, store) =>
     updateCatalog((c) => {
       c.ingredients[key] = setIngredientCfg(c.ingredients[key], { store });
@@ -261,10 +262,10 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
     update((d) => {
       d.list.extras[key] = { name, qty: Number(extra.qty) || 1, unit: extra.unit.trim() };
       // "Save to Ingredients" only means "remember this name so it's suggested
-      // next time". Where it lives is the Ingredients tab's job, and a row's
-      // own store dropdown handles a one-off reroute — this used to write the
-      // same `store` value to a default, an override, or an aisle map
-      // depending on invisible state.
+      // next time". Where it lives is the Ingredients tab's job, and the
+      // store control in the item's panel handles a reroute — this used to
+      // write the same `store` value to a default, an override, or an aisle
+      // map depending on invisible state.
       return d;
     });
     // The catalog write happens above, through ensureIngredientId, so that the
@@ -714,7 +715,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
           <div style={{ display: "flex", gap: 8, flexWrap: "nowrap", alignItems: "center" }}>
           <div style={{ position: "relative", flex: 1, minWidth: 92 }}>
             <input
-              aria-label="Add shopping item" placeholder="Add shopping item (e.g. paper towels)"
+              aria-label="Add shopping item" placeholder="Add an item"
               value={extra.name}
               ref={nameRef}
               onChange={(e) => {
@@ -909,7 +910,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
       >
         <b style={{ color: C.ink }}>Just this trip</b> moves it for today only and it goes back afterwards.{" "}
         <b style={{ color: C.ink }}>Always</b> makes {askStore ? askStore.store : "it"} where this
-        item lives from now on, on both phones.
+        item lives from now on, for everyone in the household.
       </ChoiceDialog>
 
       <ConfirmDialog

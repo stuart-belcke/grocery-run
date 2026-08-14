@@ -60,9 +60,10 @@ export function StickyBar({ children, style }) {
    help with that — you search to FIND something, then you're left wherever
    the list left you.
 
-   NOT folded into StickyBar, deliberately. That bar was cut down to search +
-   one Filter button + the primary action precisely so it holds one line at
-   390px, and a fourth control would break the thing that made it usable.
+   NOT folded into StickyBar, deliberately. That bar is search + one Filter
+   button and nothing else — "add" sits in its own band above on both long
+   tabs, because three controls squeezed the search box until its placeholder
+   was cut off (item 64). A third control in the bar would undo that.
    A corner button also lands under a thumb, where the top of the screen on a
    phone does not.
 
@@ -154,7 +155,15 @@ export function BackToTop({ showAfter = 500 }) {
    thing that makes a 12-screen tab navigable looked like a caption. It now
    carries the app's own "this is interactive" language — the soft green fill
    and green rule the selected tab uses — plus a magnifier, which is the one
-   glyph nobody has to learn. */
+   glyph nobody has to learn.
+
+   THE PLACEHOLDER IS ONE WORD, measured rather than chosen. The field is a
+   phone's width minus a Filter button, and the magnifier and clear button take
+   62px of it: "Search meals or ingredients" needs 225px and had 149 at 320px,
+   so it rendered as "Search meals or ingre". The SCOPE lives in the aria-label,
+   where it costs no width and is exactly what a screen reader wants; on screen
+   the magnifier and the tab you are on already say it.
+   fits.spec.mjs now measures every placeholder in the app against its box. */
 export function SearchField({ value, onChange, onEscape, label, placeholder, autoFocus = false, clearOffset = 6, style }) {
   return (
     <div style={{ position: "relative", ...style }}>

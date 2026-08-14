@@ -34,7 +34,7 @@ test("a realistic session leaves the catalog sound", async () => {
     // A spread of the everyday actions, in one session, in the order someone
     // would actually do them.
     await page.tab("Ingredients");
-    await page.locator('input[placeholder*="Add an item" i]').fill("Paper towels");
+    await page.getByLabel("Add an ingredient").fill("Paper towels");
     await page.clickText(/^Add item$/);
 
     await page.searchIngredients("Orzo");
@@ -109,7 +109,7 @@ test("the shipped starter catalog is itself sound", async () => {
   const page = await openApp(BASE, {});   // no fixture: let the app seed itself
   try {
     await page.tab("Ingredients");
-    await page.locator('input[placeholder*="Add an item" i]').fill("Trigger a save");
+    await page.getByLabel("Add an ingredient").fill("Trigger a save");
     await page.clickText(/^Add item$/);
     await page.roundTrip();
     assertCatalogSound(await page.readCatalog(), "a freshly seeded household");

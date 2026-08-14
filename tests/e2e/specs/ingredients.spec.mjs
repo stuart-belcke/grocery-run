@@ -171,7 +171,7 @@ test("adding a brand-new item keeps the catalog id-keyed", async () => {
   const page = await openApp(BASE, { catalog: cleanCatalog() });
   try {
     await page.tab("Ingredients");
-    await page.locator('input[placeholder*="Add an item" i]').fill("Paper towels");
+    await page.getByLabel("Add an ingredient").fill("Paper towels");
     await page.clickText(/^Add item$/);
     await page.roundTrip();
 

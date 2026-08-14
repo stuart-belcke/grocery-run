@@ -83,7 +83,7 @@ test("the screen says what the app IS before it asks for anything", async () => 
     assert.match(body, /Meal planning and a shopping list/, "the screen never says what the app is");
     assert.match(body, /Choose what you feel like cooking/, "no explanation of where the list comes from");
     assert.match(body, /builds itself from those recipes/, "doesn't say the list is generated, which is the whole idea");
-    assert.match(body, /Both phones see the same/, "doesn't say it is shared, which is why you sign in");
+    assert.match(body, /sees? the same \{?List\}?|Everyone in the household sees the same/, "doesn't say it is shared, which is why you sign in");
 
     /* THE BOLD WORDS ARE THE TAB BAR'S WORDS. The explanation doubles as the
        map — read it once and you know what the five things along the bottom

@@ -23,7 +23,7 @@ const options = (page) => page.locator(OPTIONS).allTextContents();
 
 const addBox = async (page) => {
   await page.tab("List");
-  await page.getByPlaceholder(/^Add shopping item/).click();
+  await page.getByLabel("Add shopping item").click();
   await page.waitForTimeout(300);
 };
 
@@ -31,7 +31,7 @@ test("the unit field offers suggestions, and they narrow as you type", async () 
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
     await addBox(page);
-    await page.getByPlaceholder(/^Add shopping item/).fill("Broccoli");
+    await page.getByLabel("Add shopping item").fill("Broccoli");
     await page.waitForTimeout(250);
     await page.getByLabel("Unit", { exact: true }).click();
     await page.waitForTimeout(250);
@@ -56,7 +56,7 @@ test("the ingredient's own unit is offered first", async () => {
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
     await addBox(page);
-    await page.getByPlaceholder(/^Add shopping item/).fill("Broccoli");
+    await page.getByLabel("Add shopping item").fill("Broccoli");
     await page.waitForTimeout(250);
     await page.getByLabel("Unit", { exact: true }).click();
     await page.waitForTimeout(250);
@@ -75,7 +75,7 @@ test("tapping a suggestion fills the field and closes the list", async () => {
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
     await addBox(page);
-    await page.getByPlaceholder(/^Add shopping item/).fill("Broccoli");
+    await page.getByLabel("Add shopping item").fill("Broccoli");
     await page.waitForTimeout(250);
     const unit = page.getByLabel("Unit", { exact: true });
     await unit.click();
@@ -98,7 +98,7 @@ test("a unit nobody has ever used can still be typed and kept", async () => {
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
     await addBox(page);
-    await page.getByPlaceholder(/^Add shopping item/).fill("Saffron");
+    await page.getByLabel("Add shopping item").fill("Saffron");
     await page.waitForTimeout(250);
     await page.getByLabel("Unit", { exact: true }).fill("thread");
     await page.waitForTimeout(250);

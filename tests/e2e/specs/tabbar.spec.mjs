@@ -124,7 +124,7 @@ test("switching tabs from deep in a scroll works without going back to the top",
 
     await page.locator(`${NAV} button`, { hasText: "Ingredients" }).first().click();
     await page.waitForTimeout(400);
-    assert.equal(await page.locator('input[placeholder="Search ingredients"]').count(), 1, "the Ingredients tab did not open");
+    assert.equal(await page.getByLabel("Search ingredients").count(), 1, "the Ingredients tab did not open");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

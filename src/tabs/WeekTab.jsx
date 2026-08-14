@@ -301,19 +301,20 @@ export function WeekTab({ data, update, isGuest }) {
         </div>
       )}
 
-      {/* Item 51d: 4 meal types x 7 days is 28 slots and a household that plans
-          dinners fills 4-7 — 2.5 screens to read four dinners. Only the types
-          actually in use get a row; the "+" on each day reveals the rest for
-          THAT day. Nothing about it is stored — planning a breakfast is what
-          makes Breakfast stay, on every day, from then on. */}
+      {/* Item 51d/63: 4 meal types x 7 days is 28 slots and a household that
+          plans dinners fills 4-7 — it took 2.5 screens to read four dinners.
+          A day now shows the meals ON it, then one "Choose a meal" row, and
+          the meal TYPE is chosen in the picker rather than by which row was
+          tapped. Nothing is hidden and nothing is stored about it. */}
       {recipesSorted.length === 0 ? (
         <div style={{ textAlign: "center", padding: "48px 16px", color: C.faint, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12 }}>
           Add some meals on the Meals tab first, then plan them here.
         </div>
       ) : (
         days.map((day) => {
-          // MEAL_TYPES, not shownTypes: a day with a hidden type filled is
-          // still a planned day, and the border is what says so at a glance.
+          // The green border is what says "something is planned here" at a
+          // glance, so it reads the PLAN rather than the rows: a slot arriving
+          // from the other phone counts before anything is rendered for it.
           const dayHasMeals = MEAL_TYPES.some((t) => data.plan?.[day]?.[t]?.recipeId);
           return (
             <div key={day} style={{ background: C.card, border: `1px solid ${dayHasMeals ? C.green : C.line}`, borderRadius: 12, padding: "12px 16px", marginBottom: 10 }}>
@@ -574,7 +575,7 @@ export function WeekTab({ data, update, isGuest }) {
                 onChange={setPickQuery}
                 onEscape={() => setPicker(null)}
                 label="Search meals"
-                placeholder="Search meals or ingredients"
+                placeholder="Search"
               />
             </div>
             <div style={{ overflowY: "auto", padding: "0 8px 8px" }}>

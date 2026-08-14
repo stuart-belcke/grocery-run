@@ -21,7 +21,7 @@
 export const HOW_IT_WORKS = [
   "Choose what you feel like cooking on {Meals}, and give the week a shape on {Week plan}.",
   "{List} then builds itself from those recipes — every ingredient added up, and grouped by the store and aisle you keep on {Ingredients}.",
-  "Both phones see the same {List}, so whoever is out can tick things off as they go.",
+  "Everyone in the household sees the same {List}, so whoever is out can tick things off as they go.",
 ];
 
 /* Every entry is a question somebody actually asked, or a confusion the app
@@ -30,8 +30,8 @@ export const HOW_IT_WORKS = [
 export const FAQS = [
   {
     q: "How does something get onto the shopping list?",
-    a: "Three ways. Put a meal on a day in {Week plan}, or press Add unplanned meal on a recipe in {Meals} — either one adds that recipe's ingredients, scaled to the servings you set. Or type it straight into the Add box at the top of {List}.",
-    keywords: ["add", "put", "shopping", "generate", "groceries", "where do items come from"],
+    a: "Three ways. Press Choose a meal on a day in {Week plan} — it asks which meal of the day it is, and starts on Dinner — or press Add unplanned meal on a recipe in {Meals}. Either one adds that recipe's ingredients, scaled to the servings you set. Or type it straight into the Add box at the top of {List}.",
+    keywords: ["add", "put", "shopping", "generate", "groceries", "where do items come from", "breakfast", "lunch", "dessert", "meal type"],
   },
   {
     q: "Why is one ingredient showing two amounts, like “1.5 cup + 3 can”?",
@@ -45,7 +45,7 @@ export const FAQS = [
   },
   {
     q: "How do I change where something is bought?",
-    a: "Tap the round i on the {List} row, then pick a store under Where to buy it. It asks whether that is just for this trip or from now on, because those are different things and the app cannot tell which you meant. Just this trip goes back afterwards; Always makes it the item's home on both phones, the same setting the {Ingredients} tab shows.",
+    a: "Tap the round i on the {List} row, then pick a store under Where to buy it. It asks whether that is just for this trip or from now on, because those are different things and the app cannot tell which you meant. Just this trip goes back afterwards; Always makes it the item's home for everyone in the household, the same setting the {Ingredients} tab shows.",
     keywords: ["store", "shop", "supermarket", "reroute", "override", "aisle", "permanent", "today", "dropdown"],
   },
   {
@@ -74,9 +74,9 @@ export const FAQS = [
     keywords: ["staple", "need", "pantry", "run out", "cupboard", "home", "out of"],
   },
   {
-    q: "How do I add the other phone?",
+    q: "How do I add another phone or another person?",
     a: "On this tab, under Household, press Invite another phone and send the link. Tapping it opens the app with the invite filled in; they sign in and they're in. A full invite lasts an hour and works once — it is used up the moment somebody joins with it.",
-    keywords: ["invite", "share", "add person", "second phone", "join", "household"],
+    keywords: ["invite", "share", "add person", "second phone", "another device", "join", "household"],
   },
   {
     q: "What is a guest link?",
@@ -90,7 +90,7 @@ export const FAQS = [
   },
   {
     q: "What does Restore starter catalog do?",
-    a: "It throws away this household's recipes and ingredients and puts back the ones shipped with the app. It also resets what is ticked off, per-item store reroutes, already-bought amounts, hand-added items and which staples are marked Need, because those point at ingredients it replaces. Do it between shops, on one phone, not mid-trip.",
-    keywords: ["restore", "reset", "starter", "wipe", "start over", "default"],
+    a: "It throws away this household's recipes and ingredients and puts back the ones shipped with the app. Your shopping trip is carried across by name — what is ticked off, what an earlier trip already bought, today's store reroutes and which staples are marked Need all follow the ingredients they belong to. Anything the shipped catalog does not have is dropped, along with any store or aisle you set yourself. Do it between shops, on one phone.",
+    keywords: ["restore", "reset", "starter", "wipe", "start over", "default", "lose", "keep"],
   },
 ];
