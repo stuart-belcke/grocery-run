@@ -2766,11 +2766,26 @@ treatment: the store moved into the details panel and the name grew.
        (the "Add a side" button keeps the indent, with its width reduced to
        match, or it would overhang the card).
 
-    D. THE WAKE-LOCK PILL SAYS HOW LONG IT LASTS. "30 min" sits beside it
-       rather than inside it: "keep the screen on" and "for how long" are
-       two facts, and one capsule holding both was the widest thing on the
-       row. The number comes from WAKE_LOCK_MINUTES, exported from
-       wakeLock.js and used for the timer itself — written twice, the label
+    D. THE WAKE-LOCK CONTROL IS A PILL TOGGLE, and says how long it lasts.
+       "Pill" first landed as a pill-SHAPED BUTTON whose text reported the
+       state ("Keep screen on" / "Screen staying on"); the ask was a pill
+       TOGGLE — a switch. Rebuilt as one: a 30x18 track with a knob that
+       slides, `role="switch"` + `aria-checked`, and a green track when on.
+       THE LABEL NO LONGER CARRIES THE STATE, which is the actual
+       difference and not just a shape. A button that relabels itself is
+       two controls in one costume — you have to read the words to work out
+       what pressing it will do NEXT, where a switch shows you where it
+       currently is. So "Keep screen on" is now fixed text, and there is a
+       test asserting the wording is IDENTICAL before and after flipping
+       it; mutating the label back to a state-dependent one fails exactly
+       that test and nothing else.
+       The e2e specs find it by ROLE and read `aria-checked`, not by its
+       visible words. Keyed to the label, they would have passed just as
+       happily on a switch that never moved as long as the text changed.
+       "· 30 min" sits outside the track, with the app's own separator —
+       without the middot the row reads as one sentence, "Keep screen on 30
+       min". The number comes from WAKE_LOCK_MINUTES, exported from
+       wakeLock.js and used for the timer itself: written twice, the label
        and the duration drift the first time one is tuned, and the label is
        the half nobody re-checks.
 

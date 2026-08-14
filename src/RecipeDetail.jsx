@@ -34,39 +34,74 @@ export function RecipeDetail({ recipe, servings }) {
           {scaled ? `Ingredients · for ${r2(servings)} sv` : `Ingredients · makes ${base} sv`}
           {scaled && servings !== base ? ` (recipe makes ${base})` : ""}
         </div>
-        {/* Hidden rather than shown-disabled when the API doesn't exist —
-            same rule the guest-only buttons follow elsewhere: a control
-            nobody can turn on is not worth explaining.
-            THE DURATION IS BESIDE THE PILL, NOT INSIDE IT: "keep the screen
-            on" and "for how long" are two facts, and crowding both into one
-            capsule made the pill the widest thing on the row. Outside, it
-            reads as the quiet caveat it is — and it answers the question the
-            button raises before you have to tap it to find out. */}
+        {/* A SWITCH, not a button that reports its own state in words.
+            "Keep screen on" stays put and the track shows whether it is on,
+            which is the one control shape people already read without being
+            told — a button whose LABEL changes ("Keep screen on" ->
+            "Screen staying on") makes you read the label to find out what
+            tapping it will do next.
+            role="switch" + aria-checked is the same fact for a screen
+            reader; the label stops carrying state, so it must not change.
+            Hidden rather than shown-disabled where the API doesn't exist,
+            same rule the guest-only buttons follow: a control nobody can
+            turn on is not worth explaining.
+            THE DURATION SITS OUTSIDE THE TRACK. "Keep the screen on" and
+            "for how long" are two facts, and it answers the question the
+            switch raises before you have to flip it to find out. */}
         {wakeLockSupported() && (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-            <button
-              onClick={() => (awake ? stopWakeLock() : startWakeLock())}
-              aria-pressed={awake}
-              title={awake ? `Screen will stay on for up to ${WAKE_LOCK_MINUTES} minutes while you cook — tap to stop` : `Keep the screen on for ${WAKE_LOCK_MINUTES} minutes while you cook`}
+          <button
+            role="switch"
+            aria-checked={awake}
+            aria-label={`Keep the screen on while you cook, for ${WAKE_LOCK_MINUTES} minutes`}
+            onClick={() => (awake ? stopWakeLock() : startWakeLock())}
+            title={`Keeps the screen awake for ${WAKE_LOCK_MINUTES} minutes so it doesn't lock while you cook`}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              flexShrink: 0,
+              border: "none",
+              background: "transparent",
+              padding: 0,
+              cursor: "pointer",
+              fontFamily: fontBody,
+            }}
+          >
+            <span
+              aria-hidden
               style={{
+                width: 30,
+                height: 18,
+                flexShrink: 0,
+                boxSizing: "border-box",
+                borderRadius: 999,
+                padding: 2,
                 display: "inline-flex",
                 alignItems: "center",
-                gap: 5,
-                fontFamily: fontBody,
-                fontSize: 11,
-                fontWeight: 500,
-                padding: "3px 9px",
-                borderRadius: 999,
-                cursor: "pointer",
+                background: awake ? C.green : "#fff",
                 border: `1px solid ${awake ? C.green : C.line}`,
-                background: awake ? C.greenSoft : "#fff",
-                color: awake ? C.green : C.faint,
+                transition: "background 120ms ease",
               }}
             >
-              {awake ? "📱 Screen staying on" : "📱 Keep screen on"}
-            </button>
-            <span style={{ fontSize: 11, color: C.faint, whiteSpace: "nowrap" }}>{WAKE_LOCK_MINUTES} min</span>
-          </span>
+              <span
+                style={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: "50%",
+                  background: awake ? "#fff" : C.faint,
+                  transform: awake ? "translateX(12px)" : "translateX(0)",
+                  transition: "transform 120ms ease, background 120ms ease",
+                }}
+              />
+            </span>
+            <span style={{ fontSize: 11, fontWeight: 500, color: awake ? C.green : C.faint, whiteSpace: "nowrap" }}>
+              Keep screen on
+            </span>
+            {/* The app's own separator for "two facts, not one phrase" —
+                as in "Ingredients · for 4 sv". Without it the row reads as
+                the single sentence "Keep screen on 30 min". */}
+            <span style={{ fontSize: 11, color: C.faint, whiteSpace: "nowrap" }}>· {WAKE_LOCK_MINUTES} min</span>
+          </button>
         )}
       </div>
       {ingredients.length > 0 ? (
