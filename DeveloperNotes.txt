@@ -2449,3 +2449,33 @@ treatment: the store moved into the details panel and the name grew.
     work" once main has moved — it is my work PLUS the undoing of everybody
     else's. Prefer format-patch of the specific commits, and diff the result
     against main before pushing.
+
+67. [DONE] A PLANNED MEAL DIDN'T LEAD ANYWHERE. Reported from real use:
+    seeing "Stir-fry" on Tuesday told you nothing about how to cook it —
+    getting to the recipe meant leaving the Week tab and searching Meals
+    for the same name again. And once there, the recipe showed its own
+    default batch size, not the amount actually being cooked that day.
+
+    RecipeDetail (src/RecipeDetail.jsx) now takes an optional `servings`
+    prop. When given and positive, every quantity is multiplied by
+    servings/base — the exact scale computation aggregateItems already uses
+    for the shopping list (lib.js) — so the ingredients shown match what the
+    list actually asks for, not the recipe's own "serves 4". Omitting it (or
+    passing the base) shows the recipe as written; MealsTab does this except
+    when an unplanned batch has its own servings set, in which case IT
+    scales to that.
+
+    WeekTab: the read-only (shopping-stage) meal bubble is now a button that
+    opens the recipe inline, scaled to that slot's servings. Edit mode kept
+    the existing tap-to-re-pick behaviour on the bubble itself (repurposing
+    it would have silently swapped a look at the recipe for a meal change)
+    and got a separate 📖 icon button alongside it and the ✕. Every side
+    dish got the same 📖 button, scaled to THAT side's own servings — not
+    the main's, which matters because a side's base batch and the main's
+    headcount routinely disagree (see item 27/sidesCatalog).
+
+    MUTATION-TESTED: set the scale to a hardcoded 1 in RecipeDetail and ran
+    the full e2e suite. Exactly the four new tests failed (the three
+    Week-tab ones plus the Meals-tab unplanned-servings one) — 181 others
+    stayed green, meaning nothing else in the suite was accidentally
+    covering this. Restored, reran: 185/185.

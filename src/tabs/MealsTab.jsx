@@ -320,7 +320,11 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
             </div>
           </button>
           </CardHeading>
-          {detailShown && <RecipeDetail recipe={r} />}
+          {/* Scaled to the unplanned batch amount when one's set on the
+              shopping list — the same servings-scaling RecipeDetail does for
+              a Week-tab slot, applied here to whatever "nominal" amount this
+              meal is currently set to. Otherwise shows the recipe as written. */}
+          {detailShown && <RecipeDetail recipe={r} servings={servings > 0 ? servings : undefined} />}
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>

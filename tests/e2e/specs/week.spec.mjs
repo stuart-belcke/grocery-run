@@ -203,6 +203,84 @@ test("SHOULD: the same meal on two days doubles the amounts on one row", async (
   }
 });
 
+/* ---------------- view a planned meal's recipe ----------------
+   Finding a planned meal's recipe used to mean leaving the Week tab and
+   searching for it again on Meals. Tapping the meal (read-only stage) or its
+   book-icon button (edit mode, and every side dish) now opens RecipeDetail
+   inline, scaled to that slot's servings rather than the recipe's own
+   default — the same scale = servings/base math aggregateItems uses for the
+   shopping list. */
+
+test("SHOULD: tapping a planned meal shows its recipe scaled to the slot's servings", async () => {
+  const catalog = smallCatalog();
+  const state = stateWith({
+    planStage: "shopping",
+    plan: { Mon: { Dinner: { recipeId: "r-stirfry", servings: 4 } } }, // base 2, so ×2
+  });
+  const page = await openApp(BASE, { catalog, state });
+  try {
+    await page.tab("Week plan");
+    await page.getByLabel(/Mon Dinner: Stir-fry — view recipe/).click();
+    await page.waitForTimeout(300);
+
+    const text = await page.textContent("body");
+    assert.ok(text.includes("Ingredients"), "the recipe detail should open");
+    assert.ok(/2\s*lb/.test(text), "1 lb of chicken at the recipe's base should scale to 2 lb at double servings");
+    assert.ok(/4\s*cup/.test(text), "2 cup of broccoli should scale to 4 cup at double servings");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: a side's recipe scales to the SIDE's own servings, not the main's", async () => {
+  const catalog = smallCatalog();
+  const state = stateWith({
+    planStage: "shopping",
+    // Main (Stir-fry) feeds 4; the side (Rice side, base 2) feeds 3 — a
+    // different scale, so the test can tell which servings count was used.
+    plan: { Mon: { Dinner: { recipeId: "r-stirfry", servings: 4, sides: [{ recipeId: "r-riceside", servings: 3 }] } } },
+  });
+  const page = await openApp(BASE, { catalog, state });
+  try {
+    await page.tab("Week plan");
+    await page.getByLabel(/View recipe for Rice side/).click();
+    await page.waitForTimeout(300);
+
+    const text = await page.textContent("body");
+    assert.ok(/1\.5\s*cup/.test(text), "1 cup of rice at the side's base of 2 should scale to 1.5 cup at 3 servings");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: edit mode still offers the recipe view, alongside re-pick and clear", async () => {
+  const catalog = smallCatalog();
+  const state = stateWith({
+    planStage: "shopping",
+    plan: { Mon: { Dinner: { recipeId: "r-stirfry", servings: 4 } } },
+  });
+  const page = await openApp(BASE, { catalog, state });
+  try {
+    await page.tab("Week plan");
+    await page.locator("button").filter({ hasText: /^Edit$/ }).first().click();
+    await page.waitForTimeout(300);
+
+    // Re-pick and clear are unaffected by the new button.
+    assert.equal(await page.getByLabel(/tap to pick a different meal/).count(), 1, "the meal itself should still re-pick");
+    assert.equal(await page.getByLabel(/^Clear Stir-fry from Mon Dinner$/).count(), 1, "clear should still be there");
+
+    await page.getByLabel(/^View recipe for Stir-fry$/).click();
+    await page.waitForTimeout(300);
+    const text = await page.textContent("body");
+    assert.ok(/2\s*lb/.test(text), "the recipe should open scaled, same as in the read-only stage");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
 /* ---------------- unplanned meals ----------------
    "Add unplanned meal" on the Meals tab puts a recipe on the shopping list
    with no day/slot — previously visible only by scrolling the Meals tab for

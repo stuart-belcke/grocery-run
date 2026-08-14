@@ -4,10 +4,11 @@
     ingredients".  */
 /* ------------------------------------------------------------------ */
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, ConfirmDialog, SearchField, Seg } from "../ui";
 import { MEAL_TYPES, norm, planStageOf, plannedMealCount, daysInOrder, asArray, unplannedMeals, r2 } from "../lib";
+import { RecipeDetail } from "../RecipeDetail";
 
 export function WeekTab({ data, update, isGuest }) {
   // Presentation order only. Plan data stays keyed by day name, so a meal
@@ -23,6 +24,14 @@ export function WeekTab({ data, update, isGuest }) {
   const [editing, setEditing] = useState(false); // whole-plan edit mode: reveals per-slot change + clear
   const [confirmClear, setConfirmClear] = useState(false);
   const [unplannedOpen, setUnplannedOpen] = useState(false); // "Unplanned meals" disclosure
+  // Which slot's recipe is expanded inline — "day|type" for a main,
+  // "day|type|<sideIndex>" for a side. Item: tapping a planned meal used to
+  // do nothing (read-only stage) or reopen the picker (edit mode); neither
+  // gets you to the recipe without leaving the tab and searching Meals again.
+  const [recipeOpen, setRecipeOpen] = useState(null);
+  const recipeKey = (day, type, sideIndex) => (sideIndex == null ? `${day}|${type}` : `${day}|${type}|${sideIndex}`);
+  const toggleRecipe = (day, type, sideIndex) =>
+    setRecipeOpen((cur) => (cur === recipeKey(day, type, sideIndex) ? null : recipeKey(day, type, sideIndex)));
   // Item 51d. View state only — nothing about which types you PLAN is stored,
   // because planning one is what makes it stay.
   /* A day shows the meals ON it, then one invitation to add another — the same
@@ -364,8 +373,9 @@ export function WeekTab({ data, update, isGuest }) {
                           Choose a meal
                         </button>
                       ) : slotsEditable ? (
-                        // Edit mode — tap the meal to re-pick it, and an ✕ to clear
-                        // the slot. Servings drop to their own line just below.
+                        // Edit mode — tap the meal to re-pick it, the book icon to
+                        // view its recipe, and an ✕ to clear the slot. Servings
+                        // drop to their own line just below.
                         <>
                           <button
                             onClick={() => openPicker(day, type)}
@@ -377,6 +387,15 @@ export function WeekTab({ data, update, isGuest }) {
                             <span aria-hidden style={{ flexShrink: 0, color: skipped ? C.faint : C.green, fontSize: 12 }}>▾</span>
                           </button>
                           <button
+                            onClick={() => toggleRecipe(day, type)}
+                            aria-expanded={recipeOpen === recipeKey(day, type)}
+                            aria-label={`View recipe for ${recipe.name}`}
+                            title="View recipe"
+                            style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 16, padding: 2, lineHeight: 1, flexShrink: 0 }}
+                          >
+                            📖
+                          </button>
+                          <button
                             onClick={() => setSlot(day, type, null)}
                             aria-label={`Clear ${recipe.name} from ${day} ${type}`}
                             title="Clear this slot"
@@ -386,19 +405,31 @@ export function WeekTab({ data, update, isGuest }) {
                           </button>
                         </>
                       ) : (
-                        // Read-only: title spans the full bubble width, with the
-                        // servings as a subtitle underneath (like the picker cards)
-                        // so long names aren't crowded by a side-by-side count.
-                        // Sides get their own rows below rather than being folded
-                        // into this line — see the sides block after this div.
-                        <span style={{ ...slotBox, cursor: "default", flexDirection: "column", alignItems: "stretch", gap: 1 }}>
+                        // Read-only: the whole bubble is the "view recipe" tap
+                        // target now (item: finding a planned meal's recipe used
+                        // to mean leaving this tab and searching Meals again).
+                        // Title spans the full width, with servings as a
+                        // subtitle underneath. Sides get their own rows below
+                        // rather than being folded into this line.
+                        <button
+                          onClick={() => toggleRecipe(day, type)}
+                          aria-expanded={recipeOpen === recipeKey(day, type)}
+                          aria-label={`${day} ${type}: ${recipe.name} — view recipe`}
+                          title="View recipe"
+                          style={{ ...slotBox, cursor: "pointer", flexDirection: "column", alignItems: "stretch", gap: 1 }}
+                        >
                           <span style={{ fontWeight: 600 }}>{recipe.easy ? "⚡ " : ""}{recipe.name}</span>
                           <span style={{ fontSize: 12, color: C.faint, fontVariantNumeric: "tabular-nums" }}>
                             {Number(slot.servings) || base} sv{skipped ? " · already have the ingredients" : ""}
                           </span>
-                        </span>
+                        </button>
                       )}
                     </div>
+                    {recipe && recipeOpen === recipeKey(day, type) && (
+                      <div style={{ marginLeft: 78 }}>
+                        <RecipeDetail recipe={recipe} servings={Number(slot.servings) || base} />
+                      </div>
+                    )}
                     {recipe && slotsEditable && (
                       <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 5, marginTop: 6, marginLeft: 78, fontSize: 12, color: C.faint }}>
                         <input
@@ -435,38 +466,51 @@ export function WeekTab({ data, update, isGuest }) {
                         {sideEntries.map((s) => {
                           const sideBase = s.recipe.servings || 4;
                           return (
-                            <div
-                              key={s.index}
-                              style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.ink, padding: "4px 8px", marginBottom: 4, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 7 }}
-                            >
-                              <span aria-hidden style={{ color: C.green, flexShrink: 0 }}>+</span>
-                              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.recipe.easy ? "⚡ " : ""}{s.recipe.name}</span>
-                              {slotsEditable ? (
-                                <>
-                                  <input
-                                    type="number"
-                                    min="1"
-                                    value={s.servings}
-                                    onChange={(e) => setSlotSide(day, type, s.index, { servings: e.target.value === "" ? "" : Number(e.target.value) })}
-                                    onBlur={() => normalizeSideServings(day, type, s.index, sideBase)}
-                                    onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                                    aria-label={`Servings of ${s.recipe.name} on ${day} ${type}`}
-                                    style={{ ...inputStyle, width: 44, padding: "4px 6px", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}
-                                  />
-                                  <span style={{ color: C.faint, flexShrink: 0 }}>sv</span>
-                                  <button
-                                    onClick={() => removeSide(day, type, s.index)}
-                                    aria-label={`Remove ${s.recipe.name} from ${day} ${type}`}
-                                    title="Remove this side"
-                                    style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 2, lineHeight: 1, flexShrink: 0 }}
-                                  >
-                                    ✕
-                                  </button>
-                                </>
-                              ) : (
-                                <span style={{ color: C.faint, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{Number(s.servings) || sideBase} sv</span>
+                            <Fragment key={s.index}>
+                              <div
+                                style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.ink, padding: "4px 8px", marginBottom: 4, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 7 }}
+                              >
+                                <span aria-hidden style={{ color: C.green, flexShrink: 0 }}>+</span>
+                                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.recipe.easy ? "⚡ " : ""}{s.recipe.name}</span>
+                                <button
+                                  onClick={() => toggleRecipe(day, type, s.index)}
+                                  aria-expanded={recipeOpen === recipeKey(day, type, s.index)}
+                                  aria-label={`View recipe for ${s.recipe.name}`}
+                                  title="View recipe"
+                                  style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 13, padding: 2, lineHeight: 1, flexShrink: 0 }}
+                                >
+                                  📖
+                                </button>
+                                {slotsEditable ? (
+                                  <>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={s.servings}
+                                      onChange={(e) => setSlotSide(day, type, s.index, { servings: e.target.value === "" ? "" : Number(e.target.value) })}
+                                      onBlur={() => normalizeSideServings(day, type, s.index, sideBase)}
+                                      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                                      aria-label={`Servings of ${s.recipe.name} on ${day} ${type}`}
+                                      style={{ ...inputStyle, width: 44, padding: "4px 6px", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}
+                                    />
+                                    <span style={{ color: C.faint, flexShrink: 0 }}>sv</span>
+                                    <button
+                                      onClick={() => removeSide(day, type, s.index)}
+                                      aria-label={`Remove ${s.recipe.name} from ${day} ${type}`}
+                                      title="Remove this side"
+                                      style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 2, lineHeight: 1, flexShrink: 0 }}
+                                    >
+                                      ✕
+                                    </button>
+                                  </>
+                                ) : (
+                                  <span style={{ color: C.faint, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{Number(s.servings) || sideBase} sv</span>
+                                )}
+                              </div>
+                              {recipeOpen === recipeKey(day, type, s.index) && (
+                                <RecipeDetail recipe={s.recipe} servings={Number(s.servings) || sideBase} />
                               )}
-                            </div>
+                            </Fragment>
                           );
                         })}
                         {slotsEditable && (

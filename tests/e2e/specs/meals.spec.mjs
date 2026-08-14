@@ -106,6 +106,38 @@ test("SHOULD: an exact servings figure scales the quantities", async () => {
   }
 });
 
+test("SHOULD: the recipe detail scales to an unplanned meal's own servings, not the recipe's default", async () => {
+  // Stir-fry serves 2 and wants 1 lb of chicken. Set to 6 unplanned servings,
+  // the inline recipe view should show 3 lb — the same figure the shopping
+  // list totals to, not the 1 lb the recipe is written for.
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await page.tab("Meals");
+    await addUnplanned(page, "Stir-fry");
+    await page.getByLabel(/^Set exact servings of Stir-fry$/).click();
+    await page.waitForTimeout(300);
+    await page.getByLabel(/^Servings of Stir-fry on the shopping list$/).fill("6");
+    await page.getByLabel(/^Save servings of Stir-fry$/).click();
+    await page.waitForTimeout(400);
+
+    // The card's whole heading is one button (title="Show ingredients and
+    // recipe"), so it can't go through cardAction's exact-text match —
+    // find the one whose card is Stir-fry's directly instead.
+    const toggles = page.getByTitle("Show ingredients and recipe");
+    const toggleTexts = await toggles.allTextContents();
+    const toggleIdx = toggleTexts.findIndex((t) => t.includes("Stir-fry"));
+    assert.notEqual(toggleIdx, -1, "Stir-fry's card should have a details toggle");
+    await toggles.nth(toggleIdx).click();
+    await page.waitForTimeout(300);
+    const text = await page.textContent("body");
+    assert.ok(text.includes("for 6 sv"), `the detail header should show the batch servings; got: ${text.replace(/\s+/g, " ").slice(0, 300)}`);
+    assert.ok(/3\s*lb/.test(text), "the ingredient list itself should also scale, matching the shopping-list total");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
 test("SHOULD: two meals wanting the same ingredient total it, not list it twice", async () => {
   // Stir-fry wants chicken; add it twice over and the amount should double
   // on ONE row. A second row is a second purchase.
