@@ -875,7 +875,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
           your own additions. Whatever you didn't get stays on the list for next time.
         </p>
         <p style={{ margin: 0 }}>
-          Meals picked on the Meals tab are unselected, and your <b style={{ color: C.ink }}>week plan is kept</b>. Clear week on the Week plan tab starts a
+          Meals picked on the Meals tab are unselected, and your <b style={{ color: C.ink }}>week plan is kept</b>. Start a new plan on the Week plan tab starts a
           fresh buying cycle.
         </p>
       </ConfirmDialog>

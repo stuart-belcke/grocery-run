@@ -2618,3 +2618,55 @@ treatment: the store moved into the details panel and the name grew.
     failed (the exact-answer one and the refuses-to-guess one); the
     unknown-unit and swap tests correctly stayed green, since neither
     depends on the conversion itself. Restored, 194/194.
+
+72. [DONE] A PASS OVER THE APP, LOOKING FOR PROSE THAT DRIFTED FROM THE CODE
+    — item 66 again, one release later. Nothing tests copy against behaviour,
+    so every renamed button is a chance for it to go quietly wrong, same
+    reasoning as last time.
+
+    FOUND: "Clear week" IN TWO PLACES A USER ACTUALLY READS, describing a
+    button that stopped existing when it became "Start a new plan" (see
+    WeekTab.jsx's own comment on that rename). The FAQ answer for "What does
+    Done shopping do?" (help.js) and the Done-shopping confirm dialog itself
+    (ListTab.jsx) both still told you to press a button that isn't there —
+    someone reading either while actually trying to clear the week would
+    have gone looking for it and found nothing. Both rewritten to say
+    "Start a new plan".
+    LEFT ALONE, DELIBERATELY: the four OTHER "Clear week" mentions, in
+    lib.js, WeekTab.jsx (×2) and ListTab.jsx, are all comments explaining
+    the rename itself — "used to be cleared by... 'Clear week'", "replaces
+    the old 'Clear week'" — correctly past-tense, correctly historical, and
+    fixing them would delete the reason the current code looks the way it
+    does. The test here was "does this describe something a user meets
+    today", not "does this string appear".
+
+    THE METHOD: every button/label phrase named in help.js — the words
+    people actually search the FAQ with — checked against the literal
+    strings rendered by the tab that owns it. Nine matched exactly; one
+    didn't. A second, smaller find in the same pass: a PantryTab.jsx
+    comment called the "keep this as a new ingredient" choice "Save as a
+    separate item", while the button next to it (and another comment three
+    lines away) call it "Keep as separate item" — developer-facing only,
+    fixed for consistency rather than because anyone was misled by it.
+
+    ALSO RE-CHECKED, having just added five features that could have
+    reopened either: item 66's "shared between two phones" -> "shared with
+    whoever you shop with" sweep still holds — the remaining "two phones"/
+    "other phone" mentions are either architecture comments item 66
+    explicitly kept (a concrete example, not a claim about household size)
+    or genuinely mean "this device vs. your other device," which is
+    accurate regardless of how many people are in the household. None of
+    today's new copy (RecipeDetail, wakeLock.js, UnitConverter.jsx,
+    Onboarding.jsx's banners) uses phone-count language.
+
+    VERIFIED LIVE, not just by grep: built the app, drove all five tabs in
+    a real (non-emulated) browser with Playwright, and screenshotted the
+    Meals detail view, the Week-tab recipe view, and the Settings unit
+    converter. No console errors beyond the sandbox's known-benign blocked
+    websocket. Full suite: 194/194.
+
+    NOT DONE: a line-by-line reread of every FAQ answer and every dialog's
+    prose for tone or clarity — this pass looked for statements that are
+    factually WRONG against current behaviour, which "Clear week" was and
+    everything else checked was not. A slower editorial pass is still
+    open, same as item 65 left one open for restore's wording.
