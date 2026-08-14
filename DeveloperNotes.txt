@@ -2525,3 +2525,34 @@ treatment: the store moved into the details panel and the name grew.
     failure mode item 48's comment described — but nobody has watched it
     copy a real link on a real phone. Worth doing by hand before trusting it
     fully, especially on Safari/iOS, which is where the original bug lived.
+
+69. [DONE] KEEP THE SCREEN ON WHILE COOKING. Requested from real use: reading
+    a recipe with flour on your hands, the phone locks itself mid-step.
+
+    src/wakeLock.js is a new, small SINGLETON module — not per-component
+    state. The screen has exactly one on/off state, and a main's recipe plus
+    its sides can each have a RecipeDetail panel mounted, so per-instance
+    state would mean the last one you opened deciding the phone's screen
+    behaviour, silently overriding whichever one you actually turned it on
+    from. One sentinel, one 30-minute timer, one `intentOn` flag every open
+    RecipeDetail subscribes to and reflects identically, via a 📖-adjacent
+    button (📱) next to the ingredients heading.
+
+    `intentOn` is deliberately tracked SEPARATELY from whether the browser
+    currently holds the lock: mobile browsers release a wake lock whenever
+    the page is hidden — screen off, a glance at a text, switching apps —
+    which is exactly the moment a real "stay on while I'm cooking" has to
+    survive. A `visibilitychange` listener reacquires automatically on
+    return, as long as the 30-minute window from the original tap hasn't
+    run out; past it, it turns itself off rather than silently holding the
+    screen on forever.
+    Hidden rather than shown-disabled when `navigator.wakeLock` doesn't
+    exist — same rule the guest-only buttons already follow.
+
+    MUTATION-TESTED: forced `intentOn` to stay false in startWakeLock() and
+    ran the full e2e suite. Exactly the two new wakelock.spec.mjs tests
+    failed — the rest of the 185 stayed green. Restored, reran: 187/187.
+    The passing test doesn't just check the UI state either: it stubs
+    navigator.wakeLock.request itself and asserts it was actually CALLED,
+    so a button that only ever flips a CSS class without touching the real
+    API would have been caught too.

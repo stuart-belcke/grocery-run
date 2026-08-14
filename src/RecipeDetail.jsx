@@ -2,7 +2,8 @@
 /*  RecipeDetail — read-only view of a recipe's ingredients (with
     quantities) and cooking notes. Shared by the Meals tab (tap a card
     to expand) and the Week tab (tap a planned meal or side). Purely
-    presentational; pass it a recipe object.
+    presentational aside from the wake-lock toggle below; pass it a
+    recipe object.
 
     `servings`, if given and positive, scales every quantity by
     servings/base — the same math aggregateItems uses for the shopping
@@ -11,19 +12,55 @@
     the recipe as written.                                             */
 /* ------------------------------------------------------------------ */
 
-import { C } from "./theme";
+import { useEffect, useState } from "react";
+import { C, fontBody } from "./theme";
 import { r2 } from "./lib";
+import { startWakeLock, stopWakeLock, wakeLockActive, wakeLockSupported, subscribeWakeLock } from "./wakeLock";
 
 export function RecipeDetail({ recipe, servings }) {
   const base = recipe.servings || 4;
   const scaled = Number(servings) > 0;
   const scale = scaled ? servings / base : 1;
   const ingredients = recipe.ingredients || [];
+  // The wake lock is a single device-wide resource (see wakeLock.js), so
+  // every open RecipeDetail — a main plus its sides — reflects the same
+  // on/off state rather than tracking its own.
+  const [awake, setAwake] = useState(wakeLockActive());
+  useEffect(() => subscribeWakeLock(setAwake), []);
   return (
     <div style={{ marginTop: 6, padding: "10px 12px", background: C.paper, border: `1px solid ${C.line}`, borderRadius: 8 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 6 }}>
-        {scaled ? `Ingredients · for ${r2(servings)} sv` : `Ingredients · makes ${base} sv`}
-        {scaled && servings !== base ? ` (recipe makes ${base})` : ""}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint }}>
+          {scaled ? `Ingredients · for ${r2(servings)} sv` : `Ingredients · makes ${base} sv`}
+          {scaled && servings !== base ? ` (recipe makes ${base})` : ""}
+        </div>
+        {/* Hidden rather than shown-disabled when the API doesn't exist —
+            same rule the guest-only buttons follow elsewhere: a control
+            nobody can turn on is not worth explaining. */}
+        {wakeLockSupported() && (
+          <button
+            onClick={() => (awake ? stopWakeLock() : startWakeLock())}
+            aria-pressed={awake}
+            title={awake ? "Screen will stay on for up to 30 minutes while you cook — tap to stop" : "Keep the screen on for 30 minutes while you cook"}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              fontFamily: fontBody,
+              fontSize: 11,
+              fontWeight: 500,
+              padding: "3px 9px",
+              borderRadius: 999,
+              cursor: "pointer",
+              border: `1px solid ${awake ? C.green : C.line}`,
+              background: awake ? C.greenSoft : "#fff",
+              color: awake ? C.green : C.faint,
+              flexShrink: 0,
+            }}
+          >
+            {awake ? "📱 Screen staying on" : "📱 Keep screen on"}
+          </button>
+        )}
       </div>
       {ingredients.length > 0 ? (
         <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
