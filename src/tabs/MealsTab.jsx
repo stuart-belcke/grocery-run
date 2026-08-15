@@ -395,8 +395,11 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
                  batches) and a second one would be a second answer to the
                  same question. */
               <>
+                {/* No "Batches" caption: "×3" next to "15 sv", with ± either
+                    side, already says what it is — the word was labelling
+                    the obvious. The tooltip still spells it out for anyone
+                    who wants it. */}
                 <span style={pillWrap} title={`×${mult} of a batch that makes ${base} — ${r2(base * mult)} servings`}>
-                  <span style={pillLabel}>Batches</span>
                   <button
                     style={{ ...pillBtn, color: mult > 1 ? C.ink : C.line, cursor: mult > 1 ? "pointer" : "default" }}
                     onClick={() => setMult(r.id, mult - 1)}

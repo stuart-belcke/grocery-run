@@ -2795,8 +2795,11 @@ treatment: the store moved into the details panel and the name grew.
     THE GAP IT FILLS: scaling a recipe required putting it on the shopping
     list FIRST and then stepping the amount. You could not ask "what does
     three batches look like?" without committing to it. The card now carries
-    `Batches − ×N + <sv>` beside the Add button; the open recipe shows that
-    many batches' worth, and Add writes exactly what you were looking at.
+    `− ×N + <sv>` beside the Add button; the open recipe shows that many
+    batches' worth, and Add writes exactly what you were looking at.
+    NO "BATCHES" CAPTION on it: "×3" sitting next to "15 sv" with a − and a
+    + either side already says what it is — the word was labelling the
+    obvious. The tooltip still spells it out.
 
     STEPS IN WHOLE BATCHES, and floors at ×1 by DISABLING the down control
     rather than clamping silently — a stray tap that reaches ×0 would add
