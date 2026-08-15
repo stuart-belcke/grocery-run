@@ -190,12 +190,15 @@ test("SHOULD: Add unplanned meal writes the multiplier, not one batch", async ()
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
     await page.tab("Meals");
+    await openDetail(page, "Stir-fry");
     const up = page.getByLabel(/^Scale Stir-fry up$/);
     await up.click();
     await page.waitForTimeout(200);
     await up.click();
     await page.waitForTimeout(300);
-    await addUnplanned(page, "Stir-fry");
+    // The button carries the count, so a collapsed card can't act invisibly.
+    assert.equal(await page.locator('button:text-is("Add unplanned meal ×3")').count(), 1, "the Add button should show what it will add");
+    await cardAction(page, "Stir-fry", "Add unplanned meal ×3");
     await page.roundTrip();
 
     assert.deepEqual(
@@ -213,6 +216,7 @@ test("SHOULD: the multiplier steps whole batches and never below one", async () 
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
     await page.tab("Meals");
+    await openDetail(page, "Stir-fry");
     // Stir-fry serves 2, so the run is 2 / 4 / 6 sv — never 3.
     assert.ok((await page.textContent("body")).includes("2 sv"), "should start at one batch");
     await page.getByLabel(/^Scale Stir-fry up$/).click();
@@ -243,10 +247,14 @@ test("SHOULD: the multiplier gives way to the pill once the meal is on the list"
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
     await page.tab("Meals");
+    await openDetail(page, "Stir-fry");
     assert.equal(await page.getByLabel(/^Scale Stir-fry up$/).count(), 1, "the multiplier should be offered before adding");
     await addUnplanned(page, "Stir-fry");
     await page.waitForTimeout(300);
 
+    // Card still open — so this is the stepper genuinely standing down,
+    // not merely the panel having closed.
+    assert.ok((await page.textContent("body")).includes("Ingredients"), "the recipe should still be open");
     assert.equal(await page.getByLabel(/^Scale Stir-fry up$/).count(), 0, "the multiplier should step aside for the pill");
     assert.equal(await page.getByLabel(/^One batch more unplanned Stir-fry$/).count(), 1, "the pill should be the control now");
     assertNoPageErrors(page, assert);

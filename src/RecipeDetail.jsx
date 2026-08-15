@@ -17,11 +17,22 @@ import { C, fontBody } from "./theme";
 import { r2, scaleRecipeText } from "./lib";
 import { startWakeLock, stopWakeLock, wakeLockActive, wakeLockSupported, subscribeWakeLock, WAKE_LOCK_MINUTES } from "./wakeLock";
 
-export function RecipeDetail({ recipe, servings }) {
+/* The batch stepper's own styling. Small enough to live here rather than in
+   ui.jsx: nothing else renders one, and the Meals card's near-identical pill
+   is a DIFFERENT control (the amount already on the shopping list). */
+const stepWrap = { display: "inline-flex", alignItems: "center", gap: 2, background: "#fff", border: `1px solid ${C.line}`, borderRadius: 999, padding: "1px 3px" };
+const stepBtn = { minWidth: 24, height: 24, padding: "0 4px", borderRadius: 999, border: "none", background: "transparent", fontSize: 14, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: fontBody };
+
+/* `mult` / `onMult` are OPTIONAL and arrive together. Given them, the panel
+   offers a batch stepper; without them it is read-only, which is what the
+   Week tab wants — a planned slot's amount is set by its own servings box,
+   and a second control for the same number is how the two drift apart. */
+export function RecipeDetail({ recipe, servings, mult, onMult }) {
   const base = recipe.servings || 4;
   const scaled = Number(servings) > 0;
   const scale = scaled ? servings / base : 1;
   const ingredients = recipe.ingredients || [];
+  const batches = Number(mult) > 0 ? Number(mult) : 1;
   // The wake lock is a single device-wide resource (see wakeLock.js), so
   // every open RecipeDetail — a main plus its sides — reflects the same
   // on/off state rather than tracking its own.
@@ -104,6 +115,39 @@ export function RecipeDetail({ recipe, servings }) {
           </button>
         )}
       </div>
+      {/* THE BATCH STEPPER LIVES WITH THE RECIPE IT SCALES, directly above
+          the amounts it changes — the way every recipe site puts its 1X/2X
+          beside the ingredient list. It used to sit out on the card's action
+          row, permanently on show next to Add, where it was a control you
+          had to reason about before you had even opened the thing it acted
+          on. Here it only exists once you have tapped in to read. */}
+      {onMult && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <span style={stepWrap}>
+            <button
+              style={{ ...stepBtn, color: batches > 1 ? C.ink : C.line, cursor: batches > 1 ? "pointer" : "default" }}
+              onClick={() => onMult(batches - 1)}
+              disabled={batches <= 1}
+              title="One batch fewer"
+              aria-label={`Scale ${recipe.name} down`}
+            >
+              −
+            </button>
+            <span style={{ minWidth: 26, textAlign: "center", fontWeight: 700, fontVariantNumeric: "tabular-nums", fontSize: 13 }}>×{batches}</span>
+            <button
+              style={{ ...stepBtn, color: C.ink, cursor: "pointer" }}
+              onClick={() => onMult(batches + 1)}
+              title="One batch more"
+              aria-label={`Scale ${recipe.name} up`}
+            >
+              +
+            </button>
+          </span>
+          <span style={{ fontSize: 11, color: C.faint }}>
+            {batches === 1 ? `one batch · ${r2(base)} sv` : `${batches} batches · ${r2(base * batches)} sv`}
+          </span>
+        </div>
+      )}
       {ingredients.length > 0 ? (
         <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {ingredients.map((ing, i) => (

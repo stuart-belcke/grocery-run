@@ -341,8 +341,18 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
           {/* Scaled to whatever this card is currently set to — the batch
               amount already on the shopping list, or the multiplier being
               previewed. Same servings-scaling RecipeDetail does for a
-              Week-tab slot. */}
-          {detailShown && <RecipeDetail recipe={r} servings={previewServings} />}
+              Week-tab slot.
+              THE STEPPER IS ONLY HANDED OVER WHILE THE MEAL IS OFF THE LIST.
+              Once it is on, its own amount is the truth and the pill below
+              edits it; two steppers for one number is how they drift. */}
+          {detailShown && (
+            <RecipeDetail
+              recipe={r}
+              servings={previewServings}
+              mult={servings > 0 ? undefined : mult}
+              onMult={servings > 0 ? undefined : (m) => setMult(r.id, m)}
+            />
+          )}
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
@@ -387,41 +397,14 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
                 <button style={{ ...pillBtn, color: C.ink }} onClick={() => setServings(r.id, servings + base)} title="One batch more" aria-label={`One batch more unplanned ${r.name}`}>+</button>
               </span>
             ) : (
-              /* THE MULTIPLIER IS THE PREVIEW OF THE BUTTON NEXT TO IT.
-                 Set it to ×3 and the open recipe shows three batches worth;
-                 press Add and that is exactly what lands on the list. It
-                 only appears while the meal is OFF the list — once it is on,
-                 the pill above IS this control (its ± already steps whole
-                 batches) and a second one would be a second answer to the
-                 same question. */
-              <>
-                {/* No "Batches" caption: "×3" next to "15 sv", with ± either
-                    side, already says what it is — the word was labelling
-                    the obvious. The tooltip still spells it out for anyone
-                    who wants it. */}
-                <span style={pillWrap} title={`×${mult} of a batch that makes ${base} — ${r2(base * mult)} servings`}>
-                  <button
-                    style={{ ...pillBtn, color: mult > 1 ? C.ink : C.line, cursor: mult > 1 ? "pointer" : "default" }}
-                    onClick={() => setMult(r.id, mult - 1)}
-                    disabled={mult <= 1}
-                    title="One batch fewer"
-                    aria-label={`Scale ${r.name} down`}
-                  >
-                    −
-                  </button>
-                  <span style={pillCount}>×{mult}</span>
-                  <button
-                    style={{ ...pillBtn, color: C.ink }}
-                    onClick={() => setMult(r.id, mult + 1)}
-                    title="One batch more"
-                    aria-label={`Scale ${r.name} up`}
-                  >
-                    +
-                  </button>
-                  <span style={{ ...pillLabel, paddingRight: 4 }}>{r2(base * mult)} sv</span>
-                </span>
-                <Btn small kind="primary" onClick={() => setServings(r.id, base * mult)}>Add unplanned meal</Btn>
-              </>
+              /* The stepper lives inside the opened recipe now, not out here.
+                 What stays on the action row is the CONSEQUENCE of it: the
+                 button carries the multiplier in its own label whenever it
+                 isn't ×1, so a batch count set while reading and then
+                 collapsed can never act on you invisibly. */
+              <Btn small kind="primary" onClick={() => setServings(r.id, base * mult)}>
+                {mult === 1 ? "Add unplanned meal" : `Add unplanned meal ×${mult}`}
+              </Btn>
             )}
             <div style={{ flex: 1 }} />
             {!isGuest && <Btn small onClick={() => startEdit(r)}>Edit</Btn>}

@@ -2844,6 +2844,34 @@ treatment: the store moved into the details panel and the name grew.
     unit fails both the temperatures-and-times test AND the catalog sweep.
     Restored: 262 unit, 202 e2e, `npm run check` green.
 
+78. [DONE] THE MULTIPLIER MOVED INSIDE THE RECIPE, and only exists once you
+    have tapped in. Reported with a screenshot of how a recipe site does it:
+    the 1X/2X sits directly under the Ingredients heading, beside the amounts
+    it changes.
+
+    IT WAS IN THE WRONG PLACE. Sitting on the card's action row it was on
+    permanent show next to Add — a control you had to reason about before
+    you had opened the thing it acts on, on every card in a scrolling list.
+    A closed card is now just the meal and its actions.
+
+    RecipeDetail takes OPTIONAL `mult` / `onMult`. Given them it renders the
+    stepper under the ingredients heading; without them it is read-only,
+    which is exactly what the Week tab needs — a planned slot's amount is
+    set by its own servings box, and a second control for the same number is
+    how two numbers drift apart. MealsTab passes them only while the meal is
+    OFF the shopping list, for the same reason: once it is on, the pill
+    edits the real amount and the stepper stands down.
+
+    THE ONE THING HIDING IT COULD HAVE BROKEN: a batch count set while
+    reading, then collapsed, would act on you invisibly when you pressed
+    Add. So the button carries it — "Add unplanned meal ×3" — and there is
+    a test asserting that exact label before it is pressed. State you cannot
+    see must not be state that can surprise you.
+
+    THE STEPPER STANDING DOWN IS TESTED WITH THE CARD STILL OPEN, which is
+    the difference between proving the control disappeared and proving the
+    panel merely closed.
+
 77. [DONE] A SECOND RULE FOR SCALING INSTRUCTIONS: a number followed by the
     name of an INGREDIENT OF THIS RECIPE. Suggested with the observation
     that makes it safe — an oven is not an ingredient.
