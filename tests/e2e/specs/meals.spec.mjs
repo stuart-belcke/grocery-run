@@ -6,7 +6,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { openApp, assertNoPageErrors } from "../harness.mjs";
-import { smallCatalog, idOf } from "../fixtures.mjs";
+import { smallCatalog, cleanCatalog, idOf } from "../fixtures.mjs";
 
 const BASE = process.env.E2E_BASE_URL;
 
@@ -132,6 +132,153 @@ test("SHOULD: the recipe detail scales to an unplanned meal's own servings, not 
     const text = await page.textContent("body");
     assert.ok(text.includes("for 6 sv"), `the detail header should show the batch servings; got: ${text.replace(/\s+/g, " ").slice(0, 300)}`);
     assert.ok(/3\s*lb/.test(text), "the ingredient list itself should also scale, matching the shopping-list total");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* ---------------- the batch multiplier ----------------
+   Scaling a recipe used to require putting it on the shopping list first,
+   then stepping the amount — you could not ask "what does three batches
+   look like?" without committing to it. The multiplier answers that on the
+   card, and IS the preview of what Add unplanned meal will write. */
+
+const openDetail = async (page, recipe) => {
+  const toggles = page.getByTitle("Show ingredients and recipe");
+  const texts = await toggles.allTextContents();
+  const i = texts.findIndex((t) => t.includes(recipe));
+  assert.notEqual(i, -1, `${recipe} should have a details toggle`);
+  await toggles.nth(i).click();
+  await page.waitForTimeout(300);
+};
+
+test("SHOULD: the multiplier previews a scaled recipe WITHOUT putting anything on the list", async () => {
+  // Stir-fry serves 2 and wants 1 lb chicken. At x3 the card should show
+  // 6 sv and 3 lb — while the shopping list stays untouched, because
+  // looking is not choosing.
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await page.tab("Meals");
+    await openDetail(page, "Stir-fry");
+
+    const up = page.getByLabel(/^Scale Stir-fry up$/);
+    await up.click();
+    await page.waitForTimeout(200);
+    await up.click();
+    await page.waitForTimeout(400);
+
+    const text = await page.textContent("body");
+    assert.ok(text.includes("for 6 sv"), `the detail should preview 6 servings; got: ${text.replace(/\s+/g, " ").slice(0, 300)}`);
+    assert.ok(/3\s*lb/.test(text), "the ingredients should preview scaled");
+
+    await page.roundTrip();
+    // No state written AT ALL is the strongest form of this — previewing is
+    // not an edit, so there was nothing for the app to save.
+    const state = await page.readState();
+    assert.deepEqual(state?.list?.selections ?? {}, {}, "previewing must not add the meal to the shopping list");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: Add unplanned meal writes the multiplier, not one batch", async () => {
+  /* The reuse that makes the multiplier worth having: what you previewed is
+     what you get. Asserted on PERSISTED STATE — the number the other phone
+     receives — not on the rendered pill. */
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await page.tab("Meals");
+    const up = page.getByLabel(/^Scale Stir-fry up$/);
+    await up.click();
+    await page.waitForTimeout(200);
+    await up.click();
+    await page.waitForTimeout(300);
+    await addUnplanned(page, "Stir-fry");
+    await page.roundTrip();
+
+    assert.deepEqual(
+      (await page.readState()).list.selections,
+      { "r-stirfry": 6 },
+      "x3 of a recipe that serves 2 should land as 6 servings, not 2"
+    );
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: the multiplier steps whole batches and never below one", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await page.tab("Meals");
+    // Stir-fry serves 2, so the run is 2 / 4 / 6 sv — never 3.
+    assert.ok((await page.textContent("body")).includes("2 sv"), "should start at one batch");
+    await page.getByLabel(/^Scale Stir-fry up$/).click();
+    await page.waitForTimeout(300);
+    assert.ok((await page.textContent("body")).includes("4 sv"), "one step up should be a whole batch, not one serving");
+
+    // Back down to one batch — and there it must STOP. The floor is enforced
+    // by disabling the control, so a stray tap can't reach x0 (which would
+    // add nothing) or a negative batch.
+    const down = page.getByLabel(/^Scale Stir-fry down$/);
+    await down.click();
+    await page.waitForTimeout(300);
+    assert.ok((await page.textContent("body")).includes("2 sv"), "should be back to one batch");
+    assert.equal(await down.isDisabled(), true, "at one batch there is nothing below to step to");
+
+    await addUnplanned(page, "Stir-fry");
+    await page.roundTrip();
+    assert.deepEqual((await page.readState()).list.selections, { "r-stirfry": 2 }, "the multiplier should have floored at one batch");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: the multiplier gives way to the pill once the meal is on the list", async () => {
+  // Two controls both claiming to set the same amount is how they drift
+  // apart. Once the meal is on the list, its own amount is the truth.
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await page.tab("Meals");
+    assert.equal(await page.getByLabel(/^Scale Stir-fry up$/).count(), 1, "the multiplier should be offered before adding");
+    await addUnplanned(page, "Stir-fry");
+    await page.waitForTimeout(300);
+
+    assert.equal(await page.getByLabel(/^Scale Stir-fry up$/).count(), 0, "the multiplier should step aside for the pill");
+    assert.equal(await page.getByLabel(/^One batch more unplanned Stir-fry$/).count(), 1, "the pill should be the control now");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: scale the amounts written into the instructions, but NOT times or temperatures", async () => {
+  /* Uses the REAL catalog, because this only means anything against real
+     prose. "Baked Cod" says "Heat 2 tbsp olive oil ... sear about 2 min per
+     side" and "Preheat oven to 400F". At x2 the oil must double and the
+     other two must not — doubling either is wrong at the stove, not untidy.
+     The exhaustive cases live in lib.test.js; this proves the wiring. */
+  const page = await openApp(BASE, { catalog: cleanCatalog() });
+  try {
+    await page.tab("Meals");
+    await page.getByLabel("Search meals or ingredients").fill("Baked Cod");
+    await page.waitForTimeout(400);
+    await openDetail(page, "Baked Cod");
+
+    const before = await page.textContent("body");
+    assert.ok(/2\s*tbsp olive oil/.test(before), "fixture check: the notes should start at 2 tbsp olive oil");
+
+    await page.getByLabel(/^Scale Baked Cod with Lemon and Garlic up$/).click();
+    await page.waitForTimeout(400);
+
+    const after = await page.textContent("body");
+    assert.ok(/4\s*tbsp olive oil/.test(after), "the oil written into the steps should double");
+    assert.ok(after.includes("400F"), "the oven temperature must NOT double");
+    assert.ok(/about 2 min per side/.test(after), "the cooking time must NOT double");
+    assert.ok(after.includes("Times and temperatures are as written"), "and it should say so, rather than leave you guessing");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

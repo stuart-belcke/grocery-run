@@ -153,6 +153,64 @@ export function convertQty(qty, from, to) {
   return (n * a.per) / b.per;
 }
 
+/* ------------------- scaling the written instructions -------------------
+   Doubling a recipe has to double the amounts written into its steps too —
+   "Heat 2 tbsp olive oil" is wrong on a double batch — but a recipe's notes
+   are PROSE, and most of the numbers in them must not be touched. From the
+   shipped catalog, counted rather than guessed, the words that follow a
+   number are: min(34), F(13), tbsp(7), hr(4), tablespoon(s)(6), minutes(3),
+   inch(2), months(2), days(2), x(2), sec(2), cup(2), degrees(2).
+
+   So the rule is: SCALE A NUMBER ONLY WHEN THE WORD AFTER IT IS A UNIT THIS
+   APP ALREADY KNOWS (unitInfo — the same table the shopping list converts
+   with). That scales the 13 real ingredient references and leaves every
+   temperature, time, tin size and age alone, because °F, min, hr, inch,
+   months, days and degrees are not units in that table and never will be —
+   they measure things this app has no business converting.
+
+   WHY NOT "SCALE EVERY NUMBER": doubling "Preheat oven to 400F" to 800F, or
+   "Bake 15-20 min" to 30-40, is not a cosmetic bug in a tool someone cooks
+   from. Under-scaling is safe and over-scaling is not, so anything
+   ambiguous is deliberately left as written — "2 cloves garlic" included,
+   since `clove` has no ratio to anything and is not in the table.
+
+   The INGREDIENT LIST is the authority either way; this only keeps the prose
+   from contradicting it. */
+const UNICODE_FRACTIONS = { "½": 0.5, "⅓": 1 / 3, "⅔": 2 / 3, "¼": 0.25, "¾": 0.75, "⅛": 0.125, "⅜": 0.375, "⅝": 0.625, "⅞": 0.875 };
+// "1 1/2" and "1½" before "1/2" before "1.5" before a bare fraction glyph —
+// longest first, or "1 1/2" parses as the "1" and leaves " 1/2" behind.
+const QTY_PATTERN = `(?:\\d+\\s*[½⅓⅔¼¾⅛⅜⅝⅞]|\\d+\\s+\\d+\\/\\d+|\\d+\\/\\d+|\\d+(?:\\.\\d+)?|[½⅓⅔¼¾⅛⅜⅝⅞])`;
+const SCALE_TEXT_RE = new RegExp(`(${QTY_PATTERN})(\\s*[-–]\\s*(${QTY_PATTERN}))?(\\s*)([A-Za-z]+(?:\\s+[A-Za-z]+)?)`, "g");
+
+function parseWrittenQty(s) {
+  const raw = String(s).trim();
+  const glyph = raw.match(/[½⅓⅔¼¾⅛⅜⅝⅞]/);
+  if (glyph) {
+    const whole = parseFloat(raw) || 0; // "1½" -> 1, "½" -> 0
+    return whole + UNICODE_FRACTIONS[glyph[0]];
+  }
+  const mixed = raw.match(/^(\d+)\s+(\d+)\/(\d+)$/);
+  if (mixed) return Number(mixed[1]) + Number(mixed[2]) / Number(mixed[3]);
+  const frac = raw.match(/^(\d+)\/(\d+)$/);
+  if (frac) return Number(frac[1]) / Number(frac[2]);
+  return Number(raw) || 0;
+}
+
+export function scaleRecipeText(text, factor) {
+  const f = Number(factor);
+  if (!text || !(f > 0) || f === 1) return text == null ? "" : String(text);
+  return String(text).replace(SCALE_TEXT_RE, (whole, a, _range, b, gap, word) => {
+    /* Try the two-word unit first so "fl oz" resolves as one; whatever the
+       unit didn't consume ("tbsp olive" -> " olive") is put back untouched. */
+    const one = word.split(/\s+/)[0];
+    const unit = unitInfo(word) ? word : unitInfo(one) ? one : null;
+    if (!unit) return whole;
+    const tail = unit === word ? "" : word.slice(one.length);
+    const lo = r2(parseWrittenQty(a) * f);
+    return b ? `${lo}-${r2(parseWrittenQty(b) * f)}${gap}${unit}${tail}` : `${lo}${gap}${unit}${tail}`;
+  });
+}
+
 // Which unit should show the total: the largest that still leaves a number of
 // at least 1, else the smallest available. 1500 g reads 1.5 kg, 24 oz reads
 // 1.5 lb, and a quarter pound reads 4 oz.

@@ -2789,6 +2789,58 @@ treatment: the store moved into the details panel and the name grew.
        and the duration drift the first time one is tuned, and the label is
        the half nobody re-checks.
 
+76. [DONE] A BATCH MULTIPLIER ON THE MEALS CARD, which doubles as the
+    preview of what "Add unplanned meal" will do.
+
+    THE GAP IT FILLS: scaling a recipe required putting it on the shopping
+    list FIRST and then stepping the amount. You could not ask "what does
+    three batches look like?" without committing to it. The card now carries
+    `Batches − ×N + <sv>` beside the Add button; the open recipe shows that
+    many batches' worth, and Add writes exactly what you were looking at.
+
+    STEPS IN WHOLE BATCHES, and floors at ×1 by DISABLING the down control
+    rather than clamping silently — a stray tap that reaches ×0 would add
+    nothing while looking like it added something. The exact-servings editor
+    on the pill still covers amounts that are not a round multiple.
+
+    ONE CONTROL AT A TIME, NOT TWO. The multiplier only exists while the
+    meal is OFF the list. Once it is on, the pill's ± already steps whole
+    batches and the list entry is the truth; two controls both claiming to
+    set the same amount is how they drift apart. `mults` is view state,
+    never persisted — it is a question, and the list entry is the answer.
+
+    THE INSTRUCTIONS SCALE TOO, AND THIS IS THE PART THAT COULD HAVE DONE
+    REAL HARM. A recipe's notes are prose. Counted across the shipped
+    catalog rather than guessed, the words following a number are: min(34),
+    F(13), tbsp(7), hr(4), tablespoon(s)(6), minutes(3), inch(2), months(2),
+    days(2), x(2), sec(2), cup(2), degrees(2). Scaling every number would
+    turn "Preheat oven to 400F" into 800F and "Bake 15-20 min" into 30-40 —
+    not a cosmetic bug in something someone cooks from.
+    So scaleRecipeText (lib.js) scales a number ONLY when the word after it
+    is a unit unitInfo() recognises — the same table the shopping list
+    converts with. Every temperature, time, tin size and age is left alone
+    because °F, min, hr, inch, months and degrees are not units in it and
+    never will be. Handles ranges ("1-2 tbsp"), fractions ("1/2", "½") and
+    mixed numbers ("1 1/2"), since real recipes use all of them.
+    UNDER-SCALING IS SAFE, OVER-SCALING IS NOT, so anything ambiguous is
+    left as written — "2 cloves garlic" included, since `clove` has no ratio
+    to anything. The ingredient list is the authority either way; this only
+    stops the prose contradicting it. The heading says so on screen
+    ("Times and temperatures are as written") rather than leaving someone to
+    wonder whether 20 min was doubled behind their back.
+
+    SWEPT OVER THE REAL CATALOG AND READ THE DIFF, not just the green: at ×2
+    nine recipes' notes change, every one of them an ingredient amount
+    (2 tbsp oil → 4, ¾ cup → 1.5, 1-2 tbsp → 2-4), and nothing else moves.
+    That sweep is now a TEST — it doubles every recipe's notes and asserts
+    no temperature, time or size shifted — so a future edit to the unit
+    table cannot quietly start rewriting oven temperatures.
+
+    MUTATION-TESTED TWICE. Making Add write one batch instead of base × mult
+    fails exactly the reuse test. Making scaleRecipeText trust any word as a
+    unit fails both the temperatures-and-times test AND the catalog sweep.
+    Restored: 262 unit, 202 e2e, `npm run check` green.
+
 75. [DONE] `npm run check` — THE WHOLE GATE IN ONE COMMAND. Asked for after
     a fair question: is the test setup half-built?
 

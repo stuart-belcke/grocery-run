@@ -14,7 +14,7 @@
 
 import { useEffect, useState } from "react";
 import { C, fontBody } from "./theme";
-import { r2 } from "./lib";
+import { r2, scaleRecipeText } from "./lib";
 import { startWakeLock, stopWakeLock, wakeLockActive, wakeLockSupported, subscribeWakeLock, WAKE_LOCK_MINUTES } from "./wakeLock";
 
 export function RecipeDetail({ recipe, servings }) {
@@ -139,9 +139,19 @@ export function RecipeDetail({ recipe, servings }) {
       {recipe.notes && (
         <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${C.line}` }}>
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 4 }}>
-            Notes
+            Notes{scale !== 1 ? ` · ×${r2(scale)}` : ""}
           </div>
-          <div style={{ fontSize: 13, whiteSpace: "pre-wrap" }}>{recipe.notes}</div>
+          {/* AMOUNTS IN THE STEPS MOVE WITH THE BATCH; times and temperatures
+              do not, and the heading says so rather than leaving you to
+              wonder whether "20 min" was doubled behind your back. See
+              scaleRecipeText in lib.js for why touching those would be
+              actively wrong rather than merely untidy. */}
+          {scale !== 1 && (
+            <div style={{ fontSize: 11, color: C.faint, marginBottom: 4 }}>
+              Amounts below are scaled. Times and temperatures are as written.
+            </div>
+          )}
+          <div style={{ fontSize: 13, whiteSpace: "pre-wrap" }}>{scaleRecipeText(recipe.notes, scale)}</div>
         </div>
       )}
     </div>

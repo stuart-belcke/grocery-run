@@ -10,6 +10,7 @@ import fs from "node:fs";
 import { FAQS, HOW_IT_WORKS } from "./help.js";
 import {
   formatCatalog,
+  scaleRecipeText,
   guestBlockedFields,
   classifyJoinInput,
   parseInvite,
@@ -3000,4 +3001,74 @@ test("export loses nothing, and running it twice changes nothing", () => {
   assert.equal(Object.keys(out.config).length, Object.keys(src.config).length);
   assert.equal(out.catalogVersion, src.catalogVersion);
   assert.equal(formatCatalog(out), once, "a second export differed from the first");
+});
+
+/* ---------------- scaling the written instructions ----------------
+
+   The dangerous half of this feature. A recipe's notes are prose, and most
+   of the numbers in them are temperatures, times, tin sizes and ages that
+   must survive a doubling untouched — "Preheat oven to 400F" becoming 800F
+   is not a cosmetic bug in something you cook from. Only a number followed
+   by a unit the app actually knows is scaled. */
+
+test("scaleRecipeText scales an amount that carries a real unit", () => {
+  assert.equal(scaleRecipeText("Heat 2 tbsp olive oil in a skillet.", 2), "Heat 4 tbsp olive oil in a skillet.");
+  assert.equal(scaleRecipeText("Add 1 cup broth.", 3), "Add 3 cup broth.");
+});
+
+test("scaleRecipeText LEAVES TEMPERATURES, TIMES AND SIZES ALONE", () => {
+  // Each of these appears in the shipped catalog. Scaling any of them would
+  // be actively wrong at the stove, not merely untidy.
+  const cases = [
+    "Preheat oven to 400F and line a baking sheet.",
+    "Bake 15-20 min until cooked through.",
+    "Let sit 5 min, then roll into 1-inch balls.",
+    "Sear about 2 min per side.",
+    "Age 6 months+.",
+    "Keeps 3 days in the fridge.",
+    "Use a 9x13 dish.",
+    "Rest 1 hr, or 30 sec in the microwave.",
+    "Heat to 350 degrees.",
+  ];
+  for (const c of cases) assert.equal(scaleRecipeText(c, 2), c, `should be untouched: ${c}`);
+});
+
+test("scaleRecipeText handles ranges, fractions and mixed numbers", () => {
+  assert.equal(scaleRecipeText("Add 1-2 tbsp water.", 2), "Add 2-4 tbsp water.");
+  assert.equal(scaleRecipeText("Add 1/2 cup milk.", 2), "Add 1 cup milk.");
+  assert.equal(scaleRecipeText("Add \u00bd cup milk.", 4), "Add 2 cup milk.");
+  assert.equal(scaleRecipeText("Add 1 1/2 cup flour.", 2), "Add 3 cup flour.");
+  assert.equal(scaleRecipeText("Add 1\u00bd cup flour.", 2), "Add 3 cup flour.");
+});
+
+test("scaleRecipeText resolves a two-word unit without eating the next word", () => {
+  assert.equal(scaleRecipeText("Pour 4 fl oz stock over it.", 2), "Pour 8 fl oz stock over it.");
+});
+
+test("scaleRecipeText is identity at x1, and for empty or absent notes", () => {
+  const t = "Heat 2 tbsp oil at 400F for 15 min.";
+  assert.equal(scaleRecipeText(t, 1), t);
+  assert.equal(scaleRecipeText(t, 0), t, "a nonsense factor must not mangle the text");
+  assert.equal(scaleRecipeText("", 2), "");
+  assert.equal(scaleRecipeText(null, 2), "");
+  assert.equal(scaleRecipeText(undefined, 2), "");
+});
+
+test("scaleRecipeText changes NOTHING it should not across the whole shipped catalog", () => {
+  /* The real guard. Doubles every recipe's notes and asserts that the only
+     lines that changed are ones carrying a known unit — so a future tweak to
+     the unit table cannot quietly start rewriting oven temperatures. */
+  const cat = JSON.parse(fs.readFileSync(new URL("../public/catalog.json", import.meta.url)));
+  let changed = 0;
+  for (const r of cat.recipes) {
+    if (!r.notes) continue;
+    const out = scaleRecipeText(r.notes, 2);
+    if (out === r.notes) continue;
+    changed++;
+    // Nothing that looks like a temperature, time or size may have moved.
+    for (const re of [/\d+\s*F\b/g, /\d+\s*[-\u2013]?\s*\d*\s*min\b/g, /\d+\s*hr\b/g, /\d+\s*sec\b/g, /\d+\s*inch/g, /\d+x\d+/g, /\d+\s*degrees/g, /\d+\s*months/g, /\d+\s*days/g]) {
+      assert.deepEqual(out.match(re), r.notes.match(re), `a temperature/time/size moved in ${r.name}`);
+    }
+  }
+  assert.ok(changed > 0, "the sweep proved nothing — no recipe's notes scaled at all");
 });
