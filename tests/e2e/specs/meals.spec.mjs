@@ -285,6 +285,35 @@ test("SHOULD: scale the amounts written into the instructions, but NOT times or 
   }
 });
 
+test("SHOULD: scale a count of an ingredient that carries no unit, and still not touch the clock", async () => {
+  /* Rule 2, end to end on real prose. "6 whole garlic cloves" has no unit in
+     it — `clove` has no ratio to anything — but garlic IS an ingredient of
+     this recipe, so the count moves with the batch. The same recipe's
+     "cook on low 3-4 hr" and "cook 20-30 min" must not. */
+  const page = await openApp(BASE, { catalog: cleanCatalog() });
+  try {
+    await page.tab("Meals");
+    await page.getByLabel("Search meals or ingredients").fill("Crockpot Greek");
+    await page.waitForTimeout(400);
+    await openDetail(page, "Crockpot Greek");
+
+    const before = await page.textContent("body");
+    assert.ok(before.includes("6 whole garlic cloves"), "fixture check: the notes should start at 6 whole garlic cloves");
+
+    await page.getByLabel(/ up$/).first().click();
+    await page.waitForTimeout(400);
+
+    const after = await page.textContent("body");
+    assert.ok(after.includes("12 whole garlic cloves"), "a count of an ingredient should double");
+    assert.ok(after.includes("4 chopped garlic cloves"), "and should reach past a prep adjective");
+    assert.ok(after.includes("3-4 hr"), "cooking hours must NOT double");
+    assert.ok(after.includes("20-30 min"), "cooking minutes must NOT double");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
 test("SHOULD: two meals wanting the same ingredient total it, not list it twice", async () => {
   // Stir-fry wants chicken; add it twice over and the amount should double
   // on ONE row. A second row is a second purchase.

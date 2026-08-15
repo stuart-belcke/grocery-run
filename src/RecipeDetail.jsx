@@ -151,7 +151,12 @@ export function RecipeDetail({ recipe, servings }) {
               Amounts below are scaled. Times and temperatures are as written.
             </div>
           )}
-          <div style={{ fontSize: 13, whiteSpace: "pre-wrap" }}>{scaleRecipeText(recipe.notes, scale)}</div>
+          {/* THIS recipe's ingredient names are the vocabulary for scaling
+              counts that carry no unit ("6 whole garlic cloves"). An oven is
+              not an ingredient, which is exactly what keeps it safe. */}
+          <div style={{ fontSize: 13, whiteSpace: "pre-wrap" }}>
+            {scaleRecipeText(recipe.notes, scale, ingredients.map((i) => i.name))}
+          </div>
         </div>
       )}
     </div>

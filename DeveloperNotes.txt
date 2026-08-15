@@ -2844,6 +2844,57 @@ treatment: the store moved into the details panel and the name grew.
     unit fails both the temperatures-and-times test AND the catalog sweep.
     Restored: 262 unit, 202 e2e, `npm run check` green.
 
+77. [DONE] A SECOND RULE FOR SCALING INSTRUCTIONS: a number followed by the
+    name of an INGREDIENT OF THIS RECIPE. Suggested with the observation
+    that makes it safe — an oven is not an ingredient.
+
+    Item 76's unit rule cannot reach "6 whole garlic cloves": `clove` has no
+    ratio to anything, so it is not in the unit table and never will be. But
+    garlic is in that recipe's list, so the 6 is a count of an ingredient and
+    moves with the batch. The recipe's OWN list is the vocabulary, which is
+    what bounds the risk: the only words that can trigger a rewrite are the
+    words the cook is measuring out.
+
+    MEASURED BEFORE BUILDING, and the measurement changed the design twice.
+    Matching only the word immediately after the number caught ONE case in
+    the whole catalog, because adjectives get in the way ("6 WHOLE garlic
+    cloves", "2 CHOPPED garlic cloves"). Stepping over prep and size
+    adjectives caught three, all correct, with no false positives.
+
+    TWO LIMITS, both deliberate:
+      - WHOLE INGREDIENT NAMES ONLY, never the separate words of a
+        multi-word one. A recipe with "Day-old bread" in it must not make
+        "keeps 3 days" scale to 6.
+      - PREP AND SIZE ADJECTIVES ONLY are stepped over — no prepositions or
+        articles. "for", "to", "of" and "the" would let a number reach
+        across to an unrelated noun, and the noun after a temperature is
+        very often an ingredient ("reduce to 350 for the chicken").
+
+    ONE REGRESSION CAUGHT BY RE-READING THE CATALOG DIFF, not by the tests:
+    widening the word pattern to keep hyphens (needed for ingredient names
+    like "sun-dried tomatoes") stopped "15-16 tablespoon-size meatballs"
+    from scaling, because "tablespoon-size" no longer resolved as a unit.
+    Rule 1 now also tries the stem before the hyphen. Both directions are
+    tested.
+
+    THE MUTATION TEST FOUND A TEST THAT PROTECTED NOTHING, which is the
+    point of running one. The first version of the whole-names test used
+    "Minute rice" against "cook 5 minutes" — and it passed WITH AND WITHOUT
+    the bug, because singularish("minutes") is "minut", not "minute", so the
+    collision it claimed to test never happened. The mutation (splitting
+    names into words) left the suite green. Rewritten with "Day-old bread"
+    vs "keeps 3 days", where "days" -> "day" collides for real, and the
+    mutation now fails exactly that test.
+    ALSO WORTH RECORDING: the first run of that mutation was a no-op — the
+    patch did not match the source and silently changed nothing, so the
+    green meant nothing either. A mutation has to be PROVEN to have applied
+    before its result is evidence; this one is applied by line number and
+    the changed lines printed.
+
+    Three mutations, three catches: rule 2 never firing fails 4 tests,
+    word-splitting fails the whole-names test, stepping over prepositions
+    fails the preposition test. 270 unit, 203 e2e, `npm run check` green.
+
 75. [DONE] `npm run check` — THE WHOLE GATE IN ONE COMMAND. Asked for after
     a fair question: is the test setup half-built?
 
