@@ -173,17 +173,82 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     item 37's "ALREADY DONE" list. Nothing here is blocked on that any more,
     which applies to 17 as much as to 16.
 
-17. Delete / log out of households, and clean up orphaned data. Households
-    created by devices we no longer use linger in the RTDB forever; a device
-    with uncommitted changes on a separate household keeps it alive. Figure out
-    whether deleting requires logging everyone out (or logging specific
-    households out) and how to reclaim abandoned nodes.
-    STILL OPEN, and no longer blocked by anything — see the end of item 16.
-    Two things have changed under it since it was written, both of which make
-    it easier: a household now has a MEMBER LIST, so "abandoned" is a
-    question with an answer rather than a guess, and removal already works
-    (item 37) — what is missing is deleting the node itself and reclaiming
-    the ones nobody is in.
+17. [DONE] Delete / log out of households, and clean up orphaned data.
+
+    THE HOLE THIS TURNED OUT TO BE, measured against the real rules on the
+    real emulator rather than reasoned about:
+      - a member could already LEAVE (the rules allow deleting your own
+        record), but nothing in the UI offered it;
+      - a household with no members is claimable again BY DESIGN — a new
+        code has to become somebody's somehow — and the rules comment called
+        that "abandonment, not a back door";
+      - but the STATE AND CATALOG SURVIVED the last member leaving. So
+        anyone who still knew the code could claim the empty household and
+        read the shopping list, the week plan and every recipe.
+        Confirmed, not inferred: claimed true, read state true, read catalog
+        true. Abandonment did not mean empty; it meant unguarded.
+    Not guessable — a code is 13 characters of [a-z0-9-] — so the realistic
+    holder of one is a REMOVED MEMBER, an expired guest, someone who saw a
+    screenshot, or an old phone of your own. Which is the whole population
+    item 37's removal work exists to keep out.
+
+    THE FIX IS THAT THE LAST ONE OUT TAKES THE DATA WITH THEM.
+    leaveHousehold (sync.js) reads the member list, and if nobody else is
+    there deletes households/{code} outright instead of just its own record.
+    Now abandonment means empty, and the claimable-empty-code behaviour the
+    rules always intended is what actually happens.
+    NO RULES CHANGE WAS NEEDED — a full member could already delete the node;
+    it was never wired up. That is the best outcome available on the one file
+    in this repo nothing else executes.
+
+    THE ORDER IS FORCED, NOT CHOSEN: `.read` requires a membership record, so
+    the instant your record is gone you can no longer see whether anyone else
+    remained, nor delete anything. Check-then-act is the only shape that
+    exists here; act-then-check locks you out of the check.
+
+    WHAT A GUEST CAN AND CANNOT DO, and the rules were already right: a guest
+    may leave, but may not delete the household — deleting reaches the
+    catalog and the week plan, exactly what the guest role withholds. A guest
+    who is somehow the last one out leaves the node behind and the app SAYS
+    so rather than swallowing it.
+
+    ONE RACE, ACCEPTED AND WRITTEN DOWN: two members leaving in the same
+    instant can both see the other and both remove only themselves. Closing
+    it would need a transaction across a node the leaver is about to lose
+    access to. The cleanup script is the answer to that residue.
+
+    FOUR NEW RULES TESTS pin the guarantees the app now leans on: the last
+    member can delete the node, a guest cannot, a stranger cannot, and — the
+    one that keeps the bug from coming back — an emptied household leaks
+    nothing to whoever claims the bare code next. 47/47.
+
+    RECLAIMING THE ONES ALREADY OUT THERE CANNOT BE A BUTTON, and that is
+    structural rather than lazy: finding an abandoned household means listing
+    /households, which nothing may do (that denial is what stops one grant
+    exposing every household at once), and a client cannot read a household
+    it is not a member of — which is precisely what an abandoned one is. So
+    scripts/reclaim-households.mjs runs by hand with a service-account key,
+    lists households shallowly, and deletes the ones with no members. Dry run
+    is the DEFAULT; --delete is opt-in; it prints each household's last write
+    date before removing it so a mistake is visible in the log rather than
+    silent. No new dependency — it signs its own JWT with node:crypto and
+    drives the REST API, the same choice tests/rules/harness.mjs made.
+    IT IS TESTABLE, which mattered more than it sounds: pointed at
+    127.0.0.1 it skips the Google token exchange and uses the emulator's
+    owner credential, so "which households are abandoned" can be proved
+    somewhere other than the one database where a wrong answer deletes
+    somebody's recipes. Verified: 4 seeded households, 2 with members
+    (one of them a guest) kept, 2 orphans found by the dry run and removed
+    by --delete, nothing left behind.
+
+    NOT VERIFIED IN A BROWSER, plainly: the Leave button lives behind
+    `user && !accessDenied`, and a real signed-in user only exists behind
+    real Firebase Auth — the e2e build compiles sync out entirely. Same
+    documented gap as invite creation (item 68) and redemption
+    (invitelink.spec.mjs). What IS proved is the half that decides whether
+    data is exposed: the rules, on the real emulator.
+    The service-account path of the script is likewise unrun — there is no
+    key here — so only its emulator path has been executed.
 
 18. Export to / link with a Google calendar, keyed off the household.
 

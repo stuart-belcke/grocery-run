@@ -12,7 +12,7 @@ import { syncEnabled } from "../sync";
 import { HOW_IT_WORKS, FAQS } from "../help";
 import { UnitConverter } from "../UnitConverter";
 
-export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, sync, writeError, user, accessDenied, members, invites, isGuest, createInvite, revokeInvite, joinWithInvite, removeMember, authError, signInWithGoogle, sendEmailSignInLink, signOutUser, initialInvite = "" }) {
+export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, sync, writeError, user, accessDenied, members, invites, isGuest, createInvite, revokeInvite, joinWithInvite, removeMember, leaveHousehold, authError, signInWithGoogle, sendEmailSignInLink, signOutUser, initialInvite = "" }) {
   const prefs = data.prefs;
   const setPref = (patch) => updateCatalog((c) => ({ ...c, prefs: { ...c.prefs, ...patch } }));
   // The members node as written: { uid: { email, displayName, updatedAt } }.
@@ -145,6 +145,29 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
   const [inviteMsg, setInviteMsg] = useState("");
   const [inviting, setInviting] = useState(false);
   const [askRemove, setAskRemove] = useState(null); // member pending removal
+  const [askLeave, setAskLeave] = useState(false);   // leaving this household
+  const [leaving, setLeaving] = useState(false);
+  /* Am I the last one out? Read from the member list the app already has, so
+     the warning can say what leaving will actually DO — for the last member
+     it takes the household's data with it, which is not something to discover
+     afterwards. */
+  const lastMemberOut = memberList.length <= 1;
+
+  const doLeave = async () => {
+    setLeaving(true);
+    const res = await leaveHousehold();
+    setLeaving(false);
+    setAskLeave(false);
+    if (!res || !res.ok) {
+      setCodeMsg("Couldn't leave — this phone may be offline. Try again when it reconnects.");
+      return;
+    }
+    setCodeMsg(
+      res.deleted
+        ? "You've left, and the household's data was deleted with you — you were the last member."
+        : "You've left. This phone is on a fresh household of its own now."
+    );
+  };
 
   const inviteList = useMemo(
     () =>
@@ -524,7 +547,10 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                         )}
                       </span>
                       {m.uid === user.uid ? (
-                        <span style={{ fontSize: 11, color: C.green, fontWeight: 500 }}>this phone</span>
+                        <>
+                          <span style={{ fontSize: 11, color: C.green, fontWeight: 500 }}>this phone</span>
+                          <Btn small kind="danger" onClick={() => setAskLeave(true)}>Leave</Btn>
+                        </>
                       ) : (
                         !isGuest && <Btn small kind="danger" onClick={() => setAskRemove(m)}>Remove</Btn>
                       )}
@@ -835,6 +861,40 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         <b style={{ color: C.ink }}>{askRemove && (askRemove.email || askRemove.displayName || askRemove.uid)}</b> will
         lose access to this household&apos;s list, meals and settings. Knowing the
         household code won&apos;t get them back in — they&apos;d need a new invite.
+      </ConfirmDialog>
+
+      {/* LEAVING SAYS WHICH OF THE TWO THINGS IT IS ABOUT TO DO. For anyone
+          but the last member it is just this account stepping out. For the
+          last member it also deletes the household — because a household
+          nobody is in stays claimable by anyone who knows the code, and
+          before this the list, week plan and recipes were still sitting
+          there for whoever claimed it. */}
+      <ConfirmDialog
+        open={askLeave}
+        title={lastMemberOut ? "Leave and delete this household?" : "Leave this household?"}
+        confirmLabel={leaving ? "Leaving…" : lastMemberOut ? "Leave and delete" : "Leave"}
+        onConfirm={doLeave}
+        onCancel={() => setAskLeave(false)}
+      >
+        {lastMemberOut ? (
+          <>
+            <p style={{ margin: "0 0 8px" }}>
+              You&apos;re the last member, so this household&apos;s <b style={{ color: C.ink }}>shopping list, week plan and recipes are deleted</b> along with your access. This cannot be undone.
+            </p>
+            <p style={{ margin: 0 }}>
+              Export a backup first if you want to keep any of it. This phone keeps working on a fresh household of its own.
+            </p>
+          </>
+        ) : (
+          <>
+            <p style={{ margin: "0 0 8px" }}>
+              This account loses access to this household. The others in it keep everything, and the data stays with them.
+            </p>
+            <p style={{ margin: 0 }}>
+              You&apos;d need a new invite to come back — the code alone won&apos;t do it. This phone moves to a fresh household of its own.
+            </p>
+          </>
+        )}
       </ConfirmDialog>
 
       <ConfirmDialog

@@ -20,6 +20,8 @@ import {
   revokeInvite,
   joinWithInvite,
   removeMember,
+  leaveHousehold,
+  newHouseholdCode,
   writeCatalog,
   markCatalogSynced,
   watchAuthUser,
@@ -777,6 +779,14 @@ export default function App() {
             revokeInvite={(token) => revokeInvite(code, token)}
             joinWithInvite={joinWithInvite}
             removeMember={(uid) => removeMember(code, uid)}
+            /* Leaving lands this phone on a NEW household of its own rather
+               than nowhere: the app has to keep working offline afterwards,
+               and a fresh code is exactly what a first run would have made. */
+            leaveHousehold={async () => {
+              const res = await leaveHousehold(code, user, isGuest);
+              if (res.ok) setCode(newHouseholdCode());
+              return res;
+            }}
             authError={authError}
             signInWithGoogle={signInWithGoogle}
             sendEmailSignInLink={sendEmailSignInLink}
