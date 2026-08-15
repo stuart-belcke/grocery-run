@@ -143,20 +143,49 @@ Tier 3 — data-model / sorting
 
 Tier 4 — multi-device / integrations (highest risk, do last)
 ------------------------------------------------------------
-16. Formalize create/join household. Household codes already exist under the
-    hood; this makes creating or joining one a first-class flow.
+16. [DONE — by items 37, 41 and 48, and NOT in the shape written here]
+    "Formalize create/join household. Household codes already exist under the
+    hood; this makes creating or joining one a first-class flow."
+
+    Both flows are first-class now:
+      CREATE — the first-run screen's "Start my own list" mints a code and
+        claims it, and the rules allow that claim exactly once (rules.test
+        "a brand new household can be claimed, and only once").
+      JOIN — a tapped invite LINK fills the field on first run, and Settings
+        carries the same field for a device already in use, alongside the
+        member list, invites, revoke and remove.
+
+    THE REASON THIS IS WORTH READING RATHER THAN JUST TICKING: what shipped
+    deliberately contradicts the sentence above. This item assumed the CODE
+    was the mechanism to formalise — "household codes already exist under the
+    hood" — and the code is no longer a credential at all. Knowing one gets
+    you nothing (item 42; rules.test "knowing the code is not enough — a
+    stranger is refused"); joining needs an invite from someone already in,
+    redeemed for an ACCOUNT. The code became an address. Formalising
+    code-based joining would have shipped the security hole this app then
+    spent items 37/42/48 closing.
+
+    ITS DEFERRAL REASON IS ALSO GONE. The note that used to sit here said 16
+    and 17 were "patches on top of a catalog that can't be written at
+    runtime". The catalog IS written at runtime now, per household
+    (sync.js writeCatalog -> households/{code}/catalog), and the override
+    layer that existed only because it couldn't be is deleted outright — see
+    item 37's "ALREADY DONE" list. Nothing here is blocked on that any more,
+    which applies to 17 as much as to 16.
+
 17. Delete / log out of households, and clean up orphaned data. Households
     created by devices we no longer use linger in the RTDB forever; a device
     with uncommitted changes on a separate household keeps it alive. Figure out
     whether deleting requires logging everyone out (or logging specific
     households out) and how to reclaim abandoned nodes.
-18. Export to / link with a Google calendar, keyed off the household.
+    STILL OPEN, and no longer blocked by anything — see the end of item 16.
+    Two things have changed under it since it was written, both of which make
+    it easier: a household now has a MEMBER LIST, so "abandoned" is a
+    question with an answer rather than a guess, and removal already works
+    (item 37) — what is missing is deleting the node itself and reclaiming
+    the ones nobody is in.
 
-    Note: 16 and 17 are both patches on top of a catalog that can't be written
-    at runtime. Moving the catalog into the database per account replaces them
-    instead of extending them, and deletes the whole override layer with it.
-    That's written up as a platform phase in FutureProjects.md ("Per-user
-    catalog") — worth reading before starting either item.
+18. Export to / link with a Google calendar, keyed off the household.
 
 
 Hygiene — not features, and not sequenced
