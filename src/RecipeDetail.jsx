@@ -159,7 +159,15 @@ export function RecipeDetail({ recipe, servings, mult, onMult }) {
                 gap: 10,
                 padding: "3px 0",
                 borderBottom: i < ingredients.length - 1 ? `1px dashed ${C.line}` : "none",
-                fontSize: 13,
+                /* THE BODY OF THE RECIPE IS READ AT ARM'S LENGTH, in a
+                   kitchen, often over a hot pan — which is a worse viewing
+                   distance than anything else in this app. 13px was sized
+                   like the rest of the UI's supporting text; this is not
+                   supporting text, it is the thing you came for. The small
+                   print around it (the heading, the "amounts are scaled"
+                   caveat) stays small on purpose, so the contrast between
+                   label and content does the pointing. */
+                fontSize: 15,
               }}
             >
               {/* The note is how you cook it ("diced", "15 oz", "divided").
@@ -178,7 +186,7 @@ export function RecipeDetail({ recipe, servings, mult, onMult }) {
           ))}
         </ul>
       ) : (
-        <div style={{ fontSize: 13, color: C.faint }}>No ingredients listed.</div>
+        <div style={{ fontSize: 15, color: C.faint }}>No ingredients listed.</div>
       )}
       {recipe.notes && (
         <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${C.line}` }}>
@@ -198,7 +206,7 @@ export function RecipeDetail({ recipe, servings, mult, onMult }) {
           {/* THIS recipe's ingredient names are the vocabulary for scaling
               counts that carry no unit ("6 whole garlic cloves"). An oven is
               not an ingredient, which is exactly what keeps it safe. */}
-          <div style={{ fontSize: 13, whiteSpace: "pre-wrap" }}>
+          <div style={{ fontSize: 15, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
             {scaleRecipeText(recipe.notes, scale, ingredients.map((i) => i.name))}
           </div>
         </div>

@@ -10,6 +10,15 @@ import { Stripe, Btn, ConfirmDialog, SearchField, Seg } from "../ui";
 import { MEAL_TYPES, norm, planStageOf, plannedMealCount, daysInOrder, asArray, unplannedMeals, r2 } from "../lib";
 import { RecipeDetail } from "../RecipeDetail";
 
+/* The meal-type column, and the indent that lines everything under it up
+   with the meal bubble. ONE definition because they must move together:
+   they were three separate literals (70, 78, calc(100% - 78px)), and
+   bolding the label to make it readable clipped "Breakfast" by a single
+   pixel — the kind of thing nobody sees until it is on a phone. */
+const TYPE_COL = 76;
+const TYPE_GAP = 8;
+const SLOT_INDENT = TYPE_COL + TYPE_GAP;
+
 export function WeekTab({ data, update, isGuest }) {
   // Presentation order only. Plan data stays keyed by day name, so a meal
   // planned for Sunday is on Sunday whichever end of the week it's drawn at.
@@ -355,8 +364,15 @@ export function WeekTab({ data, update, isGuest }) {
                 const slotBox = { flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", fontFamily: fontBody, fontSize: 13, padding: "7px 10px", borderRadius: 8, border: `1px solid ${skipped ? C.line : C.green}`, background: skipped ? "#fff" : C.greenSoft, color: C.ink };
                 return (
                   <div key={type} style={{ padding: "5px 0" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 12, color: C.faint, width: 70, flexShrink: 0 }}>{type}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: TYPE_GAP }}>
+                      {/* WHICH MEAL OF THE DAY THIS IS, and it has to be
+                          readable at a glance — it is the only thing telling
+                          a row apart from the one above it on a day that
+                          holds more than one meal. It was 12px in the faint
+                          grey used for supporting text, which is what it is
+                          not: on a scanned week it read as decoration. Ink,
+                          bolder, and a point larger. */}
+                      <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, width: TYPE_COL, flexShrink: 0 }}>{type}</span>
                       {!recipe && isGuest ? (
                         // A guest cannot fill a slot, so an empty one is a fact
                         // rather than an invitation.
@@ -436,7 +452,7 @@ export function WeekTab({ data, update, isGuest }) {
                       <RecipeDetail recipe={recipe} servings={Number(slot.servings) || base} />
                     )}
                     {recipe && slotsEditable && (
-                      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 5, marginTop: 6, marginLeft: 78, fontSize: 12, color: C.faint }}>
+                      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 5, marginTop: 6, marginLeft: SLOT_INDENT, fontSize: 12, color: C.faint }}>
                         <input
                           type="number"
                           min="1"
@@ -478,7 +494,7 @@ export function WeekTab({ data, update, isGuest }) {
                           return (
                             <Fragment key={s.index}>
                               <div
-                                style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.ink, padding: "4px 8px", marginBottom: 4, marginLeft: 78, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 7 }}
+                                style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.ink, padding: "4px 8px", marginBottom: 4, marginLeft: SLOT_INDENT, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 7 }}
                               >
                                 <span aria-hidden style={{ color: C.green, flexShrink: 0 }}>+</span>
                                 <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.recipe.easy ? "⚡ " : ""}{s.recipe.name}</span>
@@ -527,7 +543,7 @@ export function WeekTab({ data, update, isGuest }) {
                           <button
                             onClick={() => openPicker(day, type, "side")}
                             aria-label={`Add a side for ${day} ${type}`}
-                            style={{ display: "flex", alignItems: "center", gap: 6, width: "calc(100% - 78px)", marginLeft: 78, boxSizing: "border-box", textAlign: "left", fontFamily: fontBody, fontSize: 12, fontWeight: 500, padding: "5px 8px", borderRadius: 7, cursor: "pointer", border: `1px dashed ${C.line}`, background: "transparent", color: C.faint }}
+                            style={{ display: "flex", alignItems: "center", gap: 6, width: `calc(100% - ${SLOT_INDENT}px)`, marginLeft: SLOT_INDENT, boxSizing: "border-box", textAlign: "left", fontFamily: fontBody, fontSize: 12, fontWeight: 500, padding: "5px 8px", borderRadius: 7, cursor: "pointer", border: `1px dashed ${C.line}`, background: "transparent", color: C.faint }}
                           >
                             <span aria-hidden style={{ fontSize: 13, lineHeight: 1 }}>＋</span>
                             Add a side
@@ -550,8 +566,8 @@ export function WeekTab({ data, update, isGuest }) {
                   quietly took that away. Three specs caught it. */}
               {!isGuest && freeTypes(day).length > 0 && (
                 <div style={{ padding: "5px 0" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ width: 70, flexShrink: 0 }} />
+                  <div style={{ display: "flex", alignItems: "center", gap: TYPE_GAP }}>
+                    <span style={{ width: TYPE_COL, flexShrink: 0 }} />
                     <button
                       onClick={() => openPicker(day, defaultType(day))}
                       aria-label={`Choose a meal for ${day}`}

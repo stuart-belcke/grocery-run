@@ -2844,6 +2844,37 @@ treatment: the store moved into the details panel and the name grew.
     unit fails both the temperatures-and-times test AND the catalog sweep.
     Restored: 262 unit, 202 e2e, `npm run check` green.
 
+79. [DONE] TWO LEGIBILITY FIXES FROM READING IT ON A PHONE.
+
+    A. THE RECIPE BODY IS 15px, up from 13. The ingredient rows and the
+       instructions are read at arm's length, in a kitchen, over a hot pan —
+       the worst viewing distance anything in this app gets. 13px was sized
+       like the rest of the UI's supporting text, which is exactly what it
+       is not: it is the thing you opened the card for. The small print
+       around it (the heading, the "amounts are scaled" caveat, the screen
+       toggle) stays at 11, so the size difference does the pointing.
+       Instructions also got line-height 1.5 — a paragraph of prose at 15px
+       with list spacing is a wall.
+
+    B. THE MEAL TYPE ON THE WEEK TAB IS INK AND BOLD, 13px, up from 12px
+       faint grey. On a day holding more than one meal it is the only thing
+       telling one row from the next, and in the supporting-text grey it
+       read as decoration.
+
+    THE BOLDING CLIPPED "BREAKFAST" BY ONE PIXEL — caught by measuring the
+    label's scrollWidth against its box at 320px, not by looking, because a
+    single pixel is not something you see. The column was 70px and the
+    label wanted 71.
+    THE REAL BUG WAS THAT THE NUMBER LIVED IN FIVE PLACES: `width: 70` twice,
+    `marginLeft: 78` twice and `calc(100% - 78px)` once, all of which had to
+    move together to keep the sides, the servings row and the recipe panel
+    lined up under the meal bubble. They are now TYPE_COL / TYPE_GAP /
+    SLOT_INDENT, with the row's own `gap` reading from TYPE_GAP so the
+    arithmetic behind SLOT_INDENT is true by construction rather than by
+    someone remembering. Widened to 76, which leaves 5px of headroom.
+    Verified unclipped and with no horizontal overflow at both 320 and
+    390px. 203/203.
+
 78. [DONE] THE MULTIPLIER MOVED INSIDE THE RECIPE, and only exists once you
     have tapped in. Reported with a screenshot of how a recipe site does it:
     the 1X/2X sits directly under the Ingredients heading, beside the amounts
