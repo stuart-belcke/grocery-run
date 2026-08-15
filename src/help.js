@@ -65,7 +65,7 @@ export const FAQS = [
   },
   {
     q: "What does Done shopping do?",
-    a: "It ends the trip. What you ticked off is treated as bought and stops being asked for; what you did not get stays on the list for next time. It does not clear the week — Clear week on {Week plan} does that.",
+    a: "It ends the trip. What you ticked off is treated as bought and stops being asked for; what you did not get stays on the list for next time. It does not clear the week — Start a new plan on {Week plan} does that.",
     keywords: ["done", "finish", "trip", "clear", "checked", "bought"],
   },
   {

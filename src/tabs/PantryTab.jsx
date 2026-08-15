@@ -212,7 +212,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
 
     updateCatalog((c) => {
       if (plan.action === "duplicate") {
-        // "Save as a separate item": a brand-new ingredient, leaving the
+        // "Keep as separate item": a brand-new ingredient, leaving the
         // original and everything pointing at it exactly as they were.
         c.ingredients[mintIngredientId()] = { ...normalizeIngredient(c.ingredients[oldKey], newName), name: newName };
         return c;

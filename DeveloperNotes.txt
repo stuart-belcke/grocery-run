@@ -2449,3 +2449,548 @@ treatment: the store moved into the details panel and the name grew.
     work" once main has moved — it is my work PLUS the undoing of everybody
     else's. Prefer format-patch of the specific commits, and diff the result
     against main before pushing.
+
+67. [DONE] A PLANNED MEAL DIDN'T LEAD ANYWHERE. Reported from real use:
+    seeing "Stir-fry" on Tuesday told you nothing about how to cook it —
+    getting to the recipe meant leaving the Week tab and searching Meals
+    for the same name again. And once there, the recipe showed its own
+    default batch size, not the amount actually being cooked that day.
+
+    RecipeDetail (src/RecipeDetail.jsx) now takes an optional `servings`
+    prop. When given and positive, every quantity is multiplied by
+    servings/base — the exact scale computation aggregateItems already uses
+    for the shopping list (lib.js) — so the ingredients shown match what the
+    list actually asks for, not the recipe's own "serves 4". Omitting it (or
+    passing the base) shows the recipe as written; MealsTab does this except
+    when an unplanned batch has its own servings set, in which case IT
+    scales to that.
+
+    WeekTab: the read-only (shopping-stage) meal bubble is now a button that
+    opens the recipe inline, scaled to that slot's servings. Edit mode kept
+    the existing tap-to-re-pick behaviour on the bubble itself (repurposing
+    it would have silently swapped a look at the recipe for a meal change)
+    and got a separate 📖 icon button alongside it and the ✕. Every side
+    dish got the same 📖 button, scaled to THAT side's own servings — not
+    the main's, which matters because a side's base batch and the main's
+    headcount routinely disagree (see item 27/sidesCatalog).
+
+    MUTATION-TESTED: set the scale to a hardcoded 1 in RecipeDetail and ran
+    the full e2e suite. Exactly the four new tests failed (the three
+    Week-tab ones plus the Meals-tab unplanned-servings one) — 181 others
+    stayed green, meaning nothing else in the suite was accidentally
+    covering this. Restored, reran: 185/185.
+
+68. [DONE] AN INVITE TOOK TWO TAPS TO COPY. Reported from real use: "Invite
+    another phone" / "Guest link" made the link, but getting it onto the
+    clipboard needed a second tap on "Copy link" underneath.
+
+    THAT SECOND TAP WAS NOT LAZINESS IN THE ORIGINAL CODE — it was the fix
+    for a real bug (item 48-adjacent): calling the clipboard right after
+    `await createInvite(...)` got the write refused on Safari every time,
+    because Safari drops the user-gesture context across an await, and a
+    clipboard write outside a gesture is exactly what the browser exists to
+    block. The link was shown instead, with its own Copy button, because
+    THAT tap is a fresh gesture.
+
+    THE ACTUAL FIX ISN'T TO WAIT LESS, IT'S TO NOT NEED TO. createInvite
+    picks its own random token (newInviteToken(), a pure function, no
+    network) before it ever touches the database — so nothing stops the
+    caller from picking that token FIRST. makeInvite (SettingsTab.jsx) now
+    does exactly that: mints the token, builds the link, and calls
+    `navigator.clipboard.writeText` as the very first thing in the click
+    handler — zero awaits before it, so the gesture is still live. THEN it
+    calls createInvite with that exact token (sync.js's createInvite grew an
+    optional `token` option for this — write it as given instead of minting
+    a different one), so the database ends up storing precisely the link
+    that's already on the clipboard, not a description of it.
+    If that write fails, the existing error path fires exactly as before —
+    a copied link nobody can redeem is still worse than no copy, so the
+    failure message stays load-bearing, not decorative. If the automatic
+    copy itself was blocked, the link still renders with its own Copy
+    button, same fallback as always.
+    The flash moved from a small word next to the buttons to the panel's
+    heading ("✓ Copied to clipboard") — it needed to be the first thing
+    read, since the whole point is that there's nothing left to click
+    before the link is already usable.
+
+    NOT VERIFIED IN A BROWSER, and said plainly rather than implied: this
+    entire flow lives behind `user && !accessDenied && !isGuest`, and `user`
+    can only ever be non-null through real Firebase Auth — there is no
+    preview seam for it the way GUEST_PREVIEW_KEY fakes guest-ness, and the
+    e2e build compiles sync out entirely (VITE_LOCAL_ONLY), so `user` is
+    always null there regardless of harness tricks. invitelink.spec.mjs
+    already documents this exact gap for the join side of invites; this is
+    the same gap on the creating side. Unit tests, lint and a production
+    build all pass, and the change was reviewed by hand against exactly the
+    failure mode item 48's comment described — but nobody has watched it
+    copy a real link on a real phone. Worth doing by hand before trusting it
+    fully, especially on Safari/iOS, which is where the original bug lived.
+
+69. [DONE] KEEP THE SCREEN ON WHILE COOKING. Requested from real use: reading
+    a recipe with flour on your hands, the phone locks itself mid-step.
+
+    src/wakeLock.js is a new, small SINGLETON module — not per-component
+    state. The screen has exactly one on/off state, and a main's recipe plus
+    its sides can each have a RecipeDetail panel mounted, so per-instance
+    state would mean the last one you opened deciding the phone's screen
+    behaviour, silently overriding whichever one you actually turned it on
+    from. One sentinel, one 30-minute timer, one `intentOn` flag every open
+    RecipeDetail subscribes to and reflects identically, via a 📖-adjacent
+    button (📱) next to the ingredients heading.
+
+    `intentOn` is deliberately tracked SEPARATELY from whether the browser
+    currently holds the lock: mobile browsers release a wake lock whenever
+    the page is hidden — screen off, a glance at a text, switching apps —
+    which is exactly the moment a real "stay on while I'm cooking" has to
+    survive. A `visibilitychange` listener reacquires automatically on
+    return, as long as the 30-minute window from the original tap hasn't
+    run out; past it, it turns itself off rather than silently holding the
+    screen on forever.
+    Hidden rather than shown-disabled when `navigator.wakeLock` doesn't
+    exist — same rule the guest-only buttons already follow.
+
+    MUTATION-TESTED: forced `intentOn` to stay false in startWakeLock() and
+    ran the full e2e suite. Exactly the two new wakelock.spec.mjs tests
+    failed — the rest of the 185 stayed green. Restored, reran: 187/187.
+    The passing test doesn't just check the UI state either: it stubs
+    navigator.wakeLock.request itself and asserts it was actually CALLED,
+    so a button that only ever flips a CSS class without touching the real
+    API would have been caught too.
+
+70. [DONE] THE FIRST-RUN SCREEN TREATED EVERY ARRIVAL THE SAME. Requested
+    from real use: a guest link, a full invite, and a plain first open all
+    showed the identical three cards in the identical order, Sign in first —
+    even though a guest never needs an account at all, which meant the
+    single most relevant card for that arrival was also the LAST one on the
+    page. Two of the three pieces this was asked for were already built —
+    a guest link already asked for a name before "Join as guest" (item 41/
+    item 48 area), and classifyJoinInput already distinguished guest from
+    full invite. What was missing was using that distinction to change what
+    the page actually SHOWS, not just what it validates.
+
+    Onboarding.jsx now names three cases explicitly — `guestInvite`,
+    `memberInvite`, `noInvite` (an empty invite box, i.e. nobody sent this
+    browser here) — and:
+      - a banner above the cards says what's about to happen, in each case's
+        own words, rather than making the arrival infer it from which card
+        happens to apply once they've read all three.
+      - a guest link REORDERS the cards to [Join as a guest, Just me, Sign
+        in] — the join card retitled and reworded for the fact its invite
+        box is already filled in — because Sign in is the one card a guest
+        provably does not need, and leaving it first was the actual bug.
+      - a full invite and a plain open keep the ORIGINAL order (Sign in
+        first) untouched, and the reasoning for that order — a full invite
+        needs an account, so leading with anything else sends you straight
+        back up anyway — is exactly as true as it was, and is left as the
+        prior comment said it, not rewritten.
+
+    THE CARDS ARE BUILT ONCE AND REORDERED, not duplicated per case: three
+    JSX variables (signInCard/joinCard/justMeCard) assembled once, returned
+    as one of two fixed arrays depending on guestInvite. Three copies of the
+    same markup diverging quietly across a copy edit is exactly the "written
+    twice, one goes stale" failure this file already warns about elsewhere
+    (item 66, the HOW_IT_WORKS/help.js split) — reordering one set avoids it
+    by construction rather than by discipline.
+
+    Covered by three new onboarding.spec.mjs tests: the guest-link order and
+    its banner, the full-invite order staying put with its own banner, and
+    the plain-open nudge ("New here?") appearing only when nothing was
+    actually sent. Full suite: 190/190.
+
+71. [DONE] A STANDALONE UNIT CONVERTER. Requested, and noted as reusable —
+    it is: convertQty (lib.js) already IS the unit converter, used
+    internally to total a shopping-list group and, as of item 67, to scale
+    a recipe's servings. This just gives it its own screen instead of
+    keeping it locked inside those two features, so "how many cups is
+    750 ml" doesn't need a recipe or a shopping list to ask through.
+
+    UnitConverter.jsx (new, top-level like RecipeDetail — presentational,
+    takes no household data) sits in Settings under its own Section, right
+    after "How it works". Amount + From + To, a ⇄ swap, live result. THE
+    SAME REFUSAL RULE AS EVERYWHERE ELSE: weight and volume don't convert
+    into each other (convertQty returns null across dimensions, same as it
+    always has for resolveAgainstBought), and the message says so by name
+    rather than showing nothing or guessing. An unrecognised unit is named
+    too ("Don't know the unit "x""), not silently swallowed.
+
+    MUTATION-TESTED: made `result` return the input unchanged instead of
+    calling convertQty. Exactly the two tests that check real arithmetic
+    failed (the exact-answer one and the refuses-to-guess one); the
+    unknown-unit and swap tests correctly stayed green, since neither
+    depends on the conversion itself. Restored, 194/194.
+
+72. [DONE] A PASS OVER THE APP, LOOKING FOR PROSE THAT DRIFTED FROM THE CODE
+    — item 66 again, one release later. Nothing tests copy against behaviour,
+    so every renamed button is a chance for it to go quietly wrong, same
+    reasoning as last time.
+
+    FOUND: "Clear week" IN TWO PLACES A USER ACTUALLY READS, describing a
+    button that stopped existing when it became "Start a new plan" (see
+    WeekTab.jsx's own comment on that rename). The FAQ answer for "What does
+    Done shopping do?" (help.js) and the Done-shopping confirm dialog itself
+    (ListTab.jsx) both still told you to press a button that isn't there —
+    someone reading either while actually trying to clear the week would
+    have gone looking for it and found nothing. Both rewritten to say
+    "Start a new plan".
+    LEFT ALONE, DELIBERATELY: the four OTHER "Clear week" mentions, in
+    lib.js, WeekTab.jsx (×2) and ListTab.jsx, are all comments explaining
+    the rename itself — "used to be cleared by... 'Clear week'", "replaces
+    the old 'Clear week'" — correctly past-tense, correctly historical, and
+    fixing them would delete the reason the current code looks the way it
+    does. The test here was "does this describe something a user meets
+    today", not "does this string appear".
+
+    THE METHOD: every button/label phrase named in help.js — the words
+    people actually search the FAQ with — checked against the literal
+    strings rendered by the tab that owns it. Nine matched exactly; one
+    didn't. A second, smaller find in the same pass: a PantryTab.jsx
+    comment called the "keep this as a new ingredient" choice "Save as a
+    separate item", while the button next to it (and another comment three
+    lines away) call it "Keep as separate item" — developer-facing only,
+    fixed for consistency rather than because anyone was misled by it.
+
+    ALSO RE-CHECKED, having just added five features that could have
+    reopened either: item 66's "shared between two phones" -> "shared with
+    whoever you shop with" sweep still holds — the remaining "two phones"/
+    "other phone" mentions are either architecture comments item 66
+    explicitly kept (a concrete example, not a claim about household size)
+    or genuinely mean "this device vs. your other device," which is
+    accurate regardless of how many people are in the household. None of
+    today's new copy (RecipeDetail, wakeLock.js, UnitConverter.jsx,
+    Onboarding.jsx's banners) uses phone-count language.
+
+    VERIFIED LIVE, not just by grep: built the app, drove all five tabs in
+    a real (non-emulated) browser with Playwright, and screenshotted the
+    Meals detail view, the Week-tab recipe view, and the Settings unit
+    converter. No console errors beyond the sandbox's known-benign blocked
+    websocket. Full suite: 194/194.
+
+    NOT DONE: a line-by-line reread of every FAQ answer and every dialog's
+    prose for tone or clarity — this pass looked for statements that are
+    factually WRONG against current behaviour, which "Clear week" was and
+    everything else checked was not. A slower editorial pass is still
+    open, same as item 65 left one open for restore's wording.
+
+73. [DONE] THE E2E SUITE LAUNCHED A BROWSER PER TEST. 194 tests, 194
+    `chromium.launch()` calls, and launching Chromium is by far the most
+    expensive thing the suite does — each browser started, did a few hundred
+    milliseconds of actual work, and was thrown away.
+
+    A test now takes a fresh browser CONTEXT out of one shared browser
+    process, set up on first use and torn down once at the end of the file.
+    MEASURED, both ends: 205.9s before, 154.7s after, same 194/194. That is
+    51 seconds (25%) off every run, and off every CI deploy.
+
+    WHY A CONTEXT IS THE RIGHT ISOLATION BOUNDARY, and how that was checked
+    rather than assumed. A context has its own localStorage, cookies and
+    cache, and localStorage is the entire state this app persists. Proved
+    it directly before switching: wrote a key in one context, opened a
+    second context on the same URL, confirmed it could not see the key or
+    the cookie. Then proved the SUITE would notice if that stopped being
+    true — the mutation test for this change is "make every test share one
+    context", which fails 4 of week.spec's 10 tests. Isolation here is
+    load-bearing and is actually protected, not merely believed.
+    Also instrumented a real run to confirm the reuse happens rather than
+    inferring it from the clock: week.spec.mjs now reports 1 browser launch
+    and 10 contexts, where it used to be 10 launches.
+
+    ONE BROWSER PER FILE, NOT PER SUITE, and that is the ceiling worth
+    taking. `node --test` runs each spec file in its own child process, so
+    31 files means 31 launches — down from 194. Going further needs
+    launchServer plus child processes connecting over a websocket, which
+    swaps a pipe for a socket on every single Playwright call; the cost
+    here is startup, not per-call chatter, so that trade is the wrong way
+    round.
+
+    TWO THINGS THAT HAD TO BE DONE A PARTICULAR WAY, both found by probing:
+      - THE TEARDOWN HOOK IS TOP-LEVEL. Registering `after()` lazily inside
+        openApp reads better and is wrong: it attaches to whatever test is
+        running at the time, not to the file, so the browser closes after
+        the FIRST test. A probe of the lazy version did exactly that.
+      - serveDist MOVED TO tests/e2e/server.mjs. harness.mjs now imports
+        node:test for that hook, and importing node:test makes a process
+        emit its own TAP report — including run.mjs, which is not a test
+        process and only ever wanted the file server. The split keeps the
+        runner's output clean and draws a boundary worth having anyway:
+        the thing that serves files vs. the thing that drives a browser.
+
+    NOT CHANGED, and the obvious next thing if this needs to get faster
+    again: the specs are full of fixed `page.waitForTimeout(350-500)`
+    sleeps, which now dominate the remaining 154s. Replacing them with
+    waits on real conditions would cut more, but it touches every spec and
+    trades a slow suite for a possibly flaky one, so it wants its own pass
+    and its own evidence.
+
+    ONE ERGONOMIC COST, worth knowing before it wastes an hour: an ad-hoc
+    script that imports harness.mjs OUTSIDE `node --test` now hangs at
+    exit, because the teardown hook is a node:test hook and never fires, so
+    the browser is never closed. Throwaway probes either run under
+    `node --test` or close the browser themselves.
+
+74. [DONE] THREE CORRECTIONS FROM LOOKING AT 67/69/71 ON A PHONE.
+
+    A. THE CONVERTER'S EXPLANATORY NOTE IS GONE. It listed the convertible
+       units and then said they were "the same units this app already uses
+       on recipes and the shopping list" — the first half duplicates what
+       the unit box's own autocomplete offers, and the second half is the
+       IMPLEMENTATION's rationale (item 71's whole point was reusing
+       convertQty), which is a fact about the code, not something a person
+       converting 750 ml needs. It was the note explaining why the feature
+       was built, sitting inside the feature.
+
+    B. THE CONVERTER CONVERTS BOTH WAYS. There is now an amount box beside
+       the "To" unit as well, and typing in either one answers in the
+       other, so "how many lb is 48 oz" doesn't need a swap first. The swap
+       button stays — it is still the fastest way to flip a pairing you are
+       going to use repeatedly.
+       ONE NUMBER IN STATE, NOT TWO: `amount` plus a `side` flag saying
+       which box it was typed into, with the other box DERIVED. Two stored
+       numbers syncing on each other's change is the version that drifts —
+       the derived value is rounded for display (r2), so feeding it back
+       turns 1 cup into 236.59 ml into 0.9999 cup, and the box you are not
+       touching wanders while you watch.
+       SWAP MIRRORS THE WHOLE EQUATION, flipping `side` along with the
+       units, so 2 lb = 32 oz becomes 32 oz = 2 lb. Swapping units alone
+       would leave the typed 2 on the left and quietly ask a different
+       question (2 oz = ? lb) on a screen that looks identical. Covered by
+       a test that asserts all four fields after the swap, not just the
+       two units.
+
+    C. AN OPENED RECIPE ON THE WEEK TAB IS FULL WIDTH. It was indented 78px
+       to line up under the meal-type label, which is the right column for
+       the slot's CONTROLS and the wrong one for the thing you actually
+       read while cooking — on a 390px phone it cost a fifth of the width
+       for no gain. The main's panel just lost its wrapper; the sides
+       needed the indent moved OFF their container and ONTO the side rows
+       themselves, since every child of that container was inheriting it
+       (the "Add a side" button keeps the indent, with its width reduced to
+       match, or it would overhang the card).
+
+    D. THE WAKE-LOCK CONTROL IS A PILL TOGGLE, and says how long it lasts.
+       "Pill" first landed as a pill-SHAPED BUTTON whose text reported the
+       state ("Keep screen on" / "Screen staying on"); the ask was a pill
+       TOGGLE — a switch. Rebuilt as one: a 30x18 track with a knob that
+       slides, `role="switch"` + `aria-checked`, and a green track when on.
+       THE LABEL NO LONGER CARRIES THE STATE, which is the actual
+       difference and not just a shape. A button that relabels itself is
+       two controls in one costume — you have to read the words to work out
+       what pressing it will do NEXT, where a switch shows you where it
+       currently is. So "Keep screen on" is now fixed text, and there is a
+       test asserting the wording is IDENTICAL before and after flipping
+       it; mutating the label back to a state-dependent one fails exactly
+       that test and nothing else.
+       The e2e specs find it by ROLE and read `aria-checked`, not by its
+       visible words. Keyed to the label, they would have passed just as
+       happily on a switch that never moved as long as the text changed.
+       "· 30 min" sits outside the track, with the app's own separator —
+       without the middot the row reads as one sentence, "Keep screen on 30
+       min". The number comes from WAKE_LOCK_MINUTES, exported from
+       wakeLock.js and used for the timer itself: written twice, the label
+       and the duration drift the first time one is tuned, and the label is
+       the half nobody re-checks.
+
+76. [DONE] A BATCH MULTIPLIER ON THE MEALS CARD, which doubles as the
+    preview of what "Add unplanned meal" will do.
+
+    THE GAP IT FILLS: scaling a recipe required putting it on the shopping
+    list FIRST and then stepping the amount. You could not ask "what does
+    three batches look like?" without committing to it. The card now carries
+    `− ×N + <sv>` beside the Add button; the open recipe shows that many
+    batches' worth, and Add writes exactly what you were looking at.
+    NO "BATCHES" CAPTION on it: "×3" sitting next to "15 sv" with a − and a
+    + either side already says what it is — the word was labelling the
+    obvious. The tooltip still spells it out.
+
+    STEPS IN WHOLE BATCHES, and floors at ×1 by DISABLING the down control
+    rather than clamping silently — a stray tap that reaches ×0 would add
+    nothing while looking like it added something. The exact-servings editor
+    on the pill still covers amounts that are not a round multiple.
+
+    ONE CONTROL AT A TIME, NOT TWO. The multiplier only exists while the
+    meal is OFF the list. Once it is on, the pill's ± already steps whole
+    batches and the list entry is the truth; two controls both claiming to
+    set the same amount is how they drift apart. `mults` is view state,
+    never persisted — it is a question, and the list entry is the answer.
+
+    THE INSTRUCTIONS SCALE TOO, AND THIS IS THE PART THAT COULD HAVE DONE
+    REAL HARM. A recipe's notes are prose. Counted across the shipped
+    catalog rather than guessed, the words following a number are: min(34),
+    F(13), tbsp(7), hr(4), tablespoon(s)(6), minutes(3), inch(2), months(2),
+    days(2), x(2), sec(2), cup(2), degrees(2). Scaling every number would
+    turn "Preheat oven to 400F" into 800F and "Bake 15-20 min" into 30-40 —
+    not a cosmetic bug in something someone cooks from.
+    So scaleRecipeText (lib.js) scales a number ONLY when the word after it
+    is a unit unitInfo() recognises — the same table the shopping list
+    converts with. Every temperature, time, tin size and age is left alone
+    because °F, min, hr, inch, months and degrees are not units in it and
+    never will be. Handles ranges ("1-2 tbsp"), fractions ("1/2", "½") and
+    mixed numbers ("1 1/2"), since real recipes use all of them.
+    UNDER-SCALING IS SAFE, OVER-SCALING IS NOT, so anything ambiguous is
+    left as written — "2 cloves garlic" included, since `clove` has no ratio
+    to anything. The ingredient list is the authority either way; this only
+    stops the prose contradicting it. The heading says so on screen
+    ("Times and temperatures are as written") rather than leaving someone to
+    wonder whether 20 min was doubled behind their back.
+
+    SWEPT OVER THE REAL CATALOG AND READ THE DIFF, not just the green: at ×2
+    nine recipes' notes change, every one of them an ingredient amount
+    (2 tbsp oil → 4, ¾ cup → 1.5, 1-2 tbsp → 2-4), and nothing else moves.
+    That sweep is now a TEST — it doubles every recipe's notes and asserts
+    no temperature, time or size shifted — so a future edit to the unit
+    table cannot quietly start rewriting oven temperatures.
+
+    MUTATION-TESTED TWICE. Making Add write one batch instead of base × mult
+    fails exactly the reuse test. Making scaleRecipeText trust any word as a
+    unit fails both the temperatures-and-times test AND the catalog sweep.
+    Restored: 262 unit, 202 e2e, `npm run check` green.
+
+79. [DONE] TWO LEGIBILITY FIXES FROM READING IT ON A PHONE.
+
+    A. THE RECIPE BODY IS 15px, up from 13. The ingredient rows and the
+       instructions are read at arm's length, in a kitchen, over a hot pan —
+       the worst viewing distance anything in this app gets. 13px was sized
+       like the rest of the UI's supporting text, which is exactly what it
+       is not: it is the thing you opened the card for. The small print
+       around it (the heading, the "amounts are scaled" caveat, the screen
+       toggle) stays at 11, so the size difference does the pointing.
+       Instructions also got line-height 1.5 — a paragraph of prose at 15px
+       with list spacing is a wall.
+
+    B. THE MEAL TYPE ON THE WEEK TAB IS INK AND BOLD, 13px, up from 12px
+       faint grey. On a day holding more than one meal it is the only thing
+       telling one row from the next, and in the supporting-text grey it
+       read as decoration.
+
+    THE BOLDING CLIPPED "BREAKFAST" BY ONE PIXEL — caught by measuring the
+    label's scrollWidth against its box at 320px, not by looking, because a
+    single pixel is not something you see. The column was 70px and the
+    label wanted 71.
+    THE REAL BUG WAS THAT THE NUMBER LIVED IN FIVE PLACES: `width: 70` twice,
+    `marginLeft: 78` twice and `calc(100% - 78px)` once, all of which had to
+    move together to keep the sides, the servings row and the recipe panel
+    lined up under the meal bubble. They are now TYPE_COL / TYPE_GAP /
+    SLOT_INDENT, with the row's own `gap` reading from TYPE_GAP so the
+    arithmetic behind SLOT_INDENT is true by construction rather than by
+    someone remembering. Widened to 76, which leaves 5px of headroom.
+    Verified unclipped and with no horizontal overflow at both 320 and
+    390px. 203/203.
+
+78. [DONE] THE MULTIPLIER MOVED INSIDE THE RECIPE, and only exists once you
+    have tapped in. Reported with a screenshot of how a recipe site does it:
+    the 1X/2X sits directly under the Ingredients heading, beside the amounts
+    it changes.
+
+    IT WAS IN THE WRONG PLACE. Sitting on the card's action row it was on
+    permanent show next to Add — a control you had to reason about before
+    you had opened the thing it acts on, on every card in a scrolling list.
+    A closed card is now just the meal and its actions.
+
+    RecipeDetail takes OPTIONAL `mult` / `onMult`. Given them it renders the
+    stepper under the ingredients heading; without them it is read-only,
+    which is exactly what the Week tab needs — a planned slot's amount is
+    set by its own servings box, and a second control for the same number is
+    how two numbers drift apart. MealsTab passes them only while the meal is
+    OFF the shopping list, for the same reason: once it is on, the pill
+    edits the real amount and the stepper stands down.
+
+    THE ONE THING HIDING IT COULD HAVE BROKEN: a batch count set while
+    reading, then collapsed, would act on you invisibly when you pressed
+    Add. So the button carries it — "Add unplanned meal ×3" — and there is
+    a test asserting that exact label before it is pressed. State you cannot
+    see must not be state that can surprise you.
+
+    THE STEPPER STANDING DOWN IS TESTED WITH THE CARD STILL OPEN, which is
+    the difference between proving the control disappeared and proving the
+    panel merely closed.
+
+77. [DONE] A SECOND RULE FOR SCALING INSTRUCTIONS: a number followed by the
+    name of an INGREDIENT OF THIS RECIPE. Suggested with the observation
+    that makes it safe — an oven is not an ingredient.
+
+    Item 76's unit rule cannot reach "6 whole garlic cloves": `clove` has no
+    ratio to anything, so it is not in the unit table and never will be. But
+    garlic is in that recipe's list, so the 6 is a count of an ingredient and
+    moves with the batch. The recipe's OWN list is the vocabulary, which is
+    what bounds the risk: the only words that can trigger a rewrite are the
+    words the cook is measuring out.
+
+    MEASURED BEFORE BUILDING, and the measurement changed the design twice.
+    Matching only the word immediately after the number caught ONE case in
+    the whole catalog, because adjectives get in the way ("6 WHOLE garlic
+    cloves", "2 CHOPPED garlic cloves"). Stepping over prep and size
+    adjectives caught three, all correct, with no false positives.
+
+    TWO LIMITS, both deliberate:
+      - WHOLE INGREDIENT NAMES ONLY, never the separate words of a
+        multi-word one. A recipe with "Day-old bread" in it must not make
+        "keeps 3 days" scale to 6.
+      - PREP AND SIZE ADJECTIVES ONLY are stepped over — no prepositions or
+        articles. "for", "to", "of" and "the" would let a number reach
+        across to an unrelated noun, and the noun after a temperature is
+        very often an ingredient ("reduce to 350 for the chicken").
+
+    ONE REGRESSION CAUGHT BY RE-READING THE CATALOG DIFF, not by the tests:
+    widening the word pattern to keep hyphens (needed for ingredient names
+    like "sun-dried tomatoes") stopped "15-16 tablespoon-size meatballs"
+    from scaling, because "tablespoon-size" no longer resolved as a unit.
+    Rule 1 now also tries the stem before the hyphen. Both directions are
+    tested.
+
+    THE MUTATION TEST FOUND A TEST THAT PROTECTED NOTHING, which is the
+    point of running one. The first version of the whole-names test used
+    "Minute rice" against "cook 5 minutes" — and it passed WITH AND WITHOUT
+    the bug, because singularish("minutes") is "minut", not "minute", so the
+    collision it claimed to test never happened. The mutation (splitting
+    names into words) left the suite green. Rewritten with "Day-old bread"
+    vs "keeps 3 days", where "days" -> "day" collides for real, and the
+    mutation now fails exactly that test.
+    ALSO WORTH RECORDING: the first run of that mutation was a no-op — the
+    patch did not match the source and silently changed nothing, so the
+    green meant nothing either. A mutation has to be PROVEN to have applied
+    before its result is evidence; this one is applied by line number and
+    the changed lines printed.
+
+    Three mutations, three catches: rule 2 never firing fails 4 tests,
+    word-splitting fails the whole-names test, stepping over prepositions
+    fails the preposition test. 270 unit, 203 e2e, `npm run check` green.
+
+75. [DONE] `npm run check` — THE WHOLE GATE IN ONE COMMAND. Asked for after
+    a fair question: is the test setup half-built?
+
+    IT WASN'T, QUITE — `npm run test:e2e` has always been self-contained
+    (builds local-only, serves dist/, runs every spec, deletes the unsafe
+    bundle after). But there were FIVE things CI runs before it deploys —
+    lint, unit, rules, e2e, build — and no way to run them as one locally.
+    A person had to know the list AND the order, and the order is load-
+    bearing: e2e compiles a VITE_LOCAL_ONLY bundle with sync stripped out,
+    so it has to finish before the real build or the thing that gets
+    deployed is an app that looks fine and silently syncs nothing.
+    Knowing that was the price of running the tests at all, which is the
+    kind of thing that stays in one person's head. It is a script now, in
+    CI's exact order, failing fast. Verified end to end from a clean tree
+    (rm -rf dist): exit 0, all five stages ran, and the dist/ it leaves is
+    the REAL bundle — checked by grepping the output for firebaseio.com,
+    which the local-only build does not contain.
+
+    STATED IN CLAUDE.md, INCLUDING THE ONE WAY A LOCAL GREEN LIES: rules
+    tests SKIP without a JVM and the emulator jar, so `check` can pass on a
+    machine that never tested the rules. That was already true of
+    `test:rules` on its own; folding it into a single command makes it
+    easier to miss, so it is written down next to the command rather than
+    three paragraphs away. CI is unaffected — rules.test.mjs fails outright
+    when process.env.CI is set and the emulator is missing.
+
+    ALSO FIXED, RATHER THAN LEFT AS A DOCUMENTED TRAP: item 73's note that
+    an ad-hoc script importing harness.mjs outside `node --test` hangs at
+    exit. closeSharedBrowser() is exported now, so a throwaway probe can
+    end with it in a finally. Measured: the script that hung until it was
+    killed at 120s now exits on its own in 1.2s. Writing the sharp edge
+    down was not the same as removing it.
+
+    AND ONE DOC BUG FOUND WHILE EDITING: CLAUDE.md's "It must run BEFORE
+    the build" paragraph sat directly under the RULES-file paragraph, so
+    "It" read as the rules suite while the content — the VITE_LOCAL_ONLY
+    bundle — was about e2e. Same class as item 72's "Clear week": prose
+    that drifted from what it describes. Folded into the new section,
+    where the sentence has its subject next to it, and the stale copy
+    deleted rather than left to say it a second, wronger way.

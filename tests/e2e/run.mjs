@@ -10,7 +10,7 @@
    database and mint itself a household there. */
 
 import { spawn } from "node:child_process";
-import { serveDist } from "./harness.mjs";
+import { serveDist } from "./server.mjs";
 import { resolve, join } from "node:path";
 import { readdirSync } from "node:fs";
 import { rm } from "node:fs/promises";

@@ -28,6 +28,14 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
   const [confirmDelete, setConfirmDelete] = useState(null); // recipe pending deletion
   const [filterOpen, setFilterOpen] = useState(false); // sort/filter popover
   const [ingSug, setIngSug] = useState(null); // { row, idx } — which draft-ingredient row's name suggestions are open
+  /* How many batches of a recipe you're looking at, keyed by recipe id.
+     VIEW STATE ONLY, never persisted: it is a question ("what would three
+     batches look like?"), and the answer is only worth storing once you act
+     on it — which is what Add unplanned meal does, by writing base × mult
+     into the list. Steps in whole batches because that is what a recipe
+     scales by; the exact-servings editor on the pill is still there for the
+     amount that isn't a round multiple. */
+  const [mults, setMults] = useState({});
   const [pasteOpen, setPasteOpen] = useState(false); // paste-a-recipe panel shown in the draft editor
   const [pasteText, setPasteText] = useState("");
 
@@ -238,9 +246,19 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
      under a meal-type h2; in A-Z there is no group above it. */
   const CardHeading = mealView === "az" ? "h2" : "h3";
 
+  const multOf = (id) => mults[id] || 1;
+  const setMult = (id, m) => setMults((cur) => ({ ...cur, [id]: Math.max(1, m) }));
+
   const renderCard = (r) => {
     const base = r.servings || 4;
     const servings = data.list.selections[r.id] || 0;
+    const mult = multOf(r.id);
+    /* What the open recipe is showing amounts for. Once the meal is ON the
+       list its own amount is the truth — the multiplier was the question,
+       the list entry is the answer, and two numbers claiming to be the same
+       thing is how they drift apart. Until then the multiplier previews
+       exactly what Add unplanned meal is about to write. */
+    const previewServings = servings > 0 ? servings : base * mult;
     const detailShown = detailOpen === r.id;
     const picking = planPick?.id === r.id;
     // Everywhere this recipe appears in the plan, as a main or as a side —
@@ -320,7 +338,21 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
             </div>
           </button>
           </CardHeading>
-          {detailShown && <RecipeDetail recipe={r} />}
+          {/* Scaled to whatever this card is currently set to — the batch
+              amount already on the shopping list, or the multiplier being
+              previewed. Same servings-scaling RecipeDetail does for a
+              Week-tab slot.
+              THE STEPPER IS ONLY HANDED OVER WHILE THE MEAL IS OFF THE LIST.
+              Once it is on, its own amount is the truth and the pill below
+              edits it; two steppers for one number is how they drift. */}
+          {detailShown && (
+            <RecipeDetail
+              recipe={r}
+              servings={previewServings}
+              mult={servings > 0 ? undefined : mult}
+              onMult={servings > 0 ? undefined : (m) => setMult(r.id, m)}
+            />
+          )}
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
@@ -365,7 +397,14 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
                 <button style={{ ...pillBtn, color: C.ink }} onClick={() => setServings(r.id, servings + base)} title="One batch more" aria-label={`One batch more unplanned ${r.name}`}>+</button>
               </span>
             ) : (
-              <Btn small kind="primary" onClick={() => setServings(r.id, base)}>Add unplanned meal</Btn>
+              /* The stepper lives inside the opened recipe now, not out here.
+                 What stays on the action row is the CONSEQUENCE of it: the
+                 button carries the multiplier in its own label whenever it
+                 isn't ×1, so a batch count set while reading and then
+                 collapsed can never act on you invisibly. */
+              <Btn small kind="primary" onClick={() => setServings(r.id, base * mult)}>
+                {mult === 1 ? "Add unplanned meal" : `Add unplanned meal ×${mult}`}
+              </Btn>
             )}
             <div style={{ flex: 1 }} />
             {!isGuest && <Btn small onClick={() => startEdit(r)}>Edit</Btn>}

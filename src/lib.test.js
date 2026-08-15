@@ -10,6 +10,7 @@ import fs from "node:fs";
 import { FAQS, HOW_IT_WORKS } from "./help.js";
 import {
   formatCatalog,
+  scaleRecipeText,
   guestBlockedFields,
   classifyJoinInput,
   parseInvite,
@@ -3000,4 +3001,165 @@ test("export loses nothing, and running it twice changes nothing", () => {
   assert.equal(Object.keys(out.config).length, Object.keys(src.config).length);
   assert.equal(out.catalogVersion, src.catalogVersion);
   assert.equal(formatCatalog(out), once, "a second export differed from the first");
+});
+
+/* ---------------- scaling the written instructions ----------------
+
+   The dangerous half of this feature. A recipe's notes are prose, and most
+   of the numbers in them are temperatures, times, tin sizes and ages that
+   must survive a doubling untouched — "Preheat oven to 400F" becoming 800F
+   is not a cosmetic bug in something you cook from. Only a number followed
+   by a unit the app actually knows is scaled. */
+
+test("scaleRecipeText scales an amount that carries a real unit", () => {
+  assert.equal(scaleRecipeText("Heat 2 tbsp olive oil in a skillet.", 2), "Heat 4 tbsp olive oil in a skillet.");
+  assert.equal(scaleRecipeText("Add 1 cup broth.", 3), "Add 3 cup broth.");
+});
+
+test("scaleRecipeText LEAVES TEMPERATURES, TIMES AND SIZES ALONE", () => {
+  // Each of these appears in the shipped catalog. Scaling any of them would
+  // be actively wrong at the stove, not merely untidy.
+  const cases = [
+    "Preheat oven to 400F and line a baking sheet.",
+    "Bake 15-20 min until cooked through.",
+    "Let sit 5 min, then roll into 1-inch balls.",
+    "Sear about 2 min per side.",
+    "Age 6 months+.",
+    "Keeps 3 days in the fridge.",
+    "Use a 9x13 dish.",
+    "Rest 1 hr, or 30 sec in the microwave.",
+    "Heat to 350 degrees.",
+  ];
+  for (const c of cases) assert.equal(scaleRecipeText(c, 2), c, `should be untouched: ${c}`);
+});
+
+test("scaleRecipeText handles ranges, fractions and mixed numbers", () => {
+  assert.equal(scaleRecipeText("Add 1-2 tbsp water.", 2), "Add 2-4 tbsp water.");
+  assert.equal(scaleRecipeText("Add 1/2 cup milk.", 2), "Add 1 cup milk.");
+  assert.equal(scaleRecipeText("Add \u00bd cup milk.", 4), "Add 2 cup milk.");
+  assert.equal(scaleRecipeText("Add 1 1/2 cup flour.", 2), "Add 3 cup flour.");
+  assert.equal(scaleRecipeText("Add 1\u00bd cup flour.", 2), "Add 3 cup flour.");
+});
+
+test("scaleRecipeText resolves a two-word unit without eating the next word", () => {
+  assert.equal(scaleRecipeText("Pour 4 fl oz stock over it.", 2), "Pour 8 fl oz stock over it.");
+});
+
+test("scaleRecipeText is identity at x1, and for empty or absent notes", () => {
+  const t = "Heat 2 tbsp oil at 400F for 15 min.";
+  assert.equal(scaleRecipeText(t, 1), t);
+  assert.equal(scaleRecipeText(t, 0), t, "a nonsense factor must not mangle the text");
+  assert.equal(scaleRecipeText("", 2), "");
+  assert.equal(scaleRecipeText(null, 2), "");
+  assert.equal(scaleRecipeText(undefined, 2), "");
+});
+
+test("scaleRecipeText changes NOTHING it should not across the whole shipped catalog", () => {
+  /* The real guard. Doubles every recipe's notes and asserts that the only
+     lines that changed are ones carrying a known unit — so a future tweak to
+     the unit table cannot quietly start rewriting oven temperatures. */
+  const cat = JSON.parse(fs.readFileSync(new URL("../public/catalog.json", import.meta.url)));
+  let changed = 0;
+  for (const r of cat.recipes) {
+    if (!r.notes) continue;
+    const out = scaleRecipeText(r.notes, 2);
+    if (out === r.notes) continue;
+    changed++;
+    // Nothing that looks like a temperature, time or size may have moved.
+    for (const re of [/\d+\s*F\b/g, /\d+\s*[-\u2013]?\s*\d*\s*min\b/g, /\d+\s*hr\b/g, /\d+\s*sec\b/g, /\d+\s*inch/g, /\d+x\d+/g, /\d+\s*degrees/g, /\d+\s*months/g, /\d+\s*days/g]) {
+      assert.deepEqual(out.match(re), r.notes.match(re), `a temperature/time/size moved in ${r.name}`);
+    }
+  }
+  assert.ok(changed > 0, "the sweep proved nothing — no recipe's notes scaled at all");
+});
+
+/* ---- rule 2: a number counting one of THIS recipe's ingredients ---- */
+
+const GARLIC = ["Garlic", "Chicken breast", "Olive oil"];
+
+test("scaleRecipeText scales a count of an ingredient that carries no unit", () => {
+  // `clove` has no ratio to anything, so rule 1 can never catch this — but
+  // garlic is in the recipe, so the 6 is a count of it.
+  assert.equal(scaleRecipeText("Add 6 garlic cloves.", 2, GARLIC), "Add 12 garlic cloves.");
+  assert.equal(scaleRecipeText("Add 6 whole garlic cloves.", 2, GARLIC), "Add 12 whole garlic cloves.");
+  assert.equal(scaleRecipeText("Add 2 chopped garlic cloves.", 3, GARLIC), "Add 6 chopped garlic cloves.");
+});
+
+test("scaleRecipeText matches a multi-word ingredient name", () => {
+  assert.equal(scaleRecipeText("Sear 2 chicken breasts.", 2, GARLIC), "Sear 4 chicken breasts.");
+});
+
+test("scaleRecipeText does NOT treat a word of a multi-word ingredient as the ingredient", () => {
+  /* The trap this rule is shaped around, and the reason it matches WHOLE
+     ingredient names only. "Day-old bread" is an ordinary thing to have in a
+     recipe; if its words counted separately, "keeps 3 days" would become 6
+     and the bread would have rewritten the calendar.
+
+     THIS EXAMPLE WAS CHOSEN BY MUTATION, NOT BY TASTE. The first version
+     used "Minute rice" against "cook 5 minutes" — which passes either way,
+     because singularish("minutes") is "minut", so the collision it claimed
+     to test never happened. Splitting names into words left that test green,
+     which is the definition of a test protecting nothing. "days" -> "day"
+     collides for real. */
+  const dayOld = ["Day-old bread", "Butter"];
+  assert.equal(scaleRecipeText("Keeps 3 days in the fridge.", 2, dayOld), "Keeps 3 days in the fridge.");
+  // The whole name still counts, so the ingredient itself scales.
+  assert.equal(scaleRecipeText("Tear 2 day-old bread slices.", 2, dayOld), "Tear 4 day-old bread slices.");
+});
+
+test("scaleRecipeText will not reach across a preposition to find an ingredient", () => {
+  /* Only prep/size adjectives are stepped over. If "to"/"for"/"of" were, a
+     number could attach itself to a noun it has nothing to do with — and
+     the noun after a temperature is very often an ingredient. */
+  assert.equal(scaleRecipeText("Reduce to 350 for the chicken breast.", 2, GARLIC), "Reduce to 350 for the chicken breast.");
+  assert.equal(scaleRecipeText("Heat oil to 350 before the garlic goes in.", 2, GARLIC), "Heat oil to 350 before the garlic goes in.");
+});
+
+test("scaleRecipeText still leaves times and temperatures alone when ingredients are known", () => {
+  // Rule 2 must not widen the blast radius of rule 1's guarantees.
+  const cases = [
+    "Preheat oven to 400F.",
+    "Bake 15-20 min.",
+    "Rest 1 hr.",
+    "Use a 9x13 dish.",
+    "Keeps 3 days.",
+  ];
+  for (const c of cases) assert.equal(scaleRecipeText(c, 2, GARLIC), c, `should be untouched: ${c}`);
+});
+
+test("scaleRecipeText with no ingredient list behaves exactly as rule 1 alone", () => {
+  assert.equal(scaleRecipeText("Add 6 garlic cloves.", 2), "Add 6 garlic cloves.");
+  assert.equal(scaleRecipeText("Heat 2 tbsp oil.", 2), "Heat 4 tbsp oil.");
+});
+
+test("rule 2 changes NOTHING it should not across the whole shipped catalog", () => {
+  /* Same sweep as rule 1's, now with each recipe's OWN ingredient names fed
+     in — which is the configuration the app actually runs. */
+  const cat = JSON.parse(fs.readFileSync(new URL("../public/catalog.json", import.meta.url)));
+  let changed = 0;
+  for (const r of cat.recipes) {
+    if (!r.notes) continue;
+    const out = scaleRecipeText(r.notes, 2, r.ingredients.map((i) => i.name));
+    if (out === r.notes) continue;
+    changed++;
+    for (const re of [/\d+\s*F\b/g, /\d+\s*[-\u2013]?\s*\d*\s*min\b/g, /\d+\s*hr\b/g, /\d+\s*sec\b/g, /\d+\s*inch/g, /\d+x\d+/g, /\d+\s*degrees/g, /\d+\s*months/g, /\d+\s*days/g]) {
+      assert.deepEqual(out.match(re), r.notes.match(re), `a temperature/time/size moved in ${r.name}`);
+    }
+  }
+  assert.ok(changed > 0, "the sweep proved nothing — no recipe's notes scaled at all");
+});
+
+test("scaleRecipeText handles hyphenated words on both rules", () => {
+  // Rule 1 takes the unit from before the hyphen and leaves the rest:
+  // a double batch really does make twice as many meatballs.
+  assert.equal(
+    scaleRecipeText("Roll into 15-16 tablespoon-size meatballs.", 2, ["Ground chicken"]),
+    "Roll into 30-32 tablespoon-size meatballs."
+  );
+  // Rule 2 needs the WHOLE hyphenated word, because ingredient names have
+  // hyphens in them too.
+  assert.equal(
+    scaleRecipeText("Add 2 sun-dried tomatoes.", 2, ["Sun-dried tomatoes"]),
+    "Add 4 sun-dried tomatoes."
+  );
 });

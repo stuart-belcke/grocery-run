@@ -22,51 +22,15 @@
  *     changed it. A test that checks straight after clicking passed on a
  *     broken build; the same test with reload() failed. Use page.roundTrip()
  *     wherever the bug could live in normalization.
+ *
+ *  THE BROWSER IS SET UP ONCE AND TORN DOWN ONCE — see sharedBrowser below.
+ *  A test gets a fresh CONTEXT, not a fresh browser process.
  * ------------------------------------------------------------------ */
 
+import { after } from "node:test";
 import { chromium } from "playwright-core";
-import { createServer } from "node:http";
-import { readFile, stat } from "node:fs/promises";
 import { existsSync, readdirSync } from "node:fs";
-import { join, extname, resolve } from "node:path";
-
-const ROOT = resolve(import.meta.dirname, "../..");
-const DIST = join(ROOT, "dist");
-
-const MIME = {
-  ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
-  ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png",
-  ".ico": "image/x-icon", ".webmanifest": "application/manifest+json",
-};
-
-/* Serves dist/ in-process. Deliberately not `vite preview` as a child
-   process: backgrounding it proved unreliable, and a dead server looks
-   exactly like a failing assertion. vite.config.js sets base "./", so the
-   built asset URLs are relative and serving at / just works. */
-export async function serveDist() {
-  if (!existsSync(join(DIST, "index.html"))) {
-    throw new Error("dist/ is not built. Run `npm run test:e2e`, which builds first.");
-  }
-  const server = createServer(async (req, res) => {
-    const path = decodeURIComponent((req.url || "/").split("?")[0]);
-    let file = join(DIST, path === "/" ? "index.html" : path.replace(/^\/+/, ""));
-    try {
-      if ((await stat(file)).isDirectory()) file = join(file, "index.html");
-    } catch {
-      file = join(DIST, "index.html"); // SPA fallback
-    }
-    try {
-      const body = await readFile(file);
-      res.writeHead(200, { "content-type": MIME[extname(file)] || "application/octet-stream" });
-      res.end(body);
-    } catch {
-      res.writeHead(404).end("not found");
-    }
-  });
-  await new Promise((r) => server.listen(0, "127.0.0.1", r));
-  const { port } = server.address();
-  return { baseUrl: `http://127.0.0.1:${port}/`, close: () => new Promise((r) => server.close(r)) };
-}
+import { join } from "node:path";
 
 /* The pinned Chromium in this environment, then anything Playwright itself
    knows about. Explicit so a missing browser fails with a real message
@@ -89,6 +53,59 @@ function chromePath() {
   return undefined; // fall back to Playwright's own resolution
 }
 
+/* ---------------- setup / teardown: ONE browser per spec file ----------
+   Launching Chromium is the single most expensive thing this suite does,
+   and it used to happen once per TEST — 194 launches for 194 tests, most
+   of a three-and-a-half minute run spent starting and stopping browsers
+   that were about to do a few hundred milliseconds of work each.
+
+   A test now gets a fresh browser CONTEXT out of one shared browser
+   process. That is the isolation boundary that actually matters here:
+   a context has its own localStorage, cookies and cache, which is the
+   entire state this app persists — verified directly before the switch,
+   by writing localStorage in one context and confirming a second context
+   opened on the same URL could not see it. What a test does NOT get is a
+   fresh browser process, and nothing in these specs depends on one.
+
+   `node --test` runs each spec file in its own child process, so "shared"
+   means shared within a file — 31 launches for 31 files, not one for the
+   whole suite. Going further (a single launchServer the child processes
+   connect to over a websocket) would trade a pipe for a socket on every
+   single Playwright call, which is the wrong trade for a suite whose cost
+   is startup, not per-call chatter.
+
+   THE TEARDOWN HOOK IS TOP-LEVEL, AND HAS TO BE. Registering it lazily on
+   first use — inside openApp, which felt tidier — attaches it to whatever
+   test happens to be running at the time rather than to the file, so the
+   browser gets closed after the FIRST test and every later one fails on a
+   dead connection. Measured, not guessed: that is exactly what a probe of
+   the lazy version did before this was written this way.
+
+   The flip side is that importing node:test makes a process emit a TAP
+   report, which is why serveDist now lives in server.mjs — run.mjs is not
+   a test process and must not import this file. */
+let sharedBrowser = null;
+
+const getBrowser = async () => {
+  if (!sharedBrowser) sharedBrowser = chromium.launch({ executablePath: chromePath() });
+  return sharedBrowser;
+};
+
+/* Exported for the one case the hook above cannot cover: a throwaway script
+   that imports this harness and runs OUTSIDE `node --test`. after() is a
+   node:test hook, so nothing fires it there, the browser is never closed,
+   and its open handles keep the process alive — the script does all its
+   work, prints its output, and then just hangs. Ad-hoc probes end with
+   `await closeSharedBrowser()` in a finally. */
+export async function closeSharedBrowser() {
+  if (!sharedBrowser) return; // never opened the app, or already closed
+  const browser = await sharedBrowser;
+  sharedBrowser = null;
+  await browser.close();
+}
+
+after(closeSharedBrowser);
+
 const DEVICE_KEY = "grocery-run-device-v1";
 const CATALOG_PREFIX = "grocery-run-household-catalog-v1-";
 const STATE_PREFIX = "grocery-run-shared-";
@@ -103,8 +120,12 @@ const STATUS_PREVIEW_KEY = "grocery-run-e2e-status-preview";
    random ids on first edit, so a test's ids don't match the rendered rows
    and the run proves nothing. */
 export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, onboarded = true, guest = false, hash = "", status = null } = {}) {
-  const browser = await chromium.launch({ executablePath: chromePath() });
-  const page = await browser.newPage();
+  /* A CONTEXT, not a browser — see the setup/teardown block above. Each one
+     starts with empty localStorage and cookies, which is the whole of what
+     this app persists, so a test is as isolated as it was when every test
+     got its own browser process. */
+  const context = await (await getBrowser()).newContext();
+  const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   page.on("console", (m) => {
@@ -281,7 +302,10 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
   };
 
   page.errors = errors;
-  page.done = () => browser.close();
+  /* Closes THIS test's context and leaves the browser up for the next one.
+     Every spec already calls this in a `finally`, so the contexts a run
+     creates are disposed as it goes rather than piling up until teardown. */
+  page.done = () => context.close();
   return page;
 }
 

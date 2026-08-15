@@ -153,6 +153,132 @@ export function convertQty(qty, from, to) {
   return (n * a.per) / b.per;
 }
 
+/* ------------------- scaling the written instructions -------------------
+   Doubling a recipe has to double the amounts written into its steps too —
+   "Heat 2 tbsp olive oil" is wrong on a double batch — but a recipe's notes
+   are PROSE, and most of the numbers in them must not be touched. From the
+   shipped catalog, counted rather than guessed, the words that follow a
+   number are: min(34), F(13), tbsp(7), hr(4), tablespoon(s)(6), minutes(3),
+   inch(2), months(2), days(2), x(2), sec(2), cup(2), degrees(2).
+
+   So a number is scaled when EITHER of two things follows it, and otherwise
+   left exactly as written:
+
+   1. A UNIT THIS APP ALREADY KNOWS (unitInfo — the same table the shopping
+      list converts with). "2 tbsp olive oil" scales; "400F", "15-20 min",
+      "9x13", "6 months" do not, because °F, min, hr, inch, months, days and
+      degrees are not units in that table and never will be — they measure
+      things this app has no business converting.
+
+   2. THE NAME OF AN INGREDIENT IN THIS RECIPE. "6 whole garlic cloves" has
+      no unit in it — `clove` has no ratio to anything — but garlic is in the
+      list, so the 6 is a count of an ingredient and moves with the batch.
+      An oven is not an ingredient, which is what makes this safe: the
+      recipe's own list is the vocabulary, so the words that can trigger it
+      are the words the cook is measuring out.
+
+   TWO DELIBERATE LIMITS ON RULE 2, both about not inventing quantities:
+     - WHOLE INGREDIENT NAMES ONLY, never the individual words of a
+       multi-word one. A recipe with "Minute rice" in it must not make
+       "cook 5 minutes" scale, and matching "minute" on its own would do
+       exactly that.
+     - Only prep and size adjectives are stepped over between the number and
+       the name ("6 WHOLE garlic cloves", "2 CHOPPED garlic cloves").
+       Prepositions are not, so a number can never reach across "to" or
+       "for" and attach itself to an unrelated noun.
+
+   WHY NOT "SCALE EVERY NUMBER": doubling "Preheat oven to 400F" to 800F, or
+   "Bake 15-20 min" to 30-40, is not a cosmetic bug in a tool someone cooks
+   from. Under-scaling is safe and over-scaling is not, so anything still
+   ambiguous after those two rules is left alone.
+
+   The INGREDIENT LIST is the authority either way; this only keeps the prose
+   from contradicting it. */
+const UNICODE_FRACTIONS = { "½": 0.5, "⅓": 1 / 3, "⅔": 2 / 3, "¼": 0.25, "¾": 0.75, "⅛": 0.125, "⅜": 0.375, "⅝": 0.625, "⅞": 0.875 };
+// "1 1/2" and "1½" before "1/2" before "1.5" before a bare fraction glyph —
+// longest first, or "1 1/2" parses as the "1" and leaves " 1/2" behind.
+const QTY_PATTERN = `(?:\\d+\\s*[½⅓⅔¼¾⅛⅜⅝⅞]|\\d+\\s+\\d+\\/\\d+|\\d+\\/\\d+|\\d+(?:\\.\\d+)?|[½⅓⅔¼¾⅛⅜⅝⅞])`;
+// Up to five following words, so rule 2 can look past an adjective or two.
+// Only what a rule actually consumes is rewritten; the rest is put back.
+const SCALE_TEXT_RE = new RegExp(`(${QTY_PATTERN})(\\s*[-–]\\s*(${QTY_PATTERN}))?(\\s*)([A-Za-z][A-Za-z-]*(?:\\s+[A-Za-z][A-Za-z-]*){0,4})`, "g");
+
+/* Words that may sit between a number and the ingredient it counts. PREP AND
+   SIZE ONLY — adjectives that describe the ingredient rather than point away
+   from it. Deliberately no prepositions or articles: "for", "to", "of" and
+   "the" would let a number reach across to a noun it has nothing to do with,
+   which is how "reduce to 350 for the chicken" would become a quantity. */
+const INGREDIENT_ADJECTIVES = new Set([
+  "whole", "large", "small", "medium", "fresh", "ripe", "extra", "additional", "more", "remaining",
+  "chopped", "minced", "diced", "sliced", "shredded", "grated", "crushed", "halved", "quartered",
+  "cooked", "raw", "dried", "frozen", "canned", "packed", "heaping", "generous", "boneless", "skinless",
+]);
+
+const singularish = (w) => (w.endsWith("es") && w.length > 3 ? w.slice(0, -2) : w.endsWith("s") && w.length > 2 ? w.slice(0, -1) : w);
+const normWord = (w) => String(w).toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+
+// Whole ingredient names only — see the note above about "Minute rice".
+function ingredientNameSet(names) {
+  const set = new Set();
+  for (const n of names || []) {
+    const clean = normWord(n);
+    if (!clean) continue;
+    set.add(clean);
+    set.add(clean.split(" ").map(singularish).join(" "));
+  }
+  return set;
+}
+
+function parseWrittenQty(s) {
+  const raw = String(s).trim();
+  const glyph = raw.match(/[½⅓⅔¼¾⅛⅜⅝⅞]/);
+  if (glyph) {
+    const whole = parseFloat(raw) || 0; // "1½" -> 1, "½" -> 0
+    return whole + UNICODE_FRACTIONS[glyph[0]];
+  }
+  const mixed = raw.match(/^(\d+)\s+(\d+)\/(\d+)$/);
+  if (mixed) return Number(mixed[1]) + Number(mixed[2]) / Number(mixed[3]);
+  const frac = raw.match(/^(\d+)\/(\d+)$/);
+  if (frac) return Number(frac[1]) / Number(frac[2]);
+  return Number(raw) || 0;
+}
+
+export function scaleRecipeText(text, factor, ingredientNames = []) {
+  const f = Number(factor);
+  if (!text || !(f > 0) || f === 1) return text == null ? "" : String(text);
+  const names = ingredientNameSet(ingredientNames);
+  return String(text).replace(SCALE_TEXT_RE, (whole, a, _range, b, gap, following) => {
+    const scaled = (rest) => {
+      const lo = r2(parseWrittenQty(a) * f);
+      return b ? `${lo}-${r2(parseWrittenQty(b) * f)}${gap}${rest}` : `${lo}${gap}${rest}`;
+    };
+    const words = following.split(/\s+/);
+
+    /* RULE 1 — a unit. Two words first so "fl oz" resolves as one; whatever
+       the unit did not consume ("tbsp olive oil" -> " olive oil") is put
+       back exactly as it was. */
+    const one = words[0];
+    // "tablespoon-size meatballs" — the unit is the part before the hyphen,
+    // and the hyphenated tail rides along untouched. Rule 2 needs the whole
+    // hyphenated word (ingredient names like "sun-dried tomatoes"), so the
+    // split happens HERE rather than in the pattern.
+    const stem = one.split("-")[0];
+    const two = words.length > 1 ? `${one} ${words[1]}` : null;
+    const unit = two && unitInfo(two) ? two : unitInfo(one) ? one : unitInfo(stem) ? stem : null;
+    if (unit) return scaled(following);
+
+    /* RULE 2 — an ingredient of this recipe, possibly behind a prep or size
+       adjective. Nothing is consumed here: only the number changes, and the
+       words after it are left alone. */
+    let i = 0;
+    while (i < words.length && INGREDIENT_ADJECTIVES.has(singularish(normWord(words[i])))) i++;
+    const cand1 = normWord(words[i] || "");
+    const cand2 = words[i + 1] ? `${cand1} ${normWord(words[i + 1])}` : null;
+    const hit = [cand1, singularish(cand1), cand2, cand2 && cand2.split(" ").map(singularish).join(" ")]
+      .some((c) => c && names.has(c));
+    return hit ? scaled(following) : whole;
+  });
+}
+
 // Which unit should show the total: the largest that still leaves a number of
 // at least 1, else the smallest available. 1500 g reads 1.5 kg, 24 oz reads
 // 1.5 lb, and a quarter pound reads 4 oz.

@@ -694,11 +694,15 @@ export async function recordHouseholdMembership(code, user) {
    One argument cannot be half-forwarded, and a caller that builds the link
    from the RETURNED role cannot describe an invite the database didn't
    store. */
-export async function createInvite(code, user, { ttlMinutes = 60, role = "member" } = {}) {
+/* `token`, if given, is written as-is instead of minting a fresh one — the
+   caller already committed to it (e.g. copied a link to the clipboard
+   before this write lands) and needs the stored invite to match exactly
+   what it showed. */
+export async function createInvite(code, user, { ttlMinutes = 60, role = "member", token: presetToken } = {}) {
   const db = await getDb();
   if (!db) return null;
   const { ref, set } = await import("firebase/database");
-  const token = newInviteToken();
+  const token = presetToken || newInviteToken();
   try {
     await set(ref(db, `households/${code}/invites/${token}`), {
       by: user.uid,

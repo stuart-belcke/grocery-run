@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "test:e2e": "node tests/e2e/run.mjs",
     "test:rules": "node --test tests/rules/rules.test.mjs",
+    "check": "npm run lint && npm test && npm run test:rules && npm run test:e2e && npm run build",
     "emulator:fetch": "firebase setup:emulators:database"
   },
   "dependencies": {

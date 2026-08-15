@@ -42,6 +42,14 @@ export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError, i
 
   const parsed = classifyJoinInput(text);
   const isGuestLink = parsed.kind === "invite" && parsed.role === "guest";
+  // Which of the three ways in actually applies, so the page can say what to
+  // do next instead of showing three equally-weighted cards every time.
+  // `text` is pre-filled from a tapped link (see initialInvite below) — an
+  // empty box means this really is a fresh open with nothing to react to,
+  // someone who "just downloaded the app" rather than followed a link.
+  const guestInvite = isGuestLink;
+  const memberInvite = parsed.kind === "invite" && !isGuestLink;
+  const noInvite = !text.trim();
 
   const join = async () => {
     if (parsed.kind === "broken") {
@@ -103,88 +111,127 @@ export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError, i
           ))}
         </ol>
 
-        {/* FIRST. Both people who actually live in a household arrive this
-            way, and every other route on this screen either needs it now or
-            tells you to come back for it later. */}
-        <div style={card}>
-          <h2 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 4px" }}>Sign in</h2>
-          <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
-            Start here. It picks up whichever household this account is already in, and a full invite needs an account too.
-          </p>
-          <Btn kind="primary" onClick={onGoogle}>Sign in with Google</Btn>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 12 }}>
-            <input
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              spellCheck={false}
-              autoCapitalize="none"
-              style={{ ...inputStyle, flex: 1, minWidth: 180 }}
-            />
-            <Btn onClick={sendLink} disabled={emailBusy}>{emailBusy ? "Sending…" : "Email me a link"}</Btn>
+        {/* WHAT TO DO NEXT, named directly, rather than making a new arrival
+            work it out from three equally-weighted cards. Silent for a plain
+            open with no link (noInvite) — HOW_IT_WORKS above already
+            explains the app, and there's no specific next step to point at
+            beyond the cards themselves. */}
+        {guestInvite && (
+          <div style={{ fontSize: 13, fontWeight: 500, color: C.green, padding: "10px 12px", background: C.greenSoft, borderRadius: 8, marginBottom: 12 }}>
+            You&apos;ve been invited to help with the shopping. Enter your name below and tap Join as guest — no account needed.
           </div>
-        </div>
-
-        {/* SECOND, not first. A full invite is redeemed for an ACCOUNT, so it
-            cannot be the first thing on the screen without immediately sending
-            you further down it. A guest link is the exception and says so. */}
-        <div style={card}>
-          <h2 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 4px" }}>Join a household</h2>
-          <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
-            Paste the invite somebody sent you.
+        )}
+        {memberInvite && (
+          <div style={{ fontSize: 13, fontWeight: 500, color: C.green, padding: "10px 12px", background: C.greenSoft, borderRadius: 8, marginBottom: 12 }}>
+            You&apos;ve been invited to join a household. Sign in below, then come back to this screen to accept it.
+          </div>
+        )}
+        {/* Nobody sent this browser here — it's a plain first open, e.g.
+            just installed the app. There's no invite to react to, so this is
+            a nudge rather than an instruction: pick whichever of the three
+            below actually applies. */}
+        {noInvite && (
+          <p style={{ fontSize: 13, color: C.faint, fontStyle: "italic", margin: "0 0 12px" }}>
+            New here? If someone already shops with this app, ask them for an invite instead of starting your own list below.
           </p>
-          <label htmlFor="onboard-invite" style={label}>Invite link</label>
-          <input
-            id="onboard-invite"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="home-xxxxxxxx~…"
-            spellCheck={false}
-            autoCapitalize="none"
-            style={{ ...inputStyle, width: "100%", boxSizing: "border-box", fontFamily: "ui-monospace, Menlo, monospace" }}
-          />
+        )}
 
-          {/* Only a guest link asks for a name, and only because there is no
-              account behind it to borrow one from — without this the member
-              list would show whoever let you in a bare anonymous id. */}
-          {isGuestLink && (
-            <div style={{ marginTop: 10 }}>
-              <label htmlFor="onboard-name" style={label}>Your name</label>
-              <input
-                id="onboard-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="So they know who's on the list"
-                style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
-              />
+        {/* Order follows what actually applies, not a fixed layout: a guest
+            link needs nothing from Sign in (a guest never has an account),
+            so making them scroll past it first was the exact "which of
+            these do I need" confusion this was meant to fix. Everyone else
+            keeps the original order — FIRST, both people who actually live
+            in a household arrive by signing in, and a full invite is
+            redeemed for an account, so it cannot be first without sending
+            you straight back up to Sign in anyway. */}
+        {(() => {
+          const signInCard = (
+            <div style={card} key="signin">
+              <h2 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 4px" }}>Sign in</h2>
+              <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
+                Start here. It picks up whichever household this account is already in, and a full invite needs an account too.
+              </p>
+              <Btn kind="primary" onClick={onGoogle}>Sign in with Google</Btn>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 12 }}>
+                <input
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  spellCheck={false}
+                  autoCapitalize="none"
+                  style={{ ...inputStyle, flex: 1, minWidth: 180 }}
+                />
+                <Btn onClick={sendLink} disabled={emailBusy}>{emailBusy ? "Sending…" : "Email me a link"}</Btn>
+              </div>
             </div>
-          )}
+          );
 
-          <div style={{ marginTop: 12 }}>
-            <Btn kind="primary" onClick={join} disabled={busy || !text.trim() || (isGuestLink && !name.trim())}>
-              {busy ? "Joining…" : isGuestLink ? "Join as guest" : "Join household"}
-            </Btn>
-          </div>
-          {isGuestLink && (
-            <p style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
-              A guest can work the shopping list — ticking things off, adding items, flagging a staple as run out. Recipes and the week plan stay read-only. No account needed, but you&apos;ll need a new link if you clear this browser&apos;s data.
-            </p>
-          )}
-          {parsed.kind === "invite" && !isGuestLink && (
-            <p style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
-              This is a full invite, so it needs an account. Sign in above first, then come back and paste it.
-            </p>
-          )}
-        </div>
+          const joinCard = (
+            <div style={card} key="join">
+              <h2 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 4px" }}>
+                {guestInvite ? "Join as a guest" : "Join a household"}
+              </h2>
+              <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
+                {guestInvite ? "Your invite is filled in below — just add your name." : "Paste the invite somebody sent you."}
+              </p>
+              <label htmlFor="onboard-invite" style={label}>Invite link</label>
+              <input
+                id="onboard-invite"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder="home-xxxxxxxx~…"
+                spellCheck={false}
+                autoCapitalize="none"
+                style={{ ...inputStyle, width: "100%", boxSizing: "border-box", fontFamily: "ui-monospace, Menlo, monospace" }}
+              />
 
-        <div style={card}>
-          <h2 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 4px" }}>Just me, on this device</h2>
-          <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
-            Start a list of your own. It stays on this device until you sign in, and you can share it with someone later.
-          </p>
-          <Btn onClick={onSkip}>Start my own list</Btn>
-        </div>
+              {/* Only a guest link asks for a name, and only because there is no
+                  account behind it to borrow one from — without this the member
+                  list would show whoever let you in a bare anonymous id. */}
+              {isGuestLink && (
+                <div style={{ marginTop: 10 }}>
+                  <label htmlFor="onboard-name" style={label}>Your name</label>
+                  <input
+                    id="onboard-name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="So they know who's on the list"
+                    style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
+                  />
+                </div>
+              )}
+
+              <div style={{ marginTop: 12 }}>
+                <Btn kind="primary" onClick={join} disabled={busy || !text.trim() || (isGuestLink && !name.trim())}>
+                  {busy ? "Joining…" : isGuestLink ? "Join as guest" : "Join household"}
+                </Btn>
+              </div>
+              {isGuestLink && (
+                <p style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
+                  A guest can work the shopping list — ticking things off, adding items, flagging a staple as run out. Recipes and the week plan stay read-only. No account needed, but you&apos;ll need a new link if you clear this browser&apos;s data.
+                </p>
+              )}
+              {memberInvite && (
+                <p style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
+                  This is a full invite, so it needs an account. Sign in above first, then come back and paste it.
+                </p>
+              )}
+            </div>
+          );
+
+          const justMeCard = (
+            <div style={card} key="justme">
+              <h2 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 4px" }}>Just me, on this device</h2>
+              <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
+                Start a list of your own. It stays on this device until you sign in, and you can share it with someone later.
+              </p>
+              <Btn onClick={onSkip}>Start my own list</Btn>
+            </div>
+          );
+
+          return guestInvite ? [joinCard, justMeCard, signInCard] : [signInCard, joinCard, justMeCard];
+        })()}
 
         {msg && (
           <div style={{ fontSize: 13, fontWeight: 500, color: msg.ok ? C.green : C.tomato, padding: "10px 12px", background: msg.ok ? C.greenSoft : C.tomatoSoft, borderRadius: 8 }}>
