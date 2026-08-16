@@ -112,6 +112,39 @@ Ingredients tab → "Save backup (copy)" on one phone, send it to yourself
 (week plan, list, un-exported edits). The catalog itself never needs this —
 it's already shared via GitHub.
 
+## Tidying up abandoned households
+
+A household with no members left is unreachable — nobody can open it, and it
+sits in the database forever. Since leaving now deletes the household when the
+*last* member walks out, new ones shouldn't appear; this is for any left over
+from before, and for the rare case of two people leaving at the same instant.
+
+It can't be a button in the app: finding one means listing every household,
+which the security rules deliberately forbid (that denial is what stops one
+mistake exposing everyone's data at once). So it runs from a computer, with a
+key that bypasses the rules.
+
+1. Firebase Console → Project settings → Service accounts → **Generate new
+   private key**. Save the `.json` somewhere outside this repo.
+2. See what it would remove — this changes nothing:
+
+   ```
+   node scripts/reclaim-households.mjs --key=/path/to/key.json
+   ```
+
+   It prints every household, keeping the ones with members and marking the
+   empty ones `WOULD DELETE`, with the date each was last written.
+3. If that list looks right, delete them:
+
+   ```
+   node scripts/reclaim-households.mjs --key=/path/to/key.json --delete
+   ```
+
+**The key is a password to the whole database.** Keep it out of the repo
+(`.gitignore` covers `scripts/keys/` and `*.serviceaccount.json`) and delete it
+from your computer when you're done. Deletions are not recoverable, which is
+why the dry run is the default and you have to ask for `--delete`.
+
 ## Changing the app itself
 
 The UI is in `src/App.jsx`. Edit it (on GitHub or with any editor), commit to

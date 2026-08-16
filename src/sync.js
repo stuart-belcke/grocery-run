@@ -687,12 +687,53 @@ export async function recordHouseholdMembership(code, user) {
       ...(user.displayName ? { displayName: user.displayName } : {}),
       updatedAt: Date.now(),
     });
+    /* AN INDEX OF THE HOUSEHOLDS THIS ACCOUNT IS IN, written only once the
+       membership record above actually landed — an entry for a household
+       that refused us would be a list of places you cannot go.
+       It lives under users/{uid}, which the rules already scope to the
+       account itself, so this needs no rules change. It has to be a
+       CLIENT-MAINTAINED INDEX because nothing may list /households: that
+       denial is what stops one grant exposing every household at once, and
+       it also means an account cannot discover its own memberships by
+       asking the database. This is the only way to answer "which am I in?" */
+    await update(ref(db, `users/${user.uid}/households/${code}`), { updatedAt: Date.now() });
     reportWriteOk();
     return true;
   } catch (e) {
     if (e && e.code === "PERMISSION_DENIED") return false;
     reportWriteError(e, "membership record for this device");
     return false;
+  }
+}
+
+/* The households this account has been a member of, newest first. Live, so
+   joining or leaving on this phone updates the list without a reload. */
+export function subscribeMyHouseholds(user, cb) {
+  if (!syncEnabled || !user) return () => {};
+  let stop = () => {};
+  (async () => {
+    const db = await getDb();
+    if (!db) return;
+    const { ref, onValue } = await import("firebase/database");
+    stop = onValue(
+      ref(db, `users/${user.uid}/households`),
+      (snap) => cb(snap.val() || {}),
+      () => cb({})
+    );
+  })();
+  return () => stop();
+}
+
+// Drop one entry from that index — used when leaving, so the list stops
+// offering a household this account is no longer in.
+export async function forgetMyHousehold(user, code) {
+  const db = await getDb();
+  if (!db || !user) return;
+  const { ref, remove } = await import("firebase/database");
+  try {
+    await remove(ref(db, `users/${user.uid}/households/${code}`));
+  } catch (e) {
+    /* the index is a convenience; failing to prune it must not fail a leave */
   }
 }
 
@@ -833,10 +874,12 @@ export async function leaveHousehold(code, user, isGuest) {
     const others = Object.keys(snap.val() || {}).filter((uid) => uid !== user.uid);
     if (others.length === 0 && !isGuest) {
       await remove(ref(db, `households/${code}`));
+      await forgetMyHousehold(user, code);
       reportWriteOk();
       return { ok: true, deleted: true };
     }
     await remove(ref(db, `households/${code}/members/${user.uid}`));
+    await forgetMyHousehold(user, code);
     reportWriteOk();
     return { ok: true, deleted: false, orphaned: others.length === 0 };
   } catch (e) {

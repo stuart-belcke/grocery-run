@@ -3018,6 +3018,54 @@ treatment: the store moved into the details panel and the name grew.
     Verified unclipped and with no horizontal overflow at both 320 and
     390px. 203/203.
 
+80. [DONE] THREE FOLLOW-UPS ON ITEM 17, from using it.
+
+    A. HOW TO RUN THE CLEANUP SCRIPT WAS ONLY IN THE SCRIPT. Asked, having
+       looked and not found it — which is the answer: the usage lived in the
+       file's own header and in this file, and neither is where somebody
+       goes looking for "how do I run the thing". README.md has a section
+       now, with the console path to a key, the dry run, the --delete run,
+       and why the key must not be kept.
+
+    B. TWO CONFIRMATIONS BEFORE LEAVING, not one. Asked for on the grounds
+       that the deletion is permanent, and right: one tap stood between an
+       idle thumb and a household nobody can get back.
+       THE TWO STEPS SAY DIFFERENT THINGS, which is what makes the second
+       one worth tapping through rather than an obstacle to click past:
+       step 1 is WHAT HAPPENS (this account steps out; or, for the last
+       member, the household is deleted), step 2 is THAT IT CANNOT BE
+       UNDONE, and points at Export & recover while there is still
+       something to export.
+       BOTH CASES GET IT, not just the deleting one — since the leave fix,
+       every leaver also clears this phone's only copy, so both are
+       irreversible even though only one is irreversible for everyone.
+
+    C. A LIST OF THE HOUSEHOLDS THIS ACCOUNT IS IN. Until now the only way
+       to reach another was to remember its code and type it: the app knew
+       you were a member and still asked you to recall thirteen characters.
+       IT HAS TO BE A CLIENT-MAINTAINED INDEX, and that is not a shortcut —
+       nothing may list /households (the denial that stops one grant
+       exposing every household at once), so an account genuinely cannot
+       ask the database which households it belongs to. recordHouseholdMembership
+       now also writes users/{uid}/households/{code}, which the rules
+       already scope to the account itself, so NO RULES CHANGE was needed.
+       Written only after the membership record lands — an entry for a
+       household that refused us would be a list of places you cannot go.
+       Leaving prunes its entry.
+       THE INDEX CAN OUTLIVE THE MEMBERSHIP, said in the code rather than
+       left to be discovered: if someone removes this account, the entry
+       lingers until this phone tries it and is refused, at which point the
+       existing access-denied message is what you get. It is a shortcut
+       list, not proof of access. Shown only when there is more than one,
+       so the common single-household case gains no clutter.
+
+    NONE OF THIS IS BROWSER-TESTED, for the reason item 17 already records
+    and this batch makes louder: all of it lives behind a signed-in user,
+    which the local-only build cannot produce. 47/47 rules, 203/203 e2e,
+    270/270 unit, check green — and none of those touch the three things
+    above. See the note at the end of item 17 about a preview seam; this is
+    now the third change landing in that blind spot.
+
 78. [DONE] THE MULTIPLIER MOVED INSIDE THE RECIPE, and only exists once you
     have tapped in. Reported with a screenshot of how a recipe site does it:
     the 1X/2X sits directly under the Ingredients heading, beside the amounts

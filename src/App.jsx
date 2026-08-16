@@ -23,6 +23,7 @@ import {
   leaveHousehold,
   newHouseholdCode,
   forgetHouseholdCache,
+  subscribeMyHouseholds,
   writeCatalog,
   markCatalogSynced,
   watchAuthUser,
@@ -167,6 +168,9 @@ export default function App() {
   // watchConnection would happily keep reporting "synced" — and it's the
   // authorization on top of it that failed.
   const [accessDenied, setAccessDenied] = useState(false);
+  // Which households this account is in — a client-maintained index under
+  // users/{uid}, because nothing may list /households (see sync.js).
+  const [myHouseholds, setMyHouseholds] = useState({});
   // households/{code}/members and .../invites, for the Settings list.
   const [members, setMembers] = useState(null);
   const [invites, setInvites] = useState(null);
@@ -570,6 +574,10 @@ export default function App() {
     // actually confirmed.
   }, [code, membershipTick]);
 
+  // The account's own list of households, live. Scoped to the user rather
+  // than the household, so it survives switching between them.
+  useEffect(() => subscribeMyHouseholds(user, setMyHouseholds), [user]);
+
   /* ------- effective data -------
      The household catalog IS the data now: one layer, nothing to reconcile.
      Until it loads — first launch, still connecting — fall back to the shipped
@@ -773,6 +781,7 @@ export default function App() {
             writeError={writeError}
             user={user}
             accessDenied={accessDenied}
+            myHouseholds={myHouseholds}
             members={members}
             invites={invites}
             isGuest={isGuest}

@@ -12,7 +12,7 @@ import { syncEnabled } from "../sync";
 import { HOW_IT_WORKS, FAQS } from "../help";
 import { UnitConverter } from "../UnitConverter";
 
-export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, sync, writeError, user, accessDenied, members, invites, isGuest, createInvite, revokeInvite, joinWithInvite, removeMember, leaveHousehold, authError, signInWithGoogle, sendEmailSignInLink, signOutUser, initialInvite = "" }) {
+export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, sync, writeError, user, accessDenied, myHouseholds, members, invites, isGuest, createInvite, revokeInvite, joinWithInvite, removeMember, leaveHousehold, authError, signInWithGoogle, sendEmailSignInLink, signOutUser, initialInvite = "" }) {
   const prefs = data.prefs;
   const setPref = (patch) => updateCatalog((c) => ({ ...c, prefs: { ...c.prefs, ...patch } }));
   // The members node as written: { uid: { email, displayName, updatedAt } }.
@@ -28,6 +28,17 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         .sort((a, b) => String(a.email || a.uid).localeCompare(String(b.email || b.uid))),
     [members]
   );
+  /* Newest first, so the one you last used is nearest the top. The current
+     household is always included even if the index write has not landed yet
+     (a phone that just switched, or one that has never been online). */
+  const myHouseholdList = useMemo(() => {
+    const seen = { ...(myHouseholds || {}) };
+    if (code && !seen[code]) seen[code] = { updatedAt: 0 };
+    return Object.entries(seen)
+      .map(([c, v]) => ({ code: c, updatedAt: (v && v.updatedAt) || 0 }))
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  }, [myHouseholds, code]);
+
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
   const [msg, setMsg] = useState("");
@@ -145,7 +156,14 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
   const [inviteMsg, setInviteMsg] = useState("");
   const [inviting, setInviting] = useState(false);
   const [askRemove, setAskRemove] = useState(null); // member pending removal
-  const [askLeave, setAskLeave] = useState(false);   // leaving this household
+  /* TWO CONFIRMATIONS, NOT ONE, and the step is the state: 0 closed, 1 what
+     leaving does, 2 the point of no return. Everything leaving destroys is
+     irreversible — the last member out deletes the household for everyone,
+     and every leaver clears this phone's own copy — so a single tap between
+     an idle thumb and that is not enough. The two steps say DIFFERENT things
+     rather than asking twice: the first is what happens, the second is that
+     it cannot be undone. */
+  const [leaveStep, setLeaveStep] = useState(0);
   const [leaving, setLeaving] = useState(false);
   /* Am I the last one out? Read from the member list the app already has, so
      the warning can say what leaving will actually DO — for the last member
@@ -157,7 +175,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
     setLeaving(true);
     const res = await leaveHousehold();
     setLeaving(false);
-    setAskLeave(false);
+    setLeaveStep(0);
     if (!res || !res.ok) {
       setCodeMsg("Couldn't leave — this phone may be offline. Try again when it reconnects.");
       return;
@@ -165,7 +183,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
     setCodeMsg(
       res.deleted
         ? "You've left, and the household's data was deleted with you — you were the last member."
-        : "You've left. This phone is on a fresh household of its own now."
+        : "You've left. This phone has started a fresh household of its own."
     );
   };
 
@@ -549,7 +567,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                       {m.uid === user.uid ? (
                         <>
                           <span style={{ fontSize: 11, color: C.green, fontWeight: 500 }}>this phone</span>
-                          <Btn small kind="danger" onClick={() => setAskLeave(true)}>Leave</Btn>
+                          <Btn small kind="danger" onClick={() => setLeaveStep(1)}>Leave</Btn>
                         </>
                       ) : (
                         !isGuest && <Btn small kind="danger" onClick={() => setAskRemove(m)}>Remove</Btn>
@@ -650,6 +668,38 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
             </div>
 
             <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
+            {/* EVERY HOUSEHOLD THIS ACCOUNT IS IN. Until now the only way to
+                reach another one was to remember its code and type it —
+                the app knew you were a member and still made you recall a
+                13-character string. The list is an index kept under
+                users/{uid} as memberships are recorded, because nothing may
+                list /households (sync.js explains why that denial matters).
+                A CONSEQUENCE OF IT BEING AN INDEX, said here rather than
+                discovered: it can outlive the membership. If someone removes
+                this account from a household, the entry lingers until this
+                phone tries it and is refused — at which point the app's
+                existing access-denied message is what you get. It is a
+                shortcut list, not proof of access. */}
+            {myHouseholdList.length > 1 && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 12, color: C.faint, marginBottom: 4 }}>Households this account is in</div>
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+                  {myHouseholdList.map((h) => (
+                    <li key={h.code} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 13 }}>
+                      <span style={{ flex: 1, minWidth: 0, fontFamily: "ui-monospace, Menlo, monospace", wordBreak: "break-all", color: C.ink }}>
+                        {h.code}
+                      </span>
+                      {h.code === code ? (
+                        <span style={{ fontSize: 11, color: C.green, fontWeight: 500 }}>this phone</span>
+                      ) : (
+                        <Btn small onClick={() => setAskJoin(h.code)}>Switch</Btn>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <label htmlFor="household-code" style={{ fontSize: 12, color: C.faint, display: "block", marginBottom: 4 }}>Paste an invite, or switch to another household you&apos;re in</label>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <input
@@ -863,38 +913,60 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         household code won&apos;t get them back in — they&apos;d need a new invite.
       </ConfirmDialog>
 
-      {/* LEAVING SAYS WHICH OF THE TWO THINGS IT IS ABOUT TO DO. For anyone
-          but the last member it is just this account stepping out. For the
-          last member it also deletes the household — because a household
-          nobody is in stays claimable by anyone who knows the code, and
-          before this the list, week plan and recipes were still sitting
-          there for whoever claimed it. */}
+      {/* STEP 1 — WHAT LEAVING DOES. Says which of the two cases this is:
+          for anyone but the last member it is this account stepping out; for
+          the last member it also deletes the household, because one nobody
+          is in stays claimable by whoever knows the code, and the list, week
+          plan and recipes were sitting there for them. */}
       <ConfirmDialog
-        open={askLeave}
+        open={leaveStep === 1}
         title={lastMemberOut ? "Leave and delete this household?" : "Leave this household?"}
-        confirmLabel={leaving ? "Leaving…" : lastMemberOut ? "Leave and delete" : "Leave"}
-        onConfirm={doLeave}
-        onCancel={() => setAskLeave(false)}
+        confirmLabel="Continue"
+        onConfirm={() => setLeaveStep(2)}
+        onCancel={() => setLeaveStep(0)}
       >
         {lastMemberOut ? (
           <>
             <p style={{ margin: "0 0 8px" }}>
-              You&apos;re the last member, so this household&apos;s <b style={{ color: C.ink }}>shopping list, week plan and recipes are deleted</b> along with your access. This cannot be undone.
+              You&apos;re the last member, so this household&apos;s <b style={{ color: C.ink }}>shopping list, week plan and recipes are deleted</b> for good.
             </p>
             <p style={{ margin: 0 }}>
-              Export a backup first if you want to keep any of it. This phone keeps working on a fresh household of its own.
+              This phone starts a fresh household of its own, with the starter recipes and an empty list.
             </p>
           </>
         ) : (
           <>
             <p style={{ margin: "0 0 8px" }}>
-              This account loses access to this household. The others in it keep everything, and the data stays with them.
+              This account loses access. The others in it keep everything — the household&apos;s data stays with them.
             </p>
             <p style={{ margin: 0 }}>
-              You&apos;d need a new invite to come back — the code alone won&apos;t do it. This phone moves to a fresh household of its own.
+              This phone <b style={{ color: C.ink }}>clears its copy</b> and starts a fresh household of its own. You&apos;d need a new invite to come back; the code alone won&apos;t do it.
             </p>
           </>
         )}
+      </ConfirmDialog>
+
+      {/* STEP 2 — THAT IT CANNOT BE UNDONE. A second dialog rather than a
+          second button, and deliberately NOT a repeat of the first: step one
+          is what happens, step two is that there is no way back. Both cases
+          get it, because both destroy something irreversibly — the shared
+          household, or this phone's only copy of it. */}
+      <ConfirmDialog
+        open={leaveStep === 2}
+        title={lastMemberOut ? "Delete for good?" : "Leave for good?"}
+        confirmLabel={leaving ? "Leaving…" : lastMemberOut ? "Delete permanently" : "Leave permanently"}
+        onConfirm={doLeave}
+        onCancel={() => setLeaveStep(0)}
+      >
+        <p style={{ margin: "0 0 8px" }}>
+          <b style={{ color: C.ink }}>This cannot be undone.</b>{" "}
+          {lastMemberOut
+            ? "Nothing here is recoverable once it is gone — not from another phone, not from the household code."
+            : "Your copy on this phone goes with it, and only a new invite can bring you back."}
+        </p>
+        <p style={{ margin: 0 }}>
+          If you want to keep any of it, cancel and use <b style={{ color: C.ink }}>Export &amp; recover</b> first.
+        </p>
       </ConfirmDialog>
 
       <ConfirmDialog
