@@ -22,6 +22,7 @@ import {
   removeMember,
   leaveHousehold,
   newHouseholdCode,
+  forgetHouseholdCache,
   writeCatalog,
   markCatalogSynced,
   watchAuthUser,
@@ -784,7 +785,23 @@ export default function App() {
                and a fresh code is exactly what a first run would have made. */
             leaveHousehold={async () => {
               const res = await leaveHousehold(code, user, isGuest);
-              if (res.ok) setCode(newHouseholdCode());
+              if (!res.ok) return res;
+              /* THE RESET MUST HAPPEN WITH THE CODE CHANGE, NOT AFTER IT.
+                 A brand-new code has no remote state, so the subscribe
+                 effect below takes the `push` branch and seeds the new
+                 household from localRef.current — which, left alone, is
+                 still the household you just walked out of. That is the
+                 bug this replaces: leaving deleted the old node and then
+                 rebuilt an identical one under a fresh code, so nothing
+                 appeared to have happened and the promise that the recipes
+                 were deleted was undone seconds later.
+                 localRef/hCatalogRef are assigned during RENDER, so these
+                 setters and setCode land together and the effect re-runs
+                 already holding the empty state. Order is the whole fix. */
+              forgetHouseholdCache(code);
+              setLocalState(emptyLocal());
+              setHCatalog(seedCatalog(catalogRef.current));
+              setCode(newHouseholdCode());
               return res;
             }}
             authError={authError}

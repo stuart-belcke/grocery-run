@@ -250,6 +250,41 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     The service-account path of the script is likewise unrun — there is no
     key here — so only its emulator path has been executed.
 
+    AND THE UNTESTED HALF WAS BROKEN, WHICH IS WHY THAT CAVEAT IS WORTH
+    WRITING DOWN RATHER THAN HEDGING WITH. Reported from the preview build:
+    "Leave just seems to create a new household."
+    It did. Leaving removed the member record and deleted the old node
+    correctly — and then the device rebuilt an identical household under a
+    fresh code, because switching to a brand-new code takes the seed path:
+      App.jsx  if (user && code) recordHouseholdMembership(code, user)
+      App.jsx  } else if (push) { writeHousehold(code, localRef.current) }
+    A new code has no remote state, so `push` is true and the device
+    uploads whatever it is still holding — which is the household you just
+    walked out of. Net effect: nothing appeared to happen, and for the last
+    member the promise that the recipes were deleted was undone seconds
+    later by re-uploading them under a new name. The dialog said "a fresh
+    household of its own"; what shipped was a clone.
+
+    THE FIX IS ORDERING, and it works because localRef/hCatalogRef are
+    assigned during RENDER rather than in an effect: resetting the local
+    state and the catalog in the SAME handler as setCode means both setters
+    and the code change land together, so the subscribe effect re-runs
+    already holding an empty state and seeds the new household with that.
+    forgetHouseholdCache also drops the old code's two localStorage copies —
+    the caches are keyed by code, so without it the household you just left
+    stays on the phone in full, invisible but restorable by typing the old
+    code back in. "Left" has to mean gone from here too.
+
+    STILL NOT REPRODUCIBLE IN THE HARNESS, and that is the actual lesson:
+    the whole flow needs a signed-in user AND the household UI, which the
+    local-only build compiles out — so neither the bug nor its fix can be
+    covered by a test here. This is the second bug in a row to land in the
+    auth-gated half of the app. The gap is not "some UI is untested", it is
+    that a WHOLE INTERACTION MODE has no coverage, and both bugs were in it.
+    Worth its own item rather than another caveat: a preview seam for a
+    signed-in user, the way GUEST_PREVIEW_KEY already fakes guest-ness for
+    the tests that need it.
+
 18. Export to / link with a Google calendar, keyed off the household.
 
 

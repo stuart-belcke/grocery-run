@@ -179,6 +179,20 @@ export function loadCatalogCache(code) {
   }
 }
 
+/* Forget a household's cached copies on THIS device. Leaving uses it: the
+   caches are keyed by code, so without this the household you just left
+   stays on the phone in full under its old key — invisible, but there, and
+   restored the moment anyone switched back to that code. "Left" has to mean
+   gone from here too, or the warning about deletion is only half true. */
+export function forgetHouseholdCache(code) {
+  try {
+    localStorage.removeItem(CACHE_PREFIX + code);
+    localStorage.removeItem(CATALOG_CACHE_PREFIX + code);
+  } catch (e) {
+    /* a storage-less browser has nothing to forget */
+  }
+}
+
 export function saveCatalogCache(code, catalog) {
   try {
     localStorage.setItem(CATALOG_CACHE_PREFIX + code, JSON.stringify(catalog));
