@@ -2620,6 +2620,20 @@ treatment: the store moved into the details panel and the name grew.
     copy a real link on a real phone. Worth doing by hand before trusting it
     fully, especially on Safari/iOS, which is where the original bug lived.
 
+    [VERIFIED ON A REAL PHONE, and the caveat above is discharged.] Reported
+    from the deployed site: pressing Guest link copied the link and "Copied"
+    flashed — one tap, no second press, which is the whole change. The link
+    that came off the clipboard was fed back through the app's own parser
+    and read as kind=invite, role=guest, 22-character token: so the token
+    minted in the click handler, the link built around it, and the role the
+    database actually stored all agree end to end. That is the pair of
+    failures item 48 and this item were about — a link that copies but
+    describes an invite the database never stored, and a copy that silently
+    never happened — and neither is present.
+    STILL UNTESTED, because it needs a second device: redeeming that copied
+    link. The parse proves the link is well-formed and correctly labelled,
+    not that the far end accepts it.
+
 69. [DONE] KEEP THE SCREEN ON WHILE COOKING. Requested from real use: reading
     a recipe with flour on your hands, the phone locks itself mid-step.
 
