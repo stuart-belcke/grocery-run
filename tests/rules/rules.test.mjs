@@ -457,3 +457,29 @@ t("DELETING ON THE WAY OUT IS WHAT CLOSES THE HOLE — an emptied household leak
   const leftovers = await (await read(`${H}/state`, "mallory")).json();
   assert.equal(leftovers, null, "the claimer inherited data from the household that was deleted");
 });
+
+t("presenting an invite that does not exist cannot CLAIM the household instead", async () => {
+  /* THE SECOND HALF OF A REAL BUG. Pasting an invite LINK parsed into a
+     household code made of the URL with its punctuation stripped — 40 legal
+     characters of [a-z0-9-]. No such household existed, so "redeeming" the
+     invite fell through to first-claim and made a junk household, reporting
+     success while the real invite went unused. The client bug is fixed
+     (classifyJoinInput unwraps a link), but a parse mistake must not be able
+     to mint households either. */
+  const JUNK = "households/httpsstuart-belckegithubiogrocery-runjoi";
+  assert.ok(
+    !(await allowed(write(`${JUNK}/members/bob`, { email: "b@x.com", updatedAt: 1, invite: "sometoken123" }, "bob"))),
+    "a record naming an invite claimed an empty household"
+  );
+  // ...and the same account, not claiming to redeem anything, still may.
+  assert.ok(await allowed(write(`${JUNK}/members/bob`, { email: "b@x.com", updatedAt: 1 }, "bob")));
+});
+
+t("a REAL invite still redeems, and a real first claim still works", async () => {
+  // The guard above must not have broken either path it sits between.
+  await write(`${H}/invites/tok9`, { by: "alice", exp: soon() }, "alice");
+  assert.ok(await allowed(write(`${H}/members/bob`, { ...member("bob@example.com"), invite: "tok9" }, "bob")));
+
+  await wipe();
+  assert.ok(await allowed(write("households/home-freshclaim/members/carol", member("c@x.com"), "carol")));
+});

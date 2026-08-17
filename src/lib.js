@@ -2473,11 +2473,25 @@ export function inviteLive(invite, nowMs = Date.now()) {
    that is broken, never a code. */
 export function classifyJoinInput(s) {
   const raw = String(s == null ? "" : s).trim();
-  if (raw.includes("~")) {
-    const invite = parseInvite(raw);
+  /* A PASTED LINK FIRST, because since item 48 an invite IS a URL and the
+     field's own label says "Paste an invite" — so pasting the whole link is
+     the obvious action, not a misuse. Without this the URL still contained a
+     `~`, so it parsed as an invite whose CODE was the link with every
+     punctuation character stripped: "httpsstuart-belckegithubiogrocery-runjoi".
+     That is a legal household code (8-40 of [a-z0-9-]), and an unclaimed
+     household is claimable by design — so the join SUCCEEDED, into a junk
+     household named after the URL, and the invite silently did nothing.
+     parseJoinHash is the existing definition of "pull the invite out of a
+     link" (it is what a TAPPED link goes through); reusing it here keeps one
+     definition rather than a second that can disagree with it. It returns ""
+     for anything that isn't a link, so a bare invite or code is untouched. */
+  const fromLink = parseJoinHash(raw);
+  const text = fromLink || raw;
+  if (text.includes("~")) {
+    const invite = parseInvite(text);
     return invite ? { kind: "invite", ...invite } : { kind: "broken" };
   }
-  const code = cleanCode(raw);
+  const code = cleanCode(text);
   return code.length >= 8 ? { kind: "code", code } : { kind: "short" };
 }
 

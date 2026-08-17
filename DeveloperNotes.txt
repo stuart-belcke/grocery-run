@@ -3018,6 +3018,53 @@ treatment: the store moved into the details panel and the name grew.
     Verified unclipped and with no horizontal overflow at both 320 and
     390px. 203/203.
 
+81. [DONE] PASTING AN INVITE LINK JOINED A HOUSEHOLD NAMED AFTER THE URL.
+    Reported from two browsers: invite from one, copy the link, paste it in
+    the other — "it asks to join the household but it is a household that
+    isn't the same code", and the account never appeared in the first
+    browser's member list.
+
+    IT WAS TWO FAULTS STACKED, and only together did they produce a silent
+    wrong success:
+
+    1. THE CLIENT PARSED THE WHOLE URL AS AN INVITE. Since item 48 an invite
+       IS a URL, and the field's label says "Paste an invite", so pasting the
+       link is the obvious action rather than a misuse. classifyJoinInput
+       saw the `~` in it, handed the lot to parseInvite, and parseInvite took
+       everything before the `~` as the code — cleanCode strips punctuation,
+       so the code became
+           httpsstuart-belckegithubiogrocery-runjoi
+       Exactly 40 characters of [a-z0-9-], which is a PERFECTLY LEGAL code
+       (the rules allow 8-40). Nothing downstream had reason to object.
+       FIXED by unwrapping a pasted link first, with parseJoinHash — which
+       already existed, and is what a TAPPED link goes through. One
+       definition of "pull the invite out of a link", not a second that can
+       drift from it. It returns "" for anything that isn't a link, so a
+       bare invite or code is untouched.
+
+    2. THE RULES LET THAT SUCCEED. A member record naming an invite, for a
+       household with no members, satisfied the FIRST-CLAIM case — so the
+       join did not fail, it created a junk household named after the URL
+       and made the account its owner. The invite was never redeemed, which
+       is why the inviting browser's member list stayed as it was: nobody
+       had joined it.
+       FIXED by requiring that a first claim carries no `invite` field.
+       Presenting an invite has to mean redeeming one: if the record says
+       `invite`, the invite case must be the case that passes, or nothing
+       does. The client bug is fixed, but a parse mistake should not be able
+       to mint households.
+
+    THE PROBE CAME FIRST, BOTH TIMES: the exact pasted URL through the real
+    parser (code came back as the mangled URL), and the exact junk record
+    against the real emulator (accepted). Then the fixes, then the same two
+    checks again. Four unit tests and two rules tests keep them, including
+    that a REAL invite still redeems and a REAL first claim still works —
+    the guard sits between two paths that both had to keep working.
+
+    WORTH NOTING FOR THE ORPHAN WORK NEXT DOOR: every failed paste like this
+    minted a household. Some of the abandoned nodes item 17's script is for
+    were made this way, which is also why they are named after a URL.
+
 80. [DONE] THREE FOLLOW-UPS ON ITEM 17, from using it.
 
     A. HOW TO RUN THE CLEANUP SCRIPT WAS ONLY IN THE SCRIPT. Asked, having
