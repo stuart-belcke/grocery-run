@@ -3018,6 +3018,44 @@ treatment: the store moved into the details panel and the name grew.
     Verified unclipped and with no horizontal overflow at both 320 and
     390px. 203/203.
 
+83. [DONE] LEAVING A SPARE HOUSEHOLD MADE ANOTHER ONE, and the join field
+    still looked like a code box. Both reported from the same session.
+
+    A. LEAVING MUST GO SOMEWHERE YOU ALREADY ARE. My own design flaw, not a
+       regression: leaveHousehold always minted a fresh household, on the
+       reasoning that "the device has to land somewhere". That was true when
+       an account could only be in one. The moment it can be in several —
+       which is now, and which item 80's list exists to show — it is wrong:
+       leaving the spare left you holding the real one PLUS a brand-new
+       empty one, so the count never went down. Reported exactly that way:
+       "I tried leaving that household so that I would only have one and
+       then it just made a new one."
+       Worse, every attempt to tidy up minted another household, which is
+       the same orphan churn items 17 and 81 were about.
+       Leaving now switches to the most recently used household the account
+       is still in, and only mints a code when there is genuinely nowhere to
+       land. The local reset stays either way — emptyLocal carries no
+       updatedAt, so the household you arrive at wins the first sync rather
+       than being overwritten by the one you just walked out of. That
+       ordering is the same trap as item 79's, and the reason the reset
+       cannot simply be dropped when switching.
+       THE DIALOGS NOW NAME WHERE YOU LAND. "A fresh household of its own"
+       was a promise that quietly stopped being true the moment you were in
+       two, so it says which household it is switching to when there is one.
+
+    B. "PASTE AN INVITE" INTO A BOX THAT LOOKS LIKE A CODE FIELD. Item 81
+       taught the field to accept a pasted LINK, which fixed the failure but
+       not the confusion: the label said "Paste an invite, or switch to
+       another household", and the placeholder was `home-xxxxxxxx~…` in
+       monospace. Everything about it said "type a code here", so pasting a
+       URL felt wrong even once it worked. Reported as exactly that —
+       "pasting a full link into a code location doesn't make much sense".
+       The label now leads with the link ("Paste the invite link someone
+       sent you — or a household code, to switch to one you're already in")
+       and the placeholder shows a URL. Making a thing work and making it
+       look like the thing to do are two separate jobs; item 81 only did
+       the first.
+
 82. [DONE] FOLLOWING AN INVITE LINK AND SIGNING IN PUT YOU IN A DIFFERENT
     HOUSEHOLD — and the fix finally came with a way to TEST this half of the
     app, which is the more important half of the entry.

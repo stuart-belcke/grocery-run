@@ -843,8 +843,25 @@ export default function App() {
               forgetHouseholdCache(code);
               setLocalState(emptyLocal());
               setHCatalog(seedCatalog(catalogRef.current));
-              setCode(newHouseholdCode());
-              return res;
+              /* GO TO A HOUSEHOLD YOU ARE STILL IN, if there is one. Minting
+                 a fresh household unconditionally was wrong the moment an
+                 account could be in more than one: leaving the spare left
+                 you holding the real one PLUS a brand-new empty one, so the
+                 count never went down and every attempt to tidy up made
+                 another household. Reported exactly that way — "I tried
+                 leaving so that I would only have one and it just made a
+                 new one".
+                 A new code is the fallback for the genuine last-exit case,
+                 where there is nowhere to land and the app still has to
+                 open. The reset above stands either way: emptyLocal carries
+                 no updatedAt, so the household we arrive at wins on the
+                 first sync instead of being overwritten by the one we just
+                 walked out of. */
+              const others = Object.keys(myHouseholds || {})
+                .filter((c) => c !== code)
+                .sort((a, b) => (myHouseholds[b]?.updatedAt || 0) - (myHouseholds[a]?.updatedAt || 0));
+              setCode(others[0] || newHouseholdCode());
+              return { ...res, switchedTo: others[0] || null };
             }}
             authError={authError}
             signInWithGoogle={signInWithGoogle}

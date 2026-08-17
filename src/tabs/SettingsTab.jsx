@@ -170,6 +170,12 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
      it takes the household's data with it, which is not something to discover
      afterwards. */
   const lastMemberOut = memberList.length <= 1;
+  /* Where leaving lands this phone. If the account is in others, it goes to
+     one of those; only a genuine last exit mints a fresh household. The
+     dialogs have to say which, or "a fresh household of its own" is a
+     promise that quietly stops being true the moment you are in two. */
+  const otherHouseholds = myHouseholdList.filter((h) => h.code !== code);
+  const landsOn = otherHouseholds.length ? otherHouseholds[0].code : null;
 
   const doLeave = async () => {
     setLeaving(true);
@@ -183,7 +189,9 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
     setCodeMsg(
       res.deleted
         ? "You've left, and the household's data was deleted with you — you were the last member."
-        : "You've left. This phone has started a fresh household of its own."
+        : res.switchedTo
+          ? `You've left. This phone is on ${res.switchedTo} now.`
+          : "You've left. This phone has started a fresh household of its own."
     );
   };
 
@@ -700,7 +708,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
               </div>
             )}
 
-            <label htmlFor="household-code" style={{ fontSize: 12, color: C.faint, display: "block", marginBottom: 4 }}>Paste an invite, or switch to another household you&apos;re in</label>
+            <label htmlFor="household-code" style={{ fontSize: 12, color: C.faint, display: "block", marginBottom: 4 }}>Paste the invite link someone sent you — or a household code, to switch to one you&apos;re already in</label>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <input
                 id="household-code"
@@ -931,7 +939,9 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
               You&apos;re the last member, so this household&apos;s <b style={{ color: C.ink }}>shopping list, week plan and recipes are deleted</b> for good.
             </p>
             <p style={{ margin: 0 }}>
-              This phone starts a fresh household of its own, with the starter recipes and an empty list.
+              {landsOn
+                ? `This phone switches to ${landsOn}, which you're also in.`
+                : "This phone starts a fresh household of its own, with the starter recipes and an empty list."}
             </p>
           </>
         ) : (
@@ -940,7 +950,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
               This account loses access. The others in it keep everything — the household&apos;s data stays with them.
             </p>
             <p style={{ margin: 0 }}>
-              This phone <b style={{ color: C.ink }}>clears its copy</b> and starts a fresh household of its own. You&apos;d need a new invite to come back; the code alone won&apos;t do it.
+              This phone <b style={{ color: C.ink }}>clears its copy</b> and {landsOn ? <>switches to <b style={{ color: C.ink }}>{landsOn}</b>, which you&apos;re also in</> : "starts a fresh household of its own"}. You&apos;d need a new invite to come back; the code alone won&apos;t do it.
             </p>
           </>
         )}
