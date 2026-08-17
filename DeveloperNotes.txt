@@ -3018,6 +3018,62 @@ treatment: the store moved into the details panel and the name grew.
     Verified unclipped and with no horizontal overflow at both 320 and
     390px. 203/203.
 
+84. [DONE] EVERY FRESH BROWSER MINTED AND CLAIMED A HOUSEHOLD. Reported after
+    item 83 shipped, and worth reading as the end of a run of four: "on the
+    side, again having a throwaway household and the main one."
+
+    THE LEAVE PATH WAS NEVER THE ONLY SOURCE. Items 17, 81, 82 and 83 each
+    found one way an orphan household got made and closed it, and orphans
+    kept appearing. The remaining source was the plainest one in the file:
+    App.jsx line 99 mints a code on EVERY load with nothing cached
+    (loadDeviceCode), and the membership effect claimed whatever code the
+    device happened to be on the instant an account signed in. So every
+    incognito window, every reinstall, every browser on a new phone created
+    a household and put the account's name on it — before the person had
+    chosen anything at all. Nothing about it involved leaving, invites or
+    links, which is why fixing those three never made it stop.
+
+    THE FIX IS A DISTINCTION THE CODE DIDN'T HAVE: a code this device
+    INVENTED versus a household this device CHOSE. `onboarded` already
+    marks the second — it is set by "Start my own list", by joining, and
+    now by switching in Settings, and it is true for anyone with cached
+    data — so the claim is gated on it. Before that point the code is a
+    placeholder.
+
+    AND SIGNING IN NOW ADOPTS WHAT THE ACCOUNT ALREADY HAS. Gating alone
+    would leave a reinstall sitting in an empty household with the real one
+    nowhere in sight. The users/{uid}/households index (item 80) already
+    knows the answer, so an uncommitted device that signs in switches to the
+    account's most recently used household instead of the code it invented
+    seconds earlier. LIMITED BY WHAT THE INDEX KNOWS — it only started being
+    written in item 80, so a household nobody has opened since then is not
+    in it yet. It fills in as each one is used.
+
+    THE THIRD STATE IS WHAT MAKES IT CORRECT, and it is the part that was
+    missing on the first pass. subscribeMyHouseholds reported {} both while
+    it was still loading and when the account genuinely had no households —
+    and those want opposite decisions. It reports null until the first
+    snapshot now: null waits, {} commits to the device's own code (a new
+    account's first household, the path signing in from the first-run screen
+    has always taken), and a non-empty index adopts. Getting that wrong is
+    not cosmetic: the household rules require a membership record, so a
+    device that never commits opens, looks entirely normal, and syncs
+    precisely nothing.
+
+    COVERED, FINALLY, BY A TEST — and it took USER_PREVIEW_KEY (item 82) to
+    be possible. "Signing in on a brand-new browser commits the device to a
+    household" asserts the flag the decision writes, and MUTATION-TESTED:
+    dropping finishOnboarding() from the empty-index path fails exactly that
+    test and nothing else. What is still NOT covered, said plainly: the
+    adoption branch itself needs a real database to have an index to read,
+    and this build compiles sync out. The waiting and the committing are
+    tested; choosing the right household to adopt is reasoned, not proven.
+    207 e2e, `npm run check` green.
+
+    ONE UNRELATED BUILD WARNING FIXED IN PASSING: PantryTab's store <select>
+    carried aria-label twice, from item 76's edit. Duplicate JSX attributes
+    are a warning, not an error, so it built and shipped.
+
 83. [DONE] LEAVING A SPARE HOUSEHOLD MADE ANOTHER ONE, and the join field
     still looked like a code box. Both reported from the same session.
 

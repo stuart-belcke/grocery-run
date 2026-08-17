@@ -173,7 +173,8 @@ export default function App() {
   const [accessDenied, setAccessDenied] = useState(false);
   // Which households this account is in — a client-maintained index under
   // users/{uid}, because nothing may list /households (see sync.js).
-  const [myHouseholds, setMyHouseholds] = useState({});
+  // null until the index has actually been read — see subscribeMyHouseholds.
+  const [myHouseholds, setMyHouseholds] = useState(null);
   // households/{code}/members and .../invites, for the Settings list.
   const [members, setMembers] = useState(null);
   const [invites, setInvites] = useState(null);
@@ -420,8 +421,17 @@ export default function App() {
        fired the instant you signed in, so following an invite link and
        signing in claimed a junk household before you ever pressed Join.
        Half the orphans item 17's script cleans up were made this way. */
-    if (user && code && !invitePending) recordHouseholdMembership(code, user).then(() => setMembershipTick((n) => n + 1));
-  }, [user, code]);
+    /* ...AND NOT ONE THIS DEVICE MERELY INVENTED FOR ITSELF. Every fresh
+       browser mints a code on load (loadDeviceCode), so claiming on sign-in
+       alone meant every incognito window, every reinstall, every test
+       session minted AND claimed a household the moment an account touched
+       it — reported as "again having a throwaway household and the main
+       one". `onboarded` is the flag for "this device has committed to a
+       household": it is set by choosing Start my own list, by joining, and
+       by switching in Settings, and it is already true for anyone with
+       cached data. Before that, the code is a placeholder, not a choice. */
+    if (user && code && !invitePending && onboarded) recordHouseholdMembership(code, user).then(() => setMembershipTick((n) => n + 1));
+  }, [user, code, invitePending, onboarded]);
 
   // Fetch the latest catalog from the site, and while we're there notice
   // whether the site is serving a build newer than this one.
@@ -600,6 +610,35 @@ export default function App() {
   // The account's own list of households, live. Scoped to the user rather
   // than the household, so it survives switching between them.
   useEffect(() => subscribeMyHouseholds(user, setMyHouseholds), [user]);
+
+  /* Signing in on a device that has not committed to a household yet should
+     land on one the ACCOUNT already has, not on the code this browser
+     invented seconds ago. Without it, a reinstall or an incognito window
+     starts you in an empty household with your real one nowhere in sight —
+     and claims the empty one on the way past.
+     Only ever moves a device that has chosen nothing: `onboarded` is false,
+     and no invite is waiting to be accepted (that has its own screen).
+     AN EMPTY INDEX STILL COMMITS, on the device's own code: an account with
+     no households anywhere is a new one, and the code this browser minted is
+     about to become its first. That is the path signing in from the first-run
+     screen has always taken, and it has to keep working — the household rules
+     require a membership record, so a device that never commits never records
+     one and syncs precisely nothing, silently.
+     WAITING FOR THE INDEX IS THE WHOLE POINT: `null` means the answer hasn't
+     come back yet, and committing then is the bug this exists to stop.
+     LIMITED BY WHAT THE INDEX KNOWS: users/{uid}/households only started
+     being written recently, so a household nobody has opened since then is
+     not in it yet and cannot be offered here. It fills in as each one is
+     used. */
+  useEffect(() => {
+    if (onboarded || !user || invitePending || myHouseholds === null) return;
+    const codes = Object.keys(myHouseholds);
+    if (codes.length) {
+      const best = codes.sort((a, b) => (myHouseholds[b]?.updatedAt || 0) - (myHouseholds[a]?.updatedAt || 0))[0];
+      if (best && best !== code) setCode(best);
+    }
+    finishOnboarding();
+  }, [user, myHouseholds, onboarded, invitePending, code]);
 
   /* ------- effective data -------
      The household catalog IS the data now: one layer, nothing to reconcile.
@@ -809,7 +848,9 @@ export default function App() {
             updateCatalog={updateCatalog}
             setLocal={setLocal}
             code={code}
-            setCode={setCode}
+            /* Switching household IS committing to one, which is what lets
+               the membership claim above fire for it. */
+            setCode={(c) => { setCode(c); finishOnboarding(); }}
             sync={sync}
             writeError={writeError}
             user={user}

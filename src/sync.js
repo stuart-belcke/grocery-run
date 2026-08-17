@@ -708,8 +708,20 @@ export async function recordHouseholdMembership(code, user) {
 
 /* The households this account has been a member of, newest first. Live, so
    joining or leaving on this phone updates the list without a reload. */
+// Reports `null` until the first snapshot arrives, then always an object —
+// including `{}` for an account with no households. The caller has to tell
+// those two apart: "this account owns nothing yet, so the code this device
+// minted is its first household" and "haven't heard back yet" lead to
+// opposite decisions, and treating the second as the first is what claimed a
+// junk household before the real list had loaded.
 export function subscribeMyHouseholds(user, cb) {
-  if (!syncEnabled || !user) return () => {};
+  // No sync, or nobody signed in: answer "no households" rather than never
+  // answering, so a caller waiting on the first snapshot isn't left waiting
+  // forever on a build that has no database to ask.
+  if (!syncEnabled || !user) {
+    cb({});
+    return () => {};
+  }
   let stop = () => {};
   (async () => {
     const db = await getDb();

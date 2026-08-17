@@ -148,6 +148,30 @@ test("signing in with NO invite pending still goes straight into the app", async
   }
 });
 
+/* ...and it has to COMMIT, not merely render. A device only records
+   households/{code}/members/{uid} once it has committed to a household, and
+   the rules grant nothing without that record — so a device left uncommitted
+   opens, looks completely normal, and syncs precisely nothing. The flag is
+   the observable half of that here: sync itself is compiled out of this
+   build, but the decision that gates it isn't.
+
+   The decision waits for the account's household index (users/{uid}/
+   households) so it can adopt a household the account already has instead of
+   the code this browser just invented. A local-only build has no index to
+   read, which is exactly the "this account owns nothing" answer — commit to
+   the device's own code, the way a genuinely new account always has. */
+test("signing in on a brand-new browser commits the device to a household", async () => {
+  const page = await openApp(BASE, { onboarded: false, user: SIGNED_IN });
+  try {
+    await page.waitForTimeout(600);
+    const flag = await page.evaluate(() => localStorage.getItem("grocery-run-onboarded-v1"));
+    assert.equal(flag, "true", "the device never committed — it would have synced nothing, silently");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
 test("choosing 'start my own list' releases a pending invite", async () => {
   // Otherwise the screen could never be closed by anyone who changed their mind.
   const page = await openApp(BASE, { onboarded: false, hash: `#join=${INVITE}`, user: SIGNED_IN });
