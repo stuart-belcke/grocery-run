@@ -101,3 +101,62 @@ test("a link with no invite in it changes nothing", async () => {
     await page.done();
   }
 });
+
+/* ---------------- the invite has to survive signing in ----------------
+
+   REPORTED FROM TWO BROWSERS: "follow the link, then sign in, it puts me on
+   another household." The first-run screen was shown only while signed OUT,
+   so signing in — the very thing the invite card tells you to do first —
+   unmounted the screen holding the invite and dropped you into the app on
+   the code this device had minted for itself. The invite was never
+   redeemed, and signing in then CLAIMED that self-minted household, so the
+   account ended up owning one nobody asked for.
+
+   These are reachable at all because of USER_PREVIEW_KEY (lib.js): a
+   local-only build can now be handed a signed-in identity. Three reported
+   bugs lived in the half of the app gated on `user` with no coverage. */
+
+const SIGNED_IN = { uid: "u-test", email: "someone@example.com", displayName: "Someone" };
+
+test("a pending invite keeps the first-run screen up after signing in", async () => {
+  const page = await openApp(BASE, { onboarded: false, hash: `#join=${INVITE}`, user: SIGNED_IN });
+  try {
+    assert.equal(
+      await page.locator('[aria-label="Getting started"]').count(),
+      1,
+      "signing in unmounted the screen holding the invite"
+    );
+    assert.equal(
+      await page.locator("#onboard-invite").inputValue(),
+      INVITE,
+      "the invite should still be there to accept"
+    );
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("signing in with NO invite pending still goes straight into the app", async () => {
+  // The guard must not trap someone who simply signed in on a new browser.
+  const page = await openApp(BASE, { onboarded: false, user: SIGNED_IN });
+  try {
+    assert.equal(await page.locator('[aria-label="Getting started"]').count(), 0, "a plain sign-in was held on the first-run screen");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("choosing 'start my own list' releases a pending invite", async () => {
+  // Otherwise the screen could never be closed by anyone who changed their mind.
+  const page = await openApp(BASE, { onboarded: false, hash: `#join=${INVITE}`, user: SIGNED_IN });
+  try {
+    await page.locator('button:text-is("Start my own list")').click();
+    await page.waitForTimeout(500);
+    assert.equal(await page.locator('[aria-label="Getting started"]').count(), 0, "the screen would not close");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});

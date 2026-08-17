@@ -23,6 +23,20 @@ export const ONBOARDED_KEY = "grocery-run-onboarded-v1";
    the rules would refuse the writes regardless of what any client believes. */
 export const GUEST_PREVIEW_KEY = "grocery-run-e2e-guest-preview";
 
+/* A SIGNED-IN USER, faked, for local-only builds only — same seam and same
+   rule as GUEST_PREVIEW_KEY above: a production build (syncEnabled) never
+   reads it, so this can grant nothing.
+   IT EXISTS BECAUSE THREE BUGS IN A ROW LANDED HERE. Everything gated on
+   `user` — invites, leaving, the member list, and the first-run screen's
+   behaviour once you sign in — was unreachable by the test suite, because a
+   real user only exists behind real Firebase Auth and the e2e build compiles
+   sync out. That is not "some UI is untested", it is a whole interaction
+   mode with no coverage, and every bug reported from real use has been in
+   it. Faking the IDENTITY is enough to reach the wiring; the rules are
+   tested separately against the real emulator, so nothing here has to be
+   trusted for correctness of access. */
+export const USER_PREVIEW_KEY = "grocery-run-e2e-user-preview";
+
 /* Forces a sync status in a LOCAL-ONLY build, for the e2e suite. Same seam
    and same rule as GUEST_PREVIEW_KEY above: only read when syncEnabled is
    false, so a production build never looks at it.

@@ -3018,6 +3018,51 @@ treatment: the store moved into the details panel and the name grew.
     Verified unclipped and with no horizontal overflow at both 320 and
     390px. 203/203.
 
+82. [DONE] FOLLOWING AN INVITE LINK AND SIGNING IN PUT YOU IN A DIFFERENT
+    HOUSEHOLD — and the fix finally came with a way to TEST this half of the
+    app, which is the more important half of the entry.
+
+    THE BUG. The first-run screen was rendered on `!onboarded && authReady &&
+    !user`. Signed OUT only. So signing in — the exact thing the invite card
+    tells you to do first — unmounted the screen holding the invite and
+    dropped you into the app on the code this device had minted for itself.
+    Then the membership effect claimed THAT code for the account. Net result:
+    the invite was never redeemed, and the account owned a household nobody
+    asked for (home-cz6vku5n in the report).
+    It also made my own copy from item 70 a lie: "Sign in below, then come
+    back to this screen to accept it" — there was nothing to come back to.
+
+    THE FIX. An unredeemed link invite keeps the screen up through sign-in
+    (`!user || linkInvite`), and the membership effect does not claim the
+    device's own household while one is pending. `linkInvite` gained a setter
+    so redeeming or skipping clears it, which is what lets the screen close.
+
+    THE SEAM, and this is the part worth keeping: USER_PREVIEW_KEY, a faked
+    signed-in identity that only a local-only build reads — the same shape
+    and the same safety rule as GUEST_PREVIEW_KEY. Three reported bugs in a
+    row lived behind `user`, unreachable by any test, because a real user
+    only exists behind real Firebase Auth. Faking the IDENTITY is enough to
+    reach the wiring; access is still decided by the rules, which are tested
+    separately against the real emulator, so this seam cannot make anything
+    look safer than it is.
+
+    IT PAID FOR ITSELF INSIDE ONE CHANGE. The first version of this fix
+    CRASHED the app to the error boundary on any #join link: `invitePending`
+    read `onboarded` from the temporal dead zone, and `!!linkInvite &&`
+    short-circuits, so the reference is only evaluated when an invite is
+    actually present. Every path without a link looked perfect. The browser
+    found it in one run; reading the diff would not have.
+
+    MUTATION-TESTED by putting the old `!user` gate back: exactly the two new
+    tests fail. Three tests now cover it — the screen survives sign-in with
+    an invite, a plain sign-in still goes straight into the app, and "start
+    my own list" can still close it so nobody is trapped.
+
+    ONE HARNESS CHANGE CAME WITH IT: openApp's expectFirstRun now mirrors the
+    app's own condition. A harness that disagrees with the app about which
+    screen is coming does not fail usefully — it hangs for fifteen seconds
+    and blames the test.
+
 81. [DONE] PASTING AN INVITE LINK JOINED A HOUSEHOLD NAMED AFTER THE URL.
     Reported from two browsers: invite from one, copy the link, paste it in
     the other — "it asks to join the household but it is a household that

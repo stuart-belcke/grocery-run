@@ -40,6 +40,7 @@ import {
   LOCAL_KEY,
   ONBOARDED_KEY,
   GUEST_PREVIEW_KEY,
+  USER_PREVIEW_KEY,
   STATUS_PREVIEW_KEY,
   CATALOG_KEY,
   storageOk,
@@ -138,7 +139,7 @@ export default function App() {
      for the typing, not a second way in. */
   // Read once, in the initializer, so a later render cannot see a hash this
   // has already cleared. There is no setter: a link is a one-shot arrival.
-  const [linkInvite] = useState(() =>
+  const [linkInvite, setLinkInvite] = useState(() =>
     typeof window === "undefined" ? "" : parseJoinHash(window.location.hash)
   );
   useEffect(() => {
@@ -155,7 +156,9 @@ export default function App() {
   const [writeError, setWriteError] = useState(null);
   // Signed-in identity (item 37). Since CONTRACT this is what grants access
   // to the household, not just a label on it.
-  const [user, setUser] = useState(null);
+  /* Real auth when sync is on; in a local-only build a preview identity, so
+     the signed-in half of the app is reachable by tests. See USER_PREVIEW_KEY. */
+  const [user, setUser] = useState(() => (syncEnabled ? null : loadJSON(USER_PREVIEW_KEY) || null));
   // Whether Firebase has ANSWERED the question of who's signed in. Distinct
   // from `user` being null, which before the first answer means "don't know
   // yet" and after it means "nobody" — two states that need opposite UI.
@@ -186,9 +189,20 @@ export default function App() {
     if (loadJSON(ONBOARDED_KEY)) return true;
     return !!loadCache(loadDeviceCode()) || validLocal(loadJSON(LOCAL_KEY));
   });
+  /* An invite that arrived by link and has not been dealt with yet. Only
+     meaningful before onboarding: on a device already using the app the
+     invite goes to the Settings field instead, and nothing here applies.
+     DECLARED AFTER `onboarded`, and that is not cosmetic — it read it from
+     the temporal dead zone before, which threw only when an invite was
+     actually present, because `!!linkInvite &&` short-circuits away the
+     reference when there isn't one. Every no-hash path looked fine. */
+  const invitePending = !!linkInvite && !onboarded;
+
   const finishOnboarding = () => {
     saveJSON(ONBOARDED_KEY, true);
     setOnboarded(true);
+    // Choosing "start my own list" is a decision about the invite too.
+    setLinkInvite("");
   };
   // Bumped once recordHouseholdMembership's write actually lands. The
   // household/catalog subscribe effect below depends on it so a device that
@@ -378,7 +392,10 @@ export default function App() {
   useEffect(
     () =>
       watchAuthUser((u) => {
-        setUser(u);
+        // In a local-only build watchAuthUser reports null immediately, which
+        // would wipe the preview identity the seam just set. Real auth is the
+        // only thing allowed to move `user` when sync is on.
+        if (syncEnabled) setUser(u);
         setAuthReady(true);
       }),
     []
@@ -397,7 +414,13 @@ export default function App() {
   // sign-out and on switching households, which is exactly the two ways
   // this pairing can change.
   useEffect(() => {
-    if (user && code) recordHouseholdMembership(code, user).then(() => setMembershipTick((n) => n + 1));
+    /* NOT WHILE AN INVITE IS STILL WAITING TO BE REDEEMED. This claims
+       households/{code}/members/{uid} for whatever code the device is on —
+       and on first run that is a code this device invented for itself. It
+       fired the instant you signed in, so following an invite link and
+       signing in claimed a junk household before you ever pressed Join.
+       Half the orphans item 17's script cleans up were made this way. */
+    if (user && code && !invitePending) recordHouseholdMembership(code, user).then(() => setMembershipTick((n) => n + 1));
   }, [user, code]);
 
   // Fetch the latest catalog from the site, and while we're there notice
@@ -659,7 +682,17 @@ export default function App() {
      Deliberately gated on authReady: `user` is null before Firebase answers,
      so without it a signed-in phone would flash the first-run screen on every
      launch — the same trap authReady exists for in the sync indicator. */
-  if (!onboarded && authReady && !user) {
+  /* AN UNREDEEMED INVITE KEEPS THIS SCREEN UP THROUGH SIGN-IN. It used to
+     be `!user`, so signing in — the very thing the invite card tells you to
+     do first — unmounted the screen holding the invite and dropped you into
+     the app on the code this device minted for itself. The invite was never
+     redeemed, and the account ended up owning a household nobody had asked
+     for. Reported as "follow the link, then sign in, it puts me on another
+     household", and it made this screen's own instruction ("sign in below,
+     then come back") impossible to follow: there was nothing to come back
+     to. `linkInvite` is cleared when it is redeemed or skipped, which is
+     what lets the screen finally close. */
+  if (!onboarded && authReady && (!user || linkInvite)) {
     return (
       <Onboarding
         authError={authError}
