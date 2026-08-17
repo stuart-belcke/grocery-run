@@ -143,20 +143,149 @@ Tier 3 — data-model / sorting
 
 Tier 4 — multi-device / integrations (highest risk, do last)
 ------------------------------------------------------------
-16. Formalize create/join household. Household codes already exist under the
-    hood; this makes creating or joining one a first-class flow.
-17. Delete / log out of households, and clean up orphaned data. Households
-    created by devices we no longer use linger in the RTDB forever; a device
-    with uncommitted changes on a separate household keeps it alive. Figure out
-    whether deleting requires logging everyone out (or logging specific
-    households out) and how to reclaim abandoned nodes.
-18. Export to / link with a Google calendar, keyed off the household.
+16. [DONE — by items 37, 41 and 48, and NOT in the shape written here]
+    "Formalize create/join household. Household codes already exist under the
+    hood; this makes creating or joining one a first-class flow."
 
-    Note: 16 and 17 are both patches on top of a catalog that can't be written
-    at runtime. Moving the catalog into the database per account replaces them
-    instead of extending them, and deletes the whole override layer with it.
-    That's written up as a platform phase in FutureProjects.md ("Per-user
-    catalog") — worth reading before starting either item.
+    Both flows are first-class now:
+      CREATE — the first-run screen's "Start my own list" mints a code and
+        claims it, and the rules allow that claim exactly once (rules.test
+        "a brand new household can be claimed, and only once").
+      JOIN — a tapped invite LINK fills the field on first run, and Settings
+        carries the same field for a device already in use, alongside the
+        member list, invites, revoke and remove.
+
+    THE REASON THIS IS WORTH READING RATHER THAN JUST TICKING: what shipped
+    deliberately contradicts the sentence above. This item assumed the CODE
+    was the mechanism to formalise — "household codes already exist under the
+    hood" — and the code is no longer a credential at all. Knowing one gets
+    you nothing (item 42; rules.test "knowing the code is not enough — a
+    stranger is refused"); joining needs an invite from someone already in,
+    redeemed for an ACCOUNT. The code became an address. Formalising
+    code-based joining would have shipped the security hole this app then
+    spent items 37/42/48 closing.
+
+    ITS DEFERRAL REASON IS ALSO GONE. The note that used to sit here said 16
+    and 17 were "patches on top of a catalog that can't be written at
+    runtime". The catalog IS written at runtime now, per household
+    (sync.js writeCatalog -> households/{code}/catalog), and the override
+    layer that existed only because it couldn't be is deleted outright — see
+    item 37's "ALREADY DONE" list. Nothing here is blocked on that any more,
+    which applies to 17 as much as to 16.
+
+17. [DONE] Delete / log out of households, and clean up orphaned data.
+
+    THE HOLE THIS TURNED OUT TO BE, measured against the real rules on the
+    real emulator rather than reasoned about:
+      - a member could already LEAVE (the rules allow deleting your own
+        record), but nothing in the UI offered it;
+      - a household with no members is claimable again BY DESIGN — a new
+        code has to become somebody's somehow — and the rules comment called
+        that "abandonment, not a back door";
+      - but the STATE AND CATALOG SURVIVED the last member leaving. So
+        anyone who still knew the code could claim the empty household and
+        read the shopping list, the week plan and every recipe.
+        Confirmed, not inferred: claimed true, read state true, read catalog
+        true. Abandonment did not mean empty; it meant unguarded.
+    Not guessable — a code is 13 characters of [a-z0-9-] — so the realistic
+    holder of one is a REMOVED MEMBER, an expired guest, someone who saw a
+    screenshot, or an old phone of your own. Which is the whole population
+    item 37's removal work exists to keep out.
+
+    THE FIX IS THAT THE LAST ONE OUT TAKES THE DATA WITH THEM.
+    leaveHousehold (sync.js) reads the member list, and if nobody else is
+    there deletes households/{code} outright instead of just its own record.
+    Now abandonment means empty, and the claimable-empty-code behaviour the
+    rules always intended is what actually happens.
+    NO RULES CHANGE WAS NEEDED — a full member could already delete the node;
+    it was never wired up. That is the best outcome available on the one file
+    in this repo nothing else executes.
+
+    THE ORDER IS FORCED, NOT CHOSEN: `.read` requires a membership record, so
+    the instant your record is gone you can no longer see whether anyone else
+    remained, nor delete anything. Check-then-act is the only shape that
+    exists here; act-then-check locks you out of the check.
+
+    WHAT A GUEST CAN AND CANNOT DO, and the rules were already right: a guest
+    may leave, but may not delete the household — deleting reaches the
+    catalog and the week plan, exactly what the guest role withholds. A guest
+    who is somehow the last one out leaves the node behind and the app SAYS
+    so rather than swallowing it.
+
+    ONE RACE, ACCEPTED AND WRITTEN DOWN: two members leaving in the same
+    instant can both see the other and both remove only themselves. Closing
+    it would need a transaction across a node the leaver is about to lose
+    access to. The cleanup script is the answer to that residue.
+
+    FOUR NEW RULES TESTS pin the guarantees the app now leans on: the last
+    member can delete the node, a guest cannot, a stranger cannot, and — the
+    one that keeps the bug from coming back — an emptied household leaks
+    nothing to whoever claims the bare code next. 47/47.
+
+    RECLAIMING THE ONES ALREADY OUT THERE CANNOT BE A BUTTON, and that is
+    structural rather than lazy: finding an abandoned household means listing
+    /households, which nothing may do (that denial is what stops one grant
+    exposing every household at once), and a client cannot read a household
+    it is not a member of — which is precisely what an abandoned one is. So
+    scripts/reclaim-households.mjs runs by hand with a service-account key,
+    lists households shallowly, and deletes the ones with no members. Dry run
+    is the DEFAULT; --delete is opt-in; it prints each household's last write
+    date before removing it so a mistake is visible in the log rather than
+    silent. No new dependency — it signs its own JWT with node:crypto and
+    drives the REST API, the same choice tests/rules/harness.mjs made.
+    IT IS TESTABLE, which mattered more than it sounds: pointed at
+    127.0.0.1 it skips the Google token exchange and uses the emulator's
+    owner credential, so "which households are abandoned" can be proved
+    somewhere other than the one database where a wrong answer deletes
+    somebody's recipes. Verified: 4 seeded households, 2 with members
+    (one of them a guest) kept, 2 orphans found by the dry run and removed
+    by --delete, nothing left behind.
+
+    NOT VERIFIED IN A BROWSER, plainly: the Leave button lives behind
+    `user && !accessDenied`, and a real signed-in user only exists behind
+    real Firebase Auth — the e2e build compiles sync out entirely. Same
+    documented gap as invite creation (item 68) and redemption
+    (invitelink.spec.mjs). What IS proved is the half that decides whether
+    data is exposed: the rules, on the real emulator.
+    The service-account path of the script is likewise unrun — there is no
+    key here — so only its emulator path has been executed.
+
+    AND THE UNTESTED HALF WAS BROKEN, WHICH IS WHY THAT CAVEAT IS WORTH
+    WRITING DOWN RATHER THAN HEDGING WITH. Reported from the preview build:
+    "Leave just seems to create a new household."
+    It did. Leaving removed the member record and deleted the old node
+    correctly — and then the device rebuilt an identical household under a
+    fresh code, because switching to a brand-new code takes the seed path:
+      App.jsx  if (user && code) recordHouseholdMembership(code, user)
+      App.jsx  } else if (push) { writeHousehold(code, localRef.current) }
+    A new code has no remote state, so `push` is true and the device
+    uploads whatever it is still holding — which is the household you just
+    walked out of. Net effect: nothing appeared to happen, and for the last
+    member the promise that the recipes were deleted was undone seconds
+    later by re-uploading them under a new name. The dialog said "a fresh
+    household of its own"; what shipped was a clone.
+
+    THE FIX IS ORDERING, and it works because localRef/hCatalogRef are
+    assigned during RENDER rather than in an effect: resetting the local
+    state and the catalog in the SAME handler as setCode means both setters
+    and the code change land together, so the subscribe effect re-runs
+    already holding an empty state and seeds the new household with that.
+    forgetHouseholdCache also drops the old code's two localStorage copies —
+    the caches are keyed by code, so without it the household you just left
+    stays on the phone in full, invisible but restorable by typing the old
+    code back in. "Left" has to mean gone from here too.
+
+    STILL NOT REPRODUCIBLE IN THE HARNESS, and that is the actual lesson:
+    the whole flow needs a signed-in user AND the household UI, which the
+    local-only build compiles out — so neither the bug nor its fix can be
+    covered by a test here. This is the second bug in a row to land in the
+    auth-gated half of the app. The gap is not "some UI is untested", it is
+    that a WHOLE INTERACTION MODE has no coverage, and both bugs were in it.
+    Worth its own item rather than another caveat: a preview seam for a
+    signed-in user, the way GUEST_PREVIEW_KEY already fakes guest-ness for
+    the tests that need it.
+
+18. Export to / link with a Google calendar, keyed off the household.
 
 
 Hygiene — not features, and not sequenced
@@ -2526,6 +2655,20 @@ treatment: the store moved into the details panel and the name grew.
     copy a real link on a real phone. Worth doing by hand before trusting it
     fully, especially on Safari/iOS, which is where the original bug lived.
 
+    [VERIFIED ON A REAL PHONE, and the caveat above is discharged.] Reported
+    from the deployed site: pressing Guest link copied the link and "Copied"
+    flashed — one tap, no second press, which is the whole change. The link
+    that came off the clipboard was fed back through the app's own parser
+    and read as kind=invite, role=guest, 22-character token: so the token
+    minted in the click handler, the link built around it, and the role the
+    database actually stored all agree end to end. That is the pair of
+    failures item 48 and this item were about — a link that copies but
+    describes an invite the database never stored, and a copy that silently
+    never happened — and neither is present.
+    STILL UNTESTED, because it needs a second device: redeeming that copied
+    link. The parse proves the link is well-formed and correctly labelled,
+    not that the far end accepts it.
+
 69. [DONE] KEEP THE SCREEN ON WHILE COOKING. Requested from real use: reading
     a recipe with flour on your hands, the phone locks itself mid-step.
 
@@ -2874,6 +3017,309 @@ treatment: the store moved into the details panel and the name grew.
     someone remembering. Widened to 76, which leaves 5px of headroom.
     Verified unclipped and with no horizontal overflow at both 320 and
     390px. 203/203.
+
+85. [DONE] LEAVING YOUR LAST HOUSEHOLD NO LONGER MAKES YOU ANOTHER ONE.
+    Asked for directly, after the throwaway-household report came back a
+    second time: "if you leave the last household you should have to create
+    a new household."
+
+    ITEM 83 ONLY GOT HALF OF IT. That fix made leaving go to a household you
+    were already in — right, and it left the last-exit case exactly as it
+    was: mint a code and drop you into it. So the one path where nothing
+    else is available still handed you a household you never asked for, and
+    since item 84 now claims a household the moment a device commits to one,
+    that mint was about to become a claim. The two together are the reported
+    pattern: leave, get a spare, leave the spare, get another.
+
+    THE FIRST-RUN SCREEN COMES BACK INSTEAD, and nothing is created until
+    you press Create a household or join with an invite. A code is still set
+    so the app has somewhere to render from — it opens and works offline the
+    moment you leave, which is why minting was there in the first place —
+    but an unchosen code is never claimed (item 84), so no household exists
+    until you say so.
+
+    MUST_CHOOSE_KEY IS PERSISTED, NOT HELD IN STATE. A reload would
+    otherwise land on "this account has no households, commit to the
+    device's code" and mint precisely the household this exists to stop.
+    It outranks both halves of the first-run condition: this is the one case
+    where that screen is shown to somebody signed in AND onboarded, both of
+    which were true a second earlier.
+
+    THE SCREEN SAYS WHY IT IS THERE. Everyone else sees it as a welcome;
+    arriving on it unexplained reads like having been signed out. It says
+    "you have left your last household", drops the Sign in card (already
+    done — leaving it makes a two-option decision look like three), and the
+    button says Create a household rather than Start my own list.
+    KEPT TO THIS CASE, not to being signed in generally: the first version
+    keyed it on `signedIn` and told somebody who had just signed in with an
+    invite pending that they had left their last household. Two props, not
+    one — `signedIn` hides the sign-in card, `leftLast` writes the copy.
+
+    MUTATION-TESTED: dropping `mustChoose` from the first-run condition
+    fails both new tests and nothing else. What is NOT covered, plainly:
+    leaving itself needs the database this build compiles out, so the flag
+    is seeded rather than earned. The rendering it drives is tested; the
+    write that sets it is reasoned.
+
+    ONE HARNESS BUG FOUND BY THE TEST THAT FAILED FOR THE WRONG REASON: the
+    new seed was not guarded with `if (!localStorage.getItem(...))` like
+    every other fixture, so it re-armed on the reload the second test uses
+    to prove the screen stays gone. Exactly the trap already written at the
+    top of that block, walked into anyway.
+
+84. [DONE] EVERY FRESH BROWSER MINTED AND CLAIMED A HOUSEHOLD. Reported after
+    item 83 shipped, and worth reading as the end of a run of four: "on the
+    side, again having a throwaway household and the main one."
+
+    THE LEAVE PATH WAS NEVER THE ONLY SOURCE. Items 17, 81, 82 and 83 each
+    found one way an orphan household got made and closed it, and orphans
+    kept appearing. The remaining source was the plainest one in the file:
+    App.jsx line 99 mints a code on EVERY load with nothing cached
+    (loadDeviceCode), and the membership effect claimed whatever code the
+    device happened to be on the instant an account signed in. So every
+    incognito window, every reinstall, every browser on a new phone created
+    a household and put the account's name on it — before the person had
+    chosen anything at all. Nothing about it involved leaving, invites or
+    links, which is why fixing those three never made it stop.
+
+    THE FIX IS A DISTINCTION THE CODE DIDN'T HAVE: a code this device
+    INVENTED versus a household this device CHOSE. `onboarded` already
+    marks the second — it is set by "Start my own list", by joining, and
+    now by switching in Settings, and it is true for anyone with cached
+    data — so the claim is gated on it. Before that point the code is a
+    placeholder.
+
+    AND SIGNING IN NOW ADOPTS WHAT THE ACCOUNT ALREADY HAS. Gating alone
+    would leave a reinstall sitting in an empty household with the real one
+    nowhere in sight. The users/{uid}/households index (item 80) already
+    knows the answer, so an uncommitted device that signs in switches to the
+    account's most recently used household instead of the code it invented
+    seconds earlier. LIMITED BY WHAT THE INDEX KNOWS — it only started being
+    written in item 80, so a household nobody has opened since then is not
+    in it yet. It fills in as each one is used.
+
+    THE THIRD STATE IS WHAT MAKES IT CORRECT, and it is the part that was
+    missing on the first pass. subscribeMyHouseholds reported {} both while
+    it was still loading and when the account genuinely had no households —
+    and those want opposite decisions. It reports null until the first
+    snapshot now: null waits, {} commits to the device's own code (a new
+    account's first household, the path signing in from the first-run screen
+    has always taken), and a non-empty index adopts. Getting that wrong is
+    not cosmetic: the household rules require a membership record, so a
+    device that never commits opens, looks entirely normal, and syncs
+    precisely nothing.
+
+    COVERED, FINALLY, BY A TEST — and it took USER_PREVIEW_KEY (item 82) to
+    be possible. "Signing in on a brand-new browser commits the device to a
+    household" asserts the flag the decision writes, and MUTATION-TESTED:
+    dropping finishOnboarding() from the empty-index path fails exactly that
+    test and nothing else. What is still NOT covered, said plainly: the
+    adoption branch itself needs a real database to have an index to read,
+    and this build compiles sync out. The waiting and the committing are
+    tested; choosing the right household to adopt is reasoned, not proven.
+    207 e2e, `npm run check` green.
+
+    ONE UNRELATED BUILD WARNING FIXED IN PASSING: PantryTab's store <select>
+    carried aria-label twice, from item 76's edit. Duplicate JSX attributes
+    are a warning, not an error, so it built and shipped.
+
+83. [DONE] LEAVING A SPARE HOUSEHOLD MADE ANOTHER ONE, and the join field
+    still looked like a code box. Both reported from the same session.
+
+    A. LEAVING MUST GO SOMEWHERE YOU ALREADY ARE. My own design flaw, not a
+       regression: leaveHousehold always minted a fresh household, on the
+       reasoning that "the device has to land somewhere". That was true when
+       an account could only be in one. The moment it can be in several —
+       which is now, and which item 80's list exists to show — it is wrong:
+       leaving the spare left you holding the real one PLUS a brand-new
+       empty one, so the count never went down. Reported exactly that way:
+       "I tried leaving that household so that I would only have one and
+       then it just made a new one."
+       Worse, every attempt to tidy up minted another household, which is
+       the same orphan churn items 17 and 81 were about.
+       Leaving now switches to the most recently used household the account
+       is still in, and only mints a code when there is genuinely nowhere to
+       land. The local reset stays either way — emptyLocal carries no
+       updatedAt, so the household you arrive at wins the first sync rather
+       than being overwritten by the one you just walked out of. That
+       ordering is the same trap as item 79's, and the reason the reset
+       cannot simply be dropped when switching.
+       THE DIALOGS NOW NAME WHERE YOU LAND. "A fresh household of its own"
+       was a promise that quietly stopped being true the moment you were in
+       two, so it says which household it is switching to when there is one.
+
+    B. "PASTE AN INVITE" INTO A BOX THAT LOOKS LIKE A CODE FIELD. Item 81
+       taught the field to accept a pasted LINK, which fixed the failure but
+       not the confusion: the label said "Paste an invite, or switch to
+       another household", and the placeholder was `home-xxxxxxxx~…` in
+       monospace. Everything about it said "type a code here", so pasting a
+       URL felt wrong even once it worked. Reported as exactly that —
+       "pasting a full link into a code location doesn't make much sense".
+       The label now leads with the link ("Paste the invite link someone
+       sent you — or a household code, to switch to one you're already in")
+       and the placeholder shows a URL. Making a thing work and making it
+       look like the thing to do are two separate jobs; item 81 only did
+       the first.
+
+82. [DONE] FOLLOWING AN INVITE LINK AND SIGNING IN PUT YOU IN A DIFFERENT
+    HOUSEHOLD — and the fix finally came with a way to TEST this half of the
+    app, which is the more important half of the entry.
+
+    THE BUG. The first-run screen was rendered on `!onboarded && authReady &&
+    !user`. Signed OUT only. So signing in — the exact thing the invite card
+    tells you to do first — unmounted the screen holding the invite and
+    dropped you into the app on the code this device had minted for itself.
+    Then the membership effect claimed THAT code for the account. Net result:
+    the invite was never redeemed, and the account owned a household nobody
+    asked for (home-cz6vku5n in the report).
+    It also made my own copy from item 70 a lie: "Sign in below, then come
+    back to this screen to accept it" — there was nothing to come back to.
+
+    THE FIX. An unredeemed link invite keeps the screen up through sign-in
+    (`!user || linkInvite`), and the membership effect does not claim the
+    device's own household while one is pending. `linkInvite` gained a setter
+    so redeeming or skipping clears it, which is what lets the screen close.
+
+    THE SEAM, and this is the part worth keeping: USER_PREVIEW_KEY, a faked
+    signed-in identity that only a local-only build reads — the same shape
+    and the same safety rule as GUEST_PREVIEW_KEY. Three reported bugs in a
+    row lived behind `user`, unreachable by any test, because a real user
+    only exists behind real Firebase Auth. Faking the IDENTITY is enough to
+    reach the wiring; access is still decided by the rules, which are tested
+    separately against the real emulator, so this seam cannot make anything
+    look safer than it is.
+
+    IT PAID FOR ITSELF INSIDE ONE CHANGE. The first version of this fix
+    CRASHED the app to the error boundary on any #join link: `invitePending`
+    read `onboarded` from the temporal dead zone, and `!!linkInvite &&`
+    short-circuits, so the reference is only evaluated when an invite is
+    actually present. Every path without a link looked perfect. The browser
+    found it in one run; reading the diff would not have.
+
+    MUTATION-TESTED by putting the old `!user` gate back: exactly the two new
+    tests fail. Three tests now cover it — the screen survives sign-in with
+    an invite, a plain sign-in still goes straight into the app, and "start
+    my own list" can still close it so nobody is trapped.
+
+    ONE HARNESS CHANGE CAME WITH IT: openApp's expectFirstRun now mirrors the
+    app's own condition. A harness that disagrees with the app about which
+    screen is coming does not fail usefully — it hangs for fifteen seconds
+    and blames the test.
+
+    WHEN IT BROKE: #81 (85a2229, 2026-08-09) — the change that CREATED the
+    first-run screen, so this path never worked. It went unnoticed because
+    the screen only appears for a browser with no household data: inviting a
+    phone that had already used the app skipped it entirely, and until #101
+    two days later the clipboard held a bare invite that pasted cleanly into
+    Settings. That combination worked, which is why invites are remembered
+    as working. The failing case is specifically a NEW browser following a
+    LINK — and both halves of it were introduced by different changes, on
+    different days, neither of which could see the other.
+
+81. [DONE] PASTING AN INVITE LINK JOINED A HOUSEHOLD NAMED AFTER THE URL.
+    Reported from two browsers: invite from one, copy the link, paste it in
+    the other — "it asks to join the household but it is a household that
+    isn't the same code", and the account never appeared in the first
+    browser's member list.
+
+    IT WAS TWO FAULTS STACKED, and only together did they produce a silent
+    wrong success:
+
+    1. THE CLIENT PARSED THE WHOLE URL AS AN INVITE. Since item 48 an invite
+       IS a URL, and the field's label says "Paste an invite", so pasting the
+       link is the obvious action rather than a misuse. classifyJoinInput
+       saw the `~` in it, handed the lot to parseInvite, and parseInvite took
+       everything before the `~` as the code — cleanCode strips punctuation,
+       so the code became
+           httpsstuart-belckegithubiogrocery-runjoi
+       Exactly 40 characters of [a-z0-9-], which is a PERFECTLY LEGAL code
+       (the rules allow 8-40). Nothing downstream had reason to object.
+       FIXED by unwrapping a pasted link first, with parseJoinHash — which
+       already existed, and is what a TAPPED link goes through. One
+       definition of "pull the invite out of a link", not a second that can
+       drift from it. It returns "" for anything that isn't a link, so a
+       bare invite or code is untouched.
+
+    2. THE RULES LET THAT SUCCEED. A member record naming an invite, for a
+       household with no members, satisfied the FIRST-CLAIM case — so the
+       join did not fail, it created a junk household named after the URL
+       and made the account its owner. The invite was never redeemed, which
+       is why the inviting browser's member list stayed as it was: nobody
+       had joined it.
+       FIXED by requiring that a first claim carries no `invite` field.
+       Presenting an invite has to mean redeeming one: if the record says
+       `invite`, the invite case must be the case that passes, or nothing
+       does. The client bug is fixed, but a parse mistake should not be able
+       to mint households.
+
+    THE PROBE CAME FIRST, BOTH TIMES: the exact pasted URL through the real
+    parser (code came back as the mangled URL), and the exact junk record
+    against the real emulator (accepted). Then the fixes, then the same two
+    checks again. Four unit tests and two rules tests keep them, including
+    that a REAL invite still redeems and a REAL first claim still works —
+    the guard sits between two paths that both had to keep working.
+
+    WORTH NOTING FOR THE ORPHAN WORK NEXT DOOR: every failed paste like this
+    minted a household. Some of the abandoned nodes item 17's script is for
+    were made this way, which is also why they are named after a URL.
+
+    WHEN IT BROKE: #101 (ebca4d9, 2026-08-11), "Make an invite an actual
+    link" — two days after invites shipped. Before it, Copy put the BARE
+    invite on the clipboard (home-xxxxxxxx~token~g), which classifyJoinInput
+    has always parsed correctly. #101 changed WHAT GETS COPIED without
+    teaching the field that receives it to read the new shape. Nothing was
+    broken at the time it was written; the two halves simply stopped
+    matching, and no test paired them because the copy path needs a
+    signed-in user (item 68's gap) and the paste path was only ever fed
+    bare invites.
+
+80. [DONE] THREE FOLLOW-UPS ON ITEM 17, from using it.
+
+    A. HOW TO RUN THE CLEANUP SCRIPT WAS ONLY IN THE SCRIPT. Asked, having
+       looked and not found it — which is the answer: the usage lived in the
+       file's own header and in this file, and neither is where somebody
+       goes looking for "how do I run the thing". README.md has a section
+       now, with the console path to a key, the dry run, the --delete run,
+       and why the key must not be kept.
+
+    B. TWO CONFIRMATIONS BEFORE LEAVING, not one. Asked for on the grounds
+       that the deletion is permanent, and right: one tap stood between an
+       idle thumb and a household nobody can get back.
+       THE TWO STEPS SAY DIFFERENT THINGS, which is what makes the second
+       one worth tapping through rather than an obstacle to click past:
+       step 1 is WHAT HAPPENS (this account steps out; or, for the last
+       member, the household is deleted), step 2 is THAT IT CANNOT BE
+       UNDONE, and points at Export & recover while there is still
+       something to export.
+       BOTH CASES GET IT, not just the deleting one — since the leave fix,
+       every leaver also clears this phone's only copy, so both are
+       irreversible even though only one is irreversible for everyone.
+
+    C. A LIST OF THE HOUSEHOLDS THIS ACCOUNT IS IN. Until now the only way
+       to reach another was to remember its code and type it: the app knew
+       you were a member and still asked you to recall thirteen characters.
+       IT HAS TO BE A CLIENT-MAINTAINED INDEX, and that is not a shortcut —
+       nothing may list /households (the denial that stops one grant
+       exposing every household at once), so an account genuinely cannot
+       ask the database which households it belongs to. recordHouseholdMembership
+       now also writes users/{uid}/households/{code}, which the rules
+       already scope to the account itself, so NO RULES CHANGE was needed.
+       Written only after the membership record lands — an entry for a
+       household that refused us would be a list of places you cannot go.
+       Leaving prunes its entry.
+       THE INDEX CAN OUTLIVE THE MEMBERSHIP, said in the code rather than
+       left to be discovered: if someone removes this account, the entry
+       lingers until this phone tries it and is refused, at which point the
+       existing access-denied message is what you get. It is a shortcut
+       list, not proof of access. Shown only when there is more than one,
+       so the common single-household case gains no clutter.
+
+    NONE OF THIS IS BROWSER-TESTED, for the reason item 17 already records
+    and this batch makes louder: all of it lives behind a signed-in user,
+    which the local-only build cannot produce. 47/47 rules, 203/203 e2e,
+    270/270 unit, check green — and none of those touch the three things
+    above. See the note at the end of item 17 about a preview seam; this is
+    now the third change landing in that blind spot.
 
 78. [DONE] THE MULTIPLIER MOVED INSIDE THE RECIPE, and only exists once you
     have tapped in. Reported with a screenshot of how a recipe site does it:

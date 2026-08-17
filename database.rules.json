@@ -118,6 +118,18 @@
         //      household already has members, so this can't be turned on an
         //      occupied one. (A household whose last member leaves becomes
         //      claimable again. That is abandonment, not a back door.)
+        //      A FIRST CLAIM MAY NOT CARRY AN `invite` FIELD, and that
+        //      clause is not theoretical: pasting an invite LINK used to
+        //      parse into a household code made of the URL with its
+        //      punctuation stripped — 40 legal characters of [a-z0-9-] —
+        //      and since no such household existed, "redeeming" the invite
+        //      fell through to THIS case and claimed a junk household
+        //      instead. The join reported success and the real invite was
+        //      never used. Presenting an invite has to mean redeeming one:
+        //      if the record says `invite`, case 3 must be the case that
+        //      passes, or nothing does. The client bug is fixed too
+        //      (classifyJoinInput), but a parse mistake should not be able
+        //      to mint households.
         //   3. an unexpired invite, presented as `invite` in the record
         //      being written. `now` is server time, so a device with a wrong
         //      clock can't extend its own window. isString() guards the
@@ -162,7 +174,7 @@
         // To change somebody's role, remove them and invite them again.
         "members": {
           "$uid": {
-            ".write": "auth != null && ((auth.uid == $uid && (data.exists() || (!root.child('households').child($code).child('members').exists() && newData.child('role').val() != 'guest' && auth.token.firebase.sign_in_provider != 'anonymous') || (newData.child('invite').isString() && root.child('households').child($code).child('invites').child(newData.child('invite').val()).child('exp').val() > now && newData.child('role').val() == root.child('households').child($code).child('invites').child(newData.child('invite').val()).child('role').val() && (newData.child('role').val() == 'guest' || auth.token.firebase.sign_in_provider != 'anonymous')))) || (!newData.exists() && root.child('households').child($code).child('members').child(auth.uid).exists() && root.child('households').child($code).child('members').child(auth.uid).child('role').val() != 'guest'))",
+            ".write": "auth != null && ((auth.uid == $uid && (data.exists() || (!root.child('households').child($code).child('members').exists() && !newData.hasChild('invite') && newData.child('role').val() != 'guest' && auth.token.firebase.sign_in_provider != 'anonymous') || (newData.child('invite').isString() && root.child('households').child($code).child('invites').child(newData.child('invite').val()).child('exp').val() > now && newData.child('role').val() == root.child('households').child($code).child('invites').child(newData.child('invite').val()).child('role').val() && (newData.child('role').val() == 'guest' || auth.token.firebase.sign_in_provider != 'anonymous')))) || (!newData.exists() && root.child('households').child($code).child('members').child(auth.uid).exists() && root.child('households').child($code).child('members').child(auth.uid).child('role').val() != 'guest'))",
             ".validate": "auth != null && auth.uid == $uid && newData.hasChild('updatedAt') && (!newData.hasChild('role') || newData.child('role').val() == 'guest' || newData.child('role').val() == 'member') && (!data.exists() || newData.child('role').val() == data.child('role').val())"
           }
         },

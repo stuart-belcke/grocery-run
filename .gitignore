@@ -4,3 +4,8 @@ dist/
 # The database emulator writes this next to wherever it is started from.
 database-debug.log
 firebase-debug.log
+
+# Service-account keys for scripts/reclaim-households.mjs. A key is a
+# password to the whole database — it must never be committed.
+scripts/keys/
+*.serviceaccount.json

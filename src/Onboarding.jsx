@@ -29,7 +29,7 @@ const card = { background: C.card, border: `1px solid ${C.line}`, borderRadius: 
 
 const label = { fontSize: 12, color: C.faint, display: "block", marginBottom: 4 };
 
-export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError, initialInvite = "" }) {
+export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError, initialInvite = "", signedIn = false, leftLast = false }) {
   // Pre-filled when the app was opened from a tapped invite link. Editable
   // like any other paste — it goes through the same validation, and a link
   // that arrived mangled should be correctable rather than a dead end.
@@ -130,9 +130,18 @@ export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError, i
             just installed the app. There's no invite to react to, so this is
             a nudge rather than an instruction: pick whichever of the three
             below actually applies. */}
-        {noInvite && (
+        {noInvite && !signedIn && (
           <p style={{ fontSize: 13, color: C.faint, fontStyle: "italic", margin: "0 0 12px" }}>
             New here? If someone already shops with this app, ask them for an invite instead of starting your own list below.
+          </p>
+        )}
+        {/* THE ONE CASE WHERE THIS SCREEN IS SHOWN TO SOMEBODY THE APP
+            ALREADY KNOWS: they just left their last household. Says so,
+            because the same screen means "welcome" to everyone else and
+            landing on it unexplained reads like being signed out. */}
+        {leftLast && (
+          <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
+            You have left your last household. Start a new one below, or join someone else&#39;s with an invite — nothing is created until you choose.
           </p>
         )}
 
@@ -222,14 +231,21 @@ export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError, i
 
           const justMeCard = (
             <div style={card} key="justme">
-              <h2 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 4px" }}>Just me, on this device</h2>
+              <h2 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 4px" }}>
+                {leftLast ? "Start a new household" : "Just me, on this device"}
+              </h2>
               <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
-                Start a list of your own. It stays on this device until you sign in, and you can share it with someone later.
+                {leftLast
+                  ? "An empty list of your own, synced to this account. You can invite someone to it afterwards."
+                  : "Start a list of your own. It stays on this device until you sign in, and you can share it with someone later."}
               </p>
-              <Btn onClick={onSkip}>Start my own list</Btn>
+              <Btn onClick={onSkip}>{leftLast ? "Create a household" : "Start my own list"}</Btn>
             </div>
           );
 
+          // Already signed in: Sign in is not a choice, it is done. Leaving
+          // it on the screen makes a two-option decision look like three.
+          if (signedIn) return [justMeCard, joinCard];
           return guestInvite ? [joinCard, justMeCard, signInCard] : [signInCard, joinCard, justMeCard];
         })()}
 

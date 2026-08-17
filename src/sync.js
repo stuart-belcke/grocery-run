@@ -115,10 +115,18 @@ export function loadDeviceCode() {
   } catch (e) {
     /* ignore */
   }
-  // first run: generate a private, hard-to-guess household code
-  const code = "home-" + Math.random().toString(36).slice(2, 10);
+  const code = newHouseholdCode();
   saveDeviceCode(code);
   return code;
+}
+
+/* A private, hard-to-guess household code. Exported because leaving a
+   household needs one too — the device has to land somewhere it can keep
+   working, and that is a NEW household rather than the one just left.
+   One generator, so first-run and post-leave codes cannot drift into
+   different shapes (the rules validate the alphabet and a length floor). */
+export function newHouseholdCode() {
+  return "home-" + Math.random().toString(36).slice(2, 10);
 }
 
 export function saveDeviceCode(code) {
@@ -168,6 +176,20 @@ export function loadCatalogCache(code) {
     return raw ? JSON.parse(raw) : null;
   } catch (e) {
     return null;
+  }
+}
+
+/* Forget a household's cached copies on THIS device. Leaving uses it: the
+   caches are keyed by code, so without this the household you just left
+   stays on the phone in full under its old key — invisible, but there, and
+   restored the moment anyone switched back to that code. "Left" has to mean
+   gone from here too, or the warning about deletion is only half true. */
+export function forgetHouseholdCache(code) {
+  try {
+    localStorage.removeItem(CACHE_PREFIX + code);
+    localStorage.removeItem(CATALOG_CACHE_PREFIX + code);
+  } catch (e) {
+    /* a storage-less browser has nothing to forget */
   }
 }
 
@@ -665,12 +687,65 @@ export async function recordHouseholdMembership(code, user) {
       ...(user.displayName ? { displayName: user.displayName } : {}),
       updatedAt: Date.now(),
     });
+    /* AN INDEX OF THE HOUSEHOLDS THIS ACCOUNT IS IN, written only once the
+       membership record above actually landed — an entry for a household
+       that refused us would be a list of places you cannot go.
+       It lives under users/{uid}, which the rules already scope to the
+       account itself, so this needs no rules change. It has to be a
+       CLIENT-MAINTAINED INDEX because nothing may list /households: that
+       denial is what stops one grant exposing every household at once, and
+       it also means an account cannot discover its own memberships by
+       asking the database. This is the only way to answer "which am I in?" */
+    await update(ref(db, `users/${user.uid}/households/${code}`), { updatedAt: Date.now() });
     reportWriteOk();
     return true;
   } catch (e) {
     if (e && e.code === "PERMISSION_DENIED") return false;
     reportWriteError(e, "membership record for this device");
     return false;
+  }
+}
+
+/* The households this account has been a member of, newest first. Live, so
+   joining or leaving on this phone updates the list without a reload. */
+// Reports `null` until the first snapshot arrives, then always an object —
+// including `{}` for an account with no households. The caller has to tell
+// those two apart: "this account owns nothing yet, so the code this device
+// minted is its first household" and "haven't heard back yet" lead to
+// opposite decisions, and treating the second as the first is what claimed a
+// junk household before the real list had loaded.
+export function subscribeMyHouseholds(user, cb) {
+  // No sync, or nobody signed in: answer "no households" rather than never
+  // answering, so a caller waiting on the first snapshot isn't left waiting
+  // forever on a build that has no database to ask.
+  if (!syncEnabled || !user) {
+    cb({});
+    return () => {};
+  }
+  let stop = () => {};
+  (async () => {
+    const db = await getDb();
+    if (!db) return;
+    const { ref, onValue } = await import("firebase/database");
+    stop = onValue(
+      ref(db, `users/${user.uid}/households`),
+      (snap) => cb(snap.val() || {}),
+      () => cb({})
+    );
+  })();
+  return () => stop();
+}
+
+// Drop one entry from that index — used when leaving, so the list stops
+// offering a household this account is no longer in.
+export async function forgetMyHousehold(user, code) {
+  const db = await getDb();
+  if (!db || !user) return;
+  const { ref, remove } = await import("firebase/database");
+  try {
+    await remove(ref(db, `users/${user.uid}/households/${code}`));
+  } catch (e) {
+    /* the index is a convenience; failing to prune it must not fail a leave */
   }
 }
 
@@ -773,6 +848,58 @@ export async function joinWithInvite(code, token, user, role = "member", display
 
 // Remove a member. The rules allow a member to DELETE another member's
 // record but never to create or edit one.
+/* Leaving a household, and taking the data with you if you are the last out.
+   Item 17.
+
+   THE MEMBER LIST HAS TO BE READ FIRST, and that ordering is forced rather
+   than chosen: `.read` on the household requires a membership record, so the
+   instant this account's record is gone it can no longer see whether anyone
+   else remained, nor delete anything. Check-then-act is the only shape
+   available; act-then-check locks you out of the check.
+
+   WHY THE DATA GOES WITH THE LAST MEMBER. A household with no members is
+   claimable again by design — a brand-new code has to become somebody's
+   somehow. But the state and catalog USED to survive that, so anyone who
+   still knew the code (a removed member, an expired guest, an old phone of
+   your own) could claim the empty household and read the shopping list, the
+   week plan and every recipe. Measured against the real rules, not reasoned:
+   claimed true, read state true, read catalog true. Deleting the node makes
+   abandonment mean what the rules comment always claimed it meant.
+
+   A GUEST CANNOT DO THIS, and the rules are right not to let them: deleting
+   the household reaches the catalog and the week plan, which is exactly what
+   the guest role withholds. A guest who is somehow the last one out leaves
+   the node behind, and says so — `orphaned` is reported rather than
+   swallowed, because the cleanup script is then the only way to reclaim it.
+
+   ONE RACE, ACCEPTED AND WRITTEN DOWN: two members leaving at the same
+   instant can both see the other and both remove only themselves, leaving an
+   orphan. Closing it would need a transaction across a node the leaver is
+   about to lose access to. The cleanup script exists for exactly this
+   residue. */
+export async function leaveHousehold(code, user, isGuest) {
+  const db = await getDb();
+  if (!db) return { ok: false, reason: "offline" };
+  const { ref, get, remove } = await import("firebase/database");
+  try {
+    const snap = await get(ref(db, `households/${code}/members`));
+    const others = Object.keys(snap.val() || {}).filter((uid) => uid !== user.uid);
+    if (others.length === 0 && !isGuest) {
+      await remove(ref(db, `households/${code}`));
+      await forgetMyHousehold(user, code);
+      reportWriteOk();
+      return { ok: true, deleted: true };
+    }
+    await remove(ref(db, `households/${code}/members/${user.uid}`));
+    await forgetMyHousehold(user, code);
+    reportWriteOk();
+    return { ok: true, deleted: false, orphaned: others.length === 0 };
+  } catch (e) {
+    reportWriteError(e, "leaving the household");
+    return { ok: false };
+  }
+}
+
 export async function removeMember(code, uid) {
   const db = await getDb();
   if (!db) return false;

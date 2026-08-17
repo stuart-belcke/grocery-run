@@ -3163,3 +3163,46 @@ test("scaleRecipeText handles hyphenated words on both rules", () => {
     "Add 4 sun-dried tomatoes."
   );
 });
+
+/* ---- a pasted invite LINK, which is what people actually paste ----
+
+   Since item 48 an invite is a URL, and the join field's own label says
+   "Paste an invite" — so pasting the whole link is the obvious action.
+   It used to parse as an invite whose CODE was the link with punctuation
+   stripped, which is a legal household code; an unclaimed household is
+   claimable by design, so the join SUCCEEDED into a junk household named
+   after the URL and the real invite did nothing. Reported from two
+   browsers: "it asks to join the household but it is a household that
+   isn't the same code". */
+
+test("classifyJoinInput accepts a pasted invite LINK, not just the bare code", () => {
+  const url = "https://stuart-belcke.github.io/grocery-run/#join=home-cx2ur9zg~uq0wa171p5srksu41x891g";
+  assert.deepEqual(classifyJoinInput(url), {
+    kind: "invite",
+    code: "home-cx2ur9zg",
+    token: "uq0wa171p5srksu41x891g",
+    role: "member",
+  });
+});
+
+test("a pasted GUEST link keeps its role through the URL wrapper", () => {
+  const url = "https://stuart-belcke.github.io/grocery-run/#join=home-cx2ur9zg~abcdefgh1234~g";
+  assert.equal(classifyJoinInput(url).role, "guest");
+  assert.equal(classifyJoinInput(url).code, "home-cx2ur9zg");
+});
+
+test("a pasted link NEVER yields the URL itself as a household code", () => {
+  // The exact failure: cleanCode of the link prefix is 40 chars of
+  // [a-z0-9-], which the rules accept as a perfectly good code.
+  const url = "https://stuart-belcke.github.io/grocery-run/#join=home-cx2ur9zg~uq0wa171p5srksu41x891g";
+  assert.doesNotMatch(classifyJoinInput(url).code, /https|github|grocery-run/);
+});
+
+test("unwrapping a link changes nothing for input that isn't one", () => {
+  assert.deepEqual(classifyJoinInput("home-cx2ur9zg~abcdefgh1234"), {
+    kind: "invite", code: "home-cx2ur9zg", token: "abcdefgh1234", role: "member",
+  });
+  assert.deepEqual(classifyJoinInput("home-cx2ur9zg"), { kind: "code", code: "home-cx2ur9zg" });
+  assert.deepEqual(classifyJoinInput("home-cx2ur9zg~short"), { kind: "broken" });
+  assert.deepEqual(classifyJoinInput("hello"), { kind: "short" });
+});

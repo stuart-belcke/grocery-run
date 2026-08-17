@@ -409,3 +409,77 @@ t("a guest may rename themselves without becoming something else", async () => {
   await write(`${H}/members/ghost`, { ...guest("Sam"), invite: "gtok" }, anon("ghost"));
   assert.ok(await allowed(patch(`${H}/members/ghost`, { displayName: "Sam B", updatedAt: Date.now() }, anon("ghost"))));
 });
+
+/* ------------------- item 17: leaving, and what is left behind -------------
+
+   These pin the guarantees leaveHousehold (sync.js) is built on. The app
+   decides WHEN to delete the household node; the rules decide WHO may, and
+   that half is what stops "leave" becoming a way to wipe somebody else's
+   data. */
+
+t("the last member out can delete the household node itself", async () => {
+  // What makes abandonment mean empty. Without this the app could remove its
+  // own record and nothing else, and the state and catalog would outlive it.
+  assert.ok(await allowed(remove(H, "alice")));
+  assert.ok(!(await allowed(read(`${H}/state`, "alice"))), "the data should be gone with it");
+});
+
+t("a guest cannot delete the household, only leave it", async () => {
+  /* Deleting reaches the catalog and the week plan — precisely what the guest
+     role withholds — so a guest who is handed a link cannot take the
+     household down on their way out. */
+  await write(`${H}/invites/gtok`, { by: "alice", exp: soon(), role: "guest" }, "alice");
+  await write(`${H}/members/ghost`, { ...guest("Sam"), invite: "gtok" }, anon("ghost"));
+  assert.ok(!(await allowed(remove(H, anon("ghost")))), "a guest deleted the whole household");
+  assert.ok(await allowed(remove(`${H}/members/ghost`, anon("ghost"))), "a guest could not leave");
+  assert.ok(await allowed(read(`${H}/state`, "alice")), "the household should still be there");
+});
+
+t("a stranger who knows the code cannot delete the household", async () => {
+  assert.ok(!(await allowed(remove(H, "mallory"))));
+  assert.ok(await allowed(read(`${H}/state`, "alice")));
+});
+
+t("DELETING ON THE WAY OUT IS WHAT CLOSES THE HOLE — an emptied household leaks nothing", async () => {
+  /* THE MEASURED BUG, kept as a test so it cannot come back.
+     Leaving WITHOUT deleting: the household becomes claimable (by design —
+     a new code has to become somebody's) and the claimer inherits everything
+     the previous household had. */
+  await remove(`${H}/members/alice`, "alice");
+  assert.ok(await allowed(write(`${H}/members/mallory`, member("m@x.com"), "mallory")), "an emptied household should be claimable");
+  assert.ok(await allowed(read(`${H}/state`, "mallory")), "this is the leak: the old list survived the claim");
+
+  // Leaving WITH the delete — what the app does now — leaves nothing to find.
+  await wipe();
+  await seed({ households: { [CODE]: { state: { updatedAt: 1 }, catalog: { updatedAt: 1 }, members: { alice: member("a@x.com") } } } });
+  assert.ok(await allowed(remove(H, "alice")));
+  assert.ok(await allowed(write(`${H}/members/mallory`, member("m@x.com"), "mallory")), "the bare code is still claimable, which is fine");
+  const leftovers = await (await read(`${H}/state`, "mallory")).json();
+  assert.equal(leftovers, null, "the claimer inherited data from the household that was deleted");
+});
+
+t("presenting an invite that does not exist cannot CLAIM the household instead", async () => {
+  /* THE SECOND HALF OF A REAL BUG. Pasting an invite LINK parsed into a
+     household code made of the URL with its punctuation stripped — 40 legal
+     characters of [a-z0-9-]. No such household existed, so "redeeming" the
+     invite fell through to first-claim and made a junk household, reporting
+     success while the real invite went unused. The client bug is fixed
+     (classifyJoinInput unwraps a link), but a parse mistake must not be able
+     to mint households either. */
+  const JUNK = "households/httpsstuart-belckegithubiogrocery-runjoi";
+  assert.ok(
+    !(await allowed(write(`${JUNK}/members/bob`, { email: "b@x.com", updatedAt: 1, invite: "sometoken123" }, "bob"))),
+    "a record naming an invite claimed an empty household"
+  );
+  // ...and the same account, not claiming to redeem anything, still may.
+  assert.ok(await allowed(write(`${JUNK}/members/bob`, { email: "b@x.com", updatedAt: 1 }, "bob")));
+});
+
+t("a REAL invite still redeems, and a real first claim still works", async () => {
+  // The guard above must not have broken either path it sits between.
+  await write(`${H}/invites/tok9`, { by: "alice", exp: soon() }, "alice");
+  assert.ok(await allowed(write(`${H}/members/bob`, { ...member("bob@example.com"), invite: "tok9" }, "bob")));
+
+  await wipe();
+  assert.ok(await allowed(write("households/home-freshclaim/members/carol", member("c@x.com"), "carol")));
+});

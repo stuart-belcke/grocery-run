@@ -110,8 +110,10 @@ const DEVICE_KEY = "grocery-run-device-v1";
 const CATALOG_PREFIX = "grocery-run-household-catalog-v1-";
 const STATE_PREFIX = "grocery-run-shared-";
 const ONBOARDED_KEY = "grocery-run-onboarded-v1";
+const MUST_CHOOSE_KEY = "grocery-run-must-choose-household-v1";
 const GUEST_PREVIEW_KEY = "grocery-run-e2e-guest-preview";
 const STATUS_PREVIEW_KEY = "grocery-run-e2e-status-preview";
+const USER_PREVIEW_KEY = "grocery-run-e2e-user-preview";
 
 /* Opens the app with a known household already in place.
 
@@ -119,7 +121,7 @@ const STATUS_PREVIEW_KEY = "grocery-run-e2e-status-preview";
    pins the ingredient IDS. Without a seeded catalog the app mints fresh
    random ids on first edit, so a test's ids don't match the rendered rows
    and the run proves nothing. */
-export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, onboarded = true, guest = false, hash = "", status = null } = {}) {
+export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, onboarded = true, guest = false, hash = "", status = null, user = null, mustChoose = false } = {}) {
   /* A CONTEXT, not a browser — see the setup/teardown block above. Each one
      starts with empty localStorage and cookies, which is the whole of what
      this app persists, so a test is as isolated as it was when every test
@@ -159,7 +161,7 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
      fixture. That looked exactly like "the edit didn't persist", and it is
      the sort of harness bug that makes a suite untrustworthy rather than
      merely failing. */
-  await page.addInitScript(([c, cat, st, kD, kC, kS, kO, onb, kG, gst, kSt, sts]) => {
+  await page.addInitScript(([c, cat, st, kD, kC, kS, kO, onb, kG, gst, kSt, sts, kU, usr, kM, must]) => {
     if (!localStorage.getItem(kD)) localStorage.setItem(kD, JSON.stringify({ code: c }));
     if (cat && !localStorage.getItem(kC + c)) localStorage.setItem(kC + c, cat);
     if (st && !localStorage.getItem(kS + c)) localStorage.setItem(kS + c, st);
@@ -178,9 +180,25 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
        problem — the longest of them is what broke the Settings heading. See
        STATUS_PREVIEW_KEY in lib.js. */
     if (sts) localStorage.setItem(kSt, JSON.stringify(sts));
+    /* A SIGNED-IN IDENTITY, faked. Everything gated on `user` — invites,
+       leaving, the member list, what the first-run screen does once you sign
+       in — was unreachable before this, and three reported bugs lived there.
+       See USER_PREVIEW_KEY in lib.js: a production build never reads it. */
+    if (usr) localStorage.setItem(kU, JSON.stringify(usr));
+    /* Left your last household — see MUST_CHOOSE_KEY in lib.js. Reachable
+       only through leaveHousehold, which needs the database this build
+       compiles out, so the flag is seeded instead. What it gates (the
+       first-run screen coming back for somebody already signed in) is
+       ordinary rendering and does not need a database at all. */
+    // GUARDED like the fixtures above, and for the same reason: this script
+    // re-runs on every navigation, so seeding it unconditionally would put
+    // the first-run screen back after the very reload a test uses to prove
+    // it stays gone. The app writes `false` rather than removing the key, so
+    // "already answered" is what getItem tests for here.
+    if (must && !localStorage.getItem(kM)) localStorage.setItem(kM, JSON.stringify(true));
   }, [code, catalog ? JSON.stringify(catalog) : null, state ? JSON.stringify(state) : null,
       DEVICE_KEY, CATALOG_PREFIX, STATE_PREFIX, ONBOARDED_KEY, onboarded, GUEST_PREVIEW_KEY, guest,
-      STATUS_PREVIEW_KEY, status]);
+      STATUS_PREVIEW_KEY, status, USER_PREVIEW_KEY, user, MUST_CHOOSE_KEY, mustChoose]);
 
   // domcontentloaded, not networkidle: with external requests aborted there
   // is no "idle" to wait for, and the tab bar rendering is the real signal
@@ -195,7 +213,14 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
      already-onboarded there, so seeding `state` means the app screen even
      with the flag withheld. Deriving it any other way would make the harness
      disagree with the thing it is testing. */
-  const expectFirstRun = !onboarded && !state;
+  /* ...and a SIGNED-IN identity skips it too, unless a link invite is still
+     waiting to be accepted — which is the whole point of the screen staying
+     up through sign-in. Mirrors App.jsx's own condition rather than guessing
+     at it; a harness that disagrees with the app about which screen is
+     coming just hangs for fifteen seconds and blames the test. */
+  /* mustChoose outranks everything, exactly as it does in App.jsx: it is
+     the one flag that shows this screen to a signed-in, onboarded browser. */
+  const expectFirstRun = mustChoose || (!onboarded && !state && (!user || /[#&]join=/.test(hash)));
   if (expectFirstRun) {
     // The screen's LANDMARK, not a heading's wording. Waiting on prose meant
     // that rewording the first-run copy hung every spec in the suite.
