@@ -3018,6 +3018,55 @@ treatment: the store moved into the details panel and the name grew.
     Verified unclipped and with no horizontal overflow at both 320 and
     390px. 203/203.
 
+85. [DONE] LEAVING YOUR LAST HOUSEHOLD NO LONGER MAKES YOU ANOTHER ONE.
+    Asked for directly, after the throwaway-household report came back a
+    second time: "if you leave the last household you should have to create
+    a new household."
+
+    ITEM 83 ONLY GOT HALF OF IT. That fix made leaving go to a household you
+    were already in — right, and it left the last-exit case exactly as it
+    was: mint a code and drop you into it. So the one path where nothing
+    else is available still handed you a household you never asked for, and
+    since item 84 now claims a household the moment a device commits to one,
+    that mint was about to become a claim. The two together are the reported
+    pattern: leave, get a spare, leave the spare, get another.
+
+    THE FIRST-RUN SCREEN COMES BACK INSTEAD, and nothing is created until
+    you press Create a household or join with an invite. A code is still set
+    so the app has somewhere to render from — it opens and works offline the
+    moment you leave, which is why minting was there in the first place —
+    but an unchosen code is never claimed (item 84), so no household exists
+    until you say so.
+
+    MUST_CHOOSE_KEY IS PERSISTED, NOT HELD IN STATE. A reload would
+    otherwise land on "this account has no households, commit to the
+    device's code" and mint precisely the household this exists to stop.
+    It outranks both halves of the first-run condition: this is the one case
+    where that screen is shown to somebody signed in AND onboarded, both of
+    which were true a second earlier.
+
+    THE SCREEN SAYS WHY IT IS THERE. Everyone else sees it as a welcome;
+    arriving on it unexplained reads like having been signed out. It says
+    "you have left your last household", drops the Sign in card (already
+    done — leaving it makes a two-option decision look like three), and the
+    button says Create a household rather than Start my own list.
+    KEPT TO THIS CASE, not to being signed in generally: the first version
+    keyed it on `signedIn` and told somebody who had just signed in with an
+    invite pending that they had left their last household. Two props, not
+    one — `signedIn` hides the sign-in card, `leftLast` writes the copy.
+
+    MUTATION-TESTED: dropping `mustChoose` from the first-run condition
+    fails both new tests and nothing else. What is NOT covered, plainly:
+    leaving itself needs the database this build compiles out, so the flag
+    is seeded rather than earned. The rendering it drives is tested; the
+    write that sets it is reasoned.
+
+    ONE HARNESS BUG FOUND BY THE TEST THAT FAILED FOR THE WRONG REASON: the
+    new seed was not guarded with `if (!localStorage.getItem(...))` like
+    every other fixture, so it re-armed on the reload the second test uses
+    to prove the screen stays gone. Exactly the trap already written at the
+    top of that block, walked into anyway.
+
 84. [DONE] EVERY FRESH BROWSER MINTED AND CLAIMED A HOUSEHOLD. Reported after
     item 83 shipped, and worth reading as the end of a run of four: "on the
     side, again having a throwaway household and the main one."

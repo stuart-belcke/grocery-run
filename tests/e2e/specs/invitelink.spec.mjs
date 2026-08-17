@@ -184,3 +184,54 @@ test("choosing 'start my own list' releases a pending invite", async () => {
     await page.done();
   }
 });
+
+/* LEAVING YOUR LAST HOUSEHOLD ASKS INSTEAD OF MINTING ONE.
+
+   Reported twice, a week apart, as "again having a throwaway household and
+   the main one". Leaving used to hand you a replacement household on the
+   spot — reasonable when an account could only be in one, and the thing that
+   kept manufacturing spares once it could be in several.
+
+   Only the RENDERING is reachable here: leaving itself needs the database
+   this build compiles out, so the flag it sets is seeded directly. What that
+   flag has to do — put the first-run screen back up for a browser that is
+   signed in AND onboarded, both of which are true a moment after leaving —
+   is ordinary rendering, and it is where the bug would come back. */
+test("after leaving your last household the app asks rather than making one", async () => {
+  const page = await openApp(BASE, { user: SIGNED_IN, mustChoose: true });
+  try {
+    assert.equal(
+      await page.locator('[aria-label="Getting started"]').count(),
+      1,
+      "the app went straight back in — on a household nobody asked for"
+    );
+    assert.match(
+      await page.locator('[aria-label="Getting started"]').innerText(),
+      /left your last household/i,
+      "the screen didn't say why it was showing"
+    );
+    // Sign in is done, not a choice. Offering it makes a two-option decision
+    // look like three, and reads as having been signed out.
+    assert.equal(await page.locator('button:text-is("Sign in with Google")').count(), 0, "offered sign-in to somebody already signed in");
+    assert.equal(await page.locator('button:text-is("Create a household")').count(), 1, "no way to start one on purpose");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("choosing 'Create a household' from there gets you into the app", async () => {
+  // The flag is persisted, so failing to clear it would trap the phone on
+  // this screen through every reload — worse than the bug it fixes.
+  const page = await openApp(BASE, { user: SIGNED_IN, mustChoose: true });
+  try {
+    await page.locator('button:text-is("Create a household")').click();
+    await page.getByRole("button", { name: /^ingredients$/i }).first().waitFor({ timeout: 15000 });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: /^ingredients$/i }).first().waitFor({ timeout: 15000 });
+    assert.equal(await page.locator('[aria-label="Getting started"]').count(), 0, "the screen came back after a reload — the phone is stuck");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});

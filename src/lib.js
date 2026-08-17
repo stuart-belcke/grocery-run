@@ -12,6 +12,13 @@ export const LOCAL_KEY = "grocery-run-local-v1";
 // shown twice. An existing install is treated as onboarded by its cached
 // household rather than by this flag — see App.
 export const ONBOARDED_KEY = "grocery-run-onboarded-v1";
+/* Set when leaving the LAST household you were in. Forces the first-run
+   screen back up so the next household is one you asked for, rather than one
+   the app minted on your behalf while you weren't looking. Persisted, not
+   held in state: a reload would otherwise fall through to "this account has
+   no households, commit to the device's code" and mint exactly the household
+   this exists to stop. Cleared by choosing — Start my own list, or joining. */
+export const MUST_CHOOSE_KEY = "grocery-run-must-choose-household-v1";
 
 /* Forces the guest view in a LOCAL-ONLY build, for the e2e suite.
    Guest-ness comes from a members/{uid} record in the database, so a build

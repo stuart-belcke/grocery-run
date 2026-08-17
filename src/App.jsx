@@ -39,6 +39,7 @@ import { Stripe, Btn, ChoiceDialog, useKeyboardOpen } from "./ui";
 import {
   LOCAL_KEY,
   ONBOARDED_KEY,
+  MUST_CHOOSE_KEY,
   GUEST_PREVIEW_KEY,
   USER_PREVIEW_KEY,
   STATUS_PREVIEW_KEY,
@@ -198,10 +199,17 @@ export default function App() {
      actually present, because `!!linkInvite &&` short-circuits away the
      reference when there isn't one. Every no-hash path looked fine. */
   const invitePending = !!linkInvite && !onboarded;
+  /* Left your last household — the next one has to be chosen, not minted.
+     See MUST_CHOOSE_KEY. Outranks `onboarded` and outranks being signed in:
+     it is the one case where the first-run screen is shown to somebody the
+     app already knows. */
+  const [mustChoose, setMustChoose] = useState(() => !!loadJSON(MUST_CHOOSE_KEY));
 
   const finishOnboarding = () => {
     saveJSON(ONBOARDED_KEY, true);
     setOnboarded(true);
+    saveJSON(MUST_CHOOSE_KEY, false);
+    setMustChoose(false);
     // Choosing "start my own list" is a decision about the invite too.
     setLinkInvite("");
   };
@@ -631,14 +639,14 @@ export default function App() {
      not in it yet and cannot be offered here. It fills in as each one is
      used. */
   useEffect(() => {
-    if (onboarded || !user || invitePending || myHouseholds === null) return;
+    if (onboarded || !user || invitePending || mustChoose || myHouseholds === null) return;
     const codes = Object.keys(myHouseholds);
     if (codes.length) {
       const best = codes.sort((a, b) => (myHouseholds[b]?.updatedAt || 0) - (myHouseholds[a]?.updatedAt || 0))[0];
       if (best && best !== code) setCode(best);
     }
     finishOnboarding();
-  }, [user, myHouseholds, onboarded, invitePending, code]);
+  }, [user, myHouseholds, onboarded, invitePending, mustChoose, code]);
 
   /* ------- effective data -------
      The household catalog IS the data now: one layer, nothing to reconcile.
@@ -731,9 +739,16 @@ export default function App() {
      then come back") impossible to follow: there was nothing to come back
      to. `linkInvite` is cleared when it is redeemed or skipped, which is
      what lets the screen finally close. */
-  if (!onboarded && authReady && (!user || linkInvite)) {
+  /* `mustChoose` bypasses BOTH conditions on purpose: it is set by leaving
+     your last household, where the account is signed in and `onboarded` was
+     true a moment ago. Without the bypass the app would drop straight back
+     in on a code it had just minted — which is the whole thing leaving is
+     supposed to have stopped. */
+  if (mustChoose || (!onboarded && authReady && (!user || linkInvite))) {
     return (
       <Onboarding
+        signedIn={!!user}
+        leftLast={mustChoose}
         authError={authError}
         initialInvite={linkInvite}
         onJoin={joinFromOnboarding}
@@ -892,16 +907,29 @@ export default function App() {
                  another household. Reported exactly that way — "I tried
                  leaving so that I would only have one and it just made a
                  new one".
-                 A new code is the fallback for the genuine last-exit case,
-                 where there is nowhere to land and the app still has to
-                 open. The reset above stands either way: emptyLocal carries
-                 no updatedAt, so the household we arrive at wins on the
-                 first sync instead of being overwritten by the one we just
-                 walked out of. */
+                 AND THE LAST EXIT ASKS. Minting a code here was still the
+                 app deciding you wanted another household — you left the
+                 only one you had, and it silently handed you a replacement,
+                 which is how a throwaway household kept turning up beside
+                 the main one. The first-run screen comes back instead, and
+                 nothing is claimed until you pick Start my own list or join
+                 with an invite. A code is set so the app has somewhere to
+                 render from, but an unchosen code is never claimed (see the
+                 membership effect above), so no household exists yet.
+                 The reset above stands either way: emptyLocal carries no
+                 updatedAt, so the household we arrive at wins on the first
+                 sync instead of being overwritten by the one we just walked
+                 out of. */
               const others = Object.keys(myHouseholds || {})
                 .filter((c) => c !== code)
                 .sort((a, b) => (myHouseholds[b]?.updatedAt || 0) - (myHouseholds[a]?.updatedAt || 0));
               setCode(others[0] || newHouseholdCode());
+              if (!others[0]) {
+                saveJSON(ONBOARDED_KEY, false);
+                setOnboarded(false);
+                saveJSON(MUST_CHOOSE_KEY, true);
+                setMustChoose(true);
+              }
               return { ...res, switchedTo: others[0] || null };
             }}
             authError={authError}
