@@ -14,10 +14,21 @@
  *  WHAT COUNTS AS ABANDONED: a household with no members at all. Members
  *  are what grant access, so a household without any is unreachable by
  *  every account in existence — nobody can read it, nobody can write it,
- *  and it will sit there forever. Since the app now deletes the household
- *  when the last member leaves, new ones should stop appearing; this is for
- *  the ones already there, and for the residue of the leave race documented
- *  in sync.js (two members leaving at the same instant).
+ *  and it will sit there forever.
+ *
+ *  TWO KINDS OF THOSE, AND THEY ARE NOT THE SAME REQUEST (item 86):
+ *
+ *    DELETED — carries a `deletedAt` stamp, because somebody pressed the
+ *    button. Erasing it is finishing a job a person started, so this runs
+ *    unattended on a schedule once the grace period is up. Until then it is
+ *    left alone on purpose: that window IS the undo.
+ *
+ *    ORPHANED — no members and no stamp. Nobody asked for these to go; they
+ *    are the residue of the leave race documented in sync.js (two members
+ *    leaving in the same instant) and of the household churn items 84 and 85
+ *    fixed. They are REPORTED AND LEFT unless --include-orphans is given,
+ *    because a scheduled job that deletes data nobody asked it to delete is
+ *    a worse problem than the data sitting there.
  *
  *  NO NEW DEPENDENCY. It mints a Google access token from a service-account
  *  key with node:crypto and talks to the RTDB REST API directly — the same
@@ -29,7 +40,12 @@
  *    node scripts/reclaim-households.mjs --key=/path/to/service-account.json
  *        Lists what it WOULD delete and changes nothing. This is the default.
  *    node scripts/reclaim-households.mjs --key=... --delete
- *        Actually deletes them, one at a time, reporting each.
+ *        Erases deleted households whose grace period is up, one at a time.
+ *    --grace-days=N     how long a deleted household is kept. Default 30,
+ *                       and it must match GRACE_DAYS in src/sync.js, which
+ *                       is what the app promises on screen.
+ *    --include-orphans  also act on member-less households with no stamp.
+ *                       For a run you are watching, not for the schedule.
  *
  *    The key can also come from GOOGLE_APPLICATION_CREDENTIALS, and the
  *    database from GROCERY_RUN_DB_URL if it is ever not the one below.
@@ -49,8 +65,17 @@ const arg = (name) => {
 };
 
 const KEY_PATH = arg("key") || process.env.GOOGLE_APPLICATION_CREDENTIALS;
+// FIREBASE_SERVICE_ACCOUNT holds the JSON ITSELF rather than a path — that is
+// the shape a GitHub secret arrives in, and writing it to a file first would
+// leave a service-account key lying on the runner's disk.
+const KEY_INLINE = process.env.FIREBASE_SERVICE_ACCOUNT;
 const DB_URL = (arg("db") || process.env.GROCERY_RUN_DB_URL || "https://grocery-run-d5e06-default-rtdb.firebaseio.com").replace(/\/$/, "");
 const APPLY = process.argv.includes("--delete");
+const INCLUDE_ORPHANS = process.argv.includes("--include-orphans");
+// Must match GRACE_DAYS in src/sync.js — the app tells people "about 30
+// days" on the confirm dialog, and this is the thing that makes it true.
+const GRACE_DAYS = Number(arg("grace-days") || 30);
+const GRACE_MS = GRACE_DAYS * 24 * 60 * 60 * 1000;
 
 /* Pointed at a local emulator, skip the Google token exchange and use the
    emulator's own owner credential. This is what makes the script TESTABLE —
@@ -60,7 +85,7 @@ const APPLY = process.argv.includes("--delete");
    localhost only, so it can never weaken a run against production. */
 const LOCAL = /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:|\/|$)/.test(DB_URL);
 
-if (!KEY_PATH && !LOCAL) {
+if (!KEY_PATH && !KEY_INLINE && !LOCAL) {
   console.error("Need a service-account key: --key=/path/to/key.json (or GOOGLE_APPLICATION_CREDENTIALS).");
   console.error("Firebase Console -> Project settings -> Service accounts -> Generate new private key.");
   process.exit(2);
@@ -101,44 +126,75 @@ const api = async (path, { method = "GET", query = "" } = {}, token) => {
   return res.status === 204 ? null : res.json();
 };
 
-const token = LOCAL ? "owner" : await accessToken(JSON.parse(readFileSync(KEY_PATH, "utf8")));
+const token = LOCAL ? "owner" : await accessToken(KEY_INLINE ? JSON.parse(KEY_INLINE) : JSON.parse(readFileSync(KEY_PATH, "utf8")));
 console.log(`# ${DB_URL}`);
-console.log(APPLY ? "# DELETING abandoned households" : "# DRY RUN — nothing will be changed. Add --delete to apply.");
+console.log(APPLY ? "# APPLYING" : "# DRY RUN — nothing will be changed. Add --delete to apply.");
+console.log(`# grace period ${GRACE_DAYS} days; orphans without a deletion stamp ${INCLUDE_ORPHANS ? "INCLUDED" : "reported only"}`);
 
 /* shallow=true returns just the keys, so this never pulls every household's
    contents down to answer a question about which ones are empty. */
 const codes = Object.keys((await api("households", { query: "&shallow=true" }, token)) || {});
 console.log(`# ${codes.length} household${codes.length === 1 ? "" : "s"} total`);
 
-const abandoned = [];
+const day = (ms) => (ms ? new Date(ms).toISOString().slice(0, 10) : "unknown");
+
+const due = [];      // deleted, grace period up — erase these
+const waiting = [];  // deleted, still inside the grace period — leave alone
+const orphans = [];  // no members, nobody asked — report
+
 for (const code of codes) {
   const members = await api(`households/${code}/members`, { query: "&shallow=true" }, token);
   const count = Object.keys(members || {}).length;
-  if (count === 0) abandoned.push(code);
-  else console.log(`  keep   ${code}  (${count} member${count === 1 ? "" : "s"})`);
+  if (count > 0) {
+    console.log(`  keep      ${code}  (${count} member${count === 1 ? "" : "s"})`);
+    continue;
+  }
+  const deletedAt = await api(`households/${code}/deletedAt`, {}, token);
+  let lastWrite = null;
+  try {
+    lastWrite = await api(`households/${code}/state/updatedAt`, {}, token);
+  } catch {
+    /* a household with no state at all still counts */
+  }
+  if (deletedAt) {
+    const age = Date.now() - deletedAt;
+    if (age >= GRACE_MS) due.push({ code, deletedAt, lastWrite });
+    else waiting.push({ code, deletedAt, lastWrite, daysLeft: Math.ceil((GRACE_MS - age) / 86400000) });
+  } else {
+    orphans.push({ code, lastWrite });
+  }
 }
 
-if (abandoned.length === 0) {
-  console.log("# nothing abandoned. Done.");
+for (const h of waiting) {
+  console.log(`  keep      ${h.code}  (deleted ${day(h.deletedAt)}, ${h.daysLeft} day${h.daysLeft === 1 ? "" : "s"} left to restore)`);
+}
+
+/* Orphans are REPORTED even when they will not be touched. A sweep that
+   silently ignored them would be the same as not knowing they exist, and
+   they are the one remaining sign of the leave race. */
+for (const h of orphans) {
+  if (!INCLUDE_ORPHANS) {
+    console.log(`  ORPHAN    ${h.code}  (no members, no deletion stamp, last written ${day(h.lastWrite)}) — nobody asked for this one; re-run with --include-orphans to remove it`);
+    continue;
+  }
+  due.push(h);
+}
+
+if (due.length === 0) {
+  console.log(`# nothing to erase. ${waiting.length} within grace, ${orphans.length} orphan${orphans.length === 1 ? "" : "s"}.`);
   process.exit(0);
 }
 
-for (const code of abandoned) {
+for (const h of due) {
   // Print something identifying before removing it, so a mistake is visible
-  // in the log rather than silent — these deletes are not recoverable.
-  let when = "unknown";
-  try {
-    const stamp = await api(`households/${code}/state/updatedAt`, {}, token);
-    if (stamp) when = new Date(stamp).toISOString().slice(0, 10);
-  } catch {
-    /* a household with no state at all is still abandoned */
-  }
+  // in the log rather than silent — THESE deletes are the unrecoverable ones.
+  const why = h.deletedAt ? `deleted ${day(h.deletedAt)}, grace period up` : "no members, no deletion stamp";
   if (!APPLY) {
-    console.log(`  WOULD DELETE  ${code}  (no members, last written ${when})`);
+    console.log(`  WOULD ERASE  ${h.code}  (${why}, last written ${day(h.lastWrite)})`);
     continue;
   }
-  await api(`households/${code}`, { method: "DELETE" }, token);
-  console.log(`  deleted       ${code}  (no members, last written ${when})`);
+  await api(`households/${h.code}`, { method: "DELETE" }, token);
+  console.log(`  erased       ${h.code}  (${why}, last written ${day(h.lastWrite)})`);
 }
 
-console.log(`# ${abandoned.length} abandoned${APPLY ? " deleted" : " found — re-run with --delete to remove"}.`);
+console.log(`# ${due.length} ${APPLY ? "erased" : "would be erased — re-run with --delete"}; ${waiting.length} within grace; ${orphans.length} orphan${orphans.length === 1 ? "" : "s"}.`);

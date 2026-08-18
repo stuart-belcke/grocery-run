@@ -93,6 +93,34 @@
         // Recipes, ingredients and stores. Same reasoning and same
         // shallowness as "state" above — just the two stamps every catalog
         // write always carries.
+        // Item 86. THE TOMBSTONE. Leaving as the last member no longer
+        // destroys the household on the spot — it stamps these two and walks
+        // away, and a scheduled sweep purges it once the grace period is up.
+        //
+        // The safety property is unchanged and comes from ".read" above, not
+        // from the data being gone: reading requires a membership record, and
+        // a household nobody is a member of can be read by nobody. What USED
+        // to break that was the first-claim case — an emptied household could
+        // be claimed by whoever still had the code, and claiming it made its
+        // list and recipes readable again. `deletedAt` now bars that case
+        // outright, so the data is inert rather than exposed, and stays
+        // recoverable for as long as the sweep leaves it there.
+        //
+        // WRITING one is an ordinary full-member write ($code ".write" above
+        // covers it) — you have to be in a household to delete it. CLEARING
+        // one is the restore, and it works in that order on purpose: the
+        // member record goes back first (case 5 in "members" below), and only
+        // then is there a member who may clear the stamps.
+        // `deletedBy` is REQUIRED for case 5 to fire and case 5 also requires
+        // `deletedAt`, so a stale `deletedBy` left behind by a half-finished
+        // restore grants nothing on its own.
+        "deletedAt": {
+          ".validate": "newData.isNumber()"
+        },
+        "deletedBy": {
+          ".validate": "newData.isString()"
+        },
+
         "catalog": {
           "updatedAt": {
             ".validate": "newData.isNumber()"
@@ -143,6 +171,12 @@
         // FULL invite: owning a household, or holding one as an equal, has to
         // mean an account that can be recovered and named. Guests it allows,
         // which is the entire point.
+        //   5. THE RESTORE: the account named in `deletedBy` putting
+        //      itself back into a household it tombstoned, while the
+        //      tombstone still stands. Undo for a deletion, not a way in —
+        //      `deletedBy` is only ever written by a member deleting the
+        //      household they were the last one in, and once the sweep
+        //      purges the node there is nothing left to name them.
         //   4. a deletion by an existing member — removing somebody else.
         //      Deletion only; a member can never CREATE or edit another
         //      account's record, which is what keeps a member record honest
@@ -174,7 +208,7 @@
         // To change somebody's role, remove them and invite them again.
         "members": {
           "$uid": {
-            ".write": "auth != null && ((auth.uid == $uid && (data.exists() || (!root.child('households').child($code).child('members').exists() && !newData.hasChild('invite') && newData.child('role').val() != 'guest' && auth.token.firebase.sign_in_provider != 'anonymous') || (newData.child('invite').isString() && root.child('households').child($code).child('invites').child(newData.child('invite').val()).child('exp').val() > now && newData.child('role').val() == root.child('households').child($code).child('invites').child(newData.child('invite').val()).child('role').val() && (newData.child('role').val() == 'guest' || auth.token.firebase.sign_in_provider != 'anonymous')))) || (!newData.exists() && root.child('households').child($code).child('members').child(auth.uid).exists() && root.child('households').child($code).child('members').child(auth.uid).child('role').val() != 'guest'))",
+            ".write": "auth != null && ((auth.uid == $uid && (data.exists() || (!root.child('households').child($code).child('members').exists() && !root.child('households').child($code).child('deletedAt').exists() && !newData.hasChild('invite') && newData.child('role').val() != 'guest' && auth.token.firebase.sign_in_provider != 'anonymous') || (root.child('households').child($code).child('deletedAt').exists() && root.child('households').child($code).child('deletedBy').val() == auth.uid && !newData.hasChild('invite') && newData.child('role').val() != 'guest' && auth.token.firebase.sign_in_provider != 'anonymous') || (newData.child('invite').isString() && root.child('households').child($code).child('invites').child(newData.child('invite').val()).child('exp').val() > now && newData.child('role').val() == root.child('households').child($code).child('invites').child(newData.child('invite').val()).child('role').val() && (newData.child('role').val() == 'guest' || auth.token.firebase.sign_in_provider != 'anonymous')))) || (!newData.exists() && root.child('households').child($code).child('members').child(auth.uid).exists() && root.child('households').child($code).child('members').child(auth.uid).child('role').val() != 'guest'))",
             ".validate": "auth != null && auth.uid == $uid && newData.hasChild('updatedAt') && (!newData.hasChild('role') || newData.child('role').val() == 'guest' || newData.child('role').val() == 'member') && (!data.exists() || newData.child('role').val() == data.child('role').val())"
           }
         },

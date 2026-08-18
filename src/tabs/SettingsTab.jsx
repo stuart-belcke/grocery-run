@@ -12,7 +12,7 @@ import { syncEnabled } from "../sync";
 import { HOW_IT_WORKS, FAQS } from "../help";
 import { UnitConverter } from "../UnitConverter";
 
-export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, sync, writeError, user, accessDenied, myHouseholds, members, invites, isGuest, createInvite, revokeInvite, joinWithInvite, removeMember, leaveHousehold, authError, signInWithGoogle, sendEmailSignInLink, signOutUser, initialInvite = "" }) {
+export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, sync, writeError, user, accessDenied, myHouseholds, members, invites, isGuest, createInvite, revokeInvite, joinWithInvite, removeMember, leaveHousehold, restoreHousehold, graceDays = 30, authError, signInWithGoogle, sendEmailSignInLink, signOutUser, initialInvite = "" }) {
   const prefs = data.prefs;
   const setPref = (patch) => updateCatalog((c) => ({ ...c, prefs: { ...c.prefs, ...patch } }));
   // The members node as written: { uid: { email, displayName, updatedAt } }.
@@ -35,9 +35,16 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
     const seen = { ...(myHouseholds || {}) };
     if (code && !seen[code]) seen[code] = { updatedAt: 0 };
     return Object.entries(seen)
-      .map(([c, v]) => ({ code: c, updatedAt: (v && v.updatedAt) || 0 }))
+      .map(([c, v]) => ({ code: c, updatedAt: (v && v.updatedAt) || 0, deletedAt: (v && v.deletedAt) || 0 }))
       .sort((a, b) => b.updatedAt - a.updatedAt);
   }, [myHouseholds, code]);
+  /* Item 86. A DELETED HOUSEHOLD IS STILL LISTED, separately, until the
+     sweep takes it. It is not somewhere this account can go — no membership
+     record, so the database refuses every read — which is exactly why it
+     cannot sit in the list above with a Switch button beside it. */
+  const liveHouseholds = useMemo(() => myHouseholdList.filter((h) => !h.deletedAt), [myHouseholdList]);
+  const deletedHouseholds = useMemo(() => myHouseholdList.filter((h) => h.deletedAt), [myHouseholdList]);
+  const [restoring, setRestoring] = useState("");
 
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
@@ -175,7 +182,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
      waits to be told. The dialogs have to say which, or "a fresh household
      of its own" is a promise that quietly stops being true the moment you
      are in two — and the last exit no longer makes a household at all. */
-  const otherHouseholds = myHouseholdList.filter((h) => h.code !== code);
+  const otherHouseholds = liveHouseholds.filter((h) => h.code !== code);
   const landsOn = otherHouseholds.length ? otherHouseholds[0].code : null;
 
   const doLeave = async () => {
@@ -189,10 +196,25 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
     }
     setCodeMsg(
       res.deleted
-        ? "You've left, and the household's data was deleted with you — you were the last member."
+        ? `You've left, and the household is deleted — you were the last member. Nobody can open it now, and you can undo that from this list for about ${res.graceDays || graceDays} days.`
         : res.switchedTo
           ? `You've left. This phone is on ${res.switchedTo} now.`
           : "You've left."
+    );
+  };
+
+  const doRestore = async (c) => {
+    setRestoring(c);
+    const res = await restoreHousehold(c);
+    setRestoring("");
+    if (res && res.ok) {
+      setCodeMsg(`${c} is back. Switch to it from the list above.`);
+      return;
+    }
+    setCodeMsg(
+      res && res.reason === "gone"
+        ? "Too late — that household has already been erased for good."
+        : "Couldn't restore it — this phone may be offline. Try again when it reconnects."
     );
   };
 
@@ -689,11 +711,32 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                 phone tries it and is refused — at which point the app's
                 existing access-denied message is what you get. It is a
                 shortcut list, not proof of access. */}
-            {myHouseholdList.length > 1 && (
+            {deletedHouseholds.length > 0 && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 12, color: C.faint, marginBottom: 4 }}>Deleted, still recoverable</div>
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+                  {deletedHouseholds.map((h) => (
+                    <li key={h.code} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 13 }}>
+                      <span style={{ flex: 1, minWidth: 0, fontFamily: "ui-monospace, Menlo, monospace", wordBreak: "break-all", color: C.faint }}>
+                        {h.code}
+                      </span>
+                      <Btn small disabled={restoring === h.code} onClick={() => doRestore(h.code)}>
+                        {restoring === h.code ? "Restoring…" : "Restore"}
+                      </Btn>
+                    </li>
+                  ))}
+                </ul>
+                <p style={{ fontSize: 12, color: C.faint, margin: "6px 0 0" }}>
+                  Nobody can open these — the list, the week and the recipes are unreadable to every account, including this one, until you restore. They are erased for good about {graceDays} days after deletion.
+                </p>
+              </div>
+            )}
+
+            {liveHouseholds.length > 1 && (
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 12, color: C.faint, marginBottom: 4 }}>Households this account is in</div>
                 <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
-                  {myHouseholdList.map((h) => (
+                  {liveHouseholds.map((h) => (
                     <li key={h.code} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 13 }}>
                       <span style={{ flex: 1, minWidth: 0, fontFamily: "ui-monospace, Menlo, monospace", wordBreak: "break-all", color: C.ink }}>
                         {h.code}
@@ -925,8 +968,12 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
       {/* STEP 1 — WHAT LEAVING DOES. Says which of the two cases this is:
           for anyone but the last member it is this account stepping out; for
           the last member it also deletes the household, because one nobody
-          is in stays claimable by whoever knows the code, and the list, week
-          plan and recipes were sitting there for them. */}
+          is in used to stay claimable by whoever knew the code, and the list,
+          week plan and recipes were sitting there for them.
+          ITEM 86: "deleted" now means unreachable, not destroyed — for about
+          a month. Both dialogs say so, because a warning harsher than the
+          truth is still a warning that is wrong, and this one would stop
+          somebody doing a thing they can undo. */}
       <ConfirmDialog
         open={leaveStep === 1}
         title={lastMemberOut ? "Leave and delete this household?" : "Leave this household?"}
@@ -937,7 +984,10 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         {lastMemberOut ? (
           <>
             <p style={{ margin: "0 0 8px" }}>
-              You&apos;re the last member, so this household&apos;s <b style={{ color: C.ink }}>shopping list, week plan and recipes are deleted</b> for good.
+              You&apos;re the last member, so this household&apos;s <b style={{ color: C.ink }}>shopping list, week plan and recipes are deleted</b>. Nobody can open it after that — not another phone, not the household code.
+            </p>
+            <p style={{ margin: "0 0 8px" }}>
+              You can <b style={{ color: C.ink }}>undo it for about {graceDays} days</b> from the household list on this page. After that it is erased for good.
             </p>
             <p style={{ margin: 0 }}>
               {landsOn
@@ -957,23 +1007,31 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         )}
       </ConfirmDialog>
 
-      {/* STEP 2 — THAT IT CANNOT BE UNDONE. A second dialog rather than a
-          second button, and deliberately NOT a repeat of the first: step one
-          is what happens, step two is that there is no way back. Both cases
-          get it, because both destroy something irreversibly — the shared
-          household, or this phone's only copy of it. */}
+      {/* STEP 2 — HOW LONG YOU HAVE TO CHANGE YOUR MIND. A second dialog
+          rather than a second button, and deliberately NOT a repeat of the
+          first: step one is what happens, step two is the way back and its
+          deadline. Both cases still get it — the shared household goes on a
+          timer, and this phone's only copy of it goes immediately either
+          way. */}
       <ConfirmDialog
         open={leaveStep === 2}
-        title={lastMemberOut ? "Delete for good?" : "Leave for good?"}
-        confirmLabel={leaving ? "Leaving…" : lastMemberOut ? "Delete permanently" : "Leave permanently"}
+        title={lastMemberOut ? "Delete this household?" : "Leave for good?"}
+        confirmLabel={leaving ? "Leaving…" : lastMemberOut ? "Delete household" : "Leave permanently"}
         onConfirm={doLeave}
         onCancel={() => setLeaveStep(0)}
       >
         <p style={{ margin: "0 0 8px" }}>
-          <b style={{ color: C.ink }}>This cannot be undone.</b>{" "}
-          {lastMemberOut
-            ? "Nothing here is recoverable once it is gone — not from another phone, not from the household code."
-            : "Your copy on this phone goes with it, and only a new invite can bring you back."}
+          {lastMemberOut ? (
+            <>
+              <b style={{ color: C.ink }}>You have about {graceDays} days to change your mind.</b>{" "}
+              Restore it from the household list on this page. Past that it is erased and nothing brings it back.
+            </>
+          ) : (
+            <>
+              <b style={{ color: C.ink }}>This cannot be undone.</b>{" "}
+              Your copy on this phone goes with it, and only a new invite can bring you back.
+            </>
+          )}
         </p>
         <p style={{ margin: 0 }}>
           If you want to keep any of it, cancel and use <b style={{ color: C.ink }}>Export &amp; recover</b> first.

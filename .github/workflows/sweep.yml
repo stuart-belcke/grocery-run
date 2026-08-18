@@ -1,0 +1,86 @@
+# Erase households whose grace period is up (item 86).
+#
+# THIS IS THE ONLY THING IN THIS REPO THAT DELETES REAL DATA WITH NOBODY
+# WATCHING, so what it may and may not do is deliberately narrow:
+#
+#   IT ERASES households somebody deleted from the app more than 30 days
+#   ago. That is finishing a job a person started — the app told them they
+#   had about a month, and this is what makes that true rather than a
+#   sentence on a screen.
+#
+#   IT NEVER ERASES a household with members, one deleted more recently
+#   than that, or one that is merely member-less with no deletion stamp.
+#   The last kind is reported and left alone: nobody asked for those to go
+#   (they are the residue of the leave race in sync.js), and a scheduled job
+#   that deletes data nobody asked it to delete is a worse problem than the
+#   data sitting there. Clearing those is `--include-orphans`, by hand.
+#
+# tests/rules/sweep.test.mjs pins every one of those, against the emulator,
+# including the two that would matter most: a household inside its grace
+# period survives, and a household with members survives every flag at once.
+#
+# Needs FIREBASE_SERVICE_ACCOUNT (the whole service-account JSON, as a
+# repository secret). Without it the job says so and stops, rather than
+# reporting green having done nothing.
+name: Sweep deleted households
+
+on:
+  schedule:
+    # 04:10 UTC on Mondays. Weekly is plenty: the grace period is 30 days, so
+    # nothing is time-critical, and a household is kept for AT LEAST its grace
+    # period and at most a week longer — which is the right direction to err.
+    - cron: "10 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Actually erase (unchecked = dry run, changes nothing)"
+        type: boolean
+        default: false
+      include_orphans:
+        description: "Also erase member-less households with no deletion stamp"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Check the key is there
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT is not set. Add the service-account JSON as a repository secret."
+            exit 1
+          fi
+
+      # A scheduled run always applies — that is the point of it. A manual run
+      # defaults to a dry run, so the first thing anyone does by hand cannot
+      # remove anything.
+      - name: Sweep
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          args=""
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.apply }}" = "true" ]; then
+            args="--delete"
+          fi
+          if [ "${{ inputs.include_orphans }}" = "true" ]; then
+            args="$args --include-orphans"
+          fi
+          echo "running: reclaim-households.mjs $args"
+          node scripts/reclaim-households.mjs $args | tee sweep.log
+          {
+            echo '### Household sweep'
+            echo '```'
+            cat sweep.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

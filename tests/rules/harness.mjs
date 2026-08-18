@@ -26,7 +26,11 @@ import os from "node:os";
 import path from "node:path";
 
 export const NS = "grocery-run-rules-test";
-const PORT = 9099;
+/* PORT COMES FROM THE ENVIRONMENT because `node --test` runs each test FILE
+   in its own process, in parallel. Two suites both starting an emulator on a
+   fixed port is a race the second one loses, and it loses by hanging for
+   sixty seconds and then blaming the rules. */
+const PORT = Number(process.env.GROCERY_RUN_EMULATOR_PORT || 9099);
 const BASE = `http://127.0.0.1:${PORT}`;
 
 // The emulator is a JAR that `npm run emulator:fetch` downloads, plus a JVM.

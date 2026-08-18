@@ -21,6 +21,8 @@ import {
   joinWithInvite,
   removeMember,
   leaveHousehold,
+  restoreHousehold,
+  GRACE_DAYS,
   newHouseholdCode,
   forgetHouseholdCache,
   subscribeMyHouseholds,
@@ -640,7 +642,9 @@ export default function App() {
      used. */
   useEffect(() => {
     if (onboarded || !user || invitePending || mustChoose || myHouseholds === null) return;
-    const codes = Object.keys(myHouseholds);
+    // A tombstoned household is not somewhere to be sent — the database
+    // refuses every read on it until it is restored by hand.
+    const codes = Object.keys(myHouseholds).filter((c) => !myHouseholds[c]?.deletedAt);
     if (codes.length) {
       const best = codes.sort((a, b) => (myHouseholds[b]?.updatedAt || 0) - (myHouseholds[a]?.updatedAt || 0))[0];
       if (best && best !== code) setCode(best);
@@ -881,6 +885,8 @@ export default function App() {
             /* Leaving lands this phone on a NEW household of its own rather
                than nowhere: the app has to keep working offline afterwards,
                and a fresh code is exactly what a first run would have made. */
+            restoreHousehold={(c) => restoreHousehold(c, user)}
+            graceDays={GRACE_DAYS}
             leaveHousehold={async () => {
               const res = await leaveHousehold(code, user, isGuest);
               if (!res.ok) return res;
@@ -921,7 +927,7 @@ export default function App() {
                  sync instead of being overwritten by the one we just walked
                  out of. */
               const others = Object.keys(myHouseholds || {})
-                .filter((c) => c !== code)
+                .filter((c) => c !== code && !myHouseholds[c]?.deletedAt)
                 .sort((a, b) => (myHouseholds[b]?.updatedAt || 0) - (myHouseholds[a]?.updatedAt || 0));
               setCode(others[0] || newHouseholdCode());
               if (!others[0]) {

@@ -137,6 +137,43 @@ jobs:
           BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: npm run build
 
+      # ITEM 86: THE RULES SHIP FROM HERE NOW, not from a paste into the
+      # Firebase console. Deploying the app while the console still holds a
+      # different set of rules is how a tested file and a live database drift
+      # apart with nothing to notice, and it is the one drift in this repo
+      # that ends with somebody's shopping list readable by a stranger.
+      #
+      # AFTER the rules tests above and BEFORE the app deploy below: the file
+      # has been proved against the emulator by the time this runs, and if
+      # the upload fails the app that depends on it never ships.
+      #
+      # Needs FIREBASE_SERVICE_ACCOUNT — the whole service-account JSON, as a
+      # repository secret. Without it the step is SKIPPED rather than failed,
+      # so the site keeps deploying on a fork or before the secret is added,
+      # and the rules simply stay where they are.
+      # A step's own `env:` is not visible to its own `if:`, so whether the
+      # secret exists has to be decided in a step of its own and carried out
+      # as an output. Checking `secrets.X != ''` directly in an `if` is the
+      # tempting shape and is not one the expression context allows.
+      - name: Is there a key to deploy rules with?
+        id: ruleskey
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -n "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "have=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "have=no" >> "$GITHUB_OUTPUT"
+            echo "::warning::FIREBASE_SERVICE_ACCOUNT is not set, so database.rules.json was NOT deployed. The live rules are whatever was last pasted into the Firebase console."
+          fi
+
+      - name: Deploy database rules
+        if: steps.ruleskey.outputs.have == 'yes'
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node scripts/deploy-rules.mjs
+
       # Production: publish dist to the root of gh-pages. clean-exclude keeps
       # the pr-preview/ folder so open PRs' previews aren't wiped on a deploy.
       - name: Deploy production

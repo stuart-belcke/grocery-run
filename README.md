@@ -112,38 +112,69 @@ Ingredients tab → "Save backup (copy)" on one phone, send it to yourself
 (week plan, list, un-exported edits). The catalog itself never needs this —
 it's already shared via GitHub.
 
-## Tidying up abandoned households
+## Deleting a household, and getting it back
 
-A household with no members left is unreachable — nobody can open it, and it
-sits in the database forever. Since leaving now deletes the household when the
-*last* member walks out, new ones shouldn't appear; this is for any left over
-from before, and for the rare case of two people leaving at the same instant.
+Leaving a household you're the **last** member of deletes it. That means
+nobody can open it any more — not another phone, not the household code — but
+the data is still there for about **30 days**, and Settings lists it under
+*Deleted, still recoverable* with a **Restore** button. Only the account that
+deleted it can restore it.
 
-It can't be a button in the app: finding one means listing every household,
-which the security rules deliberately forbid (that denial is what stops one
-mistake exposing everyone's data at once). So it runs from a computer, with a
-key that bypasses the rules.
+After 30 days a scheduled job erases it for good. That job is
+`.github/workflows/sweep.yml`, it runs every Monday, and it is the only thing
+in this repo that deletes real data with nobody watching — so it is narrow on
+purpose:
+
+- **Erases** households deleted more than 30 days ago.
+- **Never touches** a household with members, or one deleted more recently.
+- **Reports but does not erase** a household with no members and no deletion
+  stamp. Nobody asked for those to go; they are left over from two people
+  leaving at the same instant, or from the household churn fixed in items 84
+  and 85. Clearing them is a deliberate, by-hand run — see below.
+
+To run it yourself:
 
 1. Firebase Console → Project settings → Service accounts → **Generate new
    private key**. Save the `.json` somewhere outside this repo.
-2. See what it would remove — this changes nothing:
+2. See what it would do — this changes nothing:
 
    ```
    node scripts/reclaim-households.mjs --key=/path/to/key.json
    ```
 
-   It prints every household, keeping the ones with members and marking the
-   empty ones `WOULD DELETE`, with the date each was last written.
-3. If that list looks right, delete them:
+3. Apply it, including the member-less households nobody explicitly deleted:
 
    ```
-   node scripts/reclaim-households.mjs --key=/path/to/key.json --delete
+   node scripts/reclaim-households.mjs --key=/path/to/key.json --delete --include-orphans
    ```
 
-**The key is a password to the whole database.** Keep it out of the repo
-(`.gitignore` covers `scripts/keys/` and `*.serviceaccount.json`) and delete it
-from your computer when you're done. Deletions are not recoverable, which is
-why the dry run is the default and you have to ask for `--delete`.
+The key is a password to the whole database. Keep it out of the repo and
+delete it from disk afterwards.
+
+## The security rules deploy themselves
+
+`database.rules.json` is what decides who can read a household. It used to be
+pasted into the Firebase console by hand, which meant the tests could prove
+the *file* was right while the live database ran something else entirely.
+
+It now ships from CI: every push to `main` runs the rules tests and then
+uploads the file, after the tests pass and before the app deploys. Nothing to
+paste.
+
+**This needs one repository secret.** GitHub → Settings → Secrets and
+variables → Actions → New repository secret:
+
+- Name: `FIREBASE_SERVICE_ACCOUNT`
+- Value: the entire contents of the service-account `.json` from step 1 above
+
+The same secret is what the weekly sweep uses. Without it, the deploy step is
+skipped with a warning rather than failing, and the sweep stops and says why.
+
+To check by hand whether the live rules match the file:
+
+```
+node scripts/deploy-rules.mjs --check --key=/path/to/key.json
+```
 
 ## Changing the app itself
 
