@@ -121,9 +121,16 @@ export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError, i
             You&apos;ve been invited to help with the shopping. Enter your name below and tap Join as guest — no account needed.
           </div>
         )}
+        {/* TWO WORDINGS, because the instruction changes once you are signed
+            in — and getting this wrong is the exact shape of the bug item 82
+            fixed: a screen telling you to do something the screen does not
+            offer. Hiding the Sign in card for a signed-in visitor (item 87)
+            left this saying "sign in below" with no Sign in below. */}
         {memberInvite && (
           <div style={{ fontSize: 13, fontWeight: 500, color: C.green, padding: "10px 12px", background: C.greenSoft, borderRadius: 8, marginBottom: 12 }}>
-            You&apos;ve been invited to join a household. Sign in below, then come back to this screen to accept it.
+            {signedIn
+              ? "You've been invited to join a household. It's filled in below — tap Join household to accept."
+              : "You've been invited to join a household. Sign in below, then come back to this screen to accept it."}
           </div>
         )}
         {/* Nobody sent this browser here — it's a plain first open, e.g.
@@ -243,9 +250,19 @@ export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError, i
             </div>
           );
 
-          // Already signed in: Sign in is not a choice, it is done. Leaving
-          // it on the screen makes a two-option decision look like three.
-          if (signedIn) return [justMeCard, joinCard];
+          /* ORDER FOLLOWS WHY YOU ARE HERE, which is what the invite says.
+             Signed in with an invite waiting: Join first — it is the whole
+             reason the screen is still up, and "Just me, on this device"
+             above it read as the recommended option to somebody who had just
+             been sent a link. Signed in with NO invite is the left-your-last-
+             household case, where starting a new one is the likely answer.
+             Signed in at all: Sign in is not a choice, it is done — leaving
+             it on the screen makes a two-option decision look like three.
+             Signed out with a GUEST link: Join first, because a guest needs
+             no account and would otherwise scroll past a card asking for one.
+             Signed out otherwise: Sign in first, because a full invite is
+             redeemed for an account and cannot be accepted without one. */
+          if (signedIn) return guestInvite || memberInvite ? [joinCard, justMeCard] : [justMeCard, joinCard];
           return guestInvite ? [joinCard, justMeCard, signInCard] : [signInCard, joinCard, justMeCard];
         })()}
 

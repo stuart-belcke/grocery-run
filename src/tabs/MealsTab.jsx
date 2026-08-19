@@ -453,9 +453,23 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
                 <Btn small onClick={() => setPlanPick(null)}>Cancel</Btn>
               </span>
             ) : (
-              <Btn small onClick={() => setPlanPick({ id: r.id, day: DAYS[0], type: (r.mealTypes && r.mealTypes[0]) || "Dinner" })}>
-                Add to week's plan
-              </Btn>
+              /* NOT FOR A GUEST (item 87). Assigning a day writes state/plan,
+                 which database.rules.json deliberately does not re-grant to
+                 guests — "planning the week is the household's, not the
+                 guest's". So this button could be tapped, could be filled in,
+                 and the write was refused at the end of it.
+                 Item 41 hid every other guest-blocked control for exactly
+                 this reason and missed this one; the Plan tab itself is
+                 careful — an empty slot renders "—" rather than "Choose a
+                 meal" — so the app was hiding the door on one tab and leaving
+                 it painted on the other. Hidden rather than disabled, because
+                 a greyed-out button asks "how do I un-grey it?" and the
+                 answer is not something a guest can do. */
+              !isGuest && (
+                <Btn small onClick={() => setPlanPick({ id: r.id, day: DAYS[0], type: (r.mealTypes && r.mealTypes[0]) || "Dinner" })}>
+                  Add to week's plan
+                </Btn>
+              )
             )}
           </div>
         </div>

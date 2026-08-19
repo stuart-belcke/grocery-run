@@ -44,8 +44,18 @@ test("Meals: a guest cannot add or edit a recipe, but can still put one on the l
     assert.ok(await count(member, 'button:text-is("Edit")'), "no Edit button for a full member — the selector is wrong, not the app");
     assert.equal(await count(guest, 'button:text-is("Edit")'), 0, "a guest was offered Edit");
 
+    /* ASSIGNING A DAY IS A PLAN WRITE, which the rules do not re-grant to a
+       guest — so the button must not be there either. It was, until item 87:
+       a guest could tap it, pick a day and a meal, press Add, and have the
+       write refused at the end of it. The Plan tab was already careful (an
+       empty slot renders "—" for a guest rather than "Choose a meal"), so
+       the app was hiding the door on one tab and leaving it painted on the
+       other. */
+    assert.ok(await count(member, 'button:text-is("Add to week\'s plan")'), "no Add to week's plan for a full member — the selector is wrong, not the app");
+    assert.equal(await count(guest, 'button:text-is("Add to week\'s plan")'), 0, "a guest was offered a button whose write the rules refuse");
+
     // Adding a meal to the LIST is a list write, so it stays.
-    assert.ok(await count(guest, 'button:text-is("Add unplanned meal")'), "a guest lost the one Meals action they are allowed");
+    assert.ok(await count(guest, 'button:text-is("Add unplanned meal")'), "a guest lost the one Recipes action they are allowed");
     assertNoPageErrors(guest, assert);
   } finally {
     await guest.done();

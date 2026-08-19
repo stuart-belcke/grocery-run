@@ -3413,6 +3413,45 @@ treatment: the store moved into the details panel and the name grew.
        definition sitting three lines from the top of the section does not
        need to be findable by search as well.
 
+    N. THE LANDING PAGE AND THE GUEST FLOW, reviewed properly after being
+       asked whether they had been — they had not. The type and prose passes
+       had touched those files; nobody had driven either as a FLOW. Two real
+       findings, one of them mine from this same session.
+
+       MINE: "SIGN IN BELOW, THEN COME BACK" WITH NO SIGN IN BELOW. Hiding
+       the Sign in card for a signed-in visitor (item 87) left the member-
+       invite banner pointing at a card that was no longer on the screen.
+       That is precisely the shape of the bug item 82 fixed — a screen whose
+       own instruction cannot be followed — reintroduced by a change made to
+       tidy the same screen. Two wordings now: signed out gets "sign in
+       below, then come back", signed in gets "it's filled in below — tap
+       Join household to accept".
+
+       AND THE CARD ORDER IGNORED THE INVITE. A signed-in visitor holding an
+       invite saw "Just me, on this device" ABOVE "Join a household" — the
+       recommended-looking option being the one that abandons the link they
+       arrived on. Order follows why you are here now: an invite waiting puts
+       Join first; no invite (the left-your-last-household case) puts Create
+       first.
+
+       THE OTHER ONE PREDATES THIS SESSION: "Add to week's plan" on the
+       Recipes tab was offered to guests. Assigning a day writes state/plan,
+       which the rules deliberately do not re-grant — so a guest could tap
+       it, pick a day and a meal, press Add, and have the write refused at
+       the end. Item 41 hid every other guest-blocked control for exactly
+       this reason and missed this one. The Plan tab itself was careful — an
+       empty slot renders "—" for a guest rather than "Choose a meal" — so
+       the app was hiding the door on one tab and leaving it painted on the
+       other. Hidden, not disabled, per item 41's own rule.
+       Covered in guest.spec.mjs against a full member as the control, and
+       mutation-tested: putting the button back for guests fails it.
+
+       WHAT THE REVIEW DID NOT FIND: the five landing states all render the
+       right cards and the right banner, and the guest's button counts differ
+       from a member's on exactly the tabs they should (Recipes 9 v 14, Plan
+       1 v 9, Pantry 14 v 18) and match where they should (List 12 v 12,
+       Settings 6 v 6). Driven at 390px, not read.
+
     L. AND A SECOND STALE LITERAL IN A TEST, the same shape as the one in
        B's rename. "searchHelp ignores the tab markup" searched for the
        hardcoded string "meals", so renaming the tab broke it — and the
