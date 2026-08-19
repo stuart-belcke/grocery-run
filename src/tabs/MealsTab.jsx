@@ -411,8 +411,8 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
           </div>
 
           {/* Planned meals = week-plan slots. A live summary of every slot this
-              recipe fills — as a main (added here or on the Week tab) or as a
-              side (added on the Week tab only) — each removable. */}
+              recipe fills — as a main (added here or on the Plan tab) or as a
+              side (added on the Plan tab only) — each removable. */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             {planSlots.length > 0 && (
               <span style={{ fontSize: 12, color: C.faint }}>

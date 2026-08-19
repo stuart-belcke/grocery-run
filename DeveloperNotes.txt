@@ -3048,7 +3048,11 @@ treatment: the store moved into the details panel and the name grew.
        RE-MEASURED AFTER, RATHER THAN ASSUMED, and the measurement moved the
        problem instead of solving it: with "Ingredients" gone the widest
        label was "Week plan" at 5.87px per 1px, which still capped at 10.6px
-       on a 320px screen. Two words had to go, so Week plan became WEEK.
+       on a 320px screen. Two words had to go, so Week plan became PLAN —
+       first "Week", then Plan on the reasonable objection that a tab which
+       ever wrapped would read as "Week" sitting on a line above "plan".
+       Plan is also the better word: every other tab is a thing, and this
+       one is the thing you do.
        The widest is now "Settings" at 4.71px per 1px — 13.2px in the same
        62px. clamp(12px, 3.6vw, 14px) leaves ~10% headroom at the tightest
        width, which matters because the sandbox measuring it falls back to
@@ -3056,6 +3060,9 @@ treatment: the store moved into the details panel and the name grew.
        identical. 11.5px at best before; 12 at 320, 13.5 at 375, 14 from 389.
        THE EXEMPTION IS GONE. fits.spec measures the bar like everything
        else, so there is no longer anywhere in the app that renders under 12.
+       NOTHING WRAPS EITHER, and that was measured rather than assumed —
+       every label against the room it has, at 320/360/375/390/430px. The
+       tightest is "Settings" needing 56px of the 62px available at 320.
 
        RENAMING A TAB TOUCHES FOUR PLACES, and one of them was a trap. The
        label, the help text (help.js writes {Braced} tab names that render

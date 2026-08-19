@@ -56,7 +56,7 @@ test("the tab names render as names, not as {braces}", async () => {
     const body = await page.textContent("body");
     assert.doesNotMatch(body, /\{[A-Za-z]/, "tab markup is being rendered literally");
     const bolded = await page.evaluate(() => [...document.querySelectorAll("ol b")].map((e) => e.textContent.trim()));
-    const TABS = ["List", "Meals", "Week", "Pantry", "Settings"];
+    const TABS = ["List", "Meals", "Plan", "Pantry", "Settings"];
     assert.ok(bolded.length > 0, "no tab name is bolded");
     for (const b of bolded) assert.ok(TABS.includes(b), `"${b}" is bolded as a tab but no tab is called that`);
     assertNoPageErrors(page, assert);

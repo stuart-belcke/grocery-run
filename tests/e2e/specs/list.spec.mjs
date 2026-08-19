@@ -131,7 +131,7 @@ test("a recipe amount and a hand-added amount combine into one row", async () =>
   const catalog = smallCatalog();
   const page = await openApp(BASE, { catalog });
   try {
-    await page.tab("Week");
+    await page.tab("Plan");
     await page.getByLabel("Choose a meal for Mon").click();
     await page.waitForTimeout(400);
     await page.locator("button").filter({ hasText: /Stir-fry/ }).first().click();
@@ -161,7 +161,7 @@ test("putting a bought item back returns it to the list", async () => {
   const catalog = smallCatalog();
   const page = await openApp(BASE, { catalog });
   try {
-    await page.tab("Week");
+    await page.tab("Plan");
     await page.getByLabel("Choose a meal for Mon").click();
     await page.waitForTimeout(400);
     await page.locator("button").filter({ hasText: /Stir-fry/ }).first().click();

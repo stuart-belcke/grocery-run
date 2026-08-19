@@ -995,7 +995,7 @@ export default function App() {
                    width per 1px of type, which forced a cap of 11.5px — under
                    the app's own 12px floor, with no way to lift it except a
                    shorter word. So the words got shorter: Ingredients ->
-                   Pantry, Week plan -> Week.
+                   Pantry, Week plan -> Plan.
                    The widest is now "Settings" at 4.71px per 1px of type,
                    which fits 13.2px in the 62px a tab gets on a 320px screen.
                    12px there leaves ~10% headroom, and the headroom matters

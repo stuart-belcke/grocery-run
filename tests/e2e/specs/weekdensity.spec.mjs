@@ -37,7 +37,7 @@ const fourDinners = {
 const openWeek = async (state) => {
   const page = await openApp(BASE, { catalog: smallCatalog(), state });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.tab("Week");
+  await page.tab("Plan");
   await page.waitForTimeout(500);
   return page;
 };

@@ -163,7 +163,7 @@ test("SHOULD: clearing a planned slot removes its ingredients from the list", as
     await page.tab("List");
     assert.equal((await listRows(page)).length, 3, "the planned meal should put three items on the list");
 
-    await page.tab("Week");
+    await page.tab("Plan");
     await page.getByLabel(/^Clear Stir-fry from Mon Dinner$/).click();
     await page.waitForTimeout(600);
     await page.roundTrip();

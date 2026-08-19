@@ -20,7 +20,7 @@ import { openApp, assertNoPageErrors } from "../harness.mjs";
 import { smallCatalog, stateWith, emptyState } from "../fixtures.mjs";
 
 const BASE = process.env.E2E_BASE_URL;
-const TABS = ["List", "Meals", "Week", "Pantry", "Settings"];
+const TABS = ["List", "Meals", "Plan", "Pantry", "Settings"];
 
 // A household with something on every screen: an empty app has no rows to
 // overflow and would pass this while proving nothing.
@@ -131,7 +131,7 @@ test("no placeholder is wider than the field it sits in", async () => {
    capped at 11.5px because five of them share the width and "Ingredients"
    at weight 700 would not fit any larger on a 320px screen — a real
    arithmetic limit, not a taste. Item 87 shortened the two long labels
-   (Ingredients -> Pantry, Week plan -> Week) so the widest is now
+   (Ingredients -> Pantry, Week plan -> Plan) so the widest is now
    "Settings", which fits 13.2px in the same space. The bar is measured
    here like everything else. */
 test("nothing renders below 12px", async () => {

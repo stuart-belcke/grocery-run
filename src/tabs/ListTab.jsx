@@ -181,7 +181,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
 
   // End of trip. The rule throughout: what you CHECKED OFF is done with, and
   // what you didn't get carries to the next list rather than being wiped.
-  // Deliberately does not touch d.plan — "Clear week" on the Week plan tab
+  // Deliberately does not touch d.plan — "Clear week" on the Plan tab
   // owns that, and clearing a week's planning from the shopping list is a
   // bigger reset than finishing a trip implies.
   const doneShopping = () => {

@@ -293,7 +293,7 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
      `slot` is "Mon Dinner", matching how the app's own labels read. */
   page.planMeal = async (slot, recipe) => {
     const [day, type] = slot.split(" ");
-    await page.tab("Week");
+    await page.tab("Plan");
     // Slots are only editable while planning, or behind Edit once you are
     // shopping — the same step a person takes.
     for (const re of [/^Start planning$/, /^Edit$/]) {

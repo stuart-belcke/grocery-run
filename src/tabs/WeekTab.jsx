@@ -1,5 +1,5 @@
 /* ------------------------------------------------------------------ */
-/*  Week plan tab — assign a recipe + servings to each day/meal slot; every
+/*  Plan tab (the week) — assign a recipe + servings to each day/meal slot; every
     slot feeds the shopping list unless it's ticked "already have the
     ingredients".  */
 /* ------------------------------------------------------------------ */

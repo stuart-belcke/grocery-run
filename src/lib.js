@@ -20,7 +20,7 @@ export const LOCAL_KEY = "grocery-run-local-v1";
 export const TABS = [
   { id: "list", label: "List" },
   { id: "meals", label: "Meals" },
-  { id: "week", label: "Week" },
+  { id: "week", label: "Plan" },
   { id: "pantry", label: "Pantry" },
   { id: "settings", label: "Settings" },
 ];

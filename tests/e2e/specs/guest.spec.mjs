@@ -57,8 +57,8 @@ test("Week: a guest sees the plan but is offered nothing to change it with", asy
   const guest = await asGuest();
   const member = await asMember();
   try {
-    await guest.tab("Week");
-    await member.tab("Week");
+    await guest.tab("Plan");
+    await member.tab("Plan");
 
     assert.ok(await count(member, 'button:text-is("Start planning")'), "control missing for a member too — selector is wrong");
     assert.equal(await count(guest, 'button:text-is("Start planning")'), 0, "a guest was offered Start planning");
@@ -119,7 +119,7 @@ test("a full member still sees everything", async () => {
     await page.tab("Pantry");
     assert.ok(await count(page, 'button:text-is("Add store")'));
     assert.ok(await count(page, 'button:text-is("Add item")'));
-    await page.tab("Week");
+    await page.tab("Plan");
     assert.ok(await count(page, 'button:text-is("Start planning")'));
     await page.tab("Meals");
     assert.ok(await count(page, 'button:text-is("Edit")'));

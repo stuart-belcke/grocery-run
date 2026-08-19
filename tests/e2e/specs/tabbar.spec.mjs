@@ -22,7 +22,7 @@ import { longListState } from "../fixtures.mjs";
 
 const BASE = process.env.E2E_BASE_URL;
 const NAV = 'nav[aria-label="Main"]';
-const TABS = ["List", "Meals", "Week", "Pantry", "Settings"];
+const TABS = ["List", "Meals", "Plan", "Pantry", "Settings"];
 
 const openScrolled = async (width = 390) => {
   const page = await openApp(BASE, { state: longListState(40) });

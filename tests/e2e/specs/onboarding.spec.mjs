@@ -34,7 +34,7 @@ test("a brand new browser is asked how it wants in, not dropped into a household
     assert.ok(await onFirstRun(page), "a fresh browser skipped the first-run screen");
     // And specifically NOT the app: seeing a working list is the exact
     // confusion this replaces.
-    assert.equal(await page.locator('button:has-text("Week")').count(), 0, "landed in the app instead");
+    assert.equal(await page.locator('button:has-text("Plan")').count(), 0, "landed in the app instead");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
@@ -59,7 +59,7 @@ test("starting your own list gets you into the app, and stays that way", async (
   try {
     await page.locator('button:has-text("Start my own list")').click();
     await page.waitForTimeout(500);
-    assert.equal(await page.locator('button:has-text("Week")').count(), 1, "did not reach the app");
+    assert.equal(await page.locator('button:has-text("Plan")').count(), 1, "did not reach the app");
 
     // The choice has to survive a reload, or it is asked again every launch.
     await page.reload({ waitUntil: "domcontentloaded" });
@@ -92,10 +92,10 @@ test("the screen says what the app IS before it asks for anything", async () => 
        in the suite would notice. */
     const named = await page.evaluate(() => [...document.querySelectorAll("ol b")].map((e) => e.textContent.trim()));
     assert.ok(named.length > 0, "no tab is named in the explanation");
-    const TAB_LABELS = ["List", "Meals", "Week", "Pantry", "Settings"];
+    const TAB_LABELS = ["List", "Meals", "Plan", "Pantry", "Settings"];
     for (const n of named) assert.ok(TAB_LABELS.includes(n), `"${n}" is bolded as a tab but no tab is called that — the labels are ${JSON.stringify(TAB_LABELS)}`);
     // Every tab worth explaining gets named. Settings is deliberately not one.
-    assert.deepEqual([...new Set(named)].sort(), ["List", "Meals", "Pantry", "Week"]);
+    assert.deepEqual([...new Set(named)].sort(), ["List", "Meals", "Pantry", "Plan"]);
 
     // Above the choices, not buried under them: the point is reading it
     // BEFORE deciding. Compared by position on the page, not by source order.
