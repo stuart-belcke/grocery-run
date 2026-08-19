@@ -427,7 +427,73 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
           the first-run screen can be READ AGAIN — that screen is shown once,
           before you have an account, and never again. Somebody looking for
           "how does this work" opens Settings and starts at the top. */}
-      {/* NOT defaultOpen any more (item 87), and FIRST rather than fourth.
+      <Section title="How it works">
+        <ol style={{ color: C.faint, fontSize: 14, lineHeight: 1.6, margin: "8px 0 16px", paddingLeft: 20 }}>
+          {HOW_IT_WORKS.map((line, i) => (
+            <li key={i} style={{ marginBottom: 4 }}>
+              <HelpText>{line}</HelpText>
+            </li>
+          ))}
+        </ol>
+
+        <label htmlFor="help-search" style={{ fontSize: 12, color: C.faint, display: "block", marginBottom: 4 }}>
+          Search the questions
+        </label>
+        <input
+          id="help-search"
+          value={helpQuery}
+          onChange={(e) => setHelpQuery(e.target.value)}
+          placeholder="aisle, guest, staple, offline…"
+          style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 10 }}
+        />
+
+        {/* Questions collapsed, answers on tap. Thirteen answers open at once
+            is a wall nobody reads, and the question is the part you scan. */}
+        {matchingFaqs.length === 0 ? (
+          <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 0" }}>
+            Nothing matches &ldquo;{helpQuery.trim()}&rdquo;. Try a single word — the search wants every word you type to appear.
+          </p>
+        ) : (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {matchingFaqs.map((f) => {
+              const open = openFaq === f.q;
+              return (
+                <li key={f.q} style={{ borderTop: `1px dashed ${C.line}` }}>
+                  <button
+                    onClick={() => setOpenFaq(open ? null : f.q)}
+                    aria-expanded={open}
+                    style={{
+                      display: "flex",
+                      alignItems: "baseline",
+                      gap: 8,
+                      width: "100%",
+                      textAlign: "left",
+                      background: "transparent",
+                      border: "none",
+                      padding: "10px 0",
+                      cursor: "pointer",
+                      fontFamily: fontBody,
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: C.ink,
+                    }}
+                  >
+                    <span style={{ flex: 1, minWidth: 0 }}>{f.q}</span>
+                    <span aria-hidden style={{ color: C.faint, fontSize: 12, flexShrink: 0 }}>{open ? "\u25b2" : "\u25be"}</span>
+                  </button>
+                  {open && (
+                    <p style={{ fontSize: 13, color: C.faint, lineHeight: 1.55, margin: "0 0 12px" }}>
+                      <HelpText>{f.a}</HelpText>
+                    </p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Section>
+
+      {/* NOT defaultOpen any more (item 87).
           It had opened itself since item 37, when the household CODE was the
           thing you came here to read and pass to the other phone — a reason
           that expired the moment invites became links and the code stopped
@@ -435,7 +501,12 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
           left behind.
           On a screen whose job is to show what is available, one expanded
           section pushes the rest below the fold. Closed, all six headings
-          fit a 390x844 phone at once, which is the point of the screen. */}
+          fit a 390x844 phone at once, which is the point of the screen.
+          SECOND, BEHIND "How it works": orientation goes first because this
+          app is used by two people and only one of them built it — the other
+          opens Settings rarely and needs the map before the controls. Then
+          the two sections you might actually have come to change, then the
+          ones you read, then the one that can lose data. */}
       <Section
         title="Household"
         /* Shown whether or not sync is on — "Saved on this device" is a
@@ -797,72 +868,6 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
 
       <Section title="Unit converter">
         <UnitConverter />
-      </Section>
-
-      <Section title="How it works">
-        <ol style={{ color: C.faint, fontSize: 14, lineHeight: 1.6, margin: "8px 0 16px", paddingLeft: 20 }}>
-          {HOW_IT_WORKS.map((line, i) => (
-            <li key={i} style={{ marginBottom: 4 }}>
-              <HelpText>{line}</HelpText>
-            </li>
-          ))}
-        </ol>
-
-        <label htmlFor="help-search" style={{ fontSize: 12, color: C.faint, display: "block", marginBottom: 4 }}>
-          Search the questions
-        </label>
-        <input
-          id="help-search"
-          value={helpQuery}
-          onChange={(e) => setHelpQuery(e.target.value)}
-          placeholder="aisle, guest, staple, offline…"
-          style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 10 }}
-        />
-
-        {/* Questions collapsed, answers on tap. Thirteen answers open at once
-            is a wall nobody reads, and the question is the part you scan. */}
-        {matchingFaqs.length === 0 ? (
-          <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 0" }}>
-            Nothing matches &ldquo;{helpQuery.trim()}&rdquo;. Try a single word — the search wants every word you type to appear.
-          </p>
-        ) : (
-          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-            {matchingFaqs.map((f) => {
-              const open = openFaq === f.q;
-              return (
-                <li key={f.q} style={{ borderTop: `1px dashed ${C.line}` }}>
-                  <button
-                    onClick={() => setOpenFaq(open ? null : f.q)}
-                    aria-expanded={open}
-                    style={{
-                      display: "flex",
-                      alignItems: "baseline",
-                      gap: 8,
-                      width: "100%",
-                      textAlign: "left",
-                      background: "transparent",
-                      border: "none",
-                      padding: "10px 0",
-                      cursor: "pointer",
-                      fontFamily: fontBody,
-                      fontSize: 13,
-                      fontWeight: 500,
-                      color: C.ink,
-                    }}
-                  >
-                    <span style={{ flex: 1, minWidth: 0 }}>{f.q}</span>
-                    <span aria-hidden style={{ color: C.faint, fontSize: 12, flexShrink: 0 }}>{open ? "\u25b2" : "\u25be"}</span>
-                  </button>
-                  {open && (
-                    <p style={{ fontSize: 13, color: C.faint, lineHeight: 1.55, margin: "0 0 12px" }}>
-                      <HelpText>{f.a}</HelpText>
-                    </p>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
       </Section>
 
       <Section title="Export &amp; recover">

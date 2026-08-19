@@ -3278,11 +3278,23 @@ treatment: the store moved into the details panel and the name grew.
        available pushes the rest below the fold. Closed: all six headings
        sit in 426px of an 844px phone instead of 510.
 
-       THE ORDER IS NOW what you do, then what you read, then what you can
-       break: Household, Account, Preferences, Unit converter, How it works,
-       Export & recover. Account moved up next to Household because one
-       gates the other — the access-denied message in Household points
-       straight at it, and they were four sections apart.
+       THE ORDER IS: How it works, Household, Account, Preferences, Unit
+       converter, Export & recover.
+
+       ORIENTATION FIRST, which is a correction to my own first pass. I put
+       "How it works" fifth on the reasoning that a weekly user does not
+       need orienting — true of the person who built the app, and the answer
+       came back that it should be first because it is what somebody SEES
+       first. That is the stronger argument for this app specifically: two
+       people use it, one of them built it, and the other opens Settings
+       rarely and needs the map before the controls. Designing the order
+       around the reader who knows least is the right default when the
+       screen has room for all six headings anyway.
+       Then the two you might have actually come to change (Household,
+       Account — adjacent because one gates the other, and the access-denied
+       message in Household points straight at it; they were four sections
+       apart before), then the ones you read, then the one that can lose
+       data.
 
     K. AND THEN THE COUNT MOVED OUT OF THE PINNED BAR, and the meals count
        went entirely. Asked for directly, and both are right.
