@@ -3330,6 +3330,30 @@ treatment: the store moved into the details panel and the name grew.
        things fit where four did not. It is also the only one that does not
        change height when the phone does.
 
+       ...AND THEN THE ANSWER WAS "everything pinned to the top", which is
+       where it landed. Four arrangements in one session, which is what
+       happens when a layout question is argued instead of measured — so all
+       four numbers are in ListTab.jsx now, at 320px and 390px:
+         everything pinned (SHIPPED)              123px / 84px
+         count + Done pinned, toggles scrolling    45px / 45px
+         toggles pinned, count below               79px / 40px
+         everything pinned, forced line break     133px / 94px
+       TWO LINES AT 390 IS THE FLOOR for keeping all of it: the count and
+       Done shopping fill one line and neither toggle fits beside them.
+       Item 51 cut this header down when it came to THREE wrapped lines —
+       this is two, which is the thing worth knowing about the trade.
+
+       THE ORDER IN THE SOURCE IS LOAD-BEARING: count and Done first, so a
+       wrap displaces the toggles rather than them. What gets pushed down
+       should be the decision you already made, not the number you keep
+       checking. A forced flexBasis:100% break was tried and cost 10px at
+       both widths by stopping the toggles sharing a line where they fit.
+
+       AND ONE LABEL GOT SHORTER ON ITS OWN MERITS while measuring: "All
+       items A–Z" is now "All items". The A–Z described a sort that the
+       OTHER toggle owns and that this view does not let you change, so the
+       label was naming something you cannot do.
+
        A DESTRUCTIVE BUTTON IN A PERMANENTLY TAPPABLE SPOT was item 51's
        stated reason for keeping Done shopping below, and the concern was
        right. What answers it: the button does not do anything — it opens a

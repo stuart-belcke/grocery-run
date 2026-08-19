@@ -607,40 +607,51 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
 
   return (
     <div>
-      {/* WHAT IS PINNED IS WHAT CHANGES DURING A SHOP: how many are left, and
-          the way to end the trip. The grouping toggles scroll away with
-          everything else — you pick All items or By store once and then walk
-          the shop, so spending permanently-pinned height on them was paying
-          for a decision already made.
+      {/* EVERYTHING IS PINNED, and the cost is written down because this bar
+          has now been wrong in three directions and the number is the only
+          thing that settles it.
 
-          MEASURED, because this bar has been wrong in both directions. Item
-          51 found the full header — both toggles, the status line and Done
-          shopping — came to three wrapped lines at 390px, and cut it back.
-          Pinning ALL of it again measures 123px at 320 and 84 at 390, which
-          is that same mistake. This arrangement is ONE LINE, 45px at every
-          width from 320 to 430, because two short things fit where four did
-          not.
+          MEASURED, at 320px and 390px:
+            everything pinned (this)                  123px / 84px
+            count + Done pinned, toggles scrolling     45px / 45px
+            toggles pinned, count below the bar        79px / 40px
+          Two lines at 390 is the floor for keeping all of it: the count and
+          Done shopping fill one line, and neither toggle fits beside them.
+          Item 51 cut this header down when it came to THREE wrapped lines at
+          390 — this is two, and it is the arrangement that was asked for
+          knowing what it costs.
 
-          A DESTRUCTIVE BUTTON IN A PERMANENTLY TAPPABLE SPOT was the reason
-          Done shopping used to sit below, and the concern was right. What
-          answers it is that the button does not do anything: it opens a
-          confirm dialog, and the dialog is what ends the trip. A mis-tap
+          THE COUNT AND DONE SHOPPING COME FIRST IN THE SOURCE, so a wrap
+          pushes the toggles down rather than them: what gets displaced
+          should be the decision you already made, not the number you keep
+          checking. A forced flexBasis:100% break was tried and cost 10px at
+          both widths by stopping the toggles sharing a line where they fit.
+
+          A DESTRUCTIVE BUTTON IN A PERMANENTLY TAPPABLE SPOT was item 51's
+          stated reason for keeping Done shopping below, and the concern was
+          right. What answers it is that the button does not do anything — it
+          opens a confirm dialog, and the dialog ends the trip, so a mis-tap
           costs a Cancel. Ending the trip is also the one action you want
-          reachable with a trolley in the other hand, which is what tipped
-          it. */}
+          reachable with a trolley in the other hand. */}
       <StickyBar>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
           <span style={{ fontSize: 13, color: C.faint, whiteSpace: "nowrap" }}>
             <b style={{ fontSize: 15, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{remaining}</b> item{remaining === 1 ? "" : "s"} left to buy
           </span>
           <Btn kind="danger" style={{ marginLeft: "auto" }} onClick={() => setConfirmDone(true)}>Done shopping</Btn>
+          {/* The toggles come SECOND so that when the bar wraps — and at
+              320px it does — the count and Done shopping are the line that
+              stays on top. A wrap pushes whatever is last down, and what is
+              last should be the decision you already made rather than the
+              number you keep checking.
+              NO forced flexBasis:100% break: tried, and it cost 10px at both
+              widths by stopping the toggles sharing a line where they fit. */}
+          <Seg options={[{ value: "all", label: "All items" }, { value: "store", label: "By store" }]} value={view} onChange={setView} />
+          {view === "store" && <Seg options={[{ value: "az", label: "A–Z" }, { value: "flow", label: "Store flow" }]} value={storeSort} onChange={setStoreSort} />}
         </div>
       </StickyBar>
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", margin: "0 0 10px" }}>
-          <Seg options={[{ value: "all", label: "All items A–Z" }, { value: "store", label: "By store" }]} value={view} onChange={setView} />
-          {view === "store" && <Seg options={[{ value: "az", label: "A–Z" }, { value: "flow", label: "Store flow" }]} value={storeSort} onChange={setStoreSort} />}
-      </div>
+
 
 
 
