@@ -6,7 +6,7 @@
 import { useState, useMemo, useRef } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop, SuggestInput } from "../ui";
-import { UNASSIGNED, keyForName, aisleKey, unitKeyFor, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg } from "../lib";
+import { UNASSIGNED, keyForName, aisleKey, unitKeyFor, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg } from "../lib";
 
 export function ListTab({ data, update, updateCatalog, isGuest }) {
   const [view, setView] = useState("store");
@@ -58,8 +58,6 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
   // by somebody allowed to write the catalog.
   const canEditDefault = (item) => !isGuest && !!data.config[item.key];
   const storeOptions = [...data.stores, UNASSIGNED];
-  const totals = servingsByRecipe(data);
-  const selectedMealCount = Object.values(totals).filter((s) => s > 0).length;
   const remaining = items.filter((i) => !data.list.checked[i.key]).length;
 
   /* Item 44: the ingredient's PERMANENT home, edited from the row you are
@@ -621,43 +619,28 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
           <Seg options={[{ value: "all", label: "All items A–Z" }, { value: "store", label: "By store" }]} value={view} onChange={setView} />
           {view === "store" && <Seg options={[{ value: "az", label: "A–Z" }, { value: "flow", label: "Store flow" }]} value={storeSort} onChange={setStoreSort} />}
-          {/* THE NUMBER IS THE CONTENT; "left to buy" is its label (item 87).
-              Both were faint 13px, which made the one figure you check most
-              in a shop — at arm's length, in whatever lighting the shop has,
-              holding a trolley — the same weight as the words around it.
-              The count is ink and bold at 15px, the label stays faint at 13:
-              emphasis without the whole line shouting.
-              tabular-nums because it changes as you tick things off, and
-              proportional digits make it jump sideways when 10 becomes 9. */}
-          {/* marginLeft:auto, NOT a <div style={{flex:1}}/> spacer. The row
-              wraps, and a spacer is a flex ITEM: when the count wrapped onto
-              a second line the spacer stayed behind on the first, so the
-              count sat at the LEFT edge at 390px and at the RIGHT edge at
-              320px. A number you check across a whole trip should not move
-              side to side depending on the phone. An auto margin is applied
-              per line, so it holds the right edge wrapped or not. */}
-          <span style={{ fontSize: 13, color: C.faint, whiteSpace: "nowrap", marginLeft: "auto" }}>
-            <b style={{ fontSize: 15, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{remaining}</b> item{remaining === 1 ? "" : "s"} left to buy
-          </span>
         </div>
       </StickyBar>
 
-      {/* THESE TWO COUNTS ARE NOT THE SAME KIND OF NUMBER, and treating them
-          alike is what made this corner look wrong. "Items left to buy"
-          changes every time you tick something off and is the figure you
-          check across a whole trip; "meals selected" does not move once you
-          are in the shop — it is context for why the list looks like it
-          does. Giving both the bold-ink-15px treatment put a heavy number on
-          the right of one row and the left of the next, which zigzags.
-          So the meals count goes back to plain faint, and moves ACROSS to
-          sit with Done shopping: what is in this trip, and ending this trip,
-          are one thought, and the row stops having two things stranded at
-          opposite edges with a gap between them. */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "flex-end", margin: "10px 0 8px" }}>
-        <span style={{ fontSize: 13, color: C.faint }}>
-          {selectedMealCount} meal{selectedMealCount === 1 ? "" : "s"} selected
+      {/* THE COUNT SITS WITH THE LIST, NOT PINNED ABOVE IT. It was in the
+          sticky bar so it would follow you down a long list; asked for here
+          instead, on the line the list actually starts under, and that is
+          the better trade — the pinned strip is the scarcest space on the
+          one tab you scroll while holding a trolley, and this is the tab's
+          own status rather than a control.
+          "N meals selected" is GONE rather than moved. It never changed once
+          you were in the shop, it answered a question the Recipes tab
+          already answers, and it was the second heavy number making this
+          corner look busy.
+          The count reads left and the action sits right: status, then what
+          to do about it. marginLeft:auto on the button rather than a spacer
+          div — see item 87I, a spacer is a flex item and gets left behind on
+          the previous line when the row wraps. */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", margin: "10px 0 8px" }}>
+        <span style={{ fontSize: 13, color: C.faint, whiteSpace: "nowrap" }}>
+          <b style={{ fontSize: 15, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{remaining}</b> item{remaining === 1 ? "" : "s"} left to buy
         </span>
-        <Btn kind="danger" onClick={() => setConfirmDone(true)}>Done shopping</Btn>
+        <Btn kind="danger" style={{ marginLeft: "auto" }} onClick={() => setConfirmDone(true)}>Done shopping</Btn>
       </div>
 
       {/* Its own object, not a clause in the status line above. This is the

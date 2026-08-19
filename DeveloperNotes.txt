@@ -3284,7 +3284,32 @@ treatment: the store moved into the details panel and the name grew.
        gates the other — the access-denied message in Household points
        straight at it, and they were four sections apart.
 
-       AND A SECOND STALE LITERAL IN A TEST, the same shape as the one in
+    K. AND THEN THE COUNT MOVED OUT OF THE PINNED BAR, and the meals count
+       went entirely. Asked for directly, and both are right.
+
+       THE COUNT SITS WITH THE LIST NOW, on the same line as Done shopping,
+       which is the line the first item starts under. The pinned strip is
+       the scarcest space on the one tab you scroll while holding a trolley
+       — item 51 cut it down for exactly that reason — and this was the
+       tab's own status rather than a control, which is what the pinned
+       strip is for. It returns 28px of permanently-pinned height at 390px
+       (68 -> 40); at 320 the bar is 79px either way, because the two
+       grouping toggles wrap there on their own.
+       THE TRADE, SAID PLAINLY: it no longer follows you down a long list.
+       That is a real loss and it was chosen knowingly — you look at the
+       count when you look at the list, and the list is where it now is.
+
+       "N MEALS SELECTED" IS DELETED, not moved. It did not change once you
+       were in the shop, it answered a question the Recipes tab answers
+       better, and it was the second heavy number making that corner busy.
+       Its `selectedMealCount` and the `servingsByRecipe` call feeding it
+       went with it — a removed line that leaves its computation behind is
+       half a removal.
+
+       The count reads left and the action sits right: status, then what to
+       do about it.
+
+    L. AND A SECOND STALE LITERAL IN A TEST, the same shape as the one in
        B's rename. "searchHelp ignores the tab markup" searched for the
        hardcoded string "meals", so renaming the tab broke it — and the
        tempting fix is to edit the literal, which is how it would have gone
