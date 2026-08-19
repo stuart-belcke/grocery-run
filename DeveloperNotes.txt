@@ -3176,6 +3176,26 @@ treatment: the store moved into the details panel and the name grew.
        thing it warns about is a WRAPPED LINE costing about a seventh of the
        screen. A taller glyph is not that.
 
+    G. AND THE MEALS TAB'S ONE ORIENTING LINE — "Choose meals — the shopping
+       list totals every ingredient automatically." Asked as "darker or
+       larger", and the answer here is darker, because it was ALREADY at
+       13px, the size this app uses for a sentence. Size was not the lever
+       left. Ink.
+
+       KEPT RATHER THAN CUT, which is worth saying since this same pass
+       deleted six other notes. The test all of those failed was "does this
+       restate the control beside it" — and this one does not. It answers
+       what picking a meal actually DOES, which nothing on the screen shows
+       until after you have already done it. HOW_IT_WORKS says it too, but
+       that is read once before you have an account and then lives in
+       Settings; this is the only place it is said where the action is.
+
+       SAME MISTAKE AS "CHOOSE A MEAL", one tab over: a line doing real work
+       painted in the grey reserved for notes beside things that explain
+       themselves. Which is the pattern behind every fix in E, F and G — the
+       app had one grey for "supporting" and had quietly filed several
+       load-bearing sentences under it.
+
     ALSO RENAMED FOR CONSISTENCY, not just for width: "Save to Ingredients"
     on the List tab is "Save to Pantry", and the prose that said "the
     Ingredients tab" says Pantry. A rename that leaves the old word in the

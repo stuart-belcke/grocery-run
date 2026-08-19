@@ -571,7 +571,17 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
             Adding a meal to the LIST stays — that is a list write. */}
       </div>
       </StickyBar>
-      <p style={{ margin: "0 0 12px", fontSize: 13, color: C.faint }}>
+      {/* INK, AND STILL 13px (item 87). Asked as "darker or larger" and the
+          answer is darker, because it is already at the size this app uses
+          for a sentence — so size was not the lever left. What it was doing
+          wrong is the same mistake as "Choose a meal" on the Plan tab: this
+          is the one line orienting a whole tab, painted in the grey reserved
+          for supporting notes beside things that explain themselves.
+          KEPT, RATHER THAN CUT with the other notes in this pass, and the
+          distinction is that it is not restating a control next to it. It
+          answers "what does picking a meal actually do", which nothing on
+          this screen shows until you have already done it. */}
+      <p style={{ margin: "0 0 12px", fontSize: 13, color: C.ink }}>
         Choose meals — the shopping list totals every ingredient automatically.
       </p>
 
