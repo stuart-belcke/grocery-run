@@ -607,41 +607,42 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
 
   return (
     <div>
-      {/* What's pinned here was cut down deliberately. The whole header — both
-          toggles, Done shopping, and the full status line — came to three
-          wrapped lines at 390px, about a seventh of the screen permanently
-          gone, which costs more than it gives on the one tab you scroll while
-          holding a trolley.
-          So: the grouping toggles and the count that changes as you shop.
-          "Done shopping" is once per trip and stays below, which also keeps a
-          destructive button out of a permanently tappable spot. */}
+      {/* WHAT IS PINNED IS WHAT CHANGES DURING A SHOP: how many are left, and
+          the way to end the trip. The grouping toggles scroll away with
+          everything else — you pick All items or By store once and then walk
+          the shop, so spending permanently-pinned height on them was paying
+          for a decision already made.
+
+          MEASURED, because this bar has been wrong in both directions. Item
+          51 found the full header — both toggles, the status line and Done
+          shopping — came to three wrapped lines at 390px, and cut it back.
+          Pinning ALL of it again measures 123px at 320 and 84 at 390, which
+          is that same mistake. This arrangement is ONE LINE, 45px at every
+          width from 320 to 430, because two short things fit where four did
+          not.
+
+          A DESTRUCTIVE BUTTON IN A PERMANENTLY TAPPABLE SPOT was the reason
+          Done shopping used to sit below, and the concern was right. What
+          answers it is that the button does not do anything: it opens a
+          confirm dialog, and the dialog is what ends the trip. A mis-tap
+          costs a Cancel. Ending the trip is also the one action you want
+          reachable with a trolley in the other hand, which is what tipped
+          it. */}
       <StickyBar>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-          <Seg options={[{ value: "all", label: "All items A–Z" }, { value: "store", label: "By store" }]} value={view} onChange={setView} />
-          {view === "store" && <Seg options={[{ value: "az", label: "A–Z" }, { value: "flow", label: "Store flow" }]} value={storeSort} onChange={setStoreSort} />}
+          <span style={{ fontSize: 13, color: C.faint, whiteSpace: "nowrap" }}>
+            <b style={{ fontSize: 15, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{remaining}</b> item{remaining === 1 ? "" : "s"} left to buy
+          </span>
+          <Btn kind="danger" style={{ marginLeft: "auto" }} onClick={() => setConfirmDone(true)}>Done shopping</Btn>
         </div>
       </StickyBar>
 
-      {/* THE COUNT SITS WITH THE LIST, NOT PINNED ABOVE IT. It was in the
-          sticky bar so it would follow you down a long list; asked for here
-          instead, on the line the list actually starts under, and that is
-          the better trade — the pinned strip is the scarcest space on the
-          one tab you scroll while holding a trolley, and this is the tab's
-          own status rather than a control.
-          "N meals selected" is GONE rather than moved. It never changed once
-          you were in the shop, it answered a question the Recipes tab
-          already answers, and it was the second heavy number making this
-          corner look busy.
-          The count reads left and the action sits right: status, then what
-          to do about it. marginLeft:auto on the button rather than a spacer
-          div — see item 87I, a spacer is a flex item and gets left behind on
-          the previous line when the row wraps. */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", margin: "10px 0 8px" }}>
-        <span style={{ fontSize: 13, color: C.faint, whiteSpace: "nowrap" }}>
-          <b style={{ fontSize: 15, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{remaining}</b> item{remaining === 1 ? "" : "s"} left to buy
-        </span>
-        <Btn kind="danger" style={{ marginLeft: "auto" }} onClick={() => setConfirmDone(true)}>Done shopping</Btn>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", margin: "0 0 10px" }}>
+          <Seg options={[{ value: "all", label: "All items A–Z" }, { value: "store", label: "By store" }]} value={view} onChange={setView} />
+          {view === "store" && <Seg options={[{ value: "az", label: "A–Z" }, { value: "flow", label: "Store flow" }]} value={storeSort} onChange={setStoreSort} />}
       </div>
+
+
 
       {/* Its own object, not a clause in the status line above. This is the
           answer to "why is my list short?", so it needs to look like something

@@ -3308,8 +3308,36 @@ treatment: the store moved into the details panel and the name grew.
        (68 -> 40); at 320 the bar is 79px either way, because the two
        grouping toggles wrap there on their own.
        THE TRADE, SAID PLAINLY: it no longer follows you down a long list.
-       That is a real loss and it was chosen knowingly — you look at the
-       count when you look at the list, and the list is where it now is.
+       That is a real loss...
+
+       ...AND IT WAS THE WRONG TRADE, which came back within the hour: "I
+       like it pinned to the top", then "what about putting Done shopping
+       and the items count in [it]". Both right, and the second is the
+       better idea than either thing I had built.
+
+       WHAT IS PINNED IS NOW WHAT CHANGES DURING A SHOP — how many are left,
+       and the way to end the trip. THE GROUPING TOGGLES SCROLL AWAY, which
+       is the part I had never questioned: you pick All items or By store
+       once and then walk the shop, so permanently-pinned height was being
+       spent on a decision already made.
+
+       THREE ARRANGEMENTS, MEASURED, because this bar has been wrong in both
+       directions now:
+         everything pinned (item 51's old shape)   123px @320   84px @390
+         toggles pinned, count below (87K's first) 79px @320    40px @390
+         count + Done pinned, toggles scrolling    45px @320    45px @390
+       The last is one line at every width from 320 to 430, because two short
+       things fit where four did not. It is also the only one that does not
+       change height when the phone does.
+
+       A DESTRUCTIVE BUTTON IN A PERMANENTLY TAPPABLE SPOT was item 51's
+       stated reason for keeping Done shopping below, and the concern was
+       right. What answers it: the button does not do anything — it opens a
+       confirm dialog, and the dialog ends the trip. A mis-tap costs a
+       Cancel. Ending the trip is also the one action you want reachable
+       with a trolley in the other hand. Recorded rather than quietly
+       overridden, because it was a real reason and it is being traded away
+       on purpose.
 
        "N MEALS SELECTED" IS DELETED, not moved. It did not change once you
        were in the shop, it answered a question the Recipes tab answers
