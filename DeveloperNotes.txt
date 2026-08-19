@@ -3018,6 +3018,115 @@ treatment: the store moved into the details panel and the name grew.
     Verified unclipped and with no horizontal overflow at both 320 and
     390px. 203/203.
 
+86. [DONE] THE TWO PLACES THIS DIVERGED FROM HOW OTHER APPS DO IT.
+    Asked after the household design was written up: "would this be how
+    other apps handle data?" Mostly yes — access by membership record rather
+    than by knowing an id, invites that expire and carry their role, a
+    per-user index because RTDB has no query for it. Two things were not,
+    and the answer was to remove both rather than defend them.
+
+    A. DELETING THE DATA WITH THE LAST MEMBER OUT (item 17) IS NOT WHAT
+       ANYONE ELSE DOES. Slack keeps the workspace, Notion keeps the
+       teamspace, Drive keeps the file. The norm is a soft delete: mark it,
+       purge after a grace period, allow a restore in between. This deleted
+       on the spot, irrecoverably, with two dialogs and Export as the only
+       undo.
+
+       THE SAFETY PROPERTY NEVER CAME FROM THE DATA BEING GONE, which is
+       what makes the softer version cost nothing. Reading takes a
+       membership record and an emptied household has none. What leaked was
+       that an emptied household could be CLAIMED by whoever still had the
+       code, and claiming it made the list and the recipes readable again.
+       So the fix is one clause: a household carrying `deletedAt` can never
+       be claimed. The data is then unreachable by every account in
+       existence — including the person who deleted it — while remaining
+       exactly where it was.
+
+       ONE ATOMIC update(), not two writes: stamp `deletedAt`/`deletedBy`
+       and drop the last member together. Split, a failure between them
+       leaves a household emptied but unstamped, which is precisely the
+       orphan this is trying to stop making.
+
+       RESTORE IS AN UNDO, NOT A SECOND FRONT DOOR. Keyed on `deletedBy`,
+       which only ever gets written by an account deleting the household it
+       was the last member of. THE ORDER IS FORCED and mirrors leaving:
+       clearing the stamps is a write into the household, which takes a
+       membership record, so the membership goes back first and the stamps
+       come off second. Both stamps are cleared — a `deletedBy` left
+       standing on a live household would be a name that can let itself back
+       in after being removed — and the rules require `deletedAt` for the
+       restore case to fire at all, so a half-finished restore grants
+       nothing. Mutation-tested: dropping that requirement fails exactly the
+       stale-deletedBy test.
+
+       THE DIALOGS NOW SAY SOMETHING TRUE. They said "this cannot be
+       undone", which after this change is a warning harsher than the facts
+       — and a warning that is wrong stops people doing things they can
+       safely do. They say the month, and where the undo lives.
+
+    B. NO SERVER-SIDE CODE AT ALL was the cause of most of the amber in the
+       write-up: the leave race nobody could close, the cleanup script run
+       by hand, and the rules file pasted into a console. Every app this
+       shape has a small backend for exactly those three. The answer here is
+       GitHub Actions rather than Cloud Functions — no billing plan to
+       upgrade, and it reuses code this repo already has.
+
+       THE RULES SHIP FROM CI NOW. This was the weakest link in the whole
+       design and it was documented rather than fixed: the tests proved the
+       FILE, and nothing proved the console matched it. scripts/
+       deploy-rules.mjs PUTs it to the same .settings/rules.json endpoint
+       tests/rules/harness.mjs already loads the emulator through — NOT the
+       firebase CLI, which routes even a 127.0.0.1 upload through this
+       sandbox's proxy and dies before it starts, so it could never be
+       rehearsed. The REST path works identically against the emulator and
+       production, which is the whole reason the deploy is testable at all.
+       It compares the PARSED rules, not the text: the server reformats what
+       it stores, so a text comparison would report a difference on every
+       run and make --check permanently red and permanently ignored.
+
+       THE SWEEP RUNS WEEKLY, and what it may do is deliberately narrow. It
+       erases households deleted more than 30 days ago — finishing a job a
+       person started. It reports, and does not touch, member-less
+       households with NO deletion stamp: nobody asked for those to go, and
+       a scheduled job that deletes data nobody asked it to is a worse
+       problem than the data sitting there. Clearing those is
+       --include-orphans, by hand.
+
+       WHICH ALSO ANSWERS THE LEAVE RACE, without a transaction. Two members
+       leaving in the same instant still both see the other and both remove
+       only themselves; the orphan that leaves is now found and named every
+       Monday instead of accumulating unseen.
+
+    TESTED, and this is the part that changed most. tests/rules/
+    sweep.test.mjs drives BOTH scripts as real child processes against the
+    real emulator — the sweep's job is end-to-end (read, decide, delete) and
+    is only worth trusting if the thing under test is the file the workflow
+    runs. Eleven tests, including the two that would matter most: a
+    household inside its grace period survives, and a household with members
+    survives every flag at once (--delete --include-orphans --grace-days=0).
+    MUTATION-TESTED FOUR TIMES: ignoring the grace period fails 3, sweeping
+    orphans unasked fails 1, dropping the claim guard from the rules fails
+    2, dropping deletedAt from the restore case fails 1.
+
+    ONE TRAP FOUND WHILE WIRING IT UP: `node --test` runs each FILE in its
+    own process, in parallel, and both rules suites start an emulator on the
+    same port. The second one loses — by hanging for sixty seconds and then
+    blaming the rules. --test-concurrency=1, said in the file next to the
+    port rather than in a commit message.
+
+    AND ONE WORKFLOW SHAPE THAT LOOKS RIGHT AND IS NOT: a step's own `env:`
+    is not visible to its own `if:`, so "deploy the rules only if the secret
+    exists" has to decide in a step of its own and carry the answer out as
+    an output.
+
+    STILL NOT REMOVED, deliberately: the third divergence — minting a real
+    household code on load and not using it — turned out to already be
+    closed in substance by items 84 and 85. The code is a local document
+    identity that gets promoted at first sync, which is the idiomatic
+    pattern. Renaming it would be cosmetics.
+
+    274 unit, 65 rules, 209 e2e, `npm run check` green.
+
 85. [DONE] LEAVING YOUR LAST HOUSEHOLD NO LONGER MAKES YOU ANOTHER ONE.
     Asked for directly, after the throwaway-household report came back a
     second time: "if you leave the last household you should have to create

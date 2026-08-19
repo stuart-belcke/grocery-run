@@ -63,11 +63,24 @@ not use the `firebase` CLI — the CLI routes its own rules upload through this
 sandbox's HTTP proxy even for `127.0.0.1` and dies before any test runs, so the
 harness drives the jar and its REST API directly.
 
-**The rules file is the one thing here nothing else executes** — it is pasted
-into the Firebase console by hand, so a mistake in it is invisible until it
-locks a phone out of the shopping list or lets a stranger read it. Test any
-change to it. Passing tests still don't prove the console matches the file;
-that's a manual paste either way.
+**The rules file decides who can read a household**, so a mistake in it locks
+a phone out of the shopping list or lets a stranger read it. Test any change
+to it — `npm run test:rules`.
+
+It **deploys from CI** now (item 86): every push to `main` runs the rules
+tests and then uploads the file via `scripts/deploy-rules.mjs`, so the live
+database and the tested file can no longer drift. It is no longer a manual
+paste, and passing tests now do mean the deployed rules are the tested ones —
+provided the `FIREBASE_SERVICE_ACCOUNT` secret is set. Without it the deploy
+step warns and skips, which is the one case where a green run has not shipped
+the rules.
+
+**Two scripts delete or overwrite production and run unattended** —
+`scripts/reclaim-households.mjs` (weekly sweep) and `scripts/deploy-rules.mjs`.
+Both are covered by `tests/rules/sweep.test.mjs`, which drives them as real
+child processes against the emulator. Change either one and run that suite;
+nothing downstream will catch a mistake, because a service-account key
+bypasses every rule in the file.
 
 **The unit tests cannot catch the bugs that actually shipped.** Every one of
 them lived in the wiring, not in a function: a store change that erased an

@@ -10,7 +10,7 @@
     "test": "node --test \"src/**/*.test.js\"",
     "lint": "eslint .",
     "test:e2e": "node tests/e2e/run.mjs",
-    "test:rules": "node --test tests/rules/rules.test.mjs",
+    "test:rules": "node --test --test-concurrency=1 tests/rules/rules.test.mjs tests/rules/sweep.test.mjs",
     "check": "npm run lint && npm test && npm run test:rules && npm run test:e2e && npm run build",
     "emulator:fetch": "firebase setup:emulators:database"
   },

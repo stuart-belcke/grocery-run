@@ -736,6 +736,35 @@ export function subscribeMyHouseholds(user, cb) {
   return () => stop();
 }
 
+/* Undo a deletion, within the grace period. The ORDER IS FORCED, and it is
+   the mirror of leaving: clearing the tombstone is a write into the
+   household, which takes a membership record — so the membership goes back
+   first (the rules have a case for exactly this, keyed on `deletedBy`), and
+   only then can the stamps be cleared.
+   Both stamps are cleared. A `deletedBy` left standing on a live household
+   would be a name that can let itself back in later, after being removed. */
+export async function restoreHousehold(code, user) {
+  const db = await getDb();
+  if (!db || !user) return { ok: false, reason: "offline" };
+  const { ref, update } = await import("firebase/database");
+  try {
+    await update(ref(db, `households/${code}/members/${user.uid}`), {
+      ...(user.email ? { email: user.email } : {}),
+      ...(user.displayName ? { displayName: user.displayName } : {}),
+      updatedAt: Date.now(),
+    });
+    await update(ref(db, `households/${code}`), { deletedAt: null, deletedBy: null });
+    await update(ref(db, `users/${user.uid}/households/${code}`), { deletedAt: null, updatedAt: Date.now() });
+    reportWriteOk();
+    return { ok: true };
+  } catch (e) {
+    // The expected failure: the grace period ran out and the sweep took it.
+    if (e && e.code === "PERMISSION_DENIED") return { ok: false, reason: "gone" };
+    reportWriteError(e, "restoring the household");
+    return { ok: false };
+  }
+}
+
 // Drop one entry from that index — used when leaving, so the list stops
 // offering a household this account is no longer in.
 export async function forgetMyHousehold(user, code) {
@@ -877,18 +906,46 @@ export async function joinWithInvite(code, token, user, role = "member", display
    orphan. Closing it would need a transaction across a node the leaver is
    about to lose access to. The cleanup script exists for exactly this
    residue. */
+/* How long a deleted household stays recoverable. The sweep in
+   .github/workflows/sweep.yml purges past this; nothing in the app enforces
+   it, so a household is recoverable for AT LEAST this long and possibly a
+   few days more, never less. */
+export const GRACE_DAYS = 30;
+
 export async function leaveHousehold(code, user, isGuest) {
   const db = await getDb();
   if (!db) return { ok: false, reason: "offline" };
-  const { ref, get, remove } = await import("firebase/database");
+  const { ref, get, remove, update } = await import("firebase/database");
   try {
     const snap = await get(ref(db, `households/${code}/members`));
     const others = Object.keys(snap.val() || {}).filter((uid) => uid !== user.uid);
     if (others.length === 0 && !isGuest) {
-      await remove(ref(db, `households/${code}`));
-      await forgetMyHousehold(user, code);
+      /* ITEM 86: A TOMBSTONE, NOT A BONFIRE. This used to remove the whole
+         node the moment the last member walked out, which made a mistake
+         unrecoverable by anyone including the person who made it — and the
+         only undo was to have pressed Export first.
+         The safety property that motivated the delete is kept in full, and
+         it never came from the data being gone: reading takes a membership
+         record, and there are none left. What leaked before was that an
+         emptied household could be CLAIMED by whoever still had the code,
+         which handed them the list and the recipes. `deletedAt` bars the
+         claim (see database.rules.json), so the data is unreachable by every
+         account in existence while it sits there.
+         ONE ATOMIC update(), not two writes. Split, a failure between them
+         leaves a household that is stamped but still has you in it, or
+         emptied but not stamped — the second being exactly the orphan this
+         is trying to stop making. */
+      await update(ref(db, `households/${code}`), {
+        deletedAt: Date.now(),
+        deletedBy: user.uid,
+        [`members/${user.uid}`]: null,
+      });
+      /* The index entry STAYS, marked, so Settings can offer the undo. An
+         ordinary leave forgets it; this is the one case where the account
+         still has business with the household. */
+      await update(ref(db, `users/${user.uid}/households/${code}`), { deletedAt: Date.now(), updatedAt: Date.now() });
       reportWriteOk();
-      return { ok: true, deleted: true };
+      return { ok: true, deleted: true, graceDays: GRACE_DAYS };
     }
     await remove(ref(db, `households/${code}/members/${user.uid}`));
     await forgetMyHousehold(user, code);

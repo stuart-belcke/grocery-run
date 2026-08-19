@@ -440,22 +440,71 @@ t("a stranger who knows the code cannot delete the household", async () => {
   assert.ok(await allowed(read(`${H}/state`, "alice")));
 });
 
-t("DELETING ON THE WAY OUT IS WHAT CLOSES THE HOLE — an emptied household leaks nothing", async () => {
+t("THE TOMBSTONE IS WHAT CLOSES THE HOLE — an emptied household leaks nothing", async () => {
   /* THE MEASURED BUG, kept as a test so it cannot come back.
-     Leaving WITHOUT deleting: the household becomes claimable (by design —
+     Leaving WITHOUT marking it: the household becomes claimable (by design —
      a new code has to become somebody's) and the claimer inherits everything
      the previous household had. */
   await remove(`${H}/members/alice`, "alice");
   assert.ok(await allowed(write(`${H}/members/mallory`, member("m@x.com"), "mallory")), "an emptied household should be claimable");
   assert.ok(await allowed(read(`${H}/state`, "mallory")), "this is the leak: the old list survived the claim");
 
-  // Leaving WITH the delete — what the app does now — leaves nothing to find.
+  /* Leaving as the app does it now — one atomic patch that stamps the
+     tombstone and removes the last member together. The DATA IS STILL THERE,
+     and that is the point of item 86: the hole was never the data existing,
+     it was the household being claimable while it did. */
   await wipe();
   await seed({ households: { [CODE]: { state: { updatedAt: 1 }, catalog: { updatedAt: 1 }, members: { alice: member("a@x.com") } } } });
-  assert.ok(await allowed(remove(H, "alice")));
-  assert.ok(await allowed(write(`${H}/members/mallory`, member("m@x.com"), "mallory")), "the bare code is still claimable, which is fine");
-  const leftovers = await (await read(`${H}/state`, "mallory")).json();
-  assert.equal(leftovers, null, "the claimer inherited data from the household that was deleted");
+  assert.ok(
+    await allowed(patch(H, { deletedAt: Date.now(), deletedBy: "alice", "members/alice": null }, "alice")),
+    "the last member could not delete the household"
+  );
+  assert.ok(!(await allowed(write(`${H}/members/mallory`, member("m@x.com"), "mallory"))), "a deleted household was claimable");
+  assert.ok(!(await allowed(read(`${H}/state`, "mallory"))), "a stranger read a deleted household");
+  assert.ok(!(await allowed(read(`${H}/state`, "alice"))), "even the deleter can still read it — membership is gone, so this must fail");
+});
+
+t("the account that deleted a household can restore it, in that order", async () => {
+  /* The grace period is only real if the undo works. Membership goes back
+     FIRST — clearing the stamps is a write into the household, and writes
+     take a membership record, so the other order cannot work. */
+  await patch(H, { deletedAt: Date.now(), deletedBy: "alice", "members/alice": null }, "alice");
+  assert.ok(await allowed(write(`${H}/members/alice`, member("a@x.com"), "alice")), "the deleter could not put itself back");
+  assert.ok(await allowed(patch(H, { deletedAt: null, deletedBy: null }, "alice")), "the stamps could not be cleared");
+  assert.ok(await allowed(read(`${H}/state`, "alice")), "the data did not come back with it");
+});
+
+t("nobody else can restore a household they did not delete", async () => {
+  /* The restore case is an undo, not a second front door. It is keyed on the
+     uid in `deletedBy`, which only ever gets there by that account deleting
+     the household it was the last member of. */
+  await patch(H, { deletedAt: Date.now(), deletedBy: "alice", "members/alice": null }, "alice");
+  assert.ok(!(await allowed(write(`${H}/members/mallory`, member("m@x.com"), "mallory"))), "a stranger restored someone else's household");
+  assert.ok(!(await allowed(write(`${H}/members/mallory`, { ...member("m@x.com"), deletedBy: "mallory" }, "mallory"))), "naming yourself in the record was enough");
+});
+
+t("a stale deletedBy on a live household grants nothing", async () => {
+  /* Defence in depth for a half-finished restore: if the stamps were cleared
+     unevenly and `deletedBy` were left standing, that account must not still
+     hold a key to a household it has since been removed from. The restore
+     case requires `deletedAt` as well, so a lone `deletedBy` is inert. */
+  await patch(H, { deletedBy: "mallory" }, "alice");
+  assert.ok(!(await allowed(write(`${H}/members/mallory`, member("m@x.com"), "mallory"))), "a leftover deletedBy let an outsider in");
+});
+
+t("a guest cannot leave a tombstone behind", async () => {
+  // Same asymmetry as before: deleting reaches the catalog and the week plan.
+  await write(`${H}/invites/gtok`, { by: "alice", exp: soon(), role: "guest" }, "alice");
+  await write(`${H}/members/ghost`, { ...guest("Sam"), invite: "gtok" }, anon("ghost"));
+  assert.ok(!(await allowed(patch(H, { deletedAt: Date.now(), deletedBy: "ghost" }, anon("ghost")))), "a guest deleted the household");
+});
+
+t("the tombstone must be a number and a string, not anything at all", async () => {
+  // It is read by the scheduled sweep to decide what to erase. A deletedAt
+  // that is not a timestamp is a household the sweep cannot reason about.
+  assert.ok(!(await allowed(write(`${H}/deletedAt`, "yesterday", "alice"))));
+  assert.ok(!(await allowed(write(`${H}/deletedBy`, 42, "alice"))));
+  assert.ok(await allowed(write(`${H}/deletedAt`, Date.now(), "alice")));
 });
 
 t("presenting an invite that does not exist cannot CLAIM the household instead", async () => {
