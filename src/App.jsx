@@ -43,6 +43,7 @@ import {
   newHouseholdCode,
   ONBOARDED_KEY,
   MUST_CHOOSE_KEY,
+  PENDING_INVITE_KEY,
   GUEST_PREVIEW_KEY,
   USER_PREVIEW_KEY,
   STATUS_PREVIEW_KEY,
@@ -67,6 +68,7 @@ import {
   APP_DATA_VERSION,
   normalizeCatalog,
   parseJoinHash,
+  classifyJoinInput,
   needsUnitNotes,
   withUnitNotes,
   syncIndicator,
@@ -141,14 +143,27 @@ export default function App() {
      It is handed to the join FIELD rather than redeemed here, so a link goes
      through exactly the same validation as a paste. A link is a convenience
      for the typing, not a second way in. */
-  // Read once, in the initializer, so a later render cannot see a hash this
-  // has already cleared. There is no setter: a link is a one-shot arrival.
-  const [linkInvite, setLinkInvite] = useState(() =>
-    typeof window === "undefined" ? "" : parseJoinHash(window.location.hash)
-  );
+  /* AND IT SURVIVES SIGNING IN (item 89). This was read from the hash into
+     React state and nowhere else, while the hash itself was wiped on load —
+     so a sign-in that navigates away took the invite with it. Not an edge
+     case: the emailed sign-in link returns to origin+pathname by design, and
+     the Google popup falls back to a redirect whenever a browser blocks
+     popups, which iOS does readily. Both land back on the screen that had
+     just said "sign in below, then come back to this screen" with nothing on
+     it to come back to. That is why adding a second phone kept failing for
+     the person who WROTE the app.
+     localStorage, so the fallback survives a whole navigation. Read at
+     startup after the hash, so a freshly tapped link still wins. */
+  const [linkInvite, setLinkInvite] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return parseJoinHash(window.location.hash) || loadJSON(PENDING_INVITE_KEY) || "";
+  });
   useEffect(() => {
-    if (!linkInvite || typeof window === "undefined") return;
-    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    if (typeof window === "undefined") return;
+    if (linkInvite) {
+      saveJSON(PENDING_INVITE_KEY, linkInvite);
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
   }, [linkInvite]);
   const [syncStatus, setSyncStatus] = useState(syncEnabled ? "connecting" : "local-only");
   /* A write the server actively rejected (rules, quota, a malformed payload) —
@@ -210,6 +225,8 @@ export default function App() {
 
   const finishOnboarding = () => {
     saveJSON(ONBOARDED_KEY, true);
+    // Whatever brought the invite, this is the decision that ends it.
+    saveJSON(PENDING_INVITE_KEY, "");
     setOnboarded(true);
     saveJSON(MUST_CHOOSE_KEY, false);
     setMustChoose(false);
@@ -730,6 +747,36 @@ export default function App() {
     return { ok: true };
   };
 
+  /* REDEEM A WAITING INVITE THE MOMENT THERE IS AN ACCOUNT TO REDEEM IT FOR
+     (item 89). Tapping the link is one statement of intent and signing in is
+     the second; a "Join household" button afterwards was asking for a third,
+     on a screen the person had already been told to come back to. That last
+     step is where adding a second phone kept dying.
+     MEMBER INVITES ONLY. A guest link needs a typed NAME — it is the only
+     thing that will identify them in the member list — so it keeps its
+     button, and that screen asks for the name rather than a decision.
+     ONCE, guarded by a ref rather than by state: a failed redemption must
+     not retry on every render, and the message it leaves has to survive. */
+  const autoJoined = useRef(false);
+  const [autoJoining, setAutoJoining] = useState(false);
+  const [autoJoinError, setAutoJoinError] = useState("");
+  useEffect(() => {
+    if (!linkInvite || !user || onboarded || !authReady || autoJoined.current) return;
+    const parsed = classifyJoinInput(linkInvite);
+    if (parsed.kind !== "invite" || parsed.role === "guest") return;
+    autoJoined.current = true;
+    setAutoJoining(true);
+    joinFromOnboarding(parsed).then((res) => {
+      setAutoJoining(false);
+      if (!res.ok) setAutoJoinError(res.message || "That invite didn't work. Ask for a new link.");
+    });
+    /* joinFromOnboarding is deliberately NOT a dependency. It is rebuilt on
+       every render, so listing it would re-run this effect constantly; the
+       `autoJoined` ref is what makes "once" true, and it is a ref precisely
+       so that a re-render cannot undo it. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkInvite, user, onboarded, authReady]);
+
   /* Shown only to a browser with nothing of its own AND nobody signed in.
      Deliberately gated on authReady: `user` is null before Firebase answers,
      so without it a signed-in phone would flash the first-run screen on every
@@ -754,6 +801,8 @@ export default function App() {
       <Onboarding
         signedIn={!!user}
         leftLast={mustChoose}
+        joining={autoJoining}
+        joinError={autoJoinError}
         authError={authError}
         initialInvite={linkInvite}
         onJoin={joinFromOnboarding}

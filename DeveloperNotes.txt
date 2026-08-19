@@ -3018,6 +3018,55 @@ treatment: the store moved into the details panel and the name grew.
     Verified unclipped and with no horizontal overflow at both 320 and
     390px. 203/203.
 
+89. [DONE] THE INVITE DID NOT SURVIVE SIGNING IN, so adding a second phone
+    was impossible by the route the screen itself told you to take.
+    Reported plainly: "it takes me the SME to get another phone up and going
+    and even I can't get it to work. How would anyone (guests included) be
+    able to use this app without me there to onboard them?"
+
+    THE ANSWER IS NOT MORE COPY. It was read from the hash into React state
+    and stored nowhere else, while the hash was wiped on load — so the invite
+    existed in exactly one place, in memory, on a screen whose own
+    instruction was "sign in below, then come back to this screen". Any
+    sign-in that NAVIGATES took it with it, and TWO OF THE THREE ROUTES
+    NAVIGATE:
+      - the emailed sign-in link returns to origin+pathname, hash stripped,
+        deliberately and with a comment saying so (item 42)
+      - the Google popup falls back to signInWithRedirect whenever a browser
+        blocks popups, which iOS does readily
+    Only an in-page Google popup kept it. Item 82 fixed the screen closing
+    on sign-in; it never covered the screen being RELOADED by one. Come back
+    as instructed and there is nothing to come back to.
+
+    PERSISTED (PENDING_INVITE_KEY). Written when a link arrives, read at
+    startup AFTER the hash so a freshly tapped link still wins, cleared by
+    finishOnboarding — which is every way the question gets answered:
+    redeemed, or declined with Start my own list.
+    THE ADDRESS BAR STILL FORGETS. Those were always two properties and had
+    been tested as one: the URL must forget so a link cannot be re-redeemed
+    or screenshotted; the SCREEN must remember so signing in can leave and
+    return. The old test asserted the field came back EMPTY after a reload —
+    it was documenting the bug.
+
+    AND IT REDEEMS ITSELF once there is an account to redeem it for. Tapping
+    the link is one statement of intent, signing in is the second; a "Join
+    household" button afterwards asked for a third, and that last step is
+    where this kept dying. MEMBER INVITES ONLY — a guest link needs a typed
+    NAME, the only thing that will identify them in the member list, so that
+    screen keeps its button and asks for the name rather than for a decision.
+    Guarded by a ref, not state, so a failure cannot retry on every render,
+    and the screen says "Joining the household…" because a screen that
+    appears to do nothing for a second reads as broken.
+
+    WHAT IS STILL NOT PROVED HERE: redemption needs the database this build
+    compiles out, so the e2e covers the invite SURVIVING the round trip and
+    being forgotten when declined, not the join itself. Mutation-tested —
+    removing the restore fails both. The round trip driven is the real one:
+    arrive on a link, then load the bare URL with no hash, which is exactly
+    what a browser does returning from an email link.
+
+    277 unit, 67 rules, 213 e2e, `npm run check` green.
+
 88. [DONE] A MANGLED INVITE LINK MADE A HOUSEHOLD NAMED AFTER THE URL —
     AGAIN, and not by the route item 81 closed. Reported from a real attempt
     to add the second phone: the link was copied, sent, and opened on the

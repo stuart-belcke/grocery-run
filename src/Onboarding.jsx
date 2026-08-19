@@ -29,7 +29,7 @@ const card = { background: C.card, border: `1px solid ${C.line}`, borderRadius: 
 
 const label = { fontSize: 12, color: C.faint, display: "block", marginBottom: 4 };
 
-export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError, initialInvite = "", signedIn = false, leftLast = false }) {
+export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError, initialInvite = "", signedIn = false, leftLast = false, joining = false, joinError = "" }) {
   // Pre-filled when the app was opened from a tapped invite link. Editable
   // like any other paste — it goes through the same validation, and a link
   // that arrived mangled should be correctable rather than a dead end.
@@ -273,6 +273,22 @@ export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError, i
           return guestInvite ? [joinCard, justMeCard, signInCard] : [signInCard, joinCard, justMeCard];
         })()}
 
+        {/* THE APP IS REDEEMING IT FOR YOU (item 89). Signing in with an
+            invite waiting used to leave a button to press afterwards — a
+            third statement of a decision already made by tapping the link and
+            then signing in. It redeems itself now, and this says so, because
+            a screen that appears to be doing nothing for a second reads as
+            broken. */}
+        {joining && (
+          <div style={{ fontSize: 13, fontWeight: 500, color: C.green, padding: "10px 12px", background: C.greenSoft, borderRadius: 8, marginBottom: 12 }}>
+            Joining the household…
+          </div>
+        )}
+        {joinError && !msg && (
+          <div style={{ fontSize: 13, fontWeight: 500, color: C.tomato, padding: "10px 12px", background: C.tomatoSoft, borderRadius: 8, marginBottom: 12 }}>
+            {joinError}
+          </div>
+        )}
         {msg && (
           <div style={{ fontSize: 13, fontWeight: 500, color: msg.ok ? C.green : C.tomato, padding: "10px 12px", background: msg.ok ? C.greenSoft : C.tomatoSoft, borderRadius: 8 }}>
             {msg.text}

@@ -33,6 +33,15 @@ export const ONBOARDED_KEY = "grocery-run-onboarded-v1";
    no households, commit to the device's code" and mint exactly the household
    this exists to stop. Cleared by choosing — Start my own list, or joining. */
 export const MUST_CHOOSE_KEY = "grocery-run-must-choose-household-v1";
+/* THE INVITE A LINK BROUGHT IN, kept across a sign-in that leaves the page.
+   It used to live only in React state, alongside a hash cleared on load — so
+   any sign-in that NAVIGATES destroyed it. That is not a corner: the emailed
+   sign-in link deliberately returns to origin+pathname with no hash, and the
+   Google popup falls back to a redirect whenever a browser blocks popups.
+   Both come back to a screen whose whole instruction was "come back to this
+   screen", with nothing left on it. Cleared when the invite is redeemed or
+   deliberately skipped. */
+export const PENDING_INVITE_KEY = "grocery-run-pending-invite-v1";
 
 /* Forces the guest view in a LOCAL-ONLY build, for the e2e suite.
    Guest-ness comes from a members/{uid} record in the database, so a build
