@@ -631,7 +631,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
               tabular-nums because it changes as you tick things off, and
               proportional digits make it jump sideways when 10 becomes 9. */}
           <span style={{ fontSize: 13, color: C.faint, whiteSpace: "nowrap" }}>
-            <b style={{ fontSize: 15, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{remaining}</b> left to buy
+            <b style={{ fontSize: 15, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{remaining}</b> item{remaining === 1 ? "" : "s"} left to buy
           </span>
         </div>
       </StickyBar>

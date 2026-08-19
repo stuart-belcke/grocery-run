@@ -3170,6 +3170,14 @@ treatment: the store moved into the details panel and the name grew.
        TABULAR NUMERALS, because it changes as you tick things off and
        proportional digits make it jump sideways when 10 becomes 9.
 
+       AND IT NAMES ITS UNIT NOW: "3 items left to buy", not "3 left to
+       buy". The argument is not that the bare number is unclear on its own
+       — it is that the count directly beneath it says "2 meals selected",
+       so one line named what it counted and the other did not. On a screen
+       showing both, that asymmetry is the thing that makes you look twice.
+       Pluralised, like the meals line. Costs nothing in layout: the bar is
+       79px at 320 and 68px at 390 either way.
+
        IT COSTS 3px OF THE STICKY BAR at 390px (65 -> 68) and nothing at 320
        (79 either way) — measured before and after, because the comment
        sitting on that bar warns specifically about it growing, and the
