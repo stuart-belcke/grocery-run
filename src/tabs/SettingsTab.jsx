@@ -711,6 +711,33 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                 phone tries it and is refused — at which point the app's
                 existing access-denied message is what you get. It is a
                 shortcut list, not proof of access. */}
+            {/* ...OR whenever there is a deleted one to show underneath.
+                A "Deleted, still recoverable" list on its own, with nothing
+                above it, reads as the whole answer to "which households am
+                I in" — which is the opposite of what it is. */}
+            {(liveHouseholds.length > 1 || deletedHouseholds.length > 0) && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 12, color: C.faint, marginBottom: 4 }}>Households this account is in</div>
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+                  {liveHouseholds.map((h) => (
+                    <li key={h.code} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 13 }}>
+                      <span style={{ flex: 1, minWidth: 0, fontFamily: "ui-monospace, Menlo, monospace", wordBreak: "break-all", color: C.ink }}>
+                        {h.code}
+                      </span>
+                      {h.code === code ? (
+                        <span style={{ fontSize: 11, color: C.green, fontWeight: 500 }}>this phone</span>
+                      ) : (
+                        <Btn small onClick={() => setAskJoin(h.code)}>Switch</Btn>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* BELOW the live ones, not above. These are not somewhere you
+                can go, so they must not be the first thing read in a list
+                whose whole job is telling you where you can go. */}
             {deletedHouseholds.length > 0 && (
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 12, color: C.faint, marginBottom: 4 }}>Deleted, still recoverable</div>
@@ -729,26 +756,6 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                 <p style={{ fontSize: 12, color: C.faint, margin: "6px 0 0" }}>
                   Nobody can open these — the list, the week and the recipes are unreadable to every account, including this one, until you restore. They are erased for good about {graceDays} days after deletion.
                 </p>
-              </div>
-            )}
-
-            {liveHouseholds.length > 1 && (
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 12, color: C.faint, marginBottom: 4 }}>Households this account is in</div>
-                <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
-                  {liveHouseholds.map((h) => (
-                    <li key={h.code} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 13 }}>
-                      <span style={{ flex: 1, minWidth: 0, fontFamily: "ui-monospace, Menlo, monospace", wordBreak: "break-all", color: C.ink }}>
-                        {h.code}
-                      </span>
-                      {h.code === code ? (
-                        <span style={{ fontSize: 11, color: C.green, fontWeight: 500 }}>this phone</span>
-                      ) : (
-                        <Btn small onClick={() => setAskJoin(h.code)}>Switch</Btn>
-                      )}
-                    </li>
-                  ))}
-                </ul>
               </div>
             )}
 
