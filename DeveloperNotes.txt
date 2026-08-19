@@ -3226,6 +3226,32 @@ treatment: the store moved into the details panel and the name grew.
        paragraph. It sits directly under a heading reading "Your
        ingredients", so it was the heading again, in a sentence.
 
+    I. AND THEN THE COUNTS LOOKED WRONG WHERE THEY SAT — reported as "the
+       spacing looks weird now", which was fair: F caused it. Two problems,
+       one self-inflicted and one that had been there all along.
+
+       THEY ARE NOT THE SAME KIND OF NUMBER, and F treated them alike "for
+       consistency", which was the mistake. "Items left to buy" changes
+       every time you tick something off and is checked across a whole trip.
+       "Meals selected" does not move once you are in the shop — it is
+       context for why the list looks like it does. Two heavy numbers, one
+       pushed to the right of one row and one to the left of the next,
+       zigzag. So the meals count went back to plain faint and moved ACROSS
+       to sit beside Done shopping: what is in this trip and ending this
+       trip are one thought, and the row stops having two things stranded at
+       opposite edges.
+
+       THE OLDER BUG, WHICH ONLY MEASURING FOUND: the pinned count was
+       right-aligned by a <div style={{flex:1}}/> spacer, and that row
+       WRAPS. A spacer is a flex ITEM, so when the count wrapped to a second
+       line the spacer stayed behind on the first — the count sat at the
+       LEFT edge at 390px and the RIGHT edge at 320px. A figure you check
+       across a whole trip moving side to side depending on the phone. An
+       auto margin is applied per line and holds the edge either way.
+       Measured after: items and Done shopping both end at 306 on a 320px
+       screen and 376 on a 390px one, which is the alignment that was never
+       there before.
+
     ALSO RENAMED FOR CONSISTENCY, not just for width: "Save to Ingredients"
     on the List tab is "Save to Pantry", and the prose that said "the
     Ingredients tab" says Pantry. A rename that leaves the old word in the

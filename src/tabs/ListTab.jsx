@@ -621,7 +621,6 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
           <Seg options={[{ value: "all", label: "All items A–Z" }, { value: "store", label: "By store" }]} value={view} onChange={setView} />
           {view === "store" && <Seg options={[{ value: "az", label: "A–Z" }, { value: "flow", label: "Store flow" }]} value={storeSort} onChange={setStoreSort} />}
-          <div style={{ flex: 1 }} />
           {/* THE NUMBER IS THE CONTENT; "left to buy" is its label (item 87).
               Both were faint 13px, which made the one figure you check most
               in a shop — at arm's length, in whatever lighting the shop has,
@@ -630,19 +629,34 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
               emphasis without the whole line shouting.
               tabular-nums because it changes as you tick things off, and
               proportional digits make it jump sideways when 10 becomes 9. */}
-          <span style={{ fontSize: 13, color: C.faint, whiteSpace: "nowrap" }}>
+          {/* marginLeft:auto, NOT a <div style={{flex:1}}/> spacer. The row
+              wraps, and a spacer is a flex ITEM: when the count wrapped onto
+              a second line the spacer stayed behind on the first, so the
+              count sat at the LEFT edge at 390px and at the RIGHT edge at
+              320px. A number you check across a whole trip should not move
+              side to side depending on the phone. An auto margin is applied
+              per line, so it holds the right edge wrapped or not. */}
+          <span style={{ fontSize: 13, color: C.faint, whiteSpace: "nowrap", marginLeft: "auto" }}>
             <b style={{ fontSize: 15, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{remaining}</b> item{remaining === 1 ? "" : "s"} left to buy
           </span>
         </div>
       </StickyBar>
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", margin: "10px 0 8px" }}>
-        {/* Same treatment, same reason — one pattern for a count on this
-            tab rather than two. */}
+      {/* THESE TWO COUNTS ARE NOT THE SAME KIND OF NUMBER, and treating them
+          alike is what made this corner look wrong. "Items left to buy"
+          changes every time you tick something off and is the figure you
+          check across a whole trip; "meals selected" does not move once you
+          are in the shop — it is context for why the list looks like it
+          does. Giving both the bold-ink-15px treatment put a heavy number on
+          the right of one row and the left of the next, which zigzags.
+          So the meals count goes back to plain faint, and moves ACROSS to
+          sit with Done shopping: what is in this trip, and ending this trip,
+          are one thought, and the row stops having two things stranded at
+          opposite edges with a gap between them. */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "flex-end", margin: "10px 0 8px" }}>
         <span style={{ fontSize: 13, color: C.faint }}>
-          <b style={{ fontSize: 15, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{selectedMealCount}</b> meal{selectedMealCount === 1 ? "" : "s"} selected
+          {selectedMealCount} meal{selectedMealCount === 1 ? "" : "s"} selected
         </span>
-        <div style={{ flex: 1 }} />
         <Btn kind="danger" onClick={() => setConfirmDone(true)}>Done shopping</Btn>
       </div>
 
