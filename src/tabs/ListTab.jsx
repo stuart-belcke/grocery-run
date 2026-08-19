@@ -461,9 +461,13 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
                 exactly what the guest role grants. Only the "always" branch is
                 a catalog write, and that is the branch they are never offered. */}
             <div style={{ borderTop: `1px dashed ${C.line}`, paddingTop: 8, marginTop: 2 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 6 }}>
-                Where to buy it
-              </div>
+              {/* NO HEADING. A dropdown reading "Costco" inside an item's own
+                  panel is a store, and the sentence under it already says which
+                  of the two answers is in force ("Just for this trip. It
+                  normally lives at Costco."). The select keeps its aria-label,
+                  so nothing is lost for a screen reader.
+                  "On the list for" above DOES stay: a column of quantities and
+                  meal names is genuinely ambiguous without it. */}
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <select
                   value={itemStore}

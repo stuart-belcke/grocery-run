@@ -3096,6 +3096,32 @@ treatment: the store moved into the details panel and the name grew.
     always-rendered line fails correctly. Still not total, and said in the
     file: a row behind a dialog is not measured.
 
+    D. THREE SECTION HEADINGS DELETED, from the same question: "notes like
+       'Where it lives' — is that necessary?" It was not. A category label
+       earns its place by telling you something the line under it does not.
+
+       WHERE IT LIVES (Pantry) sat above "Usually at Costco · aisle 3" — the
+       same fact, in capitals, twice.
+       WHERE TO BUY IT (List row) sat above a dropdown reading "Costco", in
+       a panel belonging to one item, with a sentence under it already
+       saying which of the two answers is in force. The select keeps its
+       aria-label, so a screen reader loses nothing.
+       ON THE SHOPPING LIST (Pantry) was worse than redundant: the checkbox
+       under it says a staple is "listed only when we run out", which the
+       heading directly contradicts.
+
+       ON THE LIST FOR STAYS, and the contrast is the rule: a column of
+       quantities and meal names ("2 cups — Stir fry") is genuinely
+       ambiguous without a heading. That one adds a fact. The other three
+       repeated one.
+
+       AND IT CAUGHT THE SAME DRIFT AGAIN. Two FAQ answers told people to
+       "pick a store under Where to buy it" and "set the aisle under Where
+       it lives" — labels that had just stopped existing. lib.test.js holds
+       the help text to real TAB names; nothing holds it to the names of
+       anything else on screen. Fixed here by hand; worth knowing the guard
+       is narrower than it looks.
+
     ALSO RENAMED FOR CONSISTENCY, not just for width: "Save to Ingredients"
     on the List tab is "Save to Pantry", and the prose that said "the
     Ingredients tab" says Pantry. A rename that leaves the old word in the

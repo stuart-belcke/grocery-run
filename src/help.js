@@ -45,12 +45,12 @@ export const FAQS = [
   },
   {
     q: "How do I change where something is bought?",
-    a: "Tap the round i on the {List} row, then pick a store under Where to buy it. It asks whether that is just for this trip or from now on, because those are different things and the app cannot tell which you meant. Just this trip goes back afterwards; Always makes it the item's home for everyone in the household, the same setting the {Pantry} tab shows.",
+    a: "Tap the round i on the {List} row, then pick a store from the dropdown. It asks whether that is just for this trip or from now on, because those are different things and the app cannot tell which you meant. Just this trip goes back afterwards; Always makes it the item's home for everyone, the same setting {Pantry} shows.",
     keywords: ["store", "shop", "supermarket", "reroute", "override", "aisle", "permanent", "today", "dropdown"],
   },
   {
     q: "Where do the aisle numbers come from?",
-    a: "You set them, per store. Easiest while you are actually standing in the aisle: tap the round i on a {List} row, then set the aisle under Where it lives. You can also set them on {Pantry}. Switch {List} to Store flow to walk the shop in aisle order.",
+    a: "You set them, per store. Easiest while you are actually standing in the aisle: tap the round i on a {List} row, then set the aisle beside the store. You can also set them on {Pantry}. Switch {List} to Store flow to walk the shop in aisle order.",
     keywords: ["aisle", "shop", "supermarket", "store flow", "order", "walk", "number", "layout"],
   },
   {

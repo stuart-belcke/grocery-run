@@ -19,7 +19,6 @@ const pillCount = { minWidth: 22, textAlign: "center", fontWeight: 700, fontVari
 const segWrap = { display: "inline-flex", border: `1px solid ${C.line}`, borderRadius: 999, overflow: "hidden", flexShrink: 0 };
 const segBtn = { padding: "4px 10px", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, lineHeight: 1.6 };
 // Section heading inside the expanded row panel.
-const groupLabel = { fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: C.faint, marginBottom: 6 };
 
 export function PantryTab({ data, update, updateCatalog, isGuest }) {
   const [newStore, setNewStore] = useState("");
@@ -589,7 +588,11 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                             read-only footer below ("used in ...", "on the list"),
                             which is the part that helps in a shop. */}
                         {!isGuest && (<>
-                        <div style={groupLabel}>Where it lives</div>
+                        {/* NO HEADING. "Usually at Costco · aisle 3" is already a
+                            sentence about where the thing lives; a WHERE IT LIVES
+                            above it was the same fact in capitals. A category
+                            label earns its place by telling you something the
+                            line under it does not. */}
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                           <label style={{ fontSize: 12, color: C.faint }}>Usually at</label>
                           <select aria-label={`Default store for ${name}`} value={cfg.store || UNASSIGNED} onChange={(e) => setCfg(key, { store: e.target.value })} style={{ fontSize: 16, padding: "6px 6px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", maxWidth: 170 }}>
@@ -647,7 +650,11 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
 
                         </>)}
                         {!isGuest && (<>
-                        <div style={{ ...groupLabel, marginTop: 14 }}>On the shopping list</div>
+                        {/* NO HEADING, and this one was worse than redundant:
+                            the checkbox under it says a staple is "listed only
+                            when we run out", which a heading reading ON THE
+                            SHOPPING LIST directly contradicts. */}
+                        <div style={{ marginTop: 14 }} />
                         {/* Staple designation lives here rather than on the collapsed
                             row: it's a set-once property, unlike the have/need state.
                             It writes the catalog, so it goes for a guest — saying a
