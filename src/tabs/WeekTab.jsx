@@ -378,12 +378,20 @@ export function WeekTab({ data, update, isGuest }) {
                         // rather than an invitation.
                         <span style={{ flex: 1, fontSize: 13, color: C.faint, padding: "7px 10px" }}>—</span>
                       ) : !recipe ? (
-                        // Empty slot — addable in either mode.
+                        /* Empty slot — addable in either mode.
+                           INK, NOT FAINT (item 87). This is the primary action
+                           on an empty day and it was painted the grey the app
+                           uses for supporting notes, which reads as "disabled"
+                           or "already handled" on the one row whose whole job
+                           is to be tapped. Not a contrast failure — faint is
+                           5.67:1 on white and passes AA — but 5.67 against
+                           ink's 13.84 is the difference between a note and a
+                           button, and this is a button. */
                         <button
                           onClick={() => openPicker(day, type)}
                           aria-label={`Choose a meal for ${day} ${type}`}
                           title="Tap to choose a meal"
-                          style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", fontFamily: fontBody, fontSize: 13, padding: "7px 10px", borderRadius: 8, cursor: "pointer", border: `1px solid ${C.line}`, background: "#fff", color: C.faint }}
+                          style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", fontFamily: fontBody, fontSize: 13, padding: "7px 10px", borderRadius: 8, cursor: "pointer", border: `1px solid ${C.line}`, background: "#fff", color: C.ink }}
                         >
                           <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>＋</span>
                           Choose a meal
@@ -572,7 +580,7 @@ export function WeekTab({ data, update, isGuest }) {
                       onClick={() => openPicker(day, defaultType(day))}
                       aria-label={`Choose a meal for ${day}`}
                       title="Tap to choose a meal"
-                      style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", fontFamily: fontBody, fontSize: 13, padding: "7px 10px", borderRadius: 8, cursor: "pointer", border: `1px solid ${C.line}`, background: "#fff", color: C.faint }}
+                      style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", fontFamily: fontBody, fontSize: 13, padding: "7px 10px", borderRadius: 8, cursor: "pointer", border: `1px solid ${C.line}`, background: "#fff", color: C.ink }}
                     >
                       <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>＋</span>
                       Choose a meal

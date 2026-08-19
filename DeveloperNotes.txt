@@ -3129,6 +3129,34 @@ treatment: the store moved into the details panel and the name grew.
        anything else on screen. Fixed here by hand; worth knowing the guard
        is narrower than it looks.
 
+    E. TWO MORE, AND THEY NEEDED OPPOSITE FIXES. Asked as one question —
+       should "Choose a meal" and the servings line be darker or bigger? —
+       and the honest answer was one each, for a reason worth writing down.
+
+       MEASURED FIRST, because "too faint" is a claim with a number. C.faint
+       (#63695B) is 5.67:1 on white and 5.20 on paper; both pass AA, which
+       needs 4.5 under ~18px. So neither was a contrast failure and neither
+       fix is about the colour being illegal.
+
+       "CHOOSE A MEAL" WAS THE WRONG COLOUR FOR WHAT IT IS. It is the
+       primary action on an empty day, painted in the grey this app uses for
+       supporting notes — which reads as disabled, or as already handled, on
+       the one row whose entire job is to be tapped. Ink, at 13.84:1. Size
+       unchanged: a week can show 21 of these rows and they are a control,
+       not reading.
+
+       "SERVES 4 · onion, garlic, …" IS supporting text, and darkening it
+       would have been the wrong fix twice over — the recipe name above it
+       is 18px display bold, so ink would put the two in competition on a
+       screen you scan rather than read. 12px -> 13px instead, which is
+       just item 87B's own rule applied where it had been missed: a line you
+       read, not a label you glance at.
+
+       THE GENERAL SHAPE: faint-versus-ink is a question about what the text
+       IS, and size is a question about how it is consumed. Reaching for the
+       same lever for both is how a UI ends up either uniformly shouty or
+       uniformly unreadable.
+
     ALSO RENAMED FOR CONSISTENCY, not just for width: "Save to Ingredients"
     on the List tab is "Save to Pantry", and the prose that said "the
     Ingredients tab" says Pantry. A rename that leaves the old word in the

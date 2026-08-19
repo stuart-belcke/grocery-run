@@ -330,7 +330,12 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
                 </span>
               )}
             </div>
-            <div style={{ fontSize: 12, color: C.faint, marginTop: 2 }}>
+            {/* SIZE, NOT COLOUR (item 87). This one IS supporting text — the
+                recipe name above it is 18px display bold, and painting the
+                ingredient list ink would have the two competing on a screen
+                you scan rather than read. 13px is the app's floor for a line
+                you read rather than a label you glance at. */}
+            <div style={{ fontSize: 13, color: C.faint, marginTop: 2 }}>
               Serves {base} · {r.ingredients.map((i) => i.name).join(", ")}
             </div>
             <div style={{ color: C.green, fontSize: 12, fontWeight: 500, marginTop: 4 }}>
