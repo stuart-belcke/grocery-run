@@ -3204,6 +3204,28 @@ treatment: the store moved into the details panel and the name grew.
        app had one grey for "supporting" and had quietly filed several
        load-bearing sentences under it.
 
+    H. "LIVES" WAS THE WRONG WORD, EVERYWHERE IT APPEARED. Reported as
+       exactly that: "'Where it always lives' isn't descriptive. 'Lives'
+       isn't the right word."
+
+       IT MEANT "WHICH SHOP YOU BUY IT AT" and read as "where you keep it" —
+       worst of all on the PANTRY tab, where a cupboard is precisely what
+       the word suggests. It had spread to five places: the Pantry intro
+       (both the member and guest versions), the two halves of the List
+       row's store line, the just-this-trip-or-always dialog, and a FAQ
+       answer. Every one now names the thing: "the store you usually buy it
+       at", "which store you buy it at", "which store an ingredient comes
+       from".
+
+       A METAPHOR THAT NEEDS THE READER TO ALREADY KNOW THE ANSWER is not
+       doing the job of a label, and this one had propagated by being copied
+       from wherever it was written first — which is how a wrong word
+       becomes the house term for something.
+
+       ALSO REMOVED: "Everything you buy." from the head of the same
+       paragraph. It sits directly under a heading reading "Your
+       ingredients", so it was the heading again, in a sentence.
+
     ALSO RENAMED FOR CONSISTENCY, not just for width: "Save to Ingredients"
     on the List tab is "Save to Pantry", and the prose that said "the
     Ingredients tab" says Pantry. A rename that leaves the old word in the

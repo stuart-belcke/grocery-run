@@ -463,8 +463,8 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
             <div style={{ borderTop: `1px dashed ${C.line}`, paddingTop: 8, marginTop: 2 }}>
               {/* NO HEADING. A dropdown reading "Costco" inside an item's own
                   panel is a store, and the sentence under it already says which
-                  of the two answers is in force ("Just for this trip. It
-                  normally lives at Costco."). The select keeps its aria-label,
+                  of the two answers is in force ("Just for this trip.
+                  You usually buy it at Costco."). The select keeps its aria-label,
                   so nothing is lost for a screen reader.
                   "On the list for" above DOES stay: a column of quantities and
                   meal names is genuinely ambiguous without it. */}
@@ -501,10 +501,10 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
               <div style={{ color: C.faint, marginTop: 6 }}>
                 {data.list.overrides[item.key] != null ? (
                   <>
-                    Just for this trip. It normally lives at <b style={{ color: C.ink }}>{homeCfg.store}</b>.
+                    Just for this trip. You usually buy it at <b style={{ color: C.ink }}>{homeCfg.store}</b>.
                   </>
                 ) : (
-                  <>Where it always lives.</>
+                  <>The store you usually buy it at.</>
                 )}
               </div>
             </div>
@@ -921,8 +921,8 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
         ]}
       >
         <b style={{ color: C.ink }}>Just this trip</b> moves it for today only and it goes back afterwards.{" "}
-        <b style={{ color: C.ink }}>Always</b> makes {askStore ? askStore.store : "it"} where this
-        item lives from now on, for everyone in the household.
+        <b style={{ color: C.ink }}>Always</b> makes {askStore ? askStore.store : "it"} the store you
+        buy this from now on, for everyone in the household.
       </ChoiceDialog>
 
       <ConfirmDialog

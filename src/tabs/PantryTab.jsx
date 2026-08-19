@@ -317,8 +317,8 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
         <h2 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 2px" }}>Your ingredients</h2>
         <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
           {isGuest
-            ? "Everything the household buys. Tap \u2699 on a row to see where it lives and which meals use it \u2014 changing any of it belongs to the household's own accounts."
-            : "Everything you buy. Tap \u2699 on a row to set where it lives, its aisle (lower = earlier in your walk), and whether it's a home staple."}
+            ? "Tap \u2699 on a row to see which store an item comes from and which meals use it. Changing any of it belongs to the household's own accounts."
+            : "Tap \u2699 on a row to set which store you buy it at, its aisle (lower = earlier in your walk), and whether it's a home staple."}
         </p>
         {/* Adding a new ingredient and searching the existing ones are different
             jobs that both start with typing into a box, so they're kept in

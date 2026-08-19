@@ -80,7 +80,7 @@ export const FAQS = [
   },
   {
     q: "What is a guest link?",
-    a: "A link for somebody doing the shop who does not need an account. A guest sees everything and can work the shopping list — ticking off, adding items, flagging a staple as run out — but cannot change recipes, the week plan, or where an ingredient lives. Under Household, press Guest link. Unlike a full invite it is NOT used up when somebody joins: it keeps working for its full hour, so more than one person can come in on the same link. Revoke it under Household if that is not what you want.",
+    a: "A link for somebody doing the shop who does not need an account. A guest sees everything and can work the shopping list — ticking off, adding items, flagging a staple as run out — but cannot change recipes, the week plan, or which store an ingredient comes from. Under Household, press Guest link. Unlike a full invite it is NOT used up when somebody joins: it keeps working for its full hour, so more than one person can come in on the same link. Revoke it under Household if that is not what you want.",
     keywords: ["guest", "link", "read only", "helper", "temporary", "no account"],
   },
   {
