@@ -178,3 +178,59 @@ test("nothing renders below 12px", async () => {
     await page.done();
   }
 });
+
+/* THE PINNED LIST HEADER STAYS TWO LINES (item 87K).
+
+   This bar has been wrong in three directions in one session — everything
+   pinned at three wrapped lines (item 51), the count moved out entirely, the
+   count moved back — and every argument about it was settled by measuring
+   rather than by reasoning. What it costs is the whole point of the design,
+   so the cost is asserted rather than remembered.
+
+   A BUDGET PER WIDTH, NOT ONE NUMBER, because the answer genuinely differs:
+   at 390px the header is two lines (~84px) and at 320px it is three (~123px).
+   The two grouping toggles wrap on their own at 320 regardless of what else
+   is in the bar, so a third line there is inherent to keeping all of it
+   pinned rather than a regression — and it was accepted knowing that. What
+   the budgets catch is the NEXT line: 100 at 390 fails a third (~123), 140 at
+   320 fails a fourth (~168).
+
+   NOT EXACT PIXELS. The sandbox falls back to system-ui where a phone has
+   Space Grotesk, so a tight equality would fail on font metrics rather than
+   on layout.
+
+   AND THE COUNT AND DONE SHOPPING SHARE THE TOP LINE, which is the ordering
+   decision — they come first in the source so that a wrap displaces the
+   grouping toggles rather than them. Asserting the height alone would pass on
+   a layout that pushed the count to the second line. */
+test("the pinned List header stays two lines, with the count on the first", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog(), state: busy() });
+  try {
+    for (const [width, budget] of [[320, 140], [390, 100]]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.waitForTimeout(300);
+      const m = await page.evaluate(() => {
+        const span = [...document.querySelectorAll("span")].find((s) => /left to buy$/.test((s.textContent || "").trim()));
+        const done = [...document.querySelectorAll("button")].find((b) => /Done shopping/.test(b.textContent || ""));
+        let bar = span;
+        while (bar && getComputedStyle(bar).position !== "sticky") bar = bar.parentElement;
+        return {
+          found: !!(span && done && bar),
+          height: bar ? Math.round(bar.getBoundingClientRect().height) : -1,
+          sameLine: span && done
+            ? Math.abs(
+                span.getBoundingClientRect().top + span.getBoundingClientRect().height / 2 -
+                  (done.getBoundingClientRect().top + done.getBoundingClientRect().height / 2)
+              ) < 12
+            : false,
+        };
+      });
+      assert.ok(m.found, `at ${width}px: the count, Done shopping and the pinned bar should all be on the List tab`);
+      assert.ok(m.height > 0 && m.height < budget, `at ${width}px the pinned header is ${m.height}px, over its ${budget}px budget — it has grown a line`);
+      assert.ok(m.sameLine, `at ${width}px the count and Done shopping are on different lines; the toggles should be what wraps`);
+    }
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});

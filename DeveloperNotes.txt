@@ -3349,6 +3349,22 @@ treatment: the store moved into the details panel and the name grew.
        checking. A forced flexBasis:100% break was tried and cost 10px at
        both widths by stopping the toggles sharing a line where they fit.
 
+       AND THE COST IS NOW ASSERTED, not remembered. "The pinned List header
+       stays two lines, with the count on the first" holds a height budget
+       per width — 100px at 390, 140px at 320 — plus the ordering, because a
+       height check alone would pass on a layout that pushed the count to
+       the second line. Budgets rather than exact pixels: the sandbox falls
+       back to system-ui where a phone has Space Grotesk, so equality would
+       fail on font metrics rather than on layout.
+       WRITING IT REVEALED A NUMBER WORTH KNOWING: at 320px this header is
+       THREE lines (123px), not two. The grouping toggles wrap on their own
+       at that width whatever else is in the bar, so a third line there is
+       inherent to pinning all of it — not a regression, but not what 390px
+       shows either, and the budgets say so per width rather than pretending
+       one answer covers both.
+       Mutation-tested: forcing the count onto its own line takes 320px to
+       161px and fails it.
+
        AND ONE LABEL GOT SHORTER ON ITS OWN MERITS while measuring: "All
        items A–Z" is now "All items". The A–Z described a sort that the
        OTHER toggle owns and that this view does not let you change, so the
