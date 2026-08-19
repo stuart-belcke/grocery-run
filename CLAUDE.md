@@ -75,6 +75,12 @@ provided the `FIREBASE_SERVICE_ACCOUNT` secret is set. Without it the deploy
 step warns and skips, which is the one case where a green run has not shipped
 the rules.
 
+**Leaving and restoring a household cannot be tested here** — both need the
+database the e2e build compiles out. The rules under them are covered
+(`tests/rules/`), and the whole path was walked once by hand on the real
+database (item 86). Anything you change there is unverified until somebody
+repeats that walk: delete a household, run the sweep dry, press Restore.
+
 **Two scripts delete or overwrite production and run unattended** —
 `scripts/reclaim-households.mjs` (weekly sweep) and `scripts/deploy-rules.mjs`.
 Both are covered by `tests/rules/sweep.test.mjs`, which drives them as real

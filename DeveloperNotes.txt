@@ -3108,6 +3108,27 @@ treatment: the store moved into the details panel and the name grew.
     orphans unasked fails 1, dropping the claim guard from the rules fails
     2, dropping deletedAt from the restore case fails 1.
 
+    AND THEN VERIFIED LIVE, on the real database, the same day — the part
+    the tests structurally cannot reach, because leaving and restoring both
+    need a database the browser build compiles out. What actually happened,
+    in order, on the account that had been collecting junk households since
+    item 81:
+      - seven households, six of them junk. WORTH RECORDING WHY THE SWEEP
+        COULD NOT HELP: it collects households with NO members, and every
+        one of the six carried a membership record — that is precisely what
+        the churn bug did. They were never orphans. The advice to "run the
+        script to clear the junk" was wrong for the case it was given for.
+        They were cleared the way a person would: switch to each, leave it.
+      - the leave stamped all six. A dry-run sweep then reported exactly
+        `6 within grace, 0 orphans` and `nothing to erase`, with the one
+        real household untouched. The classification is right about real
+        data, not just about fixtures.
+      - RESTORE PUT ONE BACK, into the list of households the account is in.
+        That closes the last unproven step: membership record back first,
+        stamps cleared second, against production rules.
+    So the whole path — delete, classify, restore — has now run once end to
+    end outside the emulator.
+
     ONE TRAP FOUND WHILE WIRING IT UP: `node --test` runs each FILE in its
     own process, in parallel, and both rules suites start an emulator on the
     same port. The second one loses — by hanging for sixty seconds and then
