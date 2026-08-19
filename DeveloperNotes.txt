@@ -287,6 +287,50 @@ Tier 4 — multi-device / integrations (highest risk, do last)
 
 18. Export to / link with a Google calendar, keyed off the household.
 
+90. NAME A HOUSEHOLD. Proposed while the onboarding work was still in flight,
+    and deliberately queued behind it: "once we get this working flawlessly,
+    we can improve the household names by allowing the user to create a name."
+    Right sequence — the app currently cannot say WHOSE household you just
+    joined, only home-cx2ur9zg, and that gap turned up while writing the join
+    confirmation (item 89).
+
+    THE NAME MUST NOT GO IN THE KEY, which is the one part of the proposal to
+    change. The suggestion was to make the name unique internally "by
+    appending a string similar to what we currently have" — read as a slug
+    key like `stuarts-household-cx2ur9zg`, that is expensive and slightly
+    unsafe:
+      - THE CODE TRAVELS. It is in every invite link, every message somebody
+        forwards, every screenshot. A key that reads "stuarts-household-…"
+        tells anyone who sees it whose it is; the current code deliberately
+        means nothing to a stranger.
+      - RENAMING WOULD BE A MIGRATION. Change the key and the whole node
+        moves, every device's cached code breaks, and every users/{uid}/
+        households entry is orphaned. With a separate field a rename is one
+        write.
+      - IT WOULD UNDO ITEM 88. The rules now require ^home-[a-z0-9]{4,34}$
+        precisely so a mangled URL cannot be laundered into a code. A slug
+        key needs that loosened again, and that guard was not cheap to learn.
+      - UNIQUENESS IS NOT NEEDED. A display name is a label, not an
+        identifier. Two households may both be "Home" with no consequence,
+        and enforcing otherwise is a check that buys nothing.
+
+    SO: households/{code}/name, key untouched. Readable by members (the $code
+    ".read" already covers it), writable by full members (ditto ".write"), a
+    ".validate" for a string with a length cap. No rules restructuring.
+
+    WHERE IT SHOWS, all places that currently print a code at a person:
+    the household list in Settings, the deleted-and-recoverable list, the
+    switch-household dialog, the leave dialogs, and item 89's join
+    confirmation ("You've joined Stuart's Household").
+
+    ONE WRINKLE WORTH KNOWING BEFORE STARTING: a person holding an invite
+    CANNOT read the name yet — reads require a membership record, which is
+    the thing they are about to get. So "You've been invited to Stuart's
+    Household" on the first-run screen would need either the name riding in
+    the link (leaking it into URLs and messages) or a public read on part of
+    the household. Neither is worth it: show the name AFTER joining, and
+    leave the invitation generic.
+
 
 Hygiene — not features, and not sequenced
 ------------------------------------------
