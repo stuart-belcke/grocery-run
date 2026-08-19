@@ -21,7 +21,13 @@
 export const HOW_IT_WORKS = [
   "Choose what you feel like cooking on {Recipes}, and give the week a shape on {Plan}.",
   "{List} then builds itself from those recipes — every ingredient added up, and grouped by the store and aisle you keep on {Pantry}.",
-  "Everyone in the household sees the same {List}, so whoever is out can tick things off as they go.",
+  /* DEFINES THE WORD IN THE LINE THAT ALREADY USES IT (item 87). "Household"
+     appeared here, and as a whole section of Settings, without anywhere
+     saying what one IS — the app's own term for its central idea, left to be
+     inferred. A clause is the right size for that: what a household is
+     belongs here, and what you can DO with one (invite, remove, leave,
+     restore) is on the Household section itself and in its own dialogs. */
+  "A household is you and whoever you shop with. Everyone in it sees the same {List}, so whoever is out can tick things off as they go.",
 ];
 
 /* Every entry is a question somebody actually asked, or a confusion the app

@@ -3373,6 +3373,30 @@ treatment: the store moved into the details panel and the name grew.
        The count reads left and the action sits right: status, then what to
        do about it.
 
+    M. DOES "HOW IT WORKS" NEED TO EXPLAIN HOUSEHOLDS? Asked with the right
+       follow-up attached — "or is that too much?" — and the answer is a
+       clause, not a section.
+
+       THE WORD WAS ALREADY THERE, UNDEFINED. The third line of the summary
+       said "Everyone in the household sees the same {List}", and a whole
+       Settings section is called Household, and nothing anywhere said what
+       one IS. The app's central idea, left to be inferred from context by
+       the person least likely to manage it — the second phone, who did not
+       build any of this.
+
+       "A household is you and whoever you shop with." Thirteen words, in
+       the line that was already using the term. What a household IS belongs
+       in the summary; what you can DO with one — invite, remove, leave,
+       restore, the 30-day undo — belongs on the Household section and in
+       its own dialogs, where it already is. Explaining membership in the
+       overview WOULD be too much, which is what the question was really
+       asking.
+
+       NO NEW FAQ EITHER. Searching "household" already returns the invite,
+       guest and offline answers; what was missing was the definition, and a
+       definition sitting three lines from the top of the section does not
+       need to be findable by search as well.
+
     L. AND A SECOND STALE LITERAL IN A TEST, the same shape as the one in
        B's rename. "searchHelp ignores the tab markup" searched for the
        hardcoded string "meals", so renaming the tab broke it — and the
