@@ -3252,6 +3252,45 @@ treatment: the store moved into the details panel and the name grew.
        screen and 376 on a 390px one, which is the alignment that was never
        there before.
 
+    J. MEALS BECAME RECIPES, and Settings stopped opening itself. Two
+       questions, one session.
+
+       "MEALS" NAMED THE WRONG HALF OF A DISTINCTION THE APP ALREADY MAKES.
+       A recipe is the stored thing; a meal is a recipe put on a day. That
+       tab holds recipes — you browse them, write them, paste them in, edit
+       them — and the tab that deals in meals is Plan. RECIPES / PLAN says
+       which is which; MEALS / PLAN did not. It also answers the question
+       somebody actually arrives with ("where do I add a recipe?") with the
+       word they arrived using.
+       "Meal" survives everywhere it means an eating occasion: meal types,
+       "Add unplanned meal", "2 meals selected". Two words for two things,
+       rather than one word for both.
+       COSTS NOTHING IN WIDTH: "Recipes" needs 52px of the 62 a tab gets at
+       320px, still under "Settings" at 56, so the clamp from B is untouched.
+
+       HOUSEHOLD WAS OPENING ITSELF SINCE ITEM 37, when the household CODE
+       was the thing you came to Settings to read and pass to the other
+       phone. That reason expired when invites became links and the code
+       stopped granting anything (items 42, 48, 37-CONTRACT). Nothing ever
+       recorded it as a decision — it was left behind, which is why the
+       answer to "why is this open?" was not in the file.
+       An expanded section on a screen whose job is showing what is
+       available pushes the rest below the fold. Closed: all six headings
+       sit in 426px of an 844px phone instead of 510.
+
+       THE ORDER IS NOW what you do, then what you read, then what you can
+       break: Household, Account, Preferences, Unit converter, How it works,
+       Export & recover. Account moved up next to Household because one
+       gates the other — the access-denied message in Household points
+       straight at it, and they were four sections apart.
+
+       AND A SECOND STALE LITERAL IN A TEST, the same shape as the one in
+       B's rename. "searchHelp ignores the tab markup" searched for the
+       hardcoded string "meals", so renaming the tab broke it — and the
+       tempting fix is to edit the literal, which is how it would have gone
+       wrong quietly next time. It derives the braced names from the FAQs
+       now and requires every one of them to be findable.
+
     ALSO RENAMED FOR CONSISTENCY, not just for width: "Save to Ingredients"
     on the List tab is "Save to Pantry", and the prose that said "the
     Ingredients tab" says Pantry. A rename that leaves the old word in the

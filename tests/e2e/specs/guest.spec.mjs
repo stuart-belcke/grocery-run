@@ -36,8 +36,8 @@ test("Meals: a guest cannot add or edit a recipe, but can still put one on the l
   const guest = await asGuest();
   const member = await asMember();
   try {
-    await guest.tab("Meals");
-    await member.tab("Meals");
+    await guest.tab("Recipes");
+    await member.tab("Recipes");
 
     // The member is the control. Without it, this test would pass just as
     // happily if the buttons had been renamed and were missing for everyone.
@@ -121,7 +121,7 @@ test("a full member still sees everything", async () => {
     assert.ok(await count(page, 'button:text-is("Add item")'));
     await page.tab("Plan");
     assert.ok(await count(page, 'button:text-is("Start planning")'));
-    await page.tab("Meals");
+    await page.tab("Recipes");
     assert.ok(await count(page, 'button:text-is("Edit")'));
     assertNoPageErrors(page, assert);
   } finally {

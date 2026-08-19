@@ -191,9 +191,9 @@ export function WeekTab({ data, update, isGuest }) {
   };
 
   const plannedCount = plannedMealCount(data);
-  // Meals added straight to the shopping list on the Meals tab ("Add
+  // Meals added straight to the shopping list on the Recipes tab ("Add
   // unplanned meal"), with no day assigned here — otherwise only visible by
-  // scrolling the Meals tab and noticing which cards show an "Unplanned" pill.
+  // scrolling the Recipes tab and noticing which cards show an "Unplanned" pill.
   const unplanned = useMemo(() => unplannedMeals(data), [data]);
   const removeUnplanned = (id) =>
     update((d) => {
@@ -205,7 +205,7 @@ export function WeekTab({ data, update, isGuest }) {
   // ingredient) and grouped differently per role:
   //   main — tagged for that slot's meal type first, then everything else.
   //   side — recipes marked "🥗 Side" first (a recipe-level trait, set in the
-  //     Meals tab editor), then the meal-type groups as for a main. A side
+  //     Recipes tab editor), then the meal-type groups as for a main. A side
   //     picker also drops whatever's already in this slot — the main and any
   //     side already added — so re-tapping one can't create a duplicate; the
   //     only way to remove one is the ✕ on its row.
@@ -326,7 +326,7 @@ export function WeekTab({ data, update, isGuest }) {
           tapped. Nothing is hidden and nothing is stored about it. */}
       {recipesSorted.length === 0 ? (
         <div style={{ textAlign: "center", padding: "48px 16px", color: C.faint, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12 }}>
-          Add some meals on the Meals tab first, then plan them here.
+          Add some meals on the Recipes tab first, then plan them here.
         </div>
       ) : (
         days.map((day) => {
@@ -451,7 +451,7 @@ export function WeekTab({ data, update, isGuest }) {
                     </div>
                     {/* FULL WIDTH OF THE DAY CARD, not indented under the
                         meal-type label like the controls are. An opened
-                        recipe is the same thing the Meals tab opens, and
+                        recipe is the same thing the Recipes tab opens, and
                         it is what you are reading while you cook — 78px of
                         left margin bought nothing and cost a column of
                         ingredient names on a phone. The label column is for

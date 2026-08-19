@@ -92,7 +92,7 @@ test("every tab renders without throwing", async () => {
   // a render throw is a white screen, in a shop, with no way back (item 35).
   const page = await openApp(BASE, { catalog: cleanCatalog() });
   try {
-    for (const tab of ["List", "Meals", "Plan", "Pantry", "Settings"]) {
+    for (const tab of ["List", "Recipes", "Plan", "Pantry", "Settings"]) {
       await page.tab(tab);
       const body = await page.textContent("body");
       assert.ok(body && body.length > 200, `${tab} rendered almost nothing`);

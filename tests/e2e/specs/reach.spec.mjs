@@ -90,7 +90,7 @@ for (const width of [390, 320]) {
     const page = await openApp(BASE, { catalog: cleanCatalog() });
     try {
       await page.setViewportSize({ width, height: 780 });
-      await page.tab("Meals");
+      await page.tab("Recipes");
       await page.waitForTimeout(400);
       assertReachable(await measureTargets(page, /^Delete /), `${width}px`);
       assertNoPageErrors(page, assert);
@@ -139,7 +139,7 @@ test("an ingredient's store and aisle are readable at 320px rather than cut off"
    and carry a magnifier. Both are the change, and a later tidy-up that put it
    back to `inputStyle` would leave every other test in the suite green. */
 
-const SEARCHES = [["Pantry", "Search ingredients"], ["Meals", "Search meals or ingredients"]];
+const SEARCHES = [["Pantry", "Search ingredients"], ["Recipes", "Search meals or ingredients"]];
 
 for (const [tab, label] of SEARCHES) {
   test(`the search box on ${tab} stands out from the page`, async () => {

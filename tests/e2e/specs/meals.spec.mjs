@@ -1,6 +1,6 @@
-/* Meals tab — written from what it SHOULD do, not from reading the code.
+/* Recipes tab — written from what it SHOULD do, not from reading the code.
 
-   The Meals tab is the "cook this without planning a day for it" path:
+   The Recipes tab is the "cook this without planning a day for it" path:
    servings set here feed the shopping list the same way the week plan does. */
 
 import test from "node:test";
@@ -17,7 +17,7 @@ const listedNames = (page) =>
       .sort()
   );
 
-/* Click a per-recipe action on the Meals tab.
+/* Click a per-recipe action on the Recipes tab.
 
    "Add unplanned meal", "Edit" and "Add to week's plan" carry NO
    recipe-specific accessible name — every card renders the same three
@@ -41,7 +41,7 @@ const addUnplanned = (page, recipe) => cardAction(page, recipe, "Add unplanned m
 test("SHOULD: adding an unplanned meal puts its ingredients on the list", async () => {
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
-    await page.tab("Meals");
+    await page.tab("Recipes");
     await addUnplanned(page, "Stir-fry");
 
     await page.tab("List");
@@ -59,7 +59,7 @@ test("SHOULD: adding an unplanned meal puts its ingredients on the list", async 
 test("SHOULD: removing an unplanned meal takes its ingredients back off", async () => {
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
-    await page.tab("Meals");
+    await page.tab("Recipes");
     await addUnplanned(page, "Stir-fry");
 
     const remove = page.getByLabel(/^Remove unplanned Stir-fry$/);
@@ -80,7 +80,7 @@ test("SHOULD: an exact servings figure scales the quantities", async () => {
   // Stir-fry serves 2 and wants 1 lb of chicken. Six servings is 3 lb.
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
-    await page.tab("Meals");
+    await page.tab("Recipes");
     await addUnplanned(page, "Stir-fry");
 
     // "Set exact servings" is a BUTTON showing the current count; tapping it
@@ -112,7 +112,7 @@ test("SHOULD: the recipe detail scales to an unplanned meal's own servings, not 
   // list totals to, not the 1 lb the recipe is written for.
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
-    await page.tab("Meals");
+    await page.tab("Recipes");
     await addUnplanned(page, "Stir-fry");
     await page.getByLabel(/^Set exact servings of Stir-fry$/).click();
     await page.waitForTimeout(300);
@@ -159,7 +159,7 @@ test("SHOULD: the multiplier previews a scaled recipe WITHOUT putting anything o
   // looking is not choosing.
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
-    await page.tab("Meals");
+    await page.tab("Recipes");
     await openDetail(page, "Stir-fry");
 
     const up = page.getByLabel(/^Scale Stir-fry up$/);
@@ -189,7 +189,7 @@ test("SHOULD: Add unplanned meal writes the multiplier, not one batch", async ()
      receives — not on the rendered pill. */
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
-    await page.tab("Meals");
+    await page.tab("Recipes");
     await openDetail(page, "Stir-fry");
     const up = page.getByLabel(/^Scale Stir-fry up$/);
     await up.click();
@@ -215,7 +215,7 @@ test("SHOULD: Add unplanned meal writes the multiplier, not one batch", async ()
 test("SHOULD: the multiplier steps whole batches and never below one", async () => {
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
-    await page.tab("Meals");
+    await page.tab("Recipes");
     await openDetail(page, "Stir-fry");
     // Stir-fry serves 2, so the run is 2 / 4 / 6 sv — never 3.
     assert.ok((await page.textContent("body")).includes("2 sv"), "should start at one batch");
@@ -246,7 +246,7 @@ test("SHOULD: the multiplier gives way to the pill once the meal is on the list"
   // apart. Once the meal is on the list, its own amount is the truth.
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
-    await page.tab("Meals");
+    await page.tab("Recipes");
     await openDetail(page, "Stir-fry");
     assert.equal(await page.getByLabel(/^Scale Stir-fry up$/).count(), 1, "the multiplier should be offered before adding");
     await addUnplanned(page, "Stir-fry");
@@ -271,7 +271,7 @@ test("SHOULD: scale the amounts written into the instructions, but NOT times or 
      The exhaustive cases live in lib.test.js; this proves the wiring. */
   const page = await openApp(BASE, { catalog: cleanCatalog() });
   try {
-    await page.tab("Meals");
+    await page.tab("Recipes");
     await page.getByLabel("Search meals or ingredients").fill("Baked Cod");
     await page.waitForTimeout(400);
     await openDetail(page, "Baked Cod");
@@ -300,7 +300,7 @@ test("SHOULD: scale a count of an ingredient that carries no unit, and still not
      "cook on low 3-4 hr" and "cook 20-30 min" must not. */
   const page = await openApp(BASE, { catalog: cleanCatalog() });
   try {
-    await page.tab("Meals");
+    await page.tab("Recipes");
     await page.getByLabel("Search meals or ingredients").fill("Crockpot Greek");
     await page.waitForTimeout(400);
     await openDetail(page, "Crockpot Greek");
@@ -327,7 +327,7 @@ test("SHOULD: two meals wanting the same ingredient total it, not list it twice"
   // on ONE row. A second row is a second purchase.
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
-    await page.tab("Meals");
+    await page.tab("Recipes");
     await addUnplanned(page, "Stir-fry");
     // A second batch: the +/- pill only exists once the meal is on the list.
     await page.getByLabel(/^One batch more unplanned Stir-fry$/).click();
@@ -353,7 +353,7 @@ test("SHOULD: deleting a recipe removes it from the list it was feeding", async 
   const catalog = smallCatalog();
   const page = await openApp(BASE, { catalog });
   try {
-    await page.tab("Meals");
+    await page.tab("Recipes");
     await addUnplanned(page, "Stir-fry");
 
     const del = page.getByLabel(/^Delete Stir-fry$/);
@@ -398,7 +398,7 @@ test("SHOULD: an ingredient's own name is what the list shows, not the recipe's 
     await everywhere.click();
     await page.waitForTimeout(600);
 
-    await page.tab("Meals");
+    await page.tab("Recipes");
     await addUnplanned(page, "Stir-fry");
     await page.roundTrip();
 
@@ -416,7 +416,7 @@ test("SHOULD: an ingredient's own name is what the list shows, not the recipe's 
 test("SHOULD: pasting a recipe fills in the add-meal form, and the parsed ingredients persist", async () => {
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
-    await page.tab("Meals");
+    await page.tab("Recipes");
     await page.getByRole("button", { name: /^Add a meal$/ }).click();
     await page.waitForTimeout(300);
 
@@ -450,7 +450,7 @@ test("SHOULD: pasting a recipe fills in the add-meal form, and the parsed ingred
 test("SHOULD: pasting into a draft that already has a name and ingredients adds to it instead of overwriting", async () => {
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
-    await page.tab("Meals");
+    await page.tab("Recipes");
     await page.getByRole("button", { name: /^Add a meal$/ }).click();
     await page.waitForTimeout(300);
     await page.getByPlaceholder("Meal name").fill("My Custom Meal");

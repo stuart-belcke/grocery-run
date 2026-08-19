@@ -625,7 +625,7 @@ test("skipList on the only planned meal leaves the list empty", () => {
 });
 
 /* ---------------- unplanned meals (Week tab) ----------------
-   "Add unplanned meal" on the Meals tab writes straight to list.selections
+   "Add unplanned meal" on the Recipes tab writes straight to list.selections
    with no day/slot — the only way to see one used to be scrolling the Meals
    tab for a card showing an "Unplanned" pill. unplannedMeals is what the
    Week tab's dropdown reads instead. */
@@ -2722,8 +2722,17 @@ test("searchHelp searches the ANSWER too, not just the question", () => {
 });
 
 test("searchHelp ignores the tab markup, so a tab name is searchable", () => {
-  // "{Meals}" must match a search for "meals".
-  assert.ok(searchHelp(FAQS, "meals").length > 0, "a tab name in braces is not findable");
+  /* A tab name written {Like This} must match a plain search for it — the
+     braces are markup, not something anybody types.
+     DERIVED FROM THE FAQS THEMSELVES, not a hardcoded "meals": that literal
+     went stale the moment the tab was renamed, and a test that has to be
+     edited alongside a rename is a test that can be edited WRONG alongside
+     one. Every braced name actually present has to be findable. */
+  const braced = [...new Set(FAQS.flatMap((f) => parseTabMarkup(f.a).filter((x) => x.tab).map((x) => x.tab)))];
+  assert.ok(braced.length >= 3, `only ${braced.length} tab names in the FAQs — the markup is probably not being parsed`);
+  for (const name of braced) {
+    assert.ok(searchHelp(FAQS, name.toLowerCase()).length > 0, `"${name}" is marked up as a tab but a search for it finds nothing`);
+  }
 });
 
 test("searchHelp returns everything for an empty query and nothing for nonsense", () => {

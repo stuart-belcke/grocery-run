@@ -28,7 +28,7 @@ const hitTest = (page) =>
     return b.contains(hit) ? "button" : `covered by ${hit ? hit.tagName : "nothing"}`;
   });
 
-for (const tab of ["List", "Pantry", "Meals"]) {
+for (const tab of ["List", "Pantry", "Recipes"]) {
   test(`${tab}: back to top appears once scrolled, and returns to the top`, async () => {
     // The List tab is empty unless something puts items on it; the other two
     // are long from the catalog alone.

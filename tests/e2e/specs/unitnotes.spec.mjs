@@ -25,7 +25,7 @@ const BASE = process.env.E2E_BASE_URL;
 
 const openWith = async () => {
   const page = await openApp(BASE, { catalog: bracketedUnitCatalog() });
-  await page.tab("Meals");
+  await page.tab("Recipes");
   return page;
 };
 

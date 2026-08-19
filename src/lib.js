@@ -19,7 +19,7 @@ export const LOCAL_KEY = "grocery-run-local-v1";
    never change what a saved tab id means. */
 export const TABS = [
   { id: "list", label: "List" },
-  { id: "meals", label: "Meals" },
+  { id: "meals", label: "Recipes" },
   { id: "week", label: "Plan" },
   { id: "pantry", label: "Pantry" },
   { id: "settings", label: "Settings" },
@@ -2189,7 +2189,7 @@ export function slotDishes(slot) {
 }
 
 // Every day/type/role a recipe appears in the plan, as main or as a side —
-// used both for the Meals tab's "planned meals" summary and for cleaning up
+// used both for the Recipes tab's "planned meals" summary and for cleaning up
 // dangling references when a recipe is deleted.
 export function planSlotsFor(data, recipeId) {
   const out = [];
@@ -2267,7 +2267,7 @@ export function servingsByRecipe(data) {
 }
 
 // Recipes sitting on the shopping list with no day/slot in the week plan —
-// added via the Meals tab's "Add unplanned meal", not a picker here. Used by
+// added via the Recipes tab's "Add unplanned meal", not a picker here. Used by
 // the Week tab so one of these is visible without switching tabs to notice
 // it. A selection pointing at a deleted recipe is dropped rather than shown
 // as a mystery row — MealsTab's delete already clears it, but an older
@@ -2313,7 +2313,7 @@ export function aggregateItems(data) {
   };
   for (const [id, s] of Object.entries(data.list.selections)) {
     const r = data.recipes.find((x) => x.id === id);
-    if (r) addRecipe(r, s, "Meals tab");
+    if (r) addRecipe(r, s, "Recipes tab");
   }
   for (const day of DAYS) {
     for (const type of MEAL_TYPES) {

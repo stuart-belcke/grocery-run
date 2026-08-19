@@ -19,7 +19,7 @@ import { smallCatalog } from "../fixtures.mjs";
 const BASE = process.env.E2E_BASE_URL;
 
 const newDraft = async (page) => {
-  await page.tab("Meals");
+  await page.tab("Recipes");
   await page.getByRole("button", { name: /^Add a meal$/ }).click();
   await page.waitForTimeout(300);
 };
@@ -105,7 +105,7 @@ test("re-opening a saved recipe shows the note back, and clearing it removes it"
     await saveMeal(page);
     await page.roundTrip();
 
-    await page.tab("Meals");
+    await page.tab("Recipes");
     const buttons = page.getByRole("button");
     const texts = await buttons.allTextContents();
     const card = texts.findIndex((t) => t.trim().startsWith("Soup"));
@@ -141,7 +141,7 @@ test("two recipes wanting the same ingredient different ways still make ONE shop
     await saveMeal(page);
     await page.roundTrip();
 
-    await page.tab("Meals");
+    await page.tab("Recipes");
     for (const recipe of ["Soup A", "Soup B"]) {
       const buttons = page.getByRole("button");
       const texts = await buttons.allTextContents();

@@ -92,10 +92,10 @@ test("the screen says what the app IS before it asks for anything", async () => 
        in the suite would notice. */
     const named = await page.evaluate(() => [...document.querySelectorAll("ol b")].map((e) => e.textContent.trim()));
     assert.ok(named.length > 0, "no tab is named in the explanation");
-    const TAB_LABELS = ["List", "Meals", "Plan", "Pantry", "Settings"];
+    const TAB_LABELS = ["List", "Recipes", "Plan", "Pantry", "Settings"];
     for (const n of named) assert.ok(TAB_LABELS.includes(n), `"${n}" is bolded as a tab but no tab is called that — the labels are ${JSON.stringify(TAB_LABELS)}`);
     // Every tab worth explaining gets named. Settings is deliberately not one.
-    assert.deepEqual([...new Set(named)].sort(), ["List", "Meals", "Pantry", "Plan"]);
+    assert.deepEqual([...new Set(named)].sort(), ["List", "Pantry", "Plan", "Recipes"]);
 
     // Above the choices, not buried under them: the point is reading it
     // BEFORE deciding. Compared by position on the page, not by source order.

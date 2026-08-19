@@ -1,6 +1,6 @@
 /* ------------------------------------------------------------------ */
 /*  RecipeDetail — read-only view of a recipe's ingredients (with
-    quantities) and cooking notes. Shared by the Meals tab (tap a card
+    quantities) and cooking notes. Shared by the Recipes tab (tap a card
     to expand) and the Week tab (tap a planned meal or side). Purely
     presentational aside from the wake-lock toggle below; pass it a
     recipe object.

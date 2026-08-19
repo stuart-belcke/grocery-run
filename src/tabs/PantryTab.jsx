@@ -9,7 +9,7 @@ import { C, fontDisplay, inputStyle } from "../theme";
 import { Btn, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop, SearchField, SuggestInput } from "../ui";
 import { UNASSIGNED, norm, cap, r2, aisleKey, aisleFor, normalizeCfg, ingredientNames, unitMatches, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient, ensureIngredientId, ingredientIdByName, mergeIngredients, setIngredientCfg, planIngredientRename } from "../lib";
 
-// Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
+// Shopping-list quantity stepper, mirroring the Recipes tab's "unplanned" pill so
 // "how many of this on the list" reads the same everywhere in the app.
 const pillWrap = { display: "inline-flex", alignItems: "center", gap: 2, background: C.greenSoft, border: `1px solid ${C.green}`, borderRadius: 999, padding: "2px 3px", flexShrink: 0 };
 const pillBtn = { minWidth: 24, height: 24, padding: "0 3px", borderRadius: 999, border: "none", background: "transparent", cursor: "pointer", fontSize: 13, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", color: C.green };

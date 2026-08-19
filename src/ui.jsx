@@ -55,7 +55,7 @@ export function StickyBar({ children, style }) {
   );
 }
 
-/* Jumps back to the top of a long list. The Ingredients and Meals tabs both
+/* Jumps back to the top of a long list. The Pantry and Recipes tabs both
    grow past what anyone will scroll back through by hand, and search doesn't
    help with that — you search to FIND something, then you're left wherever
    the list left you.

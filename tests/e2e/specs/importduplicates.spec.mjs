@@ -18,7 +18,7 @@ const BASE = process.env.E2E_BASE_URL;
 const storedNames = async (page) => Object.values((await page.readCatalog()).ingredients).map((i) => i.name).sort();
 
 const newDraftWith = async (page, ingredient) => {
-  await page.tab("Meals");
+  await page.tab("Recipes");
   await page.getByRole("button", { name: /^Add a meal$/ }).click();
   await page.waitForTimeout(300);
   await page.getByPlaceholder("Meal name").fill("Test meal");
@@ -90,7 +90,7 @@ test("a pasted recipe surfaces the duplicate rather than silently forking the ca
   // the catalog with nothing shown on screen about it.
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
-    await page.tab("Meals");
+    await page.tab("Recipes");
     await page.getByRole("button", { name: /^Add a meal$/ }).click();
     await page.waitForTimeout(300);
     await page.getByRole("button", { name: /Paste a recipe to fill this in/ }).click();

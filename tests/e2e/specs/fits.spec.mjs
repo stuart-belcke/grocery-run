@@ -20,7 +20,7 @@ import { openApp, assertNoPageErrors } from "../harness.mjs";
 import { smallCatalog, stateWith, emptyState } from "../fixtures.mjs";
 
 const BASE = process.env.E2E_BASE_URL;
-const TABS = ["List", "Meals", "Plan", "Pantry", "Settings"];
+const TABS = ["List", "Recipes", "Plan", "Pantry", "Settings"];
 
 // A household with something on every screen: an empty app has no rows to
 // overflow and would pass this while proving nothing.
@@ -76,7 +76,7 @@ for (const width of [320, 390]) {
 test("no placeholder is wider than the field it sits in", async () => {
   /* A placeholder that overflows does not widen anything or scroll the page —
      it is simply cut off, so the sweep above cannot see it. "Search meals or
-     ingredients" rendered as "Search meals or ingre" on the Meals tab and
+     ingredients" rendered as "Search meals or ingre" on the Recipes tab and
      nothing failed.
      Measured in the FIELD'S OWN FONT against the room inside its padding: the
      magnifier and the clear button take 62px of a search box, which is most of

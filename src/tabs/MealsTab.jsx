@@ -1,5 +1,5 @@
 /* ------------------------------------------------------------------ */
-/*  Meals tab — browse / search / add / edit recipes and add servings
+/*  Recipes tab — browse / search / add / edit recipes and add servings
     of them to the shopping list.  */
 /* ------------------------------------------------------------------ */
 

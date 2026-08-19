@@ -427,126 +427,17 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
           the first-run screen can be READ AGAIN — that screen is shown once,
           before you have an account, and never again. Somebody looking for
           "how does this work" opens Settings and starts at the top. */}
-      <Section title="How it works">
-        <ol style={{ color: C.faint, fontSize: 14, lineHeight: 1.6, margin: "8px 0 16px", paddingLeft: 20 }}>
-          {HOW_IT_WORKS.map((line, i) => (
-            <li key={i} style={{ marginBottom: 4 }}>
-              <HelpText>{line}</HelpText>
-            </li>
-          ))}
-        </ol>
-
-        <label htmlFor="help-search" style={{ fontSize: 12, color: C.faint, display: "block", marginBottom: 4 }}>
-          Search the questions
-        </label>
-        <input
-          id="help-search"
-          value={helpQuery}
-          onChange={(e) => setHelpQuery(e.target.value)}
-          placeholder="aisle, guest, staple, offline…"
-          style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 10 }}
-        />
-
-        {/* Questions collapsed, answers on tap. Thirteen answers open at once
-            is a wall nobody reads, and the question is the part you scan. */}
-        {matchingFaqs.length === 0 ? (
-          <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 0" }}>
-            Nothing matches &ldquo;{helpQuery.trim()}&rdquo;. Try a single word — the search wants every word you type to appear.
-          </p>
-        ) : (
-          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-            {matchingFaqs.map((f) => {
-              const open = openFaq === f.q;
-              return (
-                <li key={f.q} style={{ borderTop: `1px dashed ${C.line}` }}>
-                  <button
-                    onClick={() => setOpenFaq(open ? null : f.q)}
-                    aria-expanded={open}
-                    style={{
-                      display: "flex",
-                      alignItems: "baseline",
-                      gap: 8,
-                      width: "100%",
-                      textAlign: "left",
-                      background: "transparent",
-                      border: "none",
-                      padding: "10px 0",
-                      cursor: "pointer",
-                      fontFamily: fontBody,
-                      fontSize: 13,
-                      fontWeight: 500,
-                      color: C.ink,
-                    }}
-                  >
-                    <span style={{ flex: 1, minWidth: 0 }}>{f.q}</span>
-                    <span aria-hidden style={{ color: C.faint, fontSize: 12, flexShrink: 0 }}>{open ? "\u25b2" : "\u25be"}</span>
-                  </button>
-                  {open && (
-                    <p style={{ fontSize: 13, color: C.faint, lineHeight: 1.55, margin: "0 0 12px" }}>
-                      <HelpText>{f.a}</HelpText>
-                    </p>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </Section>
-
-      <Section title="Unit converter">
-        <UnitConverter />
-      </Section>
-
-      <Section title="Preferences">
-        <p style={{ fontSize: 12, color: C.faint, margin: "8px 0 4px" }}>
-          {isGuest
-            ? "Units and week start are the household's own settings, shared by everyone in it. You can see what they are; changing them belongs to the household's accounts."
-            : "Shared by the whole household, so everyone sees the same thing. These change how things are SHOWN \u2014 nothing is rewritten, so you can switch back at any time."}
-        </p>
-
-        <div style={{ ...row, borderTop: `1px dashed ${C.line}` }}>
-          <div style={rowLabel}>
-            Units
-            <div style={{ fontSize: 12, color: C.faint }}>
-              {prefs.units === "as-entered"
-                ? "Shown the way recipes are written, converting only within one system."
-                : prefs.units === "metric"
-                  ? "Totals converted to grams and litres."
-                  : "Totals converted to pounds, ounces and cups."}
-            </div>
-          </div>
-          <Seg
-            options={[
-              { value: "as-entered", label: "As entered" },
-              { value: "metric", label: "Metric" },
-              { value: "standard", label: "Standard" },
-            ]}
-            value={prefs.units}
-            onChange={(v) => setPref({ units: v })}
-          />
-        </div>
-
-        <div style={{ ...row, borderTop: `1px dashed ${C.line}` }}>
-          <div style={rowLabel}>
-            Week starts on
-            <div style={{ fontSize: 13, color: C.faint }}>
-              Changes the order days are listed in. Meals stay where they&apos;re planned.
-            </div>
-          </div>
-          <Seg
-            options={[
-              { value: "Mon", label: "Monday" },
-              { value: "Sun", label: "Sunday" },
-            ]}
-            value={prefs.weekStart}
-            onChange={(v) => setPref({ weekStart: v })}
-          />
-        </div>
-      </Section>
-
+      {/* NOT defaultOpen any more (item 87), and FIRST rather than fourth.
+          It had opened itself since item 37, when the household CODE was the
+          thing you came here to read and pass to the other phone — a reason
+          that expired the moment invites became links and the code stopped
+          granting anything. Nothing recorded it as a decision; it was just
+          left behind.
+          On a screen whose job is to show what is available, one expanded
+          section pushes the rest below the fold. Closed, all six headings
+          fit a 390x844 phone at once, which is the point of the screen. */}
       <Section
         title="Household"
-        defaultOpen
         /* Shown whether or not sync is on — "Saved on this device" is a
            status too, and the header says it in the same place. The dot is
            the part that only means something when there is a database.
@@ -854,6 +745,123 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
               <div role="status" style={{ fontSize: 13, fontWeight: 500, color: emailMsg.ok ? C.green : C.tomato, marginTop: 8 }}>{emailMsg.text}</div>
             )}
           </>
+        )}
+      </Section>
+
+      <Section title="Preferences">
+        <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 4px" }}>
+          {isGuest
+            ? "Units and week start are the household's own settings, shared by everyone in it. You can see what they are; changing them belongs to the household's accounts."
+            : "Shared by the whole household, so everyone sees the same thing. These change how things are SHOWN \u2014 nothing is rewritten, so you can switch back at any time."}
+        </p>
+
+        <div style={{ ...row, borderTop: `1px dashed ${C.line}` }}>
+          <div style={rowLabel}>
+            Units
+            <div style={{ fontSize: 12, color: C.faint }}>
+              {prefs.units === "as-entered"
+                ? "Shown the way recipes are written, converting only within one system."
+                : prefs.units === "metric"
+                  ? "Totals converted to grams and litres."
+                  : "Totals converted to pounds, ounces and cups."}
+            </div>
+          </div>
+          <Seg
+            options={[
+              { value: "as-entered", label: "As entered" },
+              { value: "metric", label: "Metric" },
+              { value: "standard", label: "Standard" },
+            ]}
+            value={prefs.units}
+            onChange={(v) => setPref({ units: v })}
+          />
+        </div>
+
+        <div style={{ ...row, borderTop: `1px dashed ${C.line}` }}>
+          <div style={rowLabel}>
+            Week starts on
+            <div style={{ fontSize: 13, color: C.faint }}>
+              Changes the order days are listed in. Meals stay where they&apos;re planned.
+            </div>
+          </div>
+          <Seg
+            options={[
+              { value: "Mon", label: "Monday" },
+              { value: "Sun", label: "Sunday" },
+            ]}
+            value={prefs.weekStart}
+            onChange={(v) => setPref({ weekStart: v })}
+          />
+        </div>
+      </Section>
+
+      <Section title="Unit converter">
+        <UnitConverter />
+      </Section>
+
+      <Section title="How it works">
+        <ol style={{ color: C.faint, fontSize: 14, lineHeight: 1.6, margin: "8px 0 16px", paddingLeft: 20 }}>
+          {HOW_IT_WORKS.map((line, i) => (
+            <li key={i} style={{ marginBottom: 4 }}>
+              <HelpText>{line}</HelpText>
+            </li>
+          ))}
+        </ol>
+
+        <label htmlFor="help-search" style={{ fontSize: 12, color: C.faint, display: "block", marginBottom: 4 }}>
+          Search the questions
+        </label>
+        <input
+          id="help-search"
+          value={helpQuery}
+          onChange={(e) => setHelpQuery(e.target.value)}
+          placeholder="aisle, guest, staple, offline…"
+          style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 10 }}
+        />
+
+        {/* Questions collapsed, answers on tap. Thirteen answers open at once
+            is a wall nobody reads, and the question is the part you scan. */}
+        {matchingFaqs.length === 0 ? (
+          <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 0" }}>
+            Nothing matches &ldquo;{helpQuery.trim()}&rdquo;. Try a single word — the search wants every word you type to appear.
+          </p>
+        ) : (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {matchingFaqs.map((f) => {
+              const open = openFaq === f.q;
+              return (
+                <li key={f.q} style={{ borderTop: `1px dashed ${C.line}` }}>
+                  <button
+                    onClick={() => setOpenFaq(open ? null : f.q)}
+                    aria-expanded={open}
+                    style={{
+                      display: "flex",
+                      alignItems: "baseline",
+                      gap: 8,
+                      width: "100%",
+                      textAlign: "left",
+                      background: "transparent",
+                      border: "none",
+                      padding: "10px 0",
+                      cursor: "pointer",
+                      fontFamily: fontBody,
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: C.ink,
+                    }}
+                  >
+                    <span style={{ flex: 1, minWidth: 0 }}>{f.q}</span>
+                    <span aria-hidden style={{ color: C.faint, fontSize: 12, flexShrink: 0 }}>{open ? "\u25b2" : "\u25be"}</span>
+                  </button>
+                  {open && (
+                    <p style={{ fontSize: 13, color: C.faint, lineHeight: 1.55, margin: "0 0 12px" }}>
+                      <HelpText>{f.a}</HelpText>
+                    </p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         )}
       </Section>
 

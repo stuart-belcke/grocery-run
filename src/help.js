@@ -19,7 +19,7 @@
 
 // The three lines, in the order the week actually happens.
 export const HOW_IT_WORKS = [
-  "Choose what you feel like cooking on {Meals}, and give the week a shape on {Plan}.",
+  "Choose what you feel like cooking on {Recipes}, and give the week a shape on {Plan}.",
   "{List} then builds itself from those recipes — every ingredient added up, and grouped by the store and aisle you keep on {Pantry}.",
   "Everyone in the household sees the same {List}, so whoever is out can tick things off as they go.",
 ];
@@ -30,7 +30,7 @@ export const HOW_IT_WORKS = [
 export const FAQS = [
   {
     q: "How does something get onto the shopping list?",
-    a: "Three ways. Press Choose a meal on a day in {Plan} — it asks which meal of the day it is, and starts on Dinner — or press Add unplanned meal on a recipe in {Meals}. Either one adds that recipe's ingredients, scaled to the servings you set. Or type it straight into the Add box at the top of {List}.",
+    a: "Three ways. Press Choose a meal on a day in {Plan} — it asks which meal of the day it is, and starts on Dinner — or press Add unplanned meal on a recipe in {Recipes}. Either one adds that recipe's ingredients, scaled to the servings you set. Or type it straight into the Add box at the top of {List}.",
     keywords: ["add", "put", "shopping", "generate", "groceries", "where do items come from", "breakfast", "lunch", "dessert", "meal type"],
   },
   {
@@ -60,7 +60,7 @@ export const FAQS = [
   },
   {
     q: "Can I paste a recipe in from a website?",
-    a: "Yes. In {Meals}, press Add, then Paste a recipe to fill this in, and paste the whole page. It fills in the name, servings, ingredients and the steps. Check it before saving — a paste is a starting point, not the final word. If it invents a name you already have, it offers the existing ingredient under the row; take the offer.",
+    a: "Yes. In {Recipes}, press Add, then Paste a recipe to fill this in, and paste the whole page. It fills in the name, servings, ingredients and the steps. Check it before saving — a paste is a starting point, not the final word. If it invents a name you already have, it offers the existing ingredient under the row; take the offer.",
     keywords: ["import", "paste", "website", "url", "copy", "recipe"],
   },
   {

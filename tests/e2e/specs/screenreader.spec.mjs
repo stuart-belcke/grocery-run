@@ -31,7 +31,7 @@ import { openApp, assertNoPageErrors } from "../harness.mjs";
 import { cleanCatalog, smallCatalog, stateWith, emptyState } from "../fixtures.mjs";
 
 const BASE = process.env.E2E_BASE_URL;
-const TABS = ["List", "Meals", "Plan", "Pantry", "Settings"];
+const TABS = ["List", "Recipes", "Plan", "Pantry", "Settings"];
 
 /* A household with a week planned and things on the list. An EMPTY List tab
    genuinely has nothing to navigate — the headings there are the store

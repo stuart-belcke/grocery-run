@@ -64,7 +64,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
 
   /* Item 44: the ingredient's PERMANENT home, edited from the row you are
      already looking at. Setting an aisle used to mean leaving the list, going
-     to Ingredients and searching for the item you had in your hand — mid-shop,
+     to Pantry and searching for the item you had in your hand — mid-shop,
      which is the only time you ever learn what aisle something is in.
 
      The same two writes the Pantry tab makes, deliberately: one
@@ -584,7 +584,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
     body = (
       <div style={{ textAlign: "center", padding: "48px 16px", color: C.faint }}>
         <div style={{ fontFamily: fontDisplay, fontSize: 20, color: C.ink, marginBottom: 6 }}>Nothing on the list yet</div>
-        Pick meals on the Meals tab, or add a shopping item above.
+        Pick meals on the Recipes tab, or add a shopping item above.
       </div>
     );
   } else if (view === "all") {

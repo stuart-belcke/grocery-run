@@ -22,7 +22,7 @@ import { longListState } from "../fixtures.mjs";
 
 const BASE = process.env.E2E_BASE_URL;
 const NAV = 'nav[aria-label="Main"]';
-const TABS = ["List", "Meals", "Plan", "Pantry", "Settings"];
+const TABS = ["List", "Recipes", "Plan", "Pantry", "Settings"];
 
 const openScrolled = async (width = 390) => {
   const page = await openApp(BASE, { state: longListState(40) });
@@ -118,9 +118,9 @@ test("switching tabs from deep in a scroll works without going back to the top",
   // The actual feature, driven the way a person does it.
   const page = await openScrolled();
   try {
-    await page.locator(`${NAV} button`, { hasText: "Meals" }).first().click();
+    await page.locator(`${NAV} button`, { hasText: "Recipes" }).first().click();
     await page.waitForTimeout(400);
-    assert.match(await page.textContent("body"), /Add unplanned meal|Add$/m, "the Meals tab did not open");
+    assert.match(await page.textContent("body"), /Add unplanned meal|Add$/m, "the Recipes tab did not open");
 
     await page.locator(`${NAV} button`, { hasText: "Pantry" }).first().click();
     await page.waitForTimeout(400);
