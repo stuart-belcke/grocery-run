@@ -823,11 +823,9 @@ export default function App() {
             role="alert"
             style={{ background: C.tomatoSoft, border: `1px solid ${C.tomato}`, borderRadius: 10, padding: "12px 14px", marginBottom: 12, fontSize: 13, color: C.ink }}
           >
-            <b style={{ color: C.tomato }}>Update to keep editing.</b> Another device in this household is
-            running a newer version of the app and has saved something this
-            version doesn't fully understand. You can still see the list —
-            changes are paused until this device updates, so nothing gets
-            overwritten.
+            <b style={{ color: C.tomato }}>Update to keep editing.</b> Another phone here is on a
+            newer version. You can still see the list; edits are paused so
+            nothing gets overwritten.
             <div style={{ marginTop: 8 }}>
               <Btn kind="danger" onClick={() => location.reload()}>Reload to update</Btn>
             </div>

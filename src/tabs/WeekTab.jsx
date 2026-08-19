@@ -287,16 +287,16 @@ export function WeekTab({ data, update, isGuest }) {
               color: C.ink,
             }}
           >
-            <span aria-hidden style={{ fontSize: 10 }}>{unplannedOpen ? "▾" : "▸"}</span>
+            <span aria-hidden style={{ fontSize: 12 }}>{unplannedOpen ? "▾" : "▸"}</span>
             Unplanned meals
-            <span style={{ background: C.green, color: "#fff", borderRadius: 999, fontSize: 11, fontWeight: 700, minWidth: 16, textAlign: "center", padding: "1px 5px" }}>
+            <span style={{ background: C.green, color: "#fff", borderRadius: 999, fontSize: 12, fontWeight: 700, minWidth: 16, textAlign: "center", padding: "1px 5px" }}>
               {unplanned.length}
             </span>
           </button>
           {unplannedOpen && (
             <div style={{ marginTop: 6, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: 8 }}>
-              <p style={{ margin: "0 0 6px", fontSize: 12, color: C.faint, padding: "0 4px" }}>
-                On the shopping list without a day here — added from the Meals tab's "Add unplanned meal".
+              <p style={{ margin: "0 0 6px", fontSize: 13, color: C.faint, padding: "0 4px" }}>
+                On the shopping list, but not on a day.
               </p>
               {unplanned.map((u) => (
                 <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 7, background: C.paper, marginBottom: 4 }}>
@@ -664,7 +664,7 @@ export function WeekTab({ data, update, isGuest }) {
               ) : (
                 pickGroups.map((g) => (
                   <div key={g.label} style={{ marginBottom: 6 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, padding: "8px 12px 4px" }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, padding: "8px 12px 4px" }}>
                       {g.label}
                     </div>
                     {g.recipes.map((r) => {

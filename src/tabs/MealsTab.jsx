@@ -13,7 +13,7 @@ import { RecipeDetail } from "../RecipeDetail";
 // as one unit — used for both shopping-list batches and week-plan slots.
 const pillWrap = { display: "inline-flex", alignItems: "center", gap: 2, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 999, padding: "2px 4px" };
 const pillBtn = { minWidth: 26, height: 26, padding: "0 4px", borderRadius: 999, border: "none", background: "transparent", cursor: "pointer", fontSize: 14, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: fontBody };
-const pillLabel = { fontSize: 11, fontWeight: 600, color: C.faint, padding: "0 2px", whiteSpace: "nowrap" };
+const pillLabel = { fontSize: 12, fontWeight: 600, color: C.faint, padding: "0 2px", whiteSpace: "nowrap" };
 const pillCount = { minWidth: 26, textAlign: "center", fontWeight: 700, fontVariantNumeric: "tabular-nums", fontSize: 14 };
 const planSelect = { fontSize: 13, padding: "6px 8px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", fontFamily: fontBody };
 
@@ -312,12 +312,12 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
                 {r.name}
               </span>
               {(r.mealTypes || []).map((t) => (
-                <span key={t} style={{ fontSize: 11, fontWeight: 500, background: C.greenSoft, color: C.green, padding: "2px 8px", borderRadius: 999 }}>
+                <span key={t} style={{ fontSize: 12, fontWeight: 500, background: C.greenSoft, color: C.green, padding: "2px 8px", borderRadius: 999 }}>
                   {t}
                 </span>
               ))}
               {r.easy && (
-                <span title="Quick, low-effort meal" style={{ fontSize: 11, fontWeight: 500, background: C.goldSoft, color: C.gold, padding: "2px 8px", borderRadius: 999 }}>
+                <span title="Quick, low-effort meal" style={{ fontSize: 12, fontWeight: 500, background: C.goldSoft, color: C.gold, padding: "2px 8px", borderRadius: 999 }}>
                   ⚡ Easy
                 </span>
               )}
@@ -325,7 +325,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
                 // Outlined rather than filled like the mealType pills, so it
                 // reads as a trait ("this can be a side") rather than another
                 // category next to Breakfast/Lunch/Dinner/Dessert.
-                <span title="Typically served as a side dish" style={{ fontSize: 11, fontWeight: 500, background: "transparent", border: `1px solid ${C.green}`, color: C.green, padding: "1px 7px", borderRadius: 999 }}>
+                <span title="Typically served as a side dish" style={{ fontSize: 12, fontWeight: 500, background: "transparent", border: `1px solid ${C.green}`, color: C.green, padding: "1px 7px", borderRadius: 999 }}>
                   🥗 Side
                 </span>
               )}
@@ -521,7 +521,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
           >
             <span aria-hidden>⌕</span> Filter
             {activeViews > 0 && (
-              <span style={{ background: C.green, color: "#fff", borderRadius: 999, fontSize: 11, fontWeight: 700, minWidth: 16, textAlign: "center", padding: "1px 5px" }}>
+              <span style={{ background: C.green, color: "#fff", borderRadius: 999, fontSize: 12, fontWeight: 700, minWidth: 16, textAlign: "center", padding: "1px 5px" }}>
                 {activeViews}
               </span>
             )}
@@ -534,7 +534,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
                 aria-label="Sort and filter"
                 style={{ position: "absolute", zIndex: 20, top: "calc(100% + 6px)", right: 0, width: 220, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.14)", padding: 12 }}
               >
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 6 }}>Group by</div>
+                <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 6 }}>Group by</div>
                 <Seg options={[{ value: "az", label: "A–Z" }, { value: "type", label: "Meal type" }]} value={mealView} onChange={setMealView} />
                 <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontSize: 13, color: C.ink, cursor: "pointer" }}>
                   <input
@@ -581,9 +581,8 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
             </button>
           ) : (
             <div style={{ border: `1px dashed ${C.line}`, borderRadius: 8, padding: 10, marginBottom: 12 }}>
-              <p style={{ margin: "0 0 6px", fontSize: 12, color: C.faint }}>
-                Paste a recipe copied from a website or note — this fills in the name, servings, ingredients, and
-                instructions below. Check them over before saving; a paste is a starting point, not the final word.
+              <p style={{ margin: "0 0 6px", fontSize: 13, color: C.faint }}>
+                Fills in the fields below from a recipe you copied. Check them before saving.
               </p>
               <textarea
                 placeholder="Paste the whole recipe here…"

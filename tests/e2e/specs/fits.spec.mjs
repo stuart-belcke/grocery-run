@@ -112,3 +112,73 @@ test("no placeholder is wider than the field it sits in", async () => {
     }
   }
 });
+
+/* THE TYPE FLOOR (item 87). Nothing rendered is smaller than 12px.
+
+   Asked for after reading the app on a phone: "some text is too small." The
+   app had 28 places at 10px and 11px, and they had accumulated one at a time
+   — each defensible on its own, none of them a decision anybody made about
+   the app as a whole. A floor is only a floor if something holds it, and the
+   thing that erodes it is exactly the next reasonable-looking 11.
+
+   MEASURED ON THE RENDERED PAGE, not grepped from the source. A size can
+   arrive from a shared style object, from a parent, or from em units, and
+   none of those are visible to a search for "fontSize: 11". What matters is
+   what a person's eye gets — and this caught the tab bar, which a search for
+   the literal never would have.
+
+   THE TAB BAR IS EXEMPT, AND IT IS NOT AN OVERSIGHT. Its labels are
+   clamp(9px, 2.85vw, 11.5px), which is a measurement rather than a taste:
+   five labels share the screen width, and "Ingredients" at weight 700 needs
+   6.49px of width per 1px of type against the 62px a tab gets on a 320px
+   screen. Anything larger ellipsises, which tabbar.spec.mjs fails on. The
+   real fix is a shorter word for that tab, not a bigger number here, and
+   renaming a tab is not a thing to do quietly — it is spelled the same way
+   in help.js and on the first-run screen. Until then this is the one place
+   the app goes under 12, and it is written down rather than silently
+   skipped. */
+test("nothing renders below 12px", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog(), state: busy() });
+  try {
+    const small = [];
+    for (const tab of TABS) {
+      await page.tab(tab);
+      /* OPEN EVERY COLLAPSED SECTION FIRST, the same list the overflow tests
+         above use. Without this the sweep only measures what happens to be
+         expanded — a first mutation put an 11 back on a List row that only
+         renders in the "all" view and left the suite green, which is the
+         definition of a test protecting nothing. Still not everything: a row
+         behind a dialog, or in a state this fixture does not reach, is not
+         measured here. */
+      for (const re of DISCLOSURES) {
+        const b = page.locator("button").filter({ hasText: re }).first();
+        if (await b.count()) {
+          await b.click().catch(() => {});
+          await page.waitForTimeout(120);
+        }
+      }
+      small.push(
+        ...(await page.evaluate((where) => {
+          const hits = new Set();
+          for (const el of document.querySelectorAll("*")) {
+            // Leaf nodes only: a container's computed size says nothing
+            // about what is actually painted inside it.
+            if (el.children.length) continue;
+            if (el.closest("nav")) continue; // see the exemption above
+            const text = (el.textContent || "").trim();
+            if (!text) continue;
+            const r = el.getBoundingClientRect();
+            if (r.width < 1 || r.height < 1) continue;
+            const px = parseFloat(getComputedStyle(el).fontSize);
+            if (px < 12) hits.add(`${where}: ${px}px "${text.slice(0, 30)}"`);
+          }
+          return [...hits];
+        }, tab))
+      );
+    }
+    assert.deepEqual(small, [], "text below the 12px floor");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});

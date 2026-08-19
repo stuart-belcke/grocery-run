@@ -529,9 +529,8 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         <div style={{ ...row, borderTop: `1px dashed ${C.line}` }}>
           <div style={rowLabel}>
             Week starts on
-            <div style={{ fontSize: 12, color: C.faint }}>
-              Changes the order days are listed in. Meals stay on the days
-              they're planned for.
+            <div style={{ fontSize: 13, color: C.faint }}>
+              Changes the order days are listed in. Meals stay where they&apos;re planned.
             </div>
           </div>
           <Seg
@@ -562,7 +561,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
       >
         {!syncEnabled ? (
           <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 0" }}>
-            Sync is off — data is saved only on this device. To sync your shopping list, week plan, and store choices live between phones, add a free Firebase database (see the "Phone-to-phone sync" steps in README.md), then reopen the app. Until then, use the Backup buttons below to copy data over manually.
+            Saved on this device only. To sync between phones, follow &ldquo;Phone-to-phone sync&rdquo; in README.md and reopen the app. Until then, use Backup below.
           </p>
         ) : (
           <>
@@ -575,7 +574,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
               </p>
             )}
             <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 12px" }}>
-              Everyone in a household shares one live shopping list, week plan and set of recipes. Add someone by sending them an <b>invite link</b> from here — a full invite for another phone of your own, or a <b>guest link</b> for someone who just needs to do the shop.
+              Everyone in a household shares one live shopping list, week plan and set of recipes.
             </p>
             {/* Item 37: the list you check when someone can't get in. Reads
                 households/{code}/members, whose email and displayName are
@@ -592,12 +591,12 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                       <span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>
                         {m.email || m.displayName || m.uid}
                         {m.role === "guest" && (
-                          <span style={{ fontSize: 11, color: C.gold, fontWeight: 500, marginLeft: 6 }}>guest</span>
+                          <span style={{ fontSize: 12, color: C.gold, fontWeight: 500, marginLeft: 6 }}>guest</span>
                         )}
                       </span>
                       {m.uid === user.uid ? (
                         <>
-                          <span style={{ fontSize: 11, color: C.green, fontWeight: 500 }}>this phone</span>
+                          <span style={{ fontSize: 12, color: C.green, fontWeight: 500 }}>this phone</span>
                           <Btn small kind="danger" onClick={() => setLeaveStep(1)}>Leave</Btn>
                         </>
                       ) : (
@@ -613,9 +612,8 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
               )}
 
               {user && !accessDenied && isGuest && (
-                <p style={{ fontSize: 12, color: C.faint, margin: "12px 0 0" }}>
-                  You&apos;re a guest here: you can shop the list, but inviting and
-                  removing people belongs to the household&apos;s own accounts.
+                <p style={{ fontSize: 13, color: C.faint, margin: "12px 0 0" }}>
+                  You&apos;re a guest here — inviting and removing people isn&apos;t yours to do.
                 </p>
               )}
 
@@ -674,8 +672,8 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                           nothing for the other phone to redeem — and it sat
                           under the member list looking like somebody had just
                           been added. Says what it is now. */}
-                      <div style={{ fontSize: 12, color: C.faint, marginBottom: 4 }}>
-                        Invites waiting to be used — nobody has joined with these yet
+                      <div style={{ fontSize: 13, color: C.faint, marginBottom: 4 }}>
+                        Invites waiting to be used — nobody has joined yet
                       </div>
                       <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
                         {inviteList.map((i) => (
@@ -691,8 +689,8 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                       </ul>
                     </div>
                   )}
-                  <p style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
-                    Either link expires in an hour and is pasted into the box above on the joining device, signed in. A <b>guest link</b> gives someone the shopping list — ticking off, adding items, flagging a staple as run out — but not recipes, ingredients or the week plan. Removing someone takes their access away for good; the code alone won&apos;t let them back in.
+                  <p style={{ fontSize: 13, color: C.faint, margin: "10px 0 0" }}>
+                    Links expire in an hour. Removing someone is permanent — the household code alone won&apos;t let them back in.
                   </p>
                 </div>
               )}
@@ -725,7 +723,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                         {h.code}
                       </span>
                       {h.code === code ? (
-                        <span style={{ fontSize: 11, color: C.green, fontWeight: 500 }}>this phone</span>
+                        <span style={{ fontSize: 12, color: C.green, fontWeight: 500 }}>this phone</span>
                       ) : (
                         <Btn small onClick={() => setAskJoin(h.code)}>Switch</Btn>
                       )}
@@ -753,13 +751,13 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                     </li>
                   ))}
                 </ul>
-                <p style={{ fontSize: 12, color: C.faint, margin: "6px 0 0" }}>
-                  Nobody can open these — the list, the week and the recipes are unreadable to every account, including this one, until you restore. They are erased for good about {graceDays} days after deletion.
+                <p style={{ fontSize: 13, color: C.faint, margin: "6px 0 0" }}>
+                  Nobody can open these until you restore them. Erased for good about {graceDays} days after deletion.
                 </p>
               </div>
             )}
 
-            <label htmlFor="household-code" style={{ fontSize: 12, color: C.faint, display: "block", marginBottom: 4 }}>Paste the invite link someone sent you — or a household code, to switch to one you&apos;re already in</label>
+            <label htmlFor="household-code" style={{ fontSize: 13, color: C.faint, display: "block", marginBottom: 4 }}>Paste the invite link someone sent you — or a household code, to switch to one you&apos;re already in</label>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <input
                 id="household-code"
@@ -772,9 +770,9 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
               <Btn kind="primary" onClick={joinCode}>Use this code</Btn>
               <Btn onClick={() => copyText(code, "Code copied — enter it on the other device.")}>Copy code</Btn>
             </div>
-            {codeMsg && <div role="status" style={{ fontSize: 12, color: C.faint, marginTop: 8 }}>{codeMsg}</div>}
-            <p style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
-              The code alone no longer lets anyone in — joining a household you&apos;re not already in needs an invite from someone who is. Switching household makes this phone adopt that household&apos;s data (this phone&apos;s current list is replaced, so export a backup first if you need it).
+            {codeMsg && <div role="status" style={{ fontSize: 13, color: C.faint, marginTop: 8 }}>{codeMsg}</div>}
+            <p style={{ fontSize: 13, color: C.faint, margin: "10px 0 0" }}>
+              Switching replaces this phone&apos;s list with that household&apos;s. Export a backup below first if you need it.
             </p>
             </div>
 
@@ -803,8 +801,8 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
               Signed in as <b>{user.displayName || user.email || "an account with no email"}</b>
               {user.displayName && user.email ? ` (${user.email})` : ""}.
             </p>
-            <p style={{ fontSize: 12, color: C.faint, margin: "0 0 12px" }}>
-              This account is what lets this phone sync. Signing out keeps everything already on this phone and stops it sending or receiving changes until you sign back in.
+            <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
+              Signing out keeps this phone&apos;s data and stops it syncing until you sign back in.
             </p>
             {/* NAME THE ACTUAL REMEDY. This used to say "check the code above
                 matches the other phone exactly", which sends you to fix the
@@ -818,11 +816,9 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
             {accessDenied && (
               <div style={{ fontSize: 13, color: C.ink, margin: "0 0 12px", padding: "10px 12px", background: C.tomatoSoft, borderRadius: 8, lineHeight: 1.5 }}>
                 <b style={{ color: C.tomato }}>This account isn&apos;t in household {code}.</b>{" "}
-                Ask someone who is to send you an invite link from their Settings, and paste it above
-                — a household code on its own doesn&apos;t grant access any more.
-                <div style={{ fontSize: 12, color: C.faint, marginTop: 6 }}>
-                  You&apos;re signed in as <b style={{ color: C.ink }}>{user.email || user.displayName || user.uid}</b>.
-                  If that&apos;s the wrong account, sign out and back in as the one that&apos;s already in the household.
+                Ask someone who is for an invite link, and paste it above.
+                <div style={{ fontSize: 13, color: C.faint, marginTop: 6 }}>
+                  Signed in as <b style={{ color: C.ink }}>{user.email || user.displayName || user.uid}</b> — if that&apos;s the wrong account, sign out and back in.
                 </div>
               </div>
             )}
@@ -831,11 +827,11 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         ) : (
           <>
             <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 12px" }}>
-              <b style={{ color: C.ink }}>Sign in to sync.</b> This phone keeps working and saving on its own, but it won&apos;t send or receive changes from your other phone until an account is signed in here.
+              <b style={{ color: C.ink }}>Sign in to sync.</b> This phone keeps working on its own, but won&apos;t reach your other phone until you do.
             </p>
             {authError && (
               <div style={{ fontSize: 13, fontWeight: 500, color: C.tomato, margin: "0 0 12px", padding: "8px 10px", background: C.tomatoSoft, borderRadius: 8 }}>
-                Your last sign-in attempt didn't finish ({authError}). On an iPhone, Safari sometimes blocks the sign-in flow like this — try again, and if it keeps happening let me know the code above.
+                Sign-in didn&apos;t finish ({authError}). Safari on iPhone sometimes blocks this — try again.
               </div>
             )}
             <Btn kind="primary" onClick={startGoogleSignIn} disabled={googleStarting}>
@@ -863,15 +859,15 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
 
       <Section title="Export &amp; recover">
         <p style={{ fontSize: 13, color: C.faint, margin: "0 0 14px" }}>
-          Your recipes, ingredients and stores live in this household&apos;s own catalog and sync between phones — {catalogSize} entr
-          {catalogSize === 1 ? "y" : "ies"} right now. Edits are saved as you make them; nothing needs publishing.
+          Your recipes, ingredients and stores sync between phones — {catalogSize} entr
+          {catalogSize === 1 ? "y" : "ies"} right now, saved as you go.
         </p>
 
         <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 6 }}>
           Snapshot the catalog
         </div>
-        <p style={{ fontSize: 12, color: C.faint, margin: "0 0 8px" }}>
-          Take a copy of this household's catalog in <b>catalog.json</b> format. Commit it on GitHub to keep a dated, diffable history — and to update the starter catalog a brand-new household begins from.
+        <p style={{ fontSize: 13, color: C.faint, margin: "0 0 8px" }}>
+          A copy in <b>catalog.json</b> format. Commit it on GitHub for a dated history, and to update what a new household starts from.
         </p>
         {collisions.length > 0 && (
           <div style={{ border: `1px solid ${C.tomato}`, borderRadius: 8, padding: "10px 12px", marginBottom: 10 }}>
@@ -890,8 +886,8 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                 </li>
               ))}
             </ul>
-            <div style={{ fontSize: 12, color: C.faint }}>
-              The catalog file is keyed by name, so exporting would keep only one of each pair and silently drop the other&apos;s store and aisle. Fix it on the <b>Ingredients</b> tab: open one of them and rename it to exactly the other&apos;s name — they merge into a single ingredient, and every recipe using either one follows automatically.
+            <div style={{ fontSize: 13, color: C.faint }}>
+              On the <b>Ingredients</b> tab, rename one to exactly the other&apos;s name. They merge, and every recipe using either follows.
             </div>
           </div>
         )}
@@ -900,16 +896,12 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
           <Btn disabled={collisions.length > 0} onClick={() => download("catalog.json", catalogJson())}>Export catalog (file)</Btn>
           {!isGuest && <Btn kind="danger" onClick={() => setAskReset(true)}>Restore starter catalog</Btn>}
         </div>
-        <p style={{ fontSize: 12, color: C.faint, margin: "0 0 16px" }}>
-          Exporting changes nothing — your edits are already saved and shared. "Restore starter catalog" is the way back if this household's catalog ever gets into a state you don't want.
-        </p>
-
         <div style={{ borderTop: `1px dashed ${C.line}`, paddingTop: 14 }}>
           <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 6 }}>
             Backup &amp; recover
           </div>
-          <p style={{ fontSize: 12, color: C.faint, margin: "0 0 8px" }}>
-            A full snapshot of this device's data (list, plan, and un-published edits). Handy for moving to a new phone or restoring after a browser wipe. Restoring <b>replaces</b> everything on this device.
+          <p style={{ fontSize: 13, color: C.faint, margin: "0 0 8px" }}>
+            A full snapshot of this device&apos;s list and plan. Restoring <b>replaces</b> everything on this device.
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             <Btn onClick={() => download(`grocery-run-backup-${new Date().toISOString().slice(0, 10)}.json`, backupJson())}>Save backup (file)</Btn>
@@ -939,7 +931,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         )}
       </Section>
 
-      <p style={{ fontSize: 11, color: C.faint, textAlign: "center", margin: "14px 0 4px", fontFamily: "ui-monospace, Menlo, monospace" }}>
+      <p style={{ fontSize: 12, color: C.faint, textAlign: "center", margin: "14px 0 4px", fontFamily: "ui-monospace, Menlo, monospace" }}>
         Build {__BUILD__}
       </p>
 

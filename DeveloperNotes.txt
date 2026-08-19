@@ -3018,6 +3018,65 @@ treatment: the store moved into the details panel and the name grew.
     Verified unclipped and with no horizontal overflow at both 320 and
     390px. 203/203.
 
+87. [DONE] THE APP READ SMALL AND EXPLAINED TOO MUCH. Both reported from
+    using it on a phone: "some text is too small, some notes are too wordy
+    or unnecessary." Plus one placement bug alongside them.
+
+    A. DELETED HOUSEHOLDS WERE LISTED ABOVE THE LIVE ONES. A "Deleted, still
+       recoverable" list read first, in a section whose whole job is telling
+       you where you can go — and the deleted ones are precisely where you
+       cannot. Below now. The live list also renders whenever there is a
+       deleted one under it, so the deleted list is never the only thing on
+       screen with nothing above it to be the answer to.
+
+    B. A 12px FLOOR, AND 13px FOR ANYTHING THAT IS A SENTENCE. There were 28
+       places at 10px and 11px. None of them was a decision about the app —
+       they accumulated one at a time, each defensible where it sat. The
+       rule now is about the READER, not the element: a label can be small
+       because you scan it, a sentence cannot because you read it.
+       231 declarations before, 93 at 13 and 80 at 12 after.
+
+       THE TAB BAR IS THE ONE EXEMPTION AND IT IS NOT AN OVERSIGHT. Its
+       labels are clamp(9px, 2.85vw, 11.5px), which is arithmetic rather
+       than taste: five labels share the width, and "Ingredients" at weight
+       700 needs 6.49px of width per 1px of type against the 62px a tab gets
+       on a 320px screen (item 74 measured this). Anything bigger
+       ellipsises, which tabbar.spec.mjs already fails on. THE REAL FIX IS A
+       SHORTER WORD FOR THAT TAB, not a bigger number — and renaming a tab
+       is not a quiet change, because help.js and the first-run screen spell
+       it the same way deliberately. Left as a question rather than decided.
+
+    C. THE NOTES GOT CUT, and some got deleted rather than shortened. The
+       test applied was: does this change what I do next? "Exporting changes
+       nothing — your edits are already saved and shared" answers a worry the
+       button does not raise, so it is gone entirely. The invite note ran to
+       344 characters explaining a guest-versus-full distinction that the two
+       buttons above it already make, twice; it is 118 now and says only the
+       two things neither button says (links expire in an hour, removal is
+       permanent). Fourteen paragraphs were over 110 characters; the ones
+       left over 115 are almost all confirmation dialogs.
+
+       CONFIRMATION DIALOGS WERE DELIBERATELY NOT CUT HARD. A destructive
+       action is the one place an extra sentence earns its keep, and this
+       app has three that delete something. They were tightened, not stripped.
+
+    THE TEST FOUND WHAT THE SEARCH COULD NOT. "Nothing renders below 12px"
+    measures computed size on the rendered page, and immediately caught the
+    tab bar at 11.5 — a size that arrives from a clamp() and is invisible to
+    any grep for "fontSize: 11". Which is the general point: a size can come
+    from a shared style object, a parent, or a relative unit.
+
+    AND THE MUTATION CAUGHT A TEST PROTECTING NOTHING, again. Putting an 11
+    back on the List tab's store label left the suite GREEN — that row only
+    renders in the "all" view, which the fixture never opened. Fixed rather
+    than noted: the sweep now opens every collapsed section first, the same
+    DISCLOSURES list the overflow tests use. A second mutation on an
+    always-rendered line fails correctly. Still not total, and said in the
+    file: a row behind a dialog is not measured.
+
+    274 unit, 65 rules, 210 e2e, `npm run check` green. Verified in a
+    browser across all five tabs: no clipped text, no sideways scroll.
+
 86. [DONE] THE TWO PLACES THIS DIVERGED FROM HOW OTHER APPS DO IT.
     Asked after the household design was written up: "would this be how
     other apps handle data?" Mostly yes — access by membership record rather

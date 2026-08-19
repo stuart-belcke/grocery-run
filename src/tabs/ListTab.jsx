@@ -370,7 +370,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
               {item.staple && (
                 <span
                   title="A home staple you marked as needing more"
-                  style={{ marginLeft: 6, fontSize: 10, fontWeight: 600, background: C.goldSoft, color: C.gold, padding: "1px 6px", borderRadius: 999, whiteSpace: "nowrap" }}
+                  style={{ marginLeft: 6, fontSize: 12, fontWeight: 600, background: C.goldSoft, color: C.gold, padding: "1px 6px", borderRadius: 999, whiteSpace: "nowrap" }}
                 >
                   🏠 staple
                 </span>
@@ -383,12 +383,12 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
                   is about store-flow ordering and is false in by-store A-Z,
                   which is exactly where the heading is. */}
               {view === "all" ? (
-                <span style={{ marginLeft: 8, fontSize: 11, color: C.faint, whiteSpace: "nowrap" }}>
+                <span style={{ marginLeft: 8, fontSize: 12, color: C.faint, whiteSpace: "nowrap" }}>
                   {itemStore}
                   {aisle !== "" ? ` \u00b7 aisle ${aisle}` : ""}
                 </span>
               ) : (
-                showAisle && aisle !== "" && <span style={{ marginLeft: 8, fontSize: 11, color: C.faint }}>aisle {aisle}</span>
+                showAisle && aisle !== "" && <span style={{ marginLeft: 8, fontSize: 12, color: C.faint }}>aisle {aisle}</span>
               )}
             </span>
           </button>
@@ -430,7 +430,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
         {open && (
           <div style={{ margin: "8px 0 2px 28px", padding: "10px 12px", background: C.paper, border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 12 }}>
             <div style={{ marginBottom: 6 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 4 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 4 }}>
                 On the list for
               </div>
               {item.staple && (
@@ -461,7 +461,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
                 exactly what the guest role grants. Only the "always" branch is
                 a catalog write, and that is the branch they are never offered. */}
             <div style={{ borderTop: `1px dashed ${C.line}`, paddingTop: 8, marginTop: 2 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 6 }}>
                 Where to buy it
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -668,8 +668,8 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
           </button>
           {showBought && (
             <div style={{ padding: "0 14px 12px" }}>
-              <div style={{ fontSize: 12, color: C.faint, marginBottom: 4 }}>
-                Kept off the list because an earlier trip covered them. Put one back if you don't actually have it.
+              <div style={{ fontSize: 13, color: C.faint, marginBottom: 4 }}>
+                Kept off the list — an earlier trip covered these.
               </div>
               <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
                 {boughtRows.map((r) => (
@@ -871,12 +871,10 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
         onCancel={() => setConfirmDone(false)}
       >
         <p style={{ margin: "0 0 8px" }}>
-          Everything you <b style={{ color: C.ink }}>checked off</b> comes off the list — you have it now, whether it came from a recipe, a home staple, or
-          your own additions. Whatever you didn't get stays on the list for next time.
+          Everything you <b style={{ color: C.ink }}>checked off</b> comes off the list. Whatever you didn&apos;t get stays on for next time.
         </p>
         <p style={{ margin: 0 }}>
-          Meals picked on the Meals tab are unselected, and your <b style={{ color: C.ink }}>week plan is kept</b>. Start a new plan on the Week plan tab starts a
-          fresh buying cycle.
+          Meals are unselected, and your <b style={{ color: C.ink }}>week plan is kept</b>.
         </p>
       </ConfirmDialog>
 

@@ -141,7 +141,7 @@ export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError, i
             landing on it unexplained reads like being signed out. */}
         {leftLast && (
           <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
-            You have left your last household. Start a new one below, or join someone else&#39;s with an invite — nothing is created until you choose.
+            You have left your last household. Nothing is created until you choose below.
           </p>
         )}
 
@@ -217,13 +217,13 @@ export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError, i
                 </Btn>
               </div>
               {isGuestLink && (
-                <p style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
-                  A guest can work the shopping list — ticking things off, adding items, flagging a staple as run out. Recipes and the week plan stay read-only. No account needed, but you&apos;ll need a new link if you clear this browser&apos;s data.
+                <p style={{ fontSize: 13, color: C.faint, margin: "10px 0 0" }}>
+                  You&apos;ll get the shopping list. Recipes and the week plan stay read-only. No account needed — but clearing this browser means a new link.
                 </p>
               )}
               {memberInvite && (
-                <p style={{ fontSize: 12, color: C.faint, margin: "10px 0 0" }}>
-                  This is a full invite, so it needs an account. Sign in above first, then come back and paste it.
+                <p style={{ fontSize: 13, color: C.faint, margin: "10px 0 0" }}>
+                  A full invite needs an account. Sign in above first, then come back and paste it.
                 </p>
               )}
             </div>

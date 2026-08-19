@@ -19,7 +19,7 @@ const pillCount = { minWidth: 22, textAlign: "center", fontWeight: 700, fontVari
 const segWrap = { display: "inline-flex", border: `1px solid ${C.line}`, borderRadius: 999, overflow: "hidden", flexShrink: 0 };
 const segBtn = { padding: "4px 10px", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, lineHeight: 1.6 };
 // Section heading inside the expanded row panel.
-const groupLabel = { fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: C.faint, marginBottom: 6 };
+const groupLabel = { fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: C.faint, marginBottom: 6 };
 
 export function PantryTab({ data, update, updateCatalog, isGuest }) {
   const [newStore, setNewStore] = useState("");
@@ -375,7 +375,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                 >
                   <span aria-hidden>⌕</span> Filter
                   {activeFilters > 0 && (
-                    <span style={{ background: C.green, color: "#fff", borderRadius: 999, fontSize: 11, fontWeight: 700, minWidth: 16, textAlign: "center", padding: "1px 5px" }}>
+                    <span style={{ background: C.green, color: "#fff", borderRadius: 999, fontSize: 12, fontWeight: 700, minWidth: 16, textAlign: "center", padding: "1px 5px" }}>
                       {activeFilters}
                     </span>
                   )}
@@ -388,7 +388,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                       aria-label="Filters"
                       style={{ position: "absolute", zIndex: 20, top: "calc(100% + 6px)", right: 0, width: 220, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.14)", padding: 12 }}
                     >
-                      <label style={{ display: "block", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 5 }}>
+                      <label style={{ display: "block", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 5 }}>
                         Store
                       </label>
                       <select
@@ -591,7 +591,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                         {!isGuest && (<>
                         <div style={groupLabel}>Where it lives</div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                          <label style={{ fontSize: 11, color: C.faint }}>Usually at</label>
+                          <label style={{ fontSize: 12, color: C.faint }}>Usually at</label>
                           <select aria-label={`Default store for ${name}`} value={cfg.store || UNASSIGNED} onChange={(e) => setCfg(key, { store: e.target.value })} style={{ fontSize: 16, padding: "6px 6px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", maxWidth: 170 }}>
                             {[...data.stores, UNASSIGNED].map((s) => (
                               <option key={s} value={s}>
