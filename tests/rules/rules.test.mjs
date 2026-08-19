@@ -515,13 +515,48 @@ t("presenting an invite that does not exist cannot CLAIM the household instead",
      success while the real invite went unused. The client bug is fixed
      (classifyJoinInput unwraps a link), but a parse mistake must not be able
      to mint households either. */
-  const JUNK = "households/httpsstuart-belckegithubiogrocery-runjoi";
+  /* THE FIXTURE IS A NORMAL CODE NOW, not the URL-shaped one this bug
+     originally produced. Item 88 tightened ".validate" so a URL-shaped code
+     cannot be written at all (the test below), which would make this one
+     pass for the wrong reason — the invite clause never being reached
+     because the shape rule refused first. A rule is only proved by a case
+     that gets as far as it. */
+  const FRESH = "households/home-neverseen1";
   assert.ok(
-    !(await allowed(write(`${JUNK}/members/bob`, { email: "b@x.com", updatedAt: 1, invite: "sometoken123" }, "bob"))),
+    !(await allowed(write(`${FRESH}/members/bob`, { email: "b@x.com", updatedAt: 1, invite: "sometoken123" }, "bob"))),
     "a record naming an invite claimed an empty household"
   );
   // ...and the same account, not claiming to redeem anything, still may.
-  assert.ok(await allowed(write(`${JUNK}/members/bob`, { email: "b@x.com", updatedAt: 1 }, "bob")));
+  assert.ok(await allowed(write(`${FRESH}/members/bob`, { email: "b@x.com", updatedAt: 1 }, "bob")));
+});
+
+t("A HOUSEHOLD NAMED AFTER A URL CANNOT BE WRITTEN AT ALL (item 88)", async () => {
+  /* THE SECOND HALF OF A REAL REPORT, and not the half item 81 fixed.
+     An invite link's "#join=..." is a FRAGMENT, which is never sent to a
+     server and is therefore the part of a URL that reliably goes missing —
+     any redirect, shortener or preview card drops it. What is left is the
+     bare site address, and cleanCode reduced that to
+     "httpsstuart-belckegithubiogrocery-run": 37 characters of [a-z0-9-],
+     which the old ".validate" (8-40 of that alphabet) accepted. No invite
+     field, so item 81's guard did not apply either. It was simply a legal,
+     unclaimed household — so the join succeeded into one named after the URL.
+
+     THE CLIENT REFUSES TO LAUNDER A URL INTO A CODE NOW. This is the half
+     that still holds when the client is a stale cached build, which is the
+     case that actually happened on a phone. */
+  const URLISH = "households/httpsstuart-belckegithubiogrocery-run";
+  assert.ok(!(await allowed(write(`${URLISH}/members/mallory`, member("m@x.com"), "mallory"))), "a household named after a URL was claimable");
+  assert.ok(!(await allowed(write(`${URLISH}/state`, { updatedAt: 1 }, "mallory"))), "...and writable");
+});
+
+t("the codes the app actually mints are still writable", async () => {
+  // The control. A shape rule that also refuses real households would take
+  // the app down rather than protect it, and "home-" + 8 base-36 characters
+  // is what newHouseholdCode has always produced.
+  await wipe();
+  for (const code of ["home-cx2ur9zg", "home-1jz461qw", "home-3g6lxyxv"]) {
+    assert.ok(await allowed(write(`households/${code}/members/carol`, member("c@x.com"), "carol")), `${code} should be claimable`);
+  }
 });
 
 t("a REAL invite still redeems, and a real first claim still works", async () => {

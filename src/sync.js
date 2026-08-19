@@ -12,7 +12,7 @@
  * ------------------------------------------------------------------ */
 
 import { firebaseConfig, syncEnabled } from "./firebase-config";
-import { planWrite, cleanCode, newInviteToken } from "./lib";
+import { planWrite, cleanCode, newInviteToken, newHouseholdCode } from "./lib";
 
 /* ------------------------- write failure signal ---------------------
    A rejected write (security rules, quota, a malformed payload) used to be
@@ -120,15 +120,6 @@ export function loadDeviceCode() {
   return code;
 }
 
-/* A private, hard-to-guess household code. Exported because leaving a
-   household needs one too — the device has to land somewhere it can keep
-   working, and that is a NEW household rather than the one just left.
-   One generator, so first-run and post-leave codes cannot drift into
-   different shapes (the rules validate the alphabet and a length floor). */
-export function newHouseholdCode() {
-  return "home-" + Math.random().toString(36).slice(2, 10);
-}
-
 export function saveDeviceCode(code) {
   try {
     localStorage.setItem(DEVICE_KEY, JSON.stringify({ code }));
@@ -137,6 +128,11 @@ export function saveDeviceCode(code) {
   }
 }
 
+/* newHouseholdCode MOVED TO lib.js (item 88) — it is pure, and it belongs
+   beside validCode: a generator and the check for what it generates drifting
+   apart is how a URL came to pass for a household code. Not re-exported like
+   cleanCode is, because App.jsx imports it from lib directly now and a dead
+   re-export is just a second name for the same thing. */
 // RTDB keys can't contain . # $ [ ] / — keep codes to a safe alphabet.
 // Lives in lib.js now (parseInvite needs the same alphabet, and two copies
 // of a charset rule is how they drift). Re-exported so callers importing it

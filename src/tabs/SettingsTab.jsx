@@ -123,6 +123,15 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
       setCodeMsg("That invite looks incomplete — paste the whole thing, including the part after the ~.");
       return;
     }
+    /* THE FAILURE THAT USED TO BE SILENT (item 88). A link whose #join= was
+       stripped in transit is a bare site address, and it used to be laundered
+       into a household code and joined. Naming what happened matters more
+       than usual here, because the person pasting it did nothing wrong — the
+       link was damaged before it reached them. */
+    if (parsed.kind === "notacode") {
+      setCodeMsg("That link has lost its invite — the part after # went missing on the way. Ask for a new link, and send it somewhere that doesn't shorten or preview it.");
+      return;
+    }
     if (parsed.kind === "short") {
       setCodeMsg("Use at least 8 letters/numbers so the code stays private.");
       return;

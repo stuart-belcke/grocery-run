@@ -23,7 +23,6 @@ import {
   leaveHousehold,
   restoreHousehold,
   GRACE_DAYS,
-  newHouseholdCode,
   forgetHouseholdCache,
   subscribeMyHouseholds,
   writeCatalog,
@@ -41,6 +40,7 @@ import { Stripe, Btn, ChoiceDialog, useKeyboardOpen } from "./ui";
 import {
   LOCAL_KEY,
   TABS,
+  newHouseholdCode,
   ONBOARDED_KEY,
   MUST_CHOOSE_KEY,
   GUEST_PREVIEW_KEY,

@@ -3018,6 +3018,63 @@ treatment: the store moved into the details panel and the name grew.
     Verified unclipped and with no horizontal overflow at both 320 and
     390px. 203/203.
 
+88. [DONE] A MANGLED INVITE LINK MADE A HOUSEHOLD NAMED AFTER THE URL —
+    AGAIN, and not by the route item 81 closed. Reported from a real attempt
+    to add the second phone: the link was copied, sent, and opened on the
+    other phone, and the app "made another household rather than joining the
+    invited household". Pasting the same link into the code field then "just
+    used the whole link as a household".
+
+    ITEM 81 ONLY COVERED LINKS THAT STILL HAD THEIR FRAGMENT. classifyJoinInput
+    unwraps "#join=..." and has since — verified, it still does, for the
+    normal link, the guest link, a link with no scheme, one wrapped in angle
+    brackets, one with a trailing full stop and one with a newline through
+    the middle. All fine.
+
+    THE FRAGMENT IS THE PART THAT GOES MISSING. It is never sent to a server,
+    which is exactly why the invite was put there — and exactly why any
+    redirect, link shortener, preview card or "tidy this URL" feature drops
+    it. What arrives is the bare site address. cleanCode reduced that to
+    "httpsstuart-belckegithubiogrocery-run": 37 characters of [a-z0-9-], a
+    legal household code under the old rule, carrying no `invite` field so
+    item 81's rules guard did not apply either. An unclaimed household is
+    claimable by design. So it did not fail — it silently made a household
+    named after the URL and put the phone in it. Both reported symptoms are
+    that one mechanism.
+
+    THE RULE IS: DO NOT LAUNDER. cleanCode exists to forgive case and stray
+    spaces, not to manufacture a code out of a sentence. A real code is
+    [a-z0-9-] and nothing else, so a slash, a colon, a dot or a space means
+    this is a URL and the honest answer is to say so. `notacode` now, with a
+    message that says what actually happened — the link lost its invite in
+    transit — because the person pasting it did nothing wrong.
+
+    AND A SHAPE, IN BOTH PLACES THAT DECIDE. validCode: "home-" plus base-36,
+    which is all newHouseholdCode has ever produced and what all seven live
+    households match. parseInvite checks it too, which catches the remaining
+    variant (a link whose "#" arrived percent-encoded still contains a "~",
+    so it reached parseInvite and made a 40-character code paired with a real
+    token). database.rules.json enforces the same shape, tightened from
+    [a-z0-9-]{8,40} — AND THAT HALF IS THE ONE THAT MATTERS HERE, because a
+    phone can be running a cached older bundle, which is precisely the
+    situation being reported. A client-side fix alone would not have held.
+
+    newHouseholdCode MOVED TO lib.js, beside validCode. A generator and the
+    check for what it generates living in different files is how the two came
+    to disagree about what a code is. Caught by an existing test on the way —
+    "every lib helper a component calls is imported there" — which noticed
+    App.jsx still importing it through the sync seam.
+
+    MUTATION-TESTED BOTH HALVES: loosening the rules back to [a-z0-9-]{8,40}
+    fails the rules test; deleting the client guard fails the unit test.
+    AND ONE EXISTING TEST HAD TO CHANGE ITS FIXTURE rather than its
+    assertion: item 81's test used the URL-shaped code, which the new shape
+    rule now refuses outright — so it would have passed without the invite
+    clause ever being reached. It uses an ordinary unclaimed code now. A rule
+    is only proved by a case that gets as far as it.
+
+    277 unit, 67 rules, 211 e2e, `npm run check` green.
+
 87. [DONE] THE APP READ SMALL AND EXPLAINED TOO MUCH. Both reported from
     using it on a phone: "some text is too small, some notes are too wordy
     or unnecessary." Plus one placement bug alongside them.

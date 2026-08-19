@@ -56,6 +56,13 @@ export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError, i
       setMsg({ text: "That link looks incomplete — paste the whole thing, including the part after the ~.", ok: false });
       return;
     }
+    // See item 88: a link that lost its #join= is not the same failure as
+    // something that was never an invite, and the person pasting it did
+    // nothing wrong either way.
+    if (parsed.kind === "notacode") {
+      setMsg({ text: "That link has lost its invite — the part after # went missing on the way. Ask for a new link, sent somewhere that doesn't shorten or preview it.", ok: false });
+      return;
+    }
     if (parsed.kind !== "invite") {
       setMsg({ text: "That doesn't look like an invite link. Ask for one to be sent again.", ok: false });
       return;

@@ -2449,6 +2449,31 @@ export function writeErrorAdvice(detail) {
    without a network round trip — and so the parsing has tests, since this
    is the one string a user retypes by hand. */
 
+/* WHAT A HOUSEHOLD CODE LOOKS LIKE (item 88). Every code the app has ever
+   minted comes from newHouseholdCode(): "home-" and eight base-36 characters.
+   Nothing else has ever been one, and the seven live on the real database at
+   the time of writing all match.
+
+   IT IS HERE SO THAT LAUNDERING A URL CANNOT PRODUCE ONE. cleanCode strips a
+   string down to [a-z0-9-], which turns a site address into 37 characters
+   that the old shape check (8-40 of [a-z0-9-]) happily accepted — and an
+   unclaimed household is claimable, so the join succeeded into a household
+   named after the URL. The prefix is what a stripped link cannot fake.
+   database.rules.json enforces the same shape, so the app and the database
+   agree about what a code is rather than the app being the only guard. */
+/* A private, hard-to-guess household code. Exported because leaving a
+   household needs one too — the device has to land somewhere it can keep
+   working. One generator, so first-run and post-leave codes cannot drift
+   into different shapes, and it sits directly above the function that says
+   what that shape IS. */
+export function newHouseholdCode() {
+  return "home-" + Math.random().toString(36).slice(2, 10);
+}
+
+export function validCode(s) {
+  return /^home-[a-z0-9]{4,34}$/.test(String(s || ""));
+}
+
 export function cleanCode(s) {
   return (s || "")
     .toLowerCase()
@@ -2479,6 +2504,15 @@ export function parseInvite(s) {
   // Both halves have to be long enough to be real. A short one means a
   // truncated paste, and guessing at it would join the wrong household.
   if (code.length < 8 || token.length < 8) return null;
+  /* AND THE CODE HALF HAS TO LOOK LIKE A CODE (item 88). A link whose "#"
+     arrived percent-encoded still contains a "~", so it reached here and
+     cleanCode turned the whole left-hand side into
+     "httpsstuart-belckegithubiogrocery-run23j" — long enough to pass the
+     length check, and paired with a real token. The rules refuse to CLAIM a
+     household from a record carrying an invite (item 81), so it could not
+     mint one, but it failed as "that link didn't work" rather than as what
+     it was. */
+  if (!validCode(code)) return null;
   let role = "member";
   if (parts.length === 3) {
     // Anything in the third slot that isn't the guest marker is a mangled
@@ -2526,6 +2560,23 @@ export function classifyJoinInput(s) {
     const invite = parseInvite(text);
     return invite ? { kind: "invite", ...invite } : { kind: "broken" };
   }
+  /* A LINK THAT LOST ITS INVITE IS NOT A HOUSEHOLD CODE (item 88).
+     The block above handles a link that still HAS its #join= fragment. A
+     fragment is the one part of a URL that reliably goes missing — it is
+     never sent to a server, so any redirect, link shortener, preview card or
+     "clean up this URL" feature drops it — and what arrived here then was
+     the bare site address. cleanCode strips it to
+     "httpsstuart-belckegithubiogrocery-run", which is 37 characters of
+     [a-z0-9-]: a legal household code, unclaimed, and therefore claimable.
+     So a mangled link did not fail. It silently made a household named after
+     the URL and put you in it, which is exactly what item 81 was reported as
+     and is NOT what item 81 fixed — that fix only covered links that still
+     had the fragment.
+     THE RULE IS DO NOT LAUNDER. cleanCode exists to forgive case and stray
+     spaces, not to manufacture a code out of a sentence. A real code is
+     [a-z0-9-] and nothing else, so a slash, a colon, a dot or a space means
+     this is a URL or a sentence and the honest answer is to say so. */
+  if (/[:/\s]|\.[a-z]/i.test(text)) return { kind: "notacode" };
   const code = cleanCode(text);
   return code.length >= 8 ? { kind: "code", code } : { kind: "short" };
 }

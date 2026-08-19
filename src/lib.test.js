@@ -17,6 +17,8 @@ import {
   formatInvite,
   inviteUrl,
   newInviteToken,
+  validCode,
+  newHouseholdCode,
   parseJoinHash,
   inviteLive,
   syncIndicator,
@@ -2719,6 +2721,59 @@ test("searchHelp searches the ANSWER too, not just the question", () => {
   // The question is often not what somebody would call the thing.
   const hit = searchHelp(FAQS, "store flow");
   assert.ok(hit.length > 0);
+});
+
+/* ITEM 88: A MANGLED INVITE LINK MUST NOT BECOME A HOUSEHOLD.
+
+   Reported after a real attempt to add a second phone: the link was sent,
+   opened, and the app made a NEW household instead of joining the invited
+   one; pasting the same link into the code field then "used the whole link
+   as a household".
+
+   THE MECHANISM, and it is not the one item 81 fixed. Item 81 covered a link
+   that still had its "#join=..." fragment. A fragment is never sent to a
+   server, so it is the part of a URL that reliably goes missing — any
+   redirect, shortener, preview card or URL-tidying feature drops it. What
+   arrived was the bare site address, cleanCode reduced it to
+   "httpsstuart-belckegithubiogrocery-run" — 37 characters of [a-z0-9-],
+   a legal code under the old shape check — and an unclaimed household is
+   claimable by design. So it did not fail. It silently made a household
+   named after the URL. */
+test("a link that lost its invite is refused, not turned into a household", () => {
+  const BASE = "https://stuart-belcke.github.io/grocery-run/";
+  for (const mangled of [
+    BASE,                       // fragment stripped in transit
+    BASE + "?utm_source=sms",   // ...and replaced with tracking
+    "stuart-belcke.github.io/grocery-run/",
+    "https://example.com/grocery-run",
+  ]) {
+    const r = classifyJoinInput(mangled);
+    assert.equal(r.kind, "notacode", `"${mangled}" was accepted as ${JSON.stringify(r)}`);
+  }
+});
+
+test("a link whose # arrived percent-encoded fails as broken, not as a junk code", () => {
+  // Still contains a "~", so it reaches parseInvite, where cleanCode used to
+  // turn the whole left-hand side into a 40-character "code" paired with a
+  // real token.
+  const r = classifyJoinInput("https://stuart-belcke.github.io/grocery-run/%23join=home-cx2ur9zg~h3ub89qsyysc9qhjngel5u");
+  assert.equal(r.kind, "broken");
+});
+
+test("the codes the app actually mints still work, by every route", () => {
+  /* The guard is only worth having if it does not also refuse real invites,
+     and this is the control for the two tests above. newHouseholdCode is the
+     one thing that makes a code, so a real one is generated here rather than
+     written out — a hand-typed fixture would keep passing if the generator's
+     shape ever changed away from what validCode allows. */
+  for (let i = 0; i < 50; i++) {
+    const code = newHouseholdCode();
+    assert.ok(validCode(code), `newHouseholdCode() produced ${code}, which validCode rejects`);
+    const token = newInviteToken();
+    assert.deepEqual(classifyJoinInput(`${code}~${token}`), { kind: "invite", code, token, role: "member" });
+    assert.deepEqual(classifyJoinInput(inviteUrl("https://x.test/app/", code, token, "guest")), { kind: "invite", code, token, role: "guest" });
+    assert.deepEqual(classifyJoinInput(code), { kind: "code", code });
+  }
 });
 
 test("searchHelp ignores the tab markup, so a tab name is searchable", () => {
