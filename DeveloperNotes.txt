@@ -3157,6 +3157,25 @@ treatment: the store moved into the details panel and the name grew.
        same lever for both is how a UI ends up either uniformly shouty or
        uniformly unreadable.
 
+    F. THE LIST TAB'S COUNTS — the actual thing being asked about, once the
+       question was pinned down. "3 left to buy" and "2 meals selected" were
+       both faint 13px throughout, which gave the one figure you check most
+       in a shop — at arm's length, in shop lighting, holding a trolley —
+       exactly the same weight as the words around it.
+
+       THE NUMBER IS THE CONTENT; the words are its label. The count is now
+       ink and bold at 15px with the label left faint at 13, which is
+       emphasis without the line shouting, and the same pattern for both
+       counts rather than a different idea per line.
+       TABULAR NUMERALS, because it changes as you tick things off and
+       proportional digits make it jump sideways when 10 becomes 9.
+
+       IT COSTS 3px OF THE STICKY BAR at 390px (65 -> 68) and nothing at 320
+       (79 either way) — measured before and after, because the comment
+       sitting on that bar warns specifically about it growing, and the
+       thing it warns about is a WRAPPED LINE costing about a seventh of the
+       screen. A taller glyph is not that.
+
     ALSO RENAMED FOR CONSISTENCY, not just for width: "Save to Ingredients"
     on the List tab is "Save to Pantry", and the prose that said "the
     Ingredients tab" says Pantry. A rename that leaves the old word in the

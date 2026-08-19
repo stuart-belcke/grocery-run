@@ -622,15 +622,25 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
           <Seg options={[{ value: "all", label: "All items A–Z" }, { value: "store", label: "By store" }]} value={view} onChange={setView} />
           {view === "store" && <Seg options={[{ value: "az", label: "A–Z" }, { value: "flow", label: "Store flow" }]} value={storeSort} onChange={setStoreSort} />}
           <div style={{ flex: 1 }} />
+          {/* THE NUMBER IS THE CONTENT; "left to buy" is its label (item 87).
+              Both were faint 13px, which made the one figure you check most
+              in a shop — at arm's length, in whatever lighting the shop has,
+              holding a trolley — the same weight as the words around it.
+              The count is ink and bold at 15px, the label stays faint at 13:
+              emphasis without the whole line shouting.
+              tabular-nums because it changes as you tick things off, and
+              proportional digits make it jump sideways when 10 becomes 9. */}
           <span style={{ fontSize: 13, color: C.faint, whiteSpace: "nowrap" }}>
-            {remaining} left to buy
+            <b style={{ fontSize: 15, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{remaining}</b> left to buy
           </span>
         </div>
       </StickyBar>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", margin: "10px 0 8px" }}>
+        {/* Same treatment, same reason — one pattern for a count on this
+            tab rather than two. */}
         <span style={{ fontSize: 13, color: C.faint }}>
-          {selectedMealCount} meal{selectedMealCount === 1 ? "" : "s"} selected
+          <b style={{ fontSize: 15, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{selectedMealCount}</b> meal{selectedMealCount === 1 ? "" : "s"} selected
         </span>
         <div style={{ flex: 1 }} />
         <Btn kind="danger" onClick={() => setConfirmDone(true)}>Done shopping</Btn>
