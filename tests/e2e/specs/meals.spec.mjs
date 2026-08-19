@@ -387,7 +387,7 @@ test("SHOULD: an ingredient's own name is what the list shows, not the recipe's 
   const soy = idOf(catalog, "Soy sauce");
   const page = await openApp(BASE, { catalog });
   try {
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.searchIngredients("Soy sauce");
     await page.expandRow("Soy sauce");
     await page.clickText(/^Rename$/);

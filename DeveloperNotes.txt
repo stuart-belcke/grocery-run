@@ -3036,15 +3036,37 @@ treatment: the store moved into the details panel and the name grew.
        because you scan it, a sentence cannot because you read it.
        231 declarations before, 93 at 13 and 80 at 12 after.
 
-       THE TAB BAR IS THE ONE EXEMPTION AND IT IS NOT AN OVERSIGHT. Its
-       labels are clamp(9px, 2.85vw, 11.5px), which is arithmetic rather
-       than taste: five labels share the width, and "Ingredients" at weight
-       700 needs 6.49px of width per 1px of type against the 62px a tab gets
-       on a 320px screen (item 74 measured this). Anything bigger
-       ellipsises, which tabbar.spec.mjs already fails on. THE REAL FIX IS A
-       SHORTER WORD FOR THAT TAB, not a bigger number — and renaming a tab
-       is not a quiet change, because help.js and the first-run screen spell
-       it the same way deliberately. Left as a question rather than decided.
+       THE TAB BAR NEEDED A RENAME, NOT A NUMBER. Its labels were
+       clamp(9px, 2.85vw, 11.5px) — arithmetic rather than taste: five
+       labels share the width, and "Ingredients" at weight 700 needs 6.49px
+       of width per 1px of type against the 62px a tab gets on a 320px
+       screen (item 74 measured this). Anything bigger ellipsises, which
+       tabbar.spec.mjs fails on. So the bar was exempted from the floor,
+       written down as the one place the app went under 12, and the real fix
+       named: a shorter word. Asked, and answered — Ingredients became
+       PANTRY.
+       RE-MEASURED AFTER, RATHER THAN ASSUMED, and the measurement moved the
+       problem instead of solving it: with "Ingredients" gone the widest
+       label was "Week plan" at 5.87px per 1px, which still capped at 10.6px
+       on a 320px screen. Two words had to go, so Week plan became WEEK.
+       The widest is now "Settings" at 4.71px per 1px — 13.2px in the same
+       62px. clamp(12px, 3.6vw, 14px) leaves ~10% headroom at the tightest
+       width, which matters because the sandbox measuring it falls back to
+       system-ui and Space Grotesk 700 on a real phone is not guaranteed
+       identical. 11.5px at best before; 12 at 320, 13.5 at 375, 14 from 389.
+       THE EXEMPTION IS GONE. fits.spec measures the bar like everything
+       else, so there is no longer anywhere in the app that renders under 12.
+
+       RENAMING A TAB TOUCHES FOUR PLACES, and one of them was a trap. The
+       label, the help text (help.js writes {Braced} tab names that render
+       bold, deliberately spelled the same), the Settings prose, and the
+       tests. lib.test.js ALREADY had "every {name} in the help text is a
+       real tab label" — and it held the help text against its own hardcoded
+       copy of the labels, so renaming the tab and updating that one line
+       would have kept it green while the bar and the help disagreed. The
+       tab list moved into lib.js as TABS and the test reads from it.
+       Mutation-tested: renaming a tab without touching help.js now fails
+       that test, which it could not have done before.
 
     C. THE NOTES GOT CUT, and some got deleted rather than shortened. The
        test applied was: does this change what I do next? "Exporting changes
@@ -3074,8 +3096,14 @@ treatment: the store moved into the details panel and the name grew.
     always-rendered line fails correctly. Still not total, and said in the
     file: a row behind a dialog is not measured.
 
+    ALSO RENAMED FOR CONSISTENCY, not just for width: "Save to Ingredients"
+    on the List tab is "Save to Pantry", and the prose that said "the
+    Ingredients tab" says Pantry. A rename that leaves the old word in the
+    sentences pointing at it is half a rename.
+
     274 unit, 65 rules, 210 e2e, `npm run check` green. Verified in a
-    browser across all five tabs: no clipped text, no sideways scroll.
+    browser across all five tabs: no clipped text, no sideways scroll, and
+    the tab sizes measured at 320/360/375/390/430px rather than reasoned.
 
 86. [DONE] THE TWO PLACES THIS DIVERGED FROM HOW OTHER APPS DO IT.
     Asked after the household design was written up: "would this be how

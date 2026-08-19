@@ -36,7 +36,7 @@ test("plan a meal, shop it, finish the trip, then rename an ingredient", async (
 
   try {
     /* --- 1. plan a meal onto a day ------------------------------------ */
-    await page.tab("Week plan");
+    await page.tab("Week");
     await page.getByLabel("Choose a meal for Mon").click();
     await page.waitForTimeout(400);
     await page.locator("button").filter({ hasText: /Stir-fry/ }).first().click();
@@ -145,7 +145,7 @@ test("plan a meal, shop it, finish the trip, then rename an ingredient", async (
     );
 
     /* --- 7. rename an ingredient; the recipe follows it --------------- */
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.searchIngredients("Chicken breast");
     await page.expandRow("Chicken breast");
     await page.clickText(/^Rename$/);

@@ -156,7 +156,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
     };
     // One layer now: a recipe is just written, with no catalog-vs-local split
     // and nothing shadowing anything. New ingredients get an entry so they show
-    // up on the Ingredients tab ready to have a store set.
+    // up on the Pantry tab ready to have a store set.
     updateCatalog((c) => {
       // Recipe lines store an ingredient ID, not a spelling. Typing a name the
       // household has never used mints an ingredient — which is what already

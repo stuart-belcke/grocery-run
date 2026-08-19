@@ -1,6 +1,6 @@
 /* ------------------------------------------------------------------ */
 /*  Settings tab — phone-to-phone sync (household code) and catalog
-    publish / backup & restore. Moved off the Ingredients tab so that
+    publish / backup & restore. Moved off the Pantry tab so that
     tab stays focused on stores and ingredient defaults.               */
 /* ------------------------------------------------------------------ */
 
@@ -887,7 +887,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
               ))}
             </ul>
             <div style={{ fontSize: 13, color: C.faint }}>
-              On the <b>Ingredients</b> tab, rename one to exactly the other&apos;s name. They merge, and every recipe using either follows.
+              On the <b>Pantry</b> tab, rename one to exactly the other&apos;s name. They merge, and every recipe using either follows.
             </div>
           </div>
         )}

@@ -226,7 +226,7 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
     // that rewording the first-run copy hung every spec in the suite.
     await page.locator('[aria-label="Getting started"]').first().waitFor({ timeout: 15000 });
   } else {
-    await page.getByRole("button", { name: /^ingredients$/i }).first().waitFor({ timeout: 15000 });
+    await page.getByRole("button", { name: /^pantry$/i }).first().waitFor({ timeout: 15000 });
   }
 
   /* --- ground truth: what the app actually persisted --- */
@@ -239,7 +239,7 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
      update. Bugs in normalizeLocal are invisible until this happens. */
   page.roundTrip = async () => {
     await page.reload({ waitUntil: "domcontentloaded" });
-    await page.getByRole("button", { name: /^ingredients$/i }).first().waitFor({ timeout: 15000 });
+    await page.getByRole("button", { name: /^pantry$/i }).first().waitFor({ timeout: 15000 });
     await page.waitForTimeout(400);
   };
 
@@ -293,7 +293,7 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
      `slot` is "Mon Dinner", matching how the app's own labels read. */
   page.planMeal = async (slot, recipe) => {
     const [day, type] = slot.split(" ");
-    await page.tab("Week plan");
+    await page.tab("Week");
     // Slots are only editable while planning, or behind Edit once you are
     // shopping — the same step a person takes.
     for (const re of [/^Start planning$/, /^Edit$/]) {

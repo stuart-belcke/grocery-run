@@ -20,7 +20,7 @@ import { openApp, assertNoPageErrors } from "../harness.mjs";
 import { smallCatalog, stateWith, emptyState } from "../fixtures.mjs";
 
 const BASE = process.env.E2E_BASE_URL;
-const TABS = ["List", "Meals", "Week plan", "Ingredients", "Settings"];
+const TABS = ["List", "Meals", "Week", "Pantry", "Settings"];
 
 // A household with something on every screen: an empty app has no rows to
 // overflow and would pass this while proving nothing.
@@ -127,16 +127,13 @@ test("no placeholder is wider than the field it sits in", async () => {
    what a person's eye gets — and this caught the tab bar, which a search for
    the literal never would have.
 
-   THE TAB BAR IS EXEMPT, AND IT IS NOT AN OVERSIGHT. Its labels are
-   clamp(9px, 2.85vw, 11.5px), which is a measurement rather than a taste:
-   five labels share the screen width, and "Ingredients" at weight 700 needs
-   6.49px of width per 1px of type against the 62px a tab gets on a 320px
-   screen. Anything larger ellipsises, which tabbar.spec.mjs fails on. The
-   real fix is a shorter word for that tab, not a bigger number here, and
-   renaming a tab is not a thing to do quietly — it is spelled the same way
-   in help.js and on the first-run screen. Until then this is the one place
-   the app goes under 12, and it is written down rather than silently
-   skipped. */
+   THE TAB BAR IS NOT EXEMPT, and that took a rename. Its labels were
+   capped at 11.5px because five of them share the width and "Ingredients"
+   at weight 700 would not fit any larger on a 320px screen — a real
+   arithmetic limit, not a taste. Item 87 shortened the two long labels
+   (Ingredients -> Pantry, Week plan -> Week) so the widest is now
+   "Settings", which fits 13.2px in the same space. The bar is measured
+   here like everything else. */
 test("nothing renders below 12px", async () => {
   const page = await openApp(BASE, { catalog: smallCatalog(), state: busy() });
   try {
@@ -164,7 +161,6 @@ test("nothing renders below 12px", async () => {
             // Leaf nodes only: a container's computed size says nothing
             // about what is actually painted inside it.
             if (el.children.length) continue;
-            if (el.closest("nav")) continue; // see the exemption above
             const text = (el.textContent || "").trim();
             if (!text) continue;
             const r = el.getBoundingClientRect();

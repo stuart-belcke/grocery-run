@@ -1,14 +1,14 @@
 /* Setting an ingredient's store and aisle from the List tab (item 44).
 
    You only ever learn what aisle something is in while you are standing in
-   front of it, and that used to mean leaving the list, opening Ingredients,
+   front of it, and that used to mean leaving the list, opening Pantry,
    and searching for the item you had in your hand.
 
    Asserted on the CATALOG, not the screen. This is the tab's first catalog
    write, and the failure it can produce is the quiet one: the control appears,
    the dropdown moves, nothing throws, and the aisle is simply not there on the
    other phone. Two things are checked every time — that it was written, and
-   that it was written to the SAME place the Ingredients tab writes, since two
+   that it was written to the SAME place the Pantry tab writes, since two
    ways to store one fact is how the two tabs start disagreeing.
 
    MOVED OUT, NOT DROPPED: "today's reroute and the usual store stay separate"
@@ -58,10 +58,10 @@ test("an aisle set from the List tab is written to the catalog and survives a re
   }
 });
 
-test("the usual store set from the List tab is the SAME field the Ingredients tab edits", async () => {
+test("the usual store set from the List tab is the SAME field the Pantry tab edits", async () => {
   // The point of the test: not "a store was saved somewhere" but "it landed in
   // the one place both tabs read". A parallel field would look right on this
-  // tab and leave the Ingredients tab showing the old store forever.
+  // tab and leave the Pantry tab showing the old store forever.
   const page = await openApp(BASE, { catalog: smallCatalog(), state: withList() });
   try {
     await openRow(page, "Broccoli");
@@ -73,10 +73,10 @@ test("the usual store set from the List tab is the SAME field the Ingredients ta
 
     assert.equal((await storedCfg(page, "Broccoli")).store, "Costco");
 
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.searchIngredients("Broccoli");
     await page.expandRow("Broccoli");
-    assert.equal(await page.getByLabel("Default store for Broccoli").inputValue(), "Costco", "the Ingredients tab should show the store the List tab just set");
+    assert.equal(await page.getByLabel("Default store for Broccoli").inputValue(), "Costco", "the Pantry tab should show the store the List tab just set");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

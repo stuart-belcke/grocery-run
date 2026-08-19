@@ -19,8 +19,8 @@
 
 // The three lines, in the order the week actually happens.
 export const HOW_IT_WORKS = [
-  "Choose what you feel like cooking on {Meals}, and give the week a shape on {Week plan}.",
-  "{List} then builds itself from those recipes — every ingredient added up, and grouped by the store and aisle you keep on {Ingredients}.",
+  "Choose what you feel like cooking on {Meals}, and give the week a shape on {Week}.",
+  "{List} then builds itself from those recipes — every ingredient added up, and grouped by the store and aisle you keep on {Pantry}.",
   "Everyone in the household sees the same {List}, so whoever is out can tick things off as they go.",
 ];
 
@@ -30,7 +30,7 @@ export const HOW_IT_WORKS = [
 export const FAQS = [
   {
     q: "How does something get onto the shopping list?",
-    a: "Three ways. Press Choose a meal on a day in {Week plan} — it asks which meal of the day it is, and starts on Dinner — or press Add unplanned meal on a recipe in {Meals}. Either one adds that recipe's ingredients, scaled to the servings you set. Or type it straight into the Add box at the top of {List}.",
+    a: "Three ways. Press Choose a meal on a day in {Week} — it asks which meal of the day it is, and starts on Dinner — or press Add unplanned meal on a recipe in {Meals}. Either one adds that recipe's ingredients, scaled to the servings you set. Or type it straight into the Add box at the top of {List}.",
     keywords: ["add", "put", "shopping", "generate", "groceries", "where do items come from", "breakfast", "lunch", "dessert", "meal type"],
   },
   {
@@ -40,17 +40,17 @@ export const FAQS = [
   },
   {
     q: "The same thing is on the list twice under two names. Why?",
-    a: "They are two different ingredients as far as the app is concerned — “Olive oil” and “Extra virgin olive oil” each get their own row, store and aisle. Fix it on {Ingredients}: open the one you want to lose and Rename it to exactly match the other, and the two merge. When you type a name the editor already knows, it offers the existing one — taking that offer is what stops it happening.",
+    a: "They are two different ingredients as far as the app is concerned — “Olive oil” and “Extra virgin olive oil” each get their own row, store and aisle. Fix it on {Pantry}: open the one you want to lose and Rename it to exactly match the other, and the two merge. When you type a name the editor already knows, it offers the existing one — taking that offer is what stops it happening.",
     keywords: ["duplicate", "twice", "merge", "rename", "two entries", "forked"],
   },
   {
     q: "How do I change where something is bought?",
-    a: "Tap the round i on the {List} row, then pick a store under Where to buy it. It asks whether that is just for this trip or from now on, because those are different things and the app cannot tell which you meant. Just this trip goes back afterwards; Always makes it the item's home for everyone in the household, the same setting the {Ingredients} tab shows.",
+    a: "Tap the round i on the {List} row, then pick a store under Where to buy it. It asks whether that is just for this trip or from now on, because those are different things and the app cannot tell which you meant. Just this trip goes back afterwards; Always makes it the item's home for everyone in the household, the same setting the {Pantry} tab shows.",
     keywords: ["store", "shop", "supermarket", "reroute", "override", "aisle", "permanent", "today", "dropdown"],
   },
   {
     q: "Where do the aisle numbers come from?",
-    a: "You set them, per store. Easiest while you are actually standing in the aisle: tap the round i on a {List} row, then set the aisle under Where it lives. You can also set them on {Ingredients}. Switch {List} to Store flow to walk the shop in aisle order.",
+    a: "You set them, per store. Easiest while you are actually standing in the aisle: tap the round i on a {List} row, then set the aisle under Where it lives. You can also set them on {Pantry}. Switch {List} to Store flow to walk the shop in aisle order.",
     keywords: ["aisle", "shop", "supermarket", "store flow", "order", "walk", "number", "layout"],
   },
   {
@@ -65,12 +65,12 @@ export const FAQS = [
   },
   {
     q: "What does Done shopping do?",
-    a: "It ends the trip. What you ticked off is treated as bought and stops being asked for; what you did not get stays on the list for next time. It does not clear the week — Start a new plan on {Week plan} does that.",
+    a: "It ends the trip. What you ticked off is treated as bought and stops being asked for; what you did not get stays on the list for next time. It does not clear the week — Start a new plan on {Week} does that.",
     keywords: ["done", "finish", "trip", "clear", "checked", "bought"],
   },
   {
     q: "What is a staple, and what does Need mean?",
-    a: "A staple is something you keep in the house, so recipes calling for it do not pad the list. When you run out, mark it Need and it appears on the list on its own, with no amount — it means get more, not get 2 lb. Set both on {Ingredients}.",
+    a: "A staple is something you keep in the house, so recipes calling for it do not pad the list. When you run out, mark it Need and it appears on the list on its own, with no amount — it means get more, not get 2 lb. Set both on {Pantry}.",
     keywords: ["staple", "need", "pantry", "run out", "cupboard", "home", "out of"],
   },
   {

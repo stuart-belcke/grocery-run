@@ -33,7 +33,7 @@ test("a realistic session leaves the catalog sound", async () => {
   try {
     // A spread of the everyday actions, in one session, in the order someone
     // would actually do them.
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.getByLabel("Add an ingredient").fill("Paper towels");
     await page.clickText(/^Add item$/);
 
@@ -64,11 +64,11 @@ test("no ingredient is ever listed twice on screen", async () => {
   // each time: "there are two of it now".
   const page = await openApp(BASE, { catalog: cleanCatalog() });
   try {
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.searchIngredients("Orzo");
     await page.clickText(/^\+ List$/);
     await page.roundTrip();
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
 
     const rows = await page.evaluate(() =>
       Array.from(document.querySelectorAll("button"))
@@ -92,7 +92,7 @@ test("every tab renders without throwing", async () => {
   // a render throw is a white screen, in a shop, with no way back (item 35).
   const page = await openApp(BASE, { catalog: cleanCatalog() });
   try {
-    for (const tab of ["List", "Meals", "Week plan", "Ingredients", "Settings"]) {
+    for (const tab of ["List", "Meals", "Week", "Pantry", "Settings"]) {
       await page.tab(tab);
       const body = await page.textContent("body");
       assert.ok(body && body.length > 200, `${tab} rendered almost nothing`);
@@ -108,7 +108,7 @@ test("the shipped starter catalog is itself sound", async () => {
   // duplicate name, every new household would be born unable to export.
   const page = await openApp(BASE, {});   // no fixture: let the app seed itself
   try {
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.getByLabel("Add an ingredient").fill("Trigger a save");
     await page.clickText(/^Add item$/);
     await page.roundTrip();

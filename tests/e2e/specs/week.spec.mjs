@@ -21,7 +21,7 @@ const listedNames = (page) =>
 // controls are then behind the Edit toggle. Starting a planning cycle is the
 // intended way in.
 const startPlanning = async (page) => {
-  await page.tab("Week plan");
+  await page.tab("Week");
   const start = page.locator("button").filter({ hasText: /^Start planning$/ }).first();
   if (await start.count()) {
     await start.click();
@@ -125,7 +125,7 @@ test("SHOULD: starting a new plan empties the week and ends the buying cycle", a
     await page.waitForTimeout(700);
     assert.ok(Object.keys((await page.readState()).list.bought).length > 0, "fixture: something should be banked");
 
-    await page.tab("Week plan");
+    await page.tab("Week");
     const startNew = page.locator("button").filter({ hasText: /^Start a new plan$/ }).first();
     assert.equal(await startNew.count(), 1, "there should be a way to start the next cycle");
     await startNew.click();
@@ -219,7 +219,7 @@ test("SHOULD: tapping a planned meal shows its recipe scaled to the slot's servi
   });
   const page = await openApp(BASE, { catalog, state });
   try {
-    await page.tab("Week plan");
+    await page.tab("Week");
     await page.getByLabel(/Mon Dinner: Stir-fry — view recipe/).click();
     await page.waitForTimeout(300);
 
@@ -243,7 +243,7 @@ test("SHOULD: a side's recipe scales to the SIDE's own servings, not the main's"
   });
   const page = await openApp(BASE, { catalog, state });
   try {
-    await page.tab("Week plan");
+    await page.tab("Week");
     await page.getByLabel(/View recipe for Rice side/).click();
     await page.waitForTimeout(300);
 
@@ -263,7 +263,7 @@ test("SHOULD: edit mode still offers the recipe view, alongside re-pick and clea
   });
   const page = await openApp(BASE, { catalog, state });
   try {
-    await page.tab("Week plan");
+    await page.tab("Week");
     await page.locator("button").filter({ hasText: /^Edit$/ }).first().click();
     await page.waitForTimeout(300);
 
@@ -293,7 +293,7 @@ test("SHOULD: an unplanned meal shows in the Week tab's dropdown, and is removab
   const state = stateWith({ list: { selections: { "r-stirfry": 2 } } });
   const page = await openApp(BASE, { catalog, state });
   try {
-    await page.tab("Week plan");
+    await page.tab("Week");
 
     const toggle = page.getByRole("button", { name: /Unplanned meals/ });
     assert.equal(await toggle.count(), 1, "the dropdown should appear while something is unplanned");
@@ -305,7 +305,7 @@ test("SHOULD: an unplanned meal shows in the Week tab's dropdown, and is removab
     await page.waitForTimeout(500);
     await page.roundTrip();
 
-    await page.tab("Week plan");
+    await page.tab("Week");
     assert.equal(
       await page.getByRole("button", { name: /Unplanned meals/ }).count(),
       0,

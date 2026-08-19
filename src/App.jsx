@@ -40,6 +40,7 @@ import { C, fontDisplay, fontBody, syncTone, BOTTOM_NAV_H, BOTTOM_NAV_Z } from "
 import { Stripe, Btn, ChoiceDialog, useKeyboardOpen } from "./ui";
 import {
   LOCAL_KEY,
+  TABS,
   ONBOARDED_KEY,
   MUST_CHOOSE_KEY,
   GUEST_PREVIEW_KEY,
@@ -975,13 +976,7 @@ export default function App() {
         }}
       >
         <div style={{ maxWidth: 720, margin: "0 auto", display: "flex" }}>
-          {[
-            { id: "list", label: "List" },
-            { id: "meals", label: "Meals" },
-            { id: "week", label: "Week plan" },
-            { id: "pantry", label: "Ingredients" },
-            { id: "settings", label: "Settings" },
-          ].map((t) => (
+          {TABS.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
@@ -993,23 +988,25 @@ export default function App() {
                 minWidth: 0,
                 height: BOTTOM_NAV_H,
                 fontFamily: fontBody,
-                // MEASURED, not chosen: at 320px each tab gets 64px and
-                // "Ingredients" is 68px at 12px type, so it ellipsised to
-                // "Ingredien…". clamp shrinks the label only on the phones
-                // that need it and leaves 12px everywhere there is room —
-                // 10px at 320, 11.6px at 375, 12px from 388 up.
-                /* RE-MEASURED FOR BOLD, which is wider — the old
-                   clamp(10px, 3.1vw, 12px) was measured at weight 500 and
-                   ellipsised "Ingredients" at 320 AND 390 the moment the
-                   weight went up. "Ingredients" needs 6.49px of width per 1px
-                   of type at 700, and each of five tabs gets (width/5 - 2)px:
-                   62px at 320, 76px at 390. These numbers leave ~6% headroom
-                   rather than sitting on the limit, because the sandbox that
-                   measured them falls back to system-ui — Space Grotesk 700
-                   on a real phone is not guaranteed to be identical.
-                   The net is about 1px smaller and a great deal heavier.
-                   tabbar.spec.mjs asserts no label ellipsises at any width. */
-                fontSize: "clamp(9px, 2.85vw, 11.5px)",
+                /* MEASURED, not chosen, and re-measured for item 87's
+                   rename. The constraint is arithmetic: five labels share the
+                   width, each tab gets (width/5 - 2)px, and the widest label
+                   decides the size. It used to be "Ingredients" at 6.49px of
+                   width per 1px of type, which forced a cap of 11.5px — under
+                   the app's own 12px floor, with no way to lift it except a
+                   shorter word. So the words got shorter: Ingredients ->
+                   Pantry, Week plan -> Week.
+                   The widest is now "Settings" at 4.71px per 1px of type,
+                   which fits 13.2px in the 62px a tab gets on a 320px screen.
+                   12px there leaves ~10% headroom, and the headroom matters
+                   because the sandbox that measures this falls back to
+                   system-ui — Space Grotesk 700 on a real phone is not
+                   guaranteed identical. 12.0px at 320, 13.5 at 375, 14 from
+                   389 up.
+                   tabbar.spec.mjs asserts no label ellipsises at any width,
+                   and fits.spec.mjs now measures the bar like everything else
+                   rather than exempting it. */
+                fontSize: "clamp(12px, 3.6vw, 14px)",
                 letterSpacing: "-0.01em",
                 fontWeight: 700,
                 padding: "0 1px",

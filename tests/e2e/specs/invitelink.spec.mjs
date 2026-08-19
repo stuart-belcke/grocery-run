@@ -226,9 +226,9 @@ test("choosing 'Create a household' from there gets you into the app", async () 
   const page = await openApp(BASE, { user: SIGNED_IN, mustChoose: true });
   try {
     await page.locator('button:text-is("Create a household")').click();
-    await page.getByRole("button", { name: /^ingredients$/i }).first().waitFor({ timeout: 15000 });
+    await page.getByRole("button", { name: /^pantry$/i }).first().waitFor({ timeout: 15000 });
     await page.reload({ waitUntil: "domcontentloaded" });
-    await page.getByRole("button", { name: /^ingredients$/i }).first().waitFor({ timeout: 15000 });
+    await page.getByRole("button", { name: /^pantry$/i }).first().waitFor({ timeout: 15000 });
     assert.equal(await page.locator('[aria-label="Getting started"]').count(), 0, "the screen came back after a reload — the phone is stuck");
     assertNoPageErrors(page, assert);
   } finally {

@@ -11,6 +11,20 @@ export const LOCAL_KEY = "grocery-run-local-v1";
 // Set once a browser has been through the first-run screen, so it is never
 // shown twice. An existing install is treated as onboarded by its cached
 // household rather than by this flag — see App.
+/* THE TABS, AND THEIR EXACT WORDING. Here rather than in App.jsx because
+   help.js writes {Braced} tab names into its prose and HelpText renders them
+   in bold — so the tab bar and the help text have to agree, and nothing
+   noticed when they didn't. help.test.js now holds one to the other.
+   `id` is what the app switches on and is NOT the label: renaming a tab must
+   never change what a saved tab id means. */
+export const TABS = [
+  { id: "list", label: "List" },
+  { id: "meals", label: "Meals" },
+  { id: "week", label: "Week" },
+  { id: "pantry", label: "Pantry" },
+  { id: "settings", label: "Settings" },
+];
+
 export const ONBOARDED_KEY = "grocery-run-onboarded-v1";
 /* Set when leaving the LAST household you were in. Forces the first-run
    screen back up so the next household is one you asked for, rather than one
@@ -1358,7 +1372,7 @@ export function ingredientIdOf(index, line) {
 // The id for an ingredient NAME inside a catalog being edited, minting an
 // entry if this household has never seen it. Every place a user can type a
 // name that becomes an ingredient goes through here — the recipe editor and
-// the Ingredients tab's add box — so neither can quietly write a name-keyed
+// the Pantry tab's add box — so neither can quietly write a name-keyed
 // entry into an id-keyed catalog.
 //
 // Mutates the draft it is given, which is what the updateCatalog callers want.
@@ -2010,7 +2024,7 @@ export function ingredientNames(data) {
 
 // Every recipe that references the given ingredient key (case-insensitive).
 // Shared by the rename-affected-recipes check, the remove-item safety check,
-// and the Ingredients tab's "used in" display.
+// and the Pantry tab's "used in" display.
 export function usedInRecipes(data, key) {
   return data.recipes.filter((r) => r.ingredients.some((i) => (i.ingredientId || norm(i.name)) === key));
 }

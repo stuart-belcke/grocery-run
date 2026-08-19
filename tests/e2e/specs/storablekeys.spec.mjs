@@ -194,7 +194,7 @@ test("an aisle at a store whose name the database can't key is still saved and s
   catalog.ingredients[id].store = "H.E.B.";
   const page = await openApp(BASE, { catalog });
   try {
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.searchIngredients("Bananas");
     await page.expandRow("Bananas");
     await page.getByLabel("Aisle for Bananas at H.E.B.").fill("9");
@@ -208,7 +208,7 @@ test("an aisle at a store whose name the database can't key is still saved and s
     assert.equal(Object.values(entry.aisles)[0], 9, `the aisle should have been stored, got ${JSON.stringify(entry.aisles)}`);
     assert.equal(entry.store, "H.E.B.", "the store's name is displayed, so it must survive exactly as typed");
     // And it reads back at the display name, which is all any caller has.
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.searchIngredients("Bananas");
     await page.expandRow("Bananas");
     assert.equal(await page.getByLabel("Aisle for Bananas at H.E.B.").inputValue(), "9", "the aisle came back empty on the screen that set it");
@@ -227,7 +227,7 @@ test("an aisle written by an older build, keyed by the raw store name, still rea
   catalog.ingredients[id].aisles = { Aldi: 4 };
   const page = await openApp(BASE, { catalog });
   try {
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.searchIngredients("Bananas");
     await page.expandRow("Bananas");
     assert.equal(await page.getByLabel("Aisle for Bananas at Aldi").inputValue(), "4", "an aisle from an older build was not read");

@@ -1,4 +1,4 @@
-/* Ingredients tab: the flows that touch an ingredient's identity.
+/* Pantry tab: the flows that touch an ingredient's identity.
 
    Every regression in this file was a real bug that reached a phone. */
 
@@ -14,7 +14,7 @@ test("setting a default store keeps the ingredient's name and store", async () =
   const id = idOf(catalog, "Red onion");
   const page = await openApp(BASE, { catalog });
   try {
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.searchIngredients("Red onion");
     await page.expandRow("Red onion");
     await page.locator("select").first().selectOption("Costco");
@@ -27,7 +27,7 @@ test("setting a default store keeps the ingredient's name and store", async () =
 
     // And it survives the normalize-on-read path.
     await page.roundTrip();
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.searchIngredients("Red onion");
     assert.deepEqual(await page.ingredientRows(/Red onion/), ["Red onionCostco⚙"]);
     assertNoPageErrors(page, assert);
@@ -41,7 +41,7 @@ test("setting an aisle keeps the name too", async () => {
   const id = idOf(catalog, "Bananas");
   const page = await openApp(BASE, { catalog });
   try {
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.searchIngredients("Bananas");
     await page.expandRow("Bananas");
     // No `if (count())` guard: a control this test can't find is a FAILURE,
@@ -72,7 +72,7 @@ test("renaming onto an existing name never leaves two ingredients with one name"
   const catalog = cleanCatalog();
   const page = await openApp(BASE, { catalog });
   try {
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.searchIngredients("Garlic");
     await page.expandRow("Garlic");
     await page.clickText(/^Rename$/);
@@ -105,7 +105,7 @@ test("renaming onto an existing name never leaves two ingredients with one name"
 test("renaming onto an existing name offers no way to keep both", async () => {
   const page = await openApp(BASE, { catalog: cleanCatalog() });
   try {
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.searchIngredients("Garlic");
     await page.expandRow("Garlic");
     await page.clickText(/^Rename$/);
@@ -127,7 +127,7 @@ test("renaming to a free name still offers to keep it separate", async () => {
   const catalog = cleanCatalog();
   const page = await openApp(BASE, { catalog });
   try {
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.searchIngredients("Garlic");
     await page.expandRow("Garlic");
     await page.clickText(/^Rename$/);
@@ -141,12 +141,12 @@ test("renaming to a free name still offers to keep it separate", async () => {
   }
 });
 
-test("adding to the list from Ingredients doesn't create a second row", async () => {
+test("adding to the list from Pantry doesn't create a second row", async () => {
   const catalog = cleanCatalog();
   const id = idOf(catalog, "Orzo");
   const page = await openApp(BASE, { catalog });
   try {
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.searchIngredients("Orzo");
     await page.clickText(/^\+ List$/);
 
@@ -154,7 +154,7 @@ test("adding to the list from Ingredients doesn't create a second row", async ()
     // normalizeLocal — checking straight after the tap passed on the broken
     // build, which is exactly why this round trip is here.
     await page.roundTrip();
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.searchIngredients("Orzo");
     const rows = await page.ingredientRows(/orzo/i);
     assert.equal(rows.length, 1, `expected one Orzo row, got ${JSON.stringify(rows)}`);
@@ -170,7 +170,7 @@ test("adding to the list from Ingredients doesn't create a second row", async ()
 test("adding a brand-new item keeps the catalog id-keyed", async () => {
   const page = await openApp(BASE, { catalog: cleanCatalog() });
   try {
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.getByLabel("Add an ingredient").fill("Paper towels");
     await page.clickText(/^Add item$/);
     await page.roundTrip();

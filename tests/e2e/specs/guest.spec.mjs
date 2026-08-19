@@ -57,8 +57,8 @@ test("Week: a guest sees the plan but is offered nothing to change it with", asy
   const guest = await asGuest();
   const member = await asMember();
   try {
-    await guest.tab("Week plan");
-    await member.tab("Week plan");
+    await guest.tab("Week");
+    await member.tab("Week");
 
     assert.ok(await count(member, 'button:text-is("Start planning")'), "control missing for a member too — selector is wrong");
     assert.equal(await count(guest, 'button:text-is("Start planning")'), 0, "a guest was offered Start planning");
@@ -73,12 +73,12 @@ test("Week: a guest sees the plan but is offered nothing to change it with", asy
   }
 });
 
-test("Ingredients: a guest keeps the read-only detail and loses every editor", async () => {
+test("Pantry: a guest keeps the read-only detail and loses every editor", async () => {
   const guest = await asGuest();
   const member = await asMember();
   try {
-    await guest.tab("Ingredients");
-    await member.tab("Ingredients");
+    await guest.tab("Pantry");
+    await member.tab("Pantry");
 
     assert.ok(await count(member, 'button:text-is("Add store")'), "control missing for a member too — selector is wrong");
     assert.equal(await count(guest, 'button:text-is("Add store")'), 0, "a guest was offered the stores editor");
@@ -116,10 +116,10 @@ test("a full member still sees everything", async () => {
   // The guard against fixing this by hiding the controls from everyone.
   const page = await asMember();
   try {
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     assert.ok(await count(page, 'button:text-is("Add store")'));
     assert.ok(await count(page, 'button:text-is("Add item")'));
-    await page.tab("Week plan");
+    await page.tab("Week");
     assert.ok(await count(page, 'button:text-is("Start planning")'));
     await page.tab("Meals");
     assert.ok(await count(page, 'button:text-is("Edit")'));

@@ -42,7 +42,7 @@ const listAmount = (page, name) =>
 // planning (or behind Edit in the shopping stage). Skipping this step is what
 // made the sides button look missing when this suite was first sketched.
 const startPlanning = async (page) => {
-  await page.tab("Week plan");
+  await page.tab("Week");
   const start = page.locator("button").filter({ hasText: /^Start planning$/ }).first();
   if (await start.count()) {
     await start.click();
@@ -87,7 +87,7 @@ test("SHOULD: a side added to a slot is stored on it and feeds the shopping list
       "the side should be stored on the slot it was added to"
     );
 
-    await page.tab("Week plan");
+    await page.tab("Week");
     await page.tab("List");
     assert.deepEqual(
       await listedNames(page),

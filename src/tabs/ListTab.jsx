@@ -32,7 +32,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
 
   // Live-filtered ingredient matches for the "add shopping item" field. A custom
   // dropdown (rather than a native <datalist>, which renders unreliably) so it
-  // always shows as you type and matches the Ingredients tab's search feel.
+  // always shows as you type and matches the Pantry tab's search feel.
   const suggestions = useMemo(() => ingredientMatches(knownItems, extra.name), [knownItems, extra.name]);
   const sugOpen = showSug && suggestions.length > 0;
   // Picking a known ingredient fills in the unit its recipes usually use
@@ -67,7 +67,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
      to Ingredients and searching for the item you had in your hand — mid-shop,
      which is the only time you ever learn what aisle something is in.
 
-     The same two writes the Ingredients tab makes, deliberately: one
+     The same two writes the Pantry tab makes, deliberately: one
      setIngredientCfg call each, so there is no second way to write a store.
      Distinct from `overrides`, which is a reroute for TODAY. Both are set from
      the same control in the panel now — it asks which you meant — so this is
@@ -262,7 +262,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
     update((d) => {
       d.list.extras[key] = { name, qty: Number(extra.qty) || 1, unit: extra.unit.trim() };
       // "Save to Ingredients" only means "remember this name so it's suggested
-      // next time". Where it lives is the Ingredients tab's job, and the
+      // next time". Where it lives is the Pantry tab's job, and the
       // store control in the item's panel handles a reroute — this used to
       // write the same `store` value to a default, an override, or an aisle
       // map depending on invisible state.
@@ -886,10 +886,10 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
         onCancel={() => setAskSave(null)}
         choices={[
           { label: "Just this list", kind: "ghost", onClick: () => commitExtra(false) },
-          { label: "Save to Ingredients", kind: "primary", onClick: () => commitExtra(true) },
+          { label: "Save to Pantry", kind: "primary", onClick: () => commitExtra(true) },
         ]}
       >
-        <b style={{ color: C.ink }}>{askSave}</b> isn't in your Ingredients yet. Saving it means it's suggested next time you type — set its store and aisle on the Ingredients tab. Otherwise it's a one-time buy.
+        <b style={{ color: C.ink }}>{askSave}</b> isn't in your Ingredients yet. Saving it means it's suggested next time you type — set its store and aisle on the Pantry tab. Otherwise it's a one-time buy.
       </ChoiceDialog>
 
       {/* The question that replaced the second dropdown. Asked because the app

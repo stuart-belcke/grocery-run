@@ -82,6 +82,7 @@ import {
   withUnitNotes,
   needsUnitNotes,
   parseTabMarkup,
+  TABS,
   keyboardIsOpen,
   KEYBOARD_MIN_INSET,
   searchHelp,
@@ -2645,7 +2646,11 @@ test("unitMatches still suggests something for a brand-new household", () => {
    both are ways it goes quietly wrong: a tab name that no longer names a tab,
    and a search that gets WIDER the more you type. */
 
-const TAB_LABELS = ["List", "Meals", "Week plan", "Ingredients", "Settings"];
+/* READ FROM THE APP'S OWN LIST, not a copy of it. This was a hardcoded
+   array, which is the same drift it exists to catch one level up: renaming a
+   tab and updating this line would have kept the test green while the tab bar
+   and the help text disagreed. TABS moved into lib.js for exactly this. */
+const TAB_LABELS = TABS.map((t) => t.label);
 
 test("every {name} in the help text is a real tab label", () => {
   /* The explanation doubles as the map — read it once and you know what the
