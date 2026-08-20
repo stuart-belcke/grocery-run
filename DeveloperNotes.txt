@@ -382,8 +382,34 @@ Tier 4 — multi-device / integrations (highest risk, do last)
       A   full invite, iPhone   — after the invite redeems, over the list
       B   full invite, Android  — identical but "⋮ Menu → Install app"
       C1  guest holding a real account — no browser trap at all
-      C2  guest signed in anonymously — browser-bound, offered a way out
+      C2  guest signed in anonymously — confirmation only, no ask
       D   Settings → Account    — the permanent one, for after "Not now"
+
+    THE PROMPT IS TWO HALVES, and C2 is what forced the split: a
+    CONFIRMATION that names the household, which everybody gets, and a
+    HOME-SCREEN ASK, which C2 alone does not. Keep them separable in the
+    code — the confirmation is the load-bearing half.
+
+    C2 WAS DRAFTED WITH A WARNING AND THE WARNING IS CUT. It told an
+    account-less guest that adding the app to their home screen would not
+    work for them. Wrong on three counts, and worth writing down because
+    the draft looked reasonable:
+      - IT WAS UNVERIFIED. It rested on iOS giving a home-screen PWA
+        storage separate from Safari. Nobody has tested that here. Writing
+        an untested claim as a prohibition is exactly what the Android
+        gesture line in this same item refuses to do.
+      - IT WAS ALREADY SAID, better, earlier. Onboarding.jsx:235 ships
+        "No account needed — but clearing this browser means a new link"
+        ON THE JOIN CARD, before they commit, where it can still change
+        the decision instead of only worrying them afterwards.
+      - THE FAILURE IT PREVENTS IS CHEAP. Add the icon anyway and it opens
+        on the first-run screen while the browser tab keeps working.
+        Confusing for a moment, nothing lost. That does not justify a card
+        you cannot dismiss.
+    The sign-in offer went with it. It existed as the escape hatch from
+    the warning; with no warning it is an account pitch on a success
+    screen, against the two-tap path that is the whole point of that
+    route. It belongs on the join card (open decision 2) and in Settings.
 
     C1 IS THE CASE THE FIRST DRAFT GOT WRONG and it is worth restating: the
     rules read role == 'guest' OR provider != anonymous, so a guest
@@ -405,10 +431,10 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     publish, so the assumption is "browser, same as iOS". Nobody has tested
     it on a real Android phone. Do not write the copy as if it were known.
 
-    OPEN DECISIONS: (1) resolved — name the household, per item 90.
-    (2) should the guest card offer signing in, which is the step C1 needs
-    and does not have. (3) does C2's warning earn its place. (4) ship A and
-    D, or D alone.
+    OPEN DECISIONS, two left. (2) should the guest card offer signing in,
+    which is the step C1 needs and does not have. (4) ship A and D, or D
+    alone. Resolved: (1) name the household, per item 90; (3) C2's warning
+    comes out, above.
 
 
 Hygiene — not features, and not sequenced
