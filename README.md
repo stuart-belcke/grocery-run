@@ -31,10 +31,21 @@ arrow) → scroll to **Add to Home Screen** → Add. A "Grocery Run" icon appear
 and opens full-screen like a native app.
 
 **Android**: open the URL in Chrome → tap ⋮ menu → **Add to Home screen**
-(or "Install app") → Add.
+(or "Install app") → Add. Chrome often offers a one-tap **Add to home screen**
+button inside the app instead — take that if you see it, it opens the same
+dialog.
+
+The app also offers this itself: once, right after you join a household, and
+permanently afterwards under **Settings → Account**. On Android that offer is a
+real button; on iPhone it can only name the gesture, because Safari has no
+install API.
 
 Do this on both phones. After the first visit, the app also works offline
 (the included service worker caches it).
+
+If you change `public/icon.svg`, run `node scripts/make-icons.mjs` and commit
+what it writes. The PNG sizes it produces are what Chrome reads to decide the
+app is installable at all — without them there is no install button.
 
 ## How data works
 

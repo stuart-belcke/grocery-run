@@ -114,6 +114,9 @@ const MUST_CHOOSE_KEY = "grocery-run-must-choose-household-v1";
 const GUEST_PREVIEW_KEY = "grocery-run-e2e-guest-preview";
 const STATUS_PREVIEW_KEY = "grocery-run-e2e-status-preview";
 const USER_PREVIEW_KEY = "grocery-run-e2e-user-preview";
+const INSTALL_PREVIEW_KEY = "grocery-run-e2e-install-preview";
+const HOUSEHOLDS_PREVIEW_KEY = "grocery-run-e2e-households-preview";
+const KNOWN_HOUSEHOLDS_KEY = "grocery-run-known-households-v1";
 
 /* Opens the app with a known household already in place.
 
@@ -121,12 +124,17 @@ const USER_PREVIEW_KEY = "grocery-run-e2e-user-preview";
    pins the ingredient IDS. Without a seeded catalog the app mints fresh
    random ids on first edit, so a test's ids don't match the rendered rows
    and the run proves nothing. */
-export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, onboarded = true, guest = false, hash = "", status = null, user = null, mustChoose = false } = {}) {
+export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, onboarded = true, guest = false, hash = "", status = null, user = null, mustChoose = false, justJoined = false, userAgent = null, households = null, knownHouseholds = null } = {}) {
   /* A CONTEXT, not a browser — see the setup/teardown block above. Each one
      starts with empty localStorage and cookies, which is the whole of what
      this app persists, so a test is as isolated as it was when every test
      got its own browser process. */
-  const context = await (await getBrowser()).newContext();
+  /* userAgent is overridden per CONTEXT, which is the only place Playwright
+     lets it be set — and it has to be real here rather than stubbed on
+     navigator, because the app reads navigator.userAgent at mount to choose
+     between "Tap Share" and "Open the menu". Stubbing it after load would
+     test a branch the browser never took. */
+  const context = await (await getBrowser()).newContext(userAgent ? { userAgent } : {});
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
@@ -161,7 +169,7 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
      fixture. That looked exactly like "the edit didn't persist", and it is
      the sort of harness bug that makes a suite untrustworthy rather than
      merely failing. */
-  await page.addInitScript(([c, cat, st, kD, kC, kS, kO, onb, kG, gst, kSt, sts, kU, usr, kM, must]) => {
+  await page.addInitScript(([c, cat, st, kD, kC, kS, kO, onb, kG, gst, kSt, sts, kU, usr, kM, must, kI, joined, kH, idx, kK, kn]) => {
     if (!localStorage.getItem(kD)) localStorage.setItem(kD, JSON.stringify({ code: c }));
     if (cat && !localStorage.getItem(kC + c)) localStorage.setItem(kC + c, cat);
     if (st && !localStorage.getItem(kS + c)) localStorage.setItem(kS + c, st);
@@ -196,9 +204,26 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
     // it stays gone. The app writes `false` rather than removing the key, so
     // "already answered" is what getItem tests for here.
     if (must && !localStorage.getItem(kM)) localStorage.setItem(kM, JSON.stringify(true));
+    /* The moment of joining — see INSTALL_PREVIEW_KEY in lib.js. Reachable
+       only through a real join, which needs the database this build compiles
+       out, so the flag is seeded instead. What it gates is ordinary
+       rendering: which half of the offer appears, and for whom. */
+    if (joined) localStorage.setItem(kI, JSON.stringify(true));
+    /* The account's household index, and which of them this device has
+       already been shown. Item 92 announces a household joined SOMEWHERE
+       ELSE, which nothing this browser does could ever produce. */
+    if (idx) localStorage.setItem(kH, JSON.stringify(idx));
+    /* Keyed by uid, matching the app — see KNOWN_HOUSEHOLDS_KEY. A test that
+       seeds a set without an account to hang it on is seeding nothing, which
+       is exactly the signed-out case and should stay that way. */
+    if (kn && usr && usr.uid && !localStorage.getItem(kK)) {
+      localStorage.setItem(kK, JSON.stringify({ [usr.uid]: kn }));
+    }
   }, [code, catalog ? JSON.stringify(catalog) : null, state ? JSON.stringify(state) : null,
       DEVICE_KEY, CATALOG_PREFIX, STATE_PREFIX, ONBOARDED_KEY, onboarded, GUEST_PREVIEW_KEY, guest,
-      STATUS_PREVIEW_KEY, status, USER_PREVIEW_KEY, user, MUST_CHOOSE_KEY, mustChoose]);
+      STATUS_PREVIEW_KEY, status, USER_PREVIEW_KEY, user, MUST_CHOOSE_KEY, mustChoose,
+      INSTALL_PREVIEW_KEY, justJoined, HOUSEHOLDS_PREVIEW_KEY, households,
+      KNOWN_HOUSEHOLDS_KEY, knownHouseholds]);
 
   // domcontentloaded, not networkidle: with external requests aborted there
   // is no "idle" to wait for, and the tab bar rendering is the real signal
@@ -226,7 +251,7 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
     // that rewording the first-run copy hung every spec in the suite.
     await page.locator('[aria-label="Getting started"]').first().waitFor({ timeout: 15000 });
   } else {
-    await page.getByRole("button", { name: /^ingredients$/i }).first().waitFor({ timeout: 15000 });
+    await page.getByRole("button", { name: /^pantry$/i }).first().waitFor({ timeout: 15000 });
   }
 
   /* --- ground truth: what the app actually persisted --- */
@@ -239,7 +264,7 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
      update. Bugs in normalizeLocal are invisible until this happens. */
   page.roundTrip = async () => {
     await page.reload({ waitUntil: "domcontentloaded" });
-    await page.getByRole("button", { name: /^ingredients$/i }).first().waitFor({ timeout: 15000 });
+    await page.getByRole("button", { name: /^pantry$/i }).first().waitFor({ timeout: 15000 });
     await page.waitForTimeout(400);
   };
 
@@ -293,7 +318,7 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
      `slot` is "Mon Dinner", matching how the app's own labels read. */
   page.planMeal = async (slot, recipe) => {
     const [day, type] = slot.split(" ");
-    await page.tab("Week plan");
+    await page.tab("Plan");
     // Slots are only editable while planning, or behind Edit once you are
     // shopping — the same step a person takes.
     for (const re of [/^Start planning$/, /^Edit$/]) {

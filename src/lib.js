@@ -11,6 +11,20 @@ export const LOCAL_KEY = "grocery-run-local-v1";
 // Set once a browser has been through the first-run screen, so it is never
 // shown twice. An existing install is treated as onboarded by its cached
 // household rather than by this flag — see App.
+/* THE TABS, AND THEIR EXACT WORDING. Here rather than in App.jsx because
+   help.js writes {Braced} tab names into its prose and HelpText renders them
+   in bold — so the tab bar and the help text have to agree, and nothing
+   noticed when they didn't. help.test.js now holds one to the other.
+   `id` is what the app switches on and is NOT the label: renaming a tab must
+   never change what a saved tab id means. */
+export const TABS = [
+  { id: "list", label: "List" },
+  { id: "meals", label: "Recipes" },
+  { id: "week", label: "Plan" },
+  { id: "pantry", label: "Pantry" },
+  { id: "settings", label: "Settings" },
+];
+
 export const ONBOARDED_KEY = "grocery-run-onboarded-v1";
 /* Set when leaving the LAST household you were in. Forces the first-run
    screen back up so the next household is one you asked for, rather than one
@@ -19,6 +33,81 @@ export const ONBOARDED_KEY = "grocery-run-onboarded-v1";
    no households, commit to the device's code" and mint exactly the household
    this exists to stop. Cleared by choosing — Start my own list, or joining. */
 export const MUST_CHOOSE_KEY = "grocery-run-must-choose-household-v1";
+/* THE INVITE A LINK BROUGHT IN, kept across a sign-in that leaves the page.
+   It used to live only in React state, alongside a hash cleared on load — so
+   any sign-in that NAVIGATES destroyed it. That is not a corner: the emailed
+   sign-in link deliberately returns to origin+pathname with no hash, and the
+   Google popup falls back to a redirect whenever a browser blocks popups.
+   Both come back to a screen whose whole instruction was "come back to this
+   screen", with nothing left on it. Cleared when the invite is redeemed or
+   deliberately skipped. */
+export const PENDING_INVITE_KEY = "grocery-run-pending-invite-v1";
+
+/* Item 91. "Not now" on the home-screen offer, remembered per DEVICE.
+   Per device and not per account, because the question is about this phone's
+   home screen, not about who is signed in — and signing out and back in must
+   not start asking again. The permanent version of the same offer lives in
+   Settings -> Account, which is where somebody who changes their mind goes;
+   that one is a note rather than a prompt and has nothing to dismiss. */
+export const INSTALL_DISMISSED_KEY = "grocery-run-install-dismissed-v1";
+
+/* Forces the just-joined state in a LOCAL-ONLY build, for the e2e suite.
+   Same seam and same rule as GUEST_PREVIEW_KEY / USER_PREVIEW_KEY below: only
+   read when syncEnabled is false, so a production build never looks at it.
+
+   IT EXISTS BECAUSE THE CONFIRMATION CANNOT OTHERWISE BE REACHED BY A TEST.
+   It appears after a successful join, joining needs a real database, and the
+   e2e build compiles the database out — so the whole banner, the platform
+   branches under it and the "Not now" that silences it would be exactly the
+   kind of untested WIRING that every bug this app has actually shipped lived
+   in. The pure decision (installPromptState) is unit-tested to death and
+   still proves nothing about whether App renders it.
+
+   The seam fakes only the MOMENT of joining. Platform, the held install event
+   and standalone-ness all still come from the real browser, so what the tests
+   exercise is the real branch. */
+export const INSTALL_PREVIEW_KEY = "grocery-run-e2e-install-preview";
+
+/* Item 92. Which households have already been announced on this device, so a
+   household joined somewhere else is announced exactly once.
+
+   STORED PER DEVICE, KEYED BY UID: { [uid]: [code, ...] }. Both halves of
+   that matter.
+   Per DEVICE, because the question is "has this screen shown it to you yet",
+   and an account with two phones should be told on both.
+   Keyed by UID, because two people share these phones. Without the key,
+   signing out and signing in as the other person would announce every
+   household THEY are in as though somebody had just added them — and it
+   makes the signed-out case fall out for free, since there is no uid to look
+   up and therefore nothing to compare against. */
+export const KNOWN_HOUSEHOLDS_KEY = "grocery-run-known-households-v1";
+
+// The seen-set for one account, or null when there is nobody to look up —
+// which firstIndexSeeding then reads as "never recorded", i.e. stay silent.
+export function knownFor(store, uid) {
+  if (!uid || !store || typeof store !== "object") return null;
+  const got = store[uid];
+  return Array.isArray(got) ? got : null;
+}
+
+// Put one account's seen-set back, leaving every other account's alone.
+export function withKnownFor(store, uid, codes) {
+  const base = store && typeof store === "object" && !Array.isArray(store) ? store : {};
+  if (!uid) return base;
+  return { ...base, [uid]: codes };
+}
+
+/* The account's household INDEX, faked, for local-only builds only — same
+   seam and same rule as the preview keys below: a production build never
+   reads it, so this can grant nothing.
+
+   It exists because subscribeMyHouseholds answers `{}` with no database, so
+   in a local-only build the index is permanently empty and everything driven
+   by it — the household list, the switcher, and item 92's whole reason for
+   existing — is unreachable by a test. Item 92 announces a household this
+   account joined ELSEWHERE, which by definition cannot be produced by
+   anything this browser does. */
+export const HOUSEHOLDS_PREVIEW_KEY = "grocery-run-e2e-households-preview";
 
 /* Forces the guest view in a LOCAL-ONLY build, for the e2e suite.
    Guest-ness comes from a members/{uid} record in the database, so a build
@@ -1358,7 +1447,7 @@ export function ingredientIdOf(index, line) {
 // The id for an ingredient NAME inside a catalog being edited, minting an
 // entry if this household has never seen it. Every place a user can type a
 // name that becomes an ingredient goes through here — the recipe editor and
-// the Ingredients tab's add box — so neither can quietly write a name-keyed
+// the Pantry tab's add box — so neither can quietly write a name-keyed
 // entry into an id-keyed catalog.
 //
 // Mutates the draft it is given, which is what the updateCatalog callers want.
@@ -2010,7 +2099,7 @@ export function ingredientNames(data) {
 
 // Every recipe that references the given ingredient key (case-insensitive).
 // Shared by the rename-affected-recipes check, the remove-item safety check,
-// and the Ingredients tab's "used in" display.
+// and the Pantry tab's "used in" display.
 export function usedInRecipes(data, key) {
   return data.recipes.filter((r) => r.ingredients.some((i) => (i.ingredientId || norm(i.name)) === key));
 }
@@ -2175,7 +2264,7 @@ export function slotDishes(slot) {
 }
 
 // Every day/type/role a recipe appears in the plan, as main or as a side —
-// used both for the Meals tab's "planned meals" summary and for cleaning up
+// used both for the Recipes tab's "planned meals" summary and for cleaning up
 // dangling references when a recipe is deleted.
 export function planSlotsFor(data, recipeId) {
   const out = [];
@@ -2253,7 +2342,7 @@ export function servingsByRecipe(data) {
 }
 
 // Recipes sitting on the shopping list with no day/slot in the week plan —
-// added via the Meals tab's "Add unplanned meal", not a picker here. Used by
+// added via the Recipes tab's "Add unplanned meal", not a picker here. Used by
 // the Week tab so one of these is visible without switching tabs to notice
 // it. A selection pointing at a deleted recipe is dropped rather than shown
 // as a mystery row — MealsTab's delete already clears it, but an older
@@ -2299,7 +2388,7 @@ export function aggregateItems(data) {
   };
   for (const [id, s] of Object.entries(data.list.selections)) {
     const r = data.recipes.find((x) => x.id === id);
-    if (r) addRecipe(r, s, "Meals tab");
+    if (r) addRecipe(r, s, "Recipes tab");
   }
   for (const day of DAYS) {
     for (const type of MEAL_TYPES) {
@@ -2435,11 +2524,214 @@ export function writeErrorAdvice(detail) {
    without a network round trip — and so the parsing has tests, since this
    is the one string a user retypes by hand. */
 
+/* WHAT A HOUSEHOLD CODE LOOKS LIKE (item 88). Every code the app has ever
+   minted comes from newHouseholdCode(): "home-" and eight base-36 characters.
+   Nothing else has ever been one, and the seven live on the real database at
+   the time of writing all match.
+
+   IT IS HERE SO THAT LAUNDERING A URL CANNOT PRODUCE ONE. cleanCode strips a
+   string down to [a-z0-9-], which turns a site address into 37 characters
+   that the old shape check (8-40 of [a-z0-9-]) happily accepted — and an
+   unclaimed household is claimable, so the join succeeded into a household
+   named after the URL. The prefix is what a stripped link cannot fake.
+   database.rules.json enforces the same shape, so the app and the database
+   agree about what a code is rather than the app being the only guard. */
+/* A private, hard-to-guess household code. Exported because leaving a
+   household needs one too — the device has to land somewhere it can keep
+   working. One generator, so first-run and post-leave codes cannot drift
+   into different shapes, and it sits directly above the function that says
+   what that shape IS. */
+export function newHouseholdCode() {
+  return "home-" + Math.random().toString(36).slice(2, 10);
+}
+
+export function validCode(s) {
+  return /^home-[a-z0-9]{4,34}$/.test(String(s || ""));
+}
+
 export function cleanCode(s) {
   return (s || "")
     .toLowerCase()
     .replace(/[^a-z0-9-]/g, "")
     .slice(0, 40);
+}
+
+/* ── ITEM 90: WHAT A HOUSEHOLD IS CALLED ────────────────────────────────────
+   A household has a code, which is its identity, and optionally a name, which
+   is what a person reads. Everything user-facing goes through householdLabel()
+   so the two can never drift apart in one place and not another.
+
+   THE NAME IS THE PROOF A JOIN WORKED. That is why it exists, and it is worth
+   more than a nicer label: "You've joined the household" is the app asserting
+   success, "You've joined Stuart's Household" lets somebody CHECK it against
+   the household they were invited to. On a phone that has never run this app,
+   nothing else on screen is verifiable — a shopping list looks equally
+   plausible if it belongs to the wrong household. Two failures that really
+   happened here are invisible without it: a device that minted its OWN
+   household instead of joining (item 84), and one that landed in a household
+   it had joined earlier rather than the invited one.
+
+   UNNAMED IS A NORMAL STATE, NOT AN ERROR. Every household that existed before
+   this shipped has no name, and somebody can join one before anybody names it.
+   So the fallback is the code, which is genuinely checkable: it is the same
+   string that is sitting in the invite link they just tapped.
+
+   NO DEFAULT LIKE "Home". It would be identical for everyone, confirm nothing,
+   and be indistinguishable from a name somebody actually chose. */
+export const HOUSEHOLD_NAME_MAX = 40;
+
+// What to show a person for a household. Never returns empty for a real code.
+export function householdLabel(name, code) {
+  const trimmed = String(name == null ? "" : name).trim();
+  return trimmed || String(code || "");
+}
+
+// True when this household is showing a name somebody chose, rather than
+// falling back to its code. Callers use it to decide whether a code is worth
+// showing SEPARATELY — printing "Stuart's Household (home-cx2ur9zg)" is useful,
+// printing "home-cx2ur9zg (home-cx2ur9zg)" is not.
+export function hasHouseholdName(name) {
+  return householdLabel(name, "") !== "";
+}
+
+/* ── ITEM 91: THE HOME-SCREEN PROMPT ────────────────────────────────────────
+   A phone that follows an invite link lands in a browser tab, and on iOS it
+   always will — an installed icon app cannot catch a link there. The tab gets
+   buried and the app looks like it stopped working. Nothing in the app said
+   "put this on your home screen", so everybody who has done it was told to by
+   hand.
+
+   THE PROMPT IS TWO HALVES AND THEY ARE SEPARABLE:
+     - the CONFIRMATION, which names the household. Everybody gets this. It is
+       the load-bearing half: it is what lets somebody CHECK they landed in
+       the household they were invited to rather than take the app's word.
+     - the HOME-SCREEN ASK. Not everybody gets this.
+
+   ANDROID GETS A BUTTON, iOS GETS INSTRUCTIONS, and that asymmetry is the
+   platform's, not a design choice. Chrome fires `beforeinstallprompt`; hold
+   the event and calling .prompt() opens the real OS install dialog. Safari has
+   never implemented it, so iOS can only draw the Share -> Add to Home Screen
+   gesture and hope. One is a tap; the other is a person following directions.
+
+   THE EVENT MAY SIMPLY NOT ARRIVE, even on Chrome — it is behind engagement
+   heuristics, it never fires when the app is already installed, and it does
+   not fire twice. So this decides between them on whether the event is
+   actually in hand, never on a guess about the platform. */
+
+// What the prompt should currently show. Pure so the whole matrix is testable
+// without a browser; every input is something App already knows.
+//
+//   standalone   already running from the home screen
+//   installEvent a held beforeinstallprompt (Android/Chrome), or null
+//   platform     "ios" | "android" | "unknown", only used to pick words
+//   anonymous    signed in with no account behind it
+//   dismissed    they tapped "Not now" on this device
+//
+// Returns { confirm, ask } where `ask` is "button", "ios", "android" or "".
+export function installPromptState({ standalone, installEvent, platform, anonymous, dismissed } = {}) {
+  // Nothing to offer a phone that already did it, and nothing to confirm
+  // either — the confirmation belongs to the moment of joining.
+  if (standalone) return { confirm: false, ask: "" };
+  if (dismissed) return { confirm: false, ask: "" };
+
+  /* AN ANONYMOUS GUEST GETS THE CONFIRMATION AND NOTHING ELSE. The draft used
+     to warn them that a home-screen icon would not carry their access — cut,
+     for three reasons. It rested on an UNTESTED belief about iOS keeping
+     home-screen storage separate from Safari. The true, milder version
+     already ships on the join card BEFORE they commit ("clearing this browser
+     means a new link"), where it can still change the decision. And adding
+     the icon anyway costs them a confusing screen, not their access: the icon
+     opens on first-run while the browser tab keeps working.
+     So: no ask, and no warning either. Silence is the whole fix. */
+  if (anonymous) return { confirm: true, ask: "" };
+
+  if (installEvent) return { confirm: true, ask: "button" };
+  if (platform === "ios") return { confirm: true, ask: "ios" };
+  if (platform === "android") return { confirm: true, ask: "android" };
+  // Platform unknown and no event: confirm the join, say nothing about the
+  // home screen. A confident wrong instruction is worse than none.
+  return { confirm: true, ask: "" };
+}
+
+/* Which gesture to name. ONLY used to choose a noun — this is the one place
+   the app reads a user-agent, and it never changes behaviour, only wording.
+   Returns "unknown" rather than guessing, which is what makes the "say
+   nothing" branch above reachable instead of decorative. */
+export function devicePlatform(ua) {
+  const s = String(ua || "");
+  // iPadOS 13+ reports itself as a Mac; the touch check is what separates a
+  // real iPad from a desktop, and a desktop has no home screen to add to.
+  if (/iPhone|iPad|iPod/i.test(s)) return "ios";
+  if (/Android/i.test(s)) return "android";
+  return "unknown";
+}
+
+/* ── ITEM 92: A HOUSEHOLD JOINED SOMEWHERE ELSE ─────────────────────────────
+   The gap items 90 and 91 left open, and it is the case they were most about.
+
+   TAPPING AN INVITE LINK NEVER OPENS THE INSTALLED APP. On iOS it cannot —
+   there is no mechanism to route a link to a home-screen app — so somebody who
+   already has Grocery Run on their phone joins in SAFARI, sees the
+   confirmation there, then opens their icon and finds their own household with
+   no sign the new one exists. The membership is real and on their account;
+   the icon app simply never looks, because the adoption effect in App.jsx
+   only moves a device that has not committed to a household yet, and an
+   installed app committed long ago.
+
+   THE INDEX IS THE FIX because it is per-ACCOUNT and server-side.
+   users/{uid}/households gains an entry the moment the join lands, wherever
+   it happened, so every other signed-in device can notice. That also covers
+   joining on a laptop and picking it up on a phone, which is the same problem
+   wearing a different hat.
+
+   WHAT COUNTS AS NEW IS "not seen by THIS DEVICE before", not "recently
+   created". A timestamp comparison would re-announce a household every time a
+   device was offline for a while, and would depend on two clocks agreeing.
+   A seen-set is local, exact, and needs no clock. */
+
+// Codes in the index that this device has never seen and is not already in.
+// `known` is null for a device that has never recorded a set — see
+// firstIndexSeeding below, which is the case that must stay silent.
+export function newHouseholdsSince(known, index, currentCode) {
+  if (!index) return [];
+  const seen = new Set(Array.isArray(known) ? known : []);
+  return Object.keys(index)
+    .filter((c) => c && c !== currentCode && !index[c]?.deletedAt && !seen.has(c))
+    .sort((a, b) => (index[b]?.updatedAt || 0) - (index[a]?.updatedAt || 0));
+}
+
+/* Every code currently worth remembering, for writing back to the seen set.
+   INCLUDES TOMBSTONED ONES. A household you deleted and later restored must
+   not be announced as though somebody had just added you to it — you were
+   there all along, and the restore is already its own visible action. */
+export function allKnownHouseholds(known, index) {
+  const seen = new Set(Array.isArray(known) ? known : []);
+  for (const c of Object.keys(index || {})) seen.add(c);
+  return [...seen];
+}
+
+/* TRUE ONLY FOR A DEVICE THAT HAS NEVER RECORDED A SEEN SET — which is every
+   device the first time it runs a build containing this. It must seed the set
+   silently: announcing every household somebody is already in, on the first
+   open after an update, would be the app shouting news that is years old.
+   `null` is the never-recorded state; `[]` is a real, empty, recorded set. */
+export function firstIndexSeeding(known) {
+  return !Array.isArray(known);
+}
+
+/* Trim and cap a typed name to what the rules will accept. Returns "" for a
+   name that is only whitespace, which the caller writes as null — clearing the
+   name rather than storing a blank string, because a delete skips .validate
+   and an empty string would fail it.
+
+   The cap matches HOUSEHOLD_NAME_MAX and database.rules.json. Silently
+   truncating is right here: the field is a label, and refusing a long paste
+   outright would be a worse experience than shortening it. */
+export function cleanHouseholdName(s) {
+  return String(s == null ? "" : s)
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, HOUSEHOLD_NAME_MAX);
 }
 
 // The role rides in the STRING, because the account redeeming an invite
@@ -2465,6 +2757,15 @@ export function parseInvite(s) {
   // Both halves have to be long enough to be real. A short one means a
   // truncated paste, and guessing at it would join the wrong household.
   if (code.length < 8 || token.length < 8) return null;
+  /* AND THE CODE HALF HAS TO LOOK LIKE A CODE (item 88). A link whose "#"
+     arrived percent-encoded still contains a "~", so it reached here and
+     cleanCode turned the whole left-hand side into
+     "httpsstuart-belckegithubiogrocery-run23j" — long enough to pass the
+     length check, and paired with a real token. The rules refuse to CLAIM a
+     household from a record carrying an invite (item 81), so it could not
+     mint one, but it failed as "that link didn't work" rather than as what
+     it was. */
+  if (!validCode(code)) return null;
   let role = "member";
   if (parts.length === 3) {
     // Anything in the third slot that isn't the guest marker is a mangled
@@ -2512,6 +2813,23 @@ export function classifyJoinInput(s) {
     const invite = parseInvite(text);
     return invite ? { kind: "invite", ...invite } : { kind: "broken" };
   }
+  /* A LINK THAT LOST ITS INVITE IS NOT A HOUSEHOLD CODE (item 88).
+     The block above handles a link that still HAS its #join= fragment. A
+     fragment is the one part of a URL that reliably goes missing — it is
+     never sent to a server, so any redirect, link shortener, preview card or
+     "clean up this URL" feature drops it — and what arrived here then was
+     the bare site address. cleanCode strips it to
+     "httpsstuart-belckegithubiogrocery-run", which is 37 characters of
+     [a-z0-9-]: a legal household code, unclaimed, and therefore claimable.
+     So a mangled link did not fail. It silently made a household named after
+     the URL and put you in it, which is exactly what item 81 was reported as
+     and is NOT what item 81 fixed — that fix only covered links that still
+     had the fragment.
+     THE RULE IS DO NOT LAUNDER. cleanCode exists to forgive case and stray
+     spaces, not to manufacture a code out of a sentence. A real code is
+     [a-z0-9-] and nothing else, so a slash, a colon, a dot or a space means
+     this is a URL or a sentence and the honest answer is to say so. */
+  if (/[:/\s]|\.[a-z]/i.test(text)) return { kind: "notacode" };
   const code = cleanCode(text);
   return code.length >= 8 ? { kind: "code", code } : { kind: "short" };
 }

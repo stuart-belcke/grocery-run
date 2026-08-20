@@ -20,7 +20,7 @@ import { openApp, assertNoPageErrors } from "../harness.mjs";
 import { smallCatalog, stateWith, emptyState } from "../fixtures.mjs";
 
 const BASE = process.env.E2E_BASE_URL;
-const TABS = ["List", "Meals", "Week plan", "Ingredients", "Settings"];
+const TABS = ["List", "Recipes", "Plan", "Pantry", "Settings"];
 
 // A household with something on every screen: an empty app has no rows to
 // overflow and would pass this while proving nothing.
@@ -76,7 +76,7 @@ for (const width of [320, 390]) {
 test("no placeholder is wider than the field it sits in", async () => {
   /* A placeholder that overflows does not widen anything or scroll the page —
      it is simply cut off, so the sweep above cannot see it. "Search meals or
-     ingredients" rendered as "Search meals or ingre" on the Meals tab and
+     ingredients" rendered as "Search meals or ingre" on the Recipes tab and
      nothing failed.
      Measured in the FIELD'S OWN FONT against the room inside its padding: the
      magnifier and the clear button take 62px of a search box, which is most of
@@ -110,5 +110,127 @@ test("no placeholder is wider than the field it sits in", async () => {
     } finally {
       await page.done();
     }
+  }
+});
+
+/* THE TYPE FLOOR (item 87). Nothing rendered is smaller than 12px.
+
+   Asked for after reading the app on a phone: "some text is too small." The
+   app had 28 places at 10px and 11px, and they had accumulated one at a time
+   — each defensible on its own, none of them a decision anybody made about
+   the app as a whole. A floor is only a floor if something holds it, and the
+   thing that erodes it is exactly the next reasonable-looking 11.
+
+   MEASURED ON THE RENDERED PAGE, not grepped from the source. A size can
+   arrive from a shared style object, from a parent, or from em units, and
+   none of those are visible to a search for "fontSize: 11". What matters is
+   what a person's eye gets — and this caught the tab bar, which a search for
+   the literal never would have.
+
+   THE TAB BAR IS NOT EXEMPT, and that took a rename. Its labels were
+   capped at 11.5px because five of them share the width and "Ingredients"
+   at weight 700 would not fit any larger on a 320px screen — a real
+   arithmetic limit, not a taste. Item 87 shortened the two long labels
+   (Ingredients -> Pantry, Week plan -> Plan) so the widest is now
+   "Settings", which fits 13.2px in the same space. The bar is measured
+   here like everything else. */
+test("nothing renders below 12px", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog(), state: busy() });
+  try {
+    const small = [];
+    for (const tab of TABS) {
+      await page.tab(tab);
+      /* OPEN EVERY COLLAPSED SECTION FIRST, the same list the overflow tests
+         above use. Without this the sweep only measures what happens to be
+         expanded — a first mutation put an 11 back on a List row that only
+         renders in the "all" view and left the suite green, which is the
+         definition of a test protecting nothing. Still not everything: a row
+         behind a dialog, or in a state this fixture does not reach, is not
+         measured here. */
+      for (const re of DISCLOSURES) {
+        const b = page.locator("button").filter({ hasText: re }).first();
+        if (await b.count()) {
+          await b.click().catch(() => {});
+          await page.waitForTimeout(120);
+        }
+      }
+      small.push(
+        ...(await page.evaluate((where) => {
+          const hits = new Set();
+          for (const el of document.querySelectorAll("*")) {
+            // Leaf nodes only: a container's computed size says nothing
+            // about what is actually painted inside it.
+            if (el.children.length) continue;
+            const text = (el.textContent || "").trim();
+            if (!text) continue;
+            const r = el.getBoundingClientRect();
+            if (r.width < 1 || r.height < 1) continue;
+            const px = parseFloat(getComputedStyle(el).fontSize);
+            if (px < 12) hits.add(`${where}: ${px}px "${text.slice(0, 30)}"`);
+          }
+          return [...hits];
+        }, tab))
+      );
+    }
+    assert.deepEqual(small, [], "text below the 12px floor");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* THE PINNED LIST HEADER STAYS TWO LINES (item 87K).
+
+   This bar has been wrong in three directions in one session — everything
+   pinned at three wrapped lines (item 51), the count moved out entirely, the
+   count moved back — and every argument about it was settled by measuring
+   rather than by reasoning. What it costs is the whole point of the design,
+   so the cost is asserted rather than remembered.
+
+   A BUDGET PER WIDTH, NOT ONE NUMBER, because the answer genuinely differs:
+   at 390px the header is two lines (~84px) and at 320px it is three (~123px).
+   The two grouping toggles wrap on their own at 320 regardless of what else
+   is in the bar, so a third line there is inherent to keeping all of it
+   pinned rather than a regression — and it was accepted knowing that. What
+   the budgets catch is the NEXT line: 100 at 390 fails a third (~123), 140 at
+   320 fails a fourth (~168).
+
+   NOT EXACT PIXELS. The sandbox falls back to system-ui where a phone has
+   Space Grotesk, so a tight equality would fail on font metrics rather than
+   on layout.
+
+   AND THE COUNT AND DONE SHOPPING SHARE THE TOP LINE, which is the ordering
+   decision — they come first in the source so that a wrap displaces the
+   grouping toggles rather than them. Asserting the height alone would pass on
+   a layout that pushed the count to the second line. */
+test("the pinned List header stays two lines, with the count on the first", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog(), state: busy() });
+  try {
+    for (const [width, budget] of [[320, 140], [390, 100]]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.waitForTimeout(300);
+      const m = await page.evaluate(() => {
+        const span = [...document.querySelectorAll("span")].find((s) => /left to buy$/.test((s.textContent || "").trim()));
+        const done = [...document.querySelectorAll("button")].find((b) => /Done shopping/.test(b.textContent || ""));
+        let bar = span;
+        while (bar && getComputedStyle(bar).position !== "sticky") bar = bar.parentElement;
+        return {
+          found: !!(span && done && bar),
+          height: bar ? Math.round(bar.getBoundingClientRect().height) : -1,
+          sameLine: span && done
+            ? Math.abs(
+                span.getBoundingClientRect().top + span.getBoundingClientRect().height / 2 -
+                  (done.getBoundingClientRect().top + done.getBoundingClientRect().height / 2)
+              ) < 12
+            : false,
+        };
+      });
+      assert.ok(m.found, `at ${width}px: the count, Done shopping and the pinned bar should all be on the List tab`);
+      assert.ok(m.height > 0 && m.height < budget, `at ${width}px the pinned header is ${m.height}px, over its ${budget}px budget — it has grown a line`);
+      assert.ok(m.sameLine, `at ${width}px the count and Done shopping are on different lines; the toggles should be what wraps`);
+    }
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
   }
 });

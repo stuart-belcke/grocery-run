@@ -53,11 +53,18 @@ function stampServiceWorker() {
       if (!existsSync(swPath)) return;
       // Everything needed to open the app with no signal. The app shell first,
       // then this build's hashed JS/CSS.
+      // NOTE: install uses addAll, which is all-or-nothing — one 404 here and
+      // the service worker never activates. Every path below must exist in
+      // public/. The three PNGs are what Chrome reads to decide the app is
+      // installable at all; see scripts/make-icons.mjs.
       const precache = [
         "./",
         "./catalog.json",
         "./manifest.webmanifest",
         "./icon.svg",
+        "./icon-192.png",
+        "./icon-512.png",
+        "./icon-maskable-512.png",
         "./apple-touch-icon.png",
         ...assets,
       ];

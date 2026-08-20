@@ -39,7 +39,7 @@ test("SHOULD: renaming an ingredient updates its name on the shopping list", asy
   const catalog = smallCatalog();
   const page = await openApp(BASE, { catalog });
   try {
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.searchIngredients("Broccoli");
     await page.clickText(/^\+ List$/);
     await page.waitForTimeout(400);
@@ -116,7 +116,7 @@ test("SHOULD: an ingredient a recipe still uses cannot be removed", async () => 
   const chicken = idOf(catalog, "Chicken breast");
   const page = await openApp(BASE, { catalog });
   try {
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.searchIngredients("Chicken breast");
     await page.expandRow("Chicken breast");
     await page.clickText(/^Remove$/);
@@ -139,7 +139,7 @@ test("SHOULD: the staple flag survives a store change", async () => {
   const page = await openApp(BASE, { catalog });
   try {
     assert.equal(catalog.ingredients[butter].staple, true, "fixture: butter starts a staple");
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.searchIngredients("Butter");
     await page.expandRow("Butter");
     await page.locator("select").first().selectOption("Costco");
@@ -163,7 +163,7 @@ test("SHOULD: clearing a planned slot removes its ingredients from the list", as
     await page.tab("List");
     assert.equal((await listRows(page)).length, 3, "the planned meal should put three items on the list");
 
-    await page.tab("Week plan");
+    await page.tab("Plan");
     await page.getByLabel(/^Clear Stir-fry from Mon Dinner$/).click();
     await page.waitForTimeout(600);
     await page.roundTrip();

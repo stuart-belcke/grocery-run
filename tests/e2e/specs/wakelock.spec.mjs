@@ -22,7 +22,7 @@ const wakeSwitch = (page) => page.getByRole("switch", { name: /keep the screen o
 const checked = (page) => page.evaluate(() => document.querySelector('[role="switch"]')?.getAttribute("aria-checked"));
 
 const openStirFryDetail = async (page) => {
-  await page.tab("Meals");
+  await page.tab("Recipes");
   const toggles = page.getByTitle("Show ingredients and recipe");
   const texts = await toggles.allTextContents();
   const i = texts.findIndex((t) => t.includes("Stir-fry"));

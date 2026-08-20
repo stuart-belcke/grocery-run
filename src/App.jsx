@@ -23,7 +23,6 @@ import {
   leaveHousehold,
   restoreHousehold,
   GRACE_DAYS,
-  newHouseholdCode,
   forgetHouseholdCache,
   subscribeMyHouseholds,
   writeCatalog,
@@ -35,13 +34,30 @@ import {
   signOutUser,
   signInAnonymouslyForGuest,
   recordHouseholdMembership,
+  subscribeHouseholdName,
+  setHouseholdName,
 } from "./sync";
 import { C, fontDisplay, fontBody, syncTone, BOTTOM_NAV_H, BOTTOM_NAV_Z } from "./theme";
-import { Stripe, Btn, ChoiceDialog, useKeyboardOpen } from "./ui";
+import { Stripe, Btn, ChoiceDialog, InstallOffer, NoticeCard, useKeyboardOpen } from "./ui";
 import {
   LOCAL_KEY,
+  TABS,
+  newHouseholdCode,
   ONBOARDED_KEY,
   MUST_CHOOSE_KEY,
+  PENDING_INVITE_KEY,
+  INSTALL_DISMISSED_KEY,
+  INSTALL_PREVIEW_KEY,
+  KNOWN_HOUSEHOLDS_KEY,
+  HOUSEHOLDS_PREVIEW_KEY,
+  knownFor,
+  withKnownFor,
+  newHouseholdsSince,
+  allKnownHouseholds,
+  firstIndexSeeding,
+  installPromptState,
+  devicePlatform,
+  householdLabel,
   GUEST_PREVIEW_KEY,
   USER_PREVIEW_KEY,
   STATUS_PREVIEW_KEY,
@@ -66,6 +82,7 @@ import {
   APP_DATA_VERSION,
   normalizeCatalog,
   parseJoinHash,
+  classifyJoinInput,
   needsUnitNotes,
   withUnitNotes,
   syncIndicator,
@@ -140,14 +157,27 @@ export default function App() {
      It is handed to the join FIELD rather than redeemed here, so a link goes
      through exactly the same validation as a paste. A link is a convenience
      for the typing, not a second way in. */
-  // Read once, in the initializer, so a later render cannot see a hash this
-  // has already cleared. There is no setter: a link is a one-shot arrival.
-  const [linkInvite, setLinkInvite] = useState(() =>
-    typeof window === "undefined" ? "" : parseJoinHash(window.location.hash)
-  );
+  /* AND IT SURVIVES SIGNING IN (item 89). This was read from the hash into
+     React state and nowhere else, while the hash itself was wiped on load —
+     so a sign-in that navigates away took the invite with it. Not an edge
+     case: the emailed sign-in link returns to origin+pathname by design, and
+     the Google popup falls back to a redirect whenever a browser blocks
+     popups, which iOS does readily. Both land back on the screen that had
+     just said "sign in below, then come back to this screen" with nothing on
+     it to come back to. That is why adding a second phone kept failing for
+     the person who WROTE the app.
+     localStorage, so the fallback survives a whole navigation. Read at
+     startup after the hash, so a freshly tapped link still wins. */
+  const [linkInvite, setLinkInvite] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return parseJoinHash(window.location.hash) || loadJSON(PENDING_INVITE_KEY) || "";
+  });
   useEffect(() => {
-    if (!linkInvite || typeof window === "undefined") return;
-    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    if (typeof window === "undefined") return;
+    if (linkInvite) {
+      saveJSON(PENDING_INVITE_KEY, linkInvite);
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
   }, [linkInvite]);
   const [syncStatus, setSyncStatus] = useState(syncEnabled ? "connecting" : "local-only");
   /* A write the server actively rejected (rules, quota, a malformed payload) —
@@ -209,6 +239,8 @@ export default function App() {
 
   const finishOnboarding = () => {
     saveJSON(ONBOARDED_KEY, true);
+    // Whatever brought the invite, this is the decision that ends it.
+    saveJSON(PENDING_INVITE_KEY, "");
     setOnboarded(true);
     saveJSON(MUST_CHOOSE_KEY, false);
     setMustChoose(false);
@@ -619,7 +651,158 @@ export default function App() {
 
   // The account's own list of households, live. Scoped to the user rather
   // than the household, so it survives switching between them.
-  useEffect(() => subscribeMyHouseholds(user, setMyHouseholds), [user]);
+  useEffect(() => {
+    /* Local-only builds have no index to subscribe to — subscribeMyHouseholds
+       answers {} — so a test seeds one instead. See HOUSEHOLDS_PREVIEW_KEY.
+       A production build takes the real branch and never reads it. */
+    if (!syncEnabled) {
+      setMyHouseholds(loadJSON(HOUSEHOLDS_PREVIEW_KEY) || {});
+      return;
+    }
+    return subscribeMyHouseholds(user, setMyHouseholds);
+  }, [user]);
+
+  /* ── ITEM 92: A HOUSEHOLD JOINED SOMEWHERE ELSE ─────────────────────────
+     Tapping an invite link never opens the installed app — on iOS it cannot —
+     so somebody who already has Grocery Run on their phone joins in the
+     BROWSER, and their icon app, long since onboarded, never notices. The
+     membership is real and sitting on their account; the adoption effect
+     above only ever moves a device that has not committed yet.
+
+     The index is per-account and server-side, so this device can see the join
+     even though it happened in another browser, or on another phone entirely.
+     Everything about WHICH codes count is in lib.js and tested there. */
+  const [knownStore, setKnownStore] = useState(() => loadJSON(KNOWN_HOUSEHOLDS_KEY));
+  // The seen-set for whoever is signed in — null when nobody is, which
+  // firstIndexSeeding reads as "never recorded" and so stays silent. That is
+  // the signed-out case, and it holds without depending on what
+  // subscribeMyHouseholds happens to return for a null user.
+  const knownHouseholds = knownFor(knownStore, user?.uid);
+  const rememberHouseholds = (index) => {
+    if (!user) return;
+    const codes = allKnownHouseholds([...(knownHouseholds || []), code], index);
+    const next = withKnownFor(knownStore, user.uid, codes);
+    setKnownStore(next);
+    saveJSON(KNOWN_HOUSEHOLDS_KEY, next);
+  };
+  useEffect(() => {
+    // `null` is "the index has not answered yet" and must not be mistaken for
+    // an empty one — the same distinction the adoption effect turns on.
+    if (!user || myHouseholds === null) return;
+    /* SEED SILENTLY THE FIRST TIME THIS ACCOUNT IS SEEN HERE. A device running
+       this build for the first time has no seen-set, and announcing every
+       household somebody is already in would be the app shouting news that is
+       months old. The same guard covers the other person signing in on a
+       shared phone: their households are seeded, not announced. */
+    if (firstIndexSeeding(knownHouseholds)) rememberHouseholds(myHouseholds);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, myHouseholds]);
+  const arrivedHouseholds =
+    !user || firstIndexSeeding(knownHouseholds)
+      ? []
+      : newHouseholdsSince(knownHouseholds, myHouseholds, code);
+  const arrived = arrivedHouseholds[0];
+
+  /* ── ITEM 91: THE HOME-SCREEN OFFER ─────────────────────────────────────
+     Three pieces of browser state, none of which lib.js may touch, feeding one
+     pure decision (installPromptState). */
+
+  // Already running from the home screen? Then there is nothing to offer.
+  // `navigator.standalone` is Safari's own, older flag and is the only one
+  // that answers on an iPhone; the media query is everyone else's.
+  const [standalone, setStandalone] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(display-mode: standalone)");
+    const read = () => setStandalone(mq.matches || window.navigator.standalone === true);
+    read();
+    mq.addEventListener?.("change", read);
+    return () => mq.removeEventListener?.("change", read);
+  }, []);
+
+  /* The moment of joining, which is the only moment the confirmation belongs
+     to. Deliberately NOT persisted: reopening the app tomorrow is not a join,
+     and a confirmation that reappears is no longer a confirmation. */
+  const [justJoined, setJustJoined] = useState(() => (syncEnabled ? false : !!loadJSON(INSTALL_PREVIEW_KEY)));
+
+  /* THE HELD INSTALL EVENT. Chrome fires this when it judges the app
+     installable; preventDefault stops its own mini-infobar so the offer
+     appears where we choose, and keeping the event is what lets a real button
+     open the OS dialog later. Safari never fires it, which is exactly why the
+     wording branch exists rather than assuming a platform. */
+  const [installEvent, setInstallEvent] = useState(null);
+  useEffect(() => {
+    const hold = (e) => {
+      e.preventDefault();
+      setInstallEvent(e);
+    };
+    // Once installed the event is spent and the offer is pointless. Clearing
+    // both is what stops the app nagging a phone that just did what was asked.
+    const done = () => {
+      setInstallEvent(null);
+      setJustJoined(false);
+    };
+    window.addEventListener("beforeinstallprompt", hold);
+    window.addEventListener("appinstalled", done);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", hold);
+      window.removeEventListener("appinstalled", done);
+    };
+  }, []);
+
+  const [installDismissed, setInstallDismissed] = useState(() => !!loadJSON(INSTALL_DISMISSED_KEY));
+  const platform = useMemo(
+    () => devicePlatform(typeof navigator === "undefined" ? "" : navigator.userAgent),
+    []
+  );
+  const installOffer = installPromptState({
+    standalone,
+    installEvent,
+    platform,
+    anonymous: !!(user && user.isAnonymous),
+    dismissed: installDismissed,
+  });
+  /* The SAME decision with `dismissed` forced false, for the permanent note in
+     Settings. That is not a fudge — the two are answering different questions.
+     The banner asks "should this interrupt them right now", which "Not now"
+     settles for good. The Settings note asks "is there anything to offer this
+     phone at all", and the person who goes looking for it in Settings has by
+     definition changed their mind. Everything else is shared, so the two can
+     never name a different gesture or appear on a phone already installed. */
+  const settingsInstallOffer = installPromptState({
+    standalone,
+    installEvent,
+    platform,
+    anonymous: !!(user && user.isAnonymous),
+    dismissed: false,
+  });
+  const dismissInstall = () => {
+    setInstallDismissed(true);
+    saveJSON(INSTALL_DISMISSED_KEY, true);
+  };
+  const doInstall = async () => {
+    if (!installEvent) return;
+    // One event, one use. Clearing it first means a second tap cannot call
+    // .prompt() again, which throws.
+    const e = installEvent;
+    setInstallEvent(null);
+    try {
+      await e.prompt();
+    } catch {
+      /* the dialog was dismissed, or the event had already been used */
+    }
+  };
+
+  /* Item 90: the current household's name. Its own subscription because it is
+     one short string that changes almost never, and because every member can
+     read it — including a guest, who sees the name but cannot change it.
+     Cleared the instant the code changes so a stale name from the household
+     you just left can never be shown over the one you just opened. */
+  const [householdName, setHouseholdNameState] = useState("");
+  useEffect(() => {
+    setHouseholdNameState("");
+    return subscribeHouseholdName(code, user, (n) => setHouseholdNameState(n || ""));
+  }, [code, user]);
 
   /* Signing in on a device that has not committed to a household yet should
      land on one the ACCOUNT already has, not on the code this browser
@@ -726,8 +909,45 @@ export default function App() {
     }
     setCode(parsed.code);
     finishOnboarding();
+    /* Item 91. The one moment the confirmation belongs to. Set for EVERY
+       successful join, guest or member, anonymous or not — checking you
+       landed in the right household is worth as much to somebody helping
+       with one shop as to somebody moving in. What differs between them is
+       only whether a home-screen offer rides along; installPromptState
+       decides that, not this. */
+    setJustJoined(true);
     return { ok: true };
   };
+
+  /* REDEEM A WAITING INVITE THE MOMENT THERE IS AN ACCOUNT TO REDEEM IT FOR
+     (item 89). Tapping the link is one statement of intent and signing in is
+     the second; a "Join household" button afterwards was asking for a third,
+     on a screen the person had already been told to come back to. That last
+     step is where adding a second phone kept dying.
+     MEMBER INVITES ONLY. A guest link needs a typed NAME — it is the only
+     thing that will identify them in the member list — so it keeps its
+     button, and that screen asks for the name rather than a decision.
+     ONCE, guarded by a ref rather than by state: a failed redemption must
+     not retry on every render, and the message it leaves has to survive. */
+  const autoJoined = useRef(false);
+  const [autoJoining, setAutoJoining] = useState(false);
+  const [autoJoinError, setAutoJoinError] = useState("");
+  useEffect(() => {
+    if (!linkInvite || !user || onboarded || !authReady || autoJoined.current) return;
+    const parsed = classifyJoinInput(linkInvite);
+    if (parsed.kind !== "invite" || parsed.role === "guest") return;
+    autoJoined.current = true;
+    setAutoJoining(true);
+    joinFromOnboarding(parsed).then((res) => {
+      setAutoJoining(false);
+      if (!res.ok) setAutoJoinError(res.message || "That invite didn't work. Ask for a new link.");
+    });
+    /* joinFromOnboarding is deliberately NOT a dependency. It is rebuilt on
+       every render, so listing it would re-run this effect constantly; the
+       `autoJoined` ref is what makes "once" true, and it is a ref precisely
+       so that a re-render cannot undo it. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkInvite, user, onboarded, authReady]);
 
   /* Shown only to a browser with nothing of its own AND nobody signed in.
      Deliberately gated on authReady: `user` is null before Firebase answers,
@@ -753,6 +973,8 @@ export default function App() {
       <Onboarding
         signedIn={!!user}
         leftLast={mustChoose}
+        joining={autoJoining}
+        joinError={autoJoinError}
         authError={authError}
         initialInvite={linkInvite}
         onJoin={joinFromOnboarding}
@@ -816,6 +1038,75 @@ export default function App() {
           {catalogNote && <div style={{ fontSize: 12, color: C.faint, marginTop: 8 }}>{catalogNote}</div>}
         </header>
 
+        {/* ITEM 91. THE JOIN CONFIRMATION. Above the tab content rather than
+            inside the List tab, because it is about the app rather than about
+            the list, and because it must not fight the List tab's pinned
+            header for the top of the screen.
+
+            THE HEADING NAMES THE HOUSEHOLD (item 90) and that is the point of
+            it: everything else on this screen would look identical if the
+            phone had landed in the wrong household — or in a fresh empty one
+            of its own, which is exactly what item 84 was. Unnamed households
+            fall back to the code, which is checkable against the invite link
+            they just tapped. */}
+        {justJoined && installOffer.confirm && (
+          <InstallOffer
+            heading={`You've joined ${householdLabel(householdName, code)}`}
+            ask={installOffer.ask}
+            onInstall={doInstall}
+            onDismiss={() => {
+              setJustJoined(false);
+              // "Not now" answers the home-screen question for good; it does
+              // not merely close this one card. Only recorded when there was
+              // actually an offer to decline.
+              if (installOffer.ask) dismissInstall();
+            }}
+          >
+            {isGuest
+              ? "You can work the shopping list — tick things off and add what's missing."
+              : "This phone shows the same list now."}
+          </InstallOffer>
+        )}
+
+        {/* ITEM 92. A HOUSEHOLD THIS ACCOUNT JOINED SOMEWHERE ELSE.
+
+            NOT SHOWN AT THE SAME TIME AS THE JOIN CONFIRMATION: on the device
+            that did the joining both would fire at once and say the same
+            thing twice, in two cards, one of which offers to switch you to
+            where you already are.
+
+            SWITCHING IS THE ACTION, not a link into Settings. The whole
+            failure this fixes is somebody not knowing the household is there;
+            telling them to go and find it is only half a fix.
+
+            NAMED, not coded, and the name comes from the mirrored copy in the
+            index (item 90) — the household's own node is readable here, but
+            the mirror is what the household LIST already uses and the two must
+            not disagree in the same screenful. */}
+        {!justJoined && arrived && (
+          <NoticeCard
+            heading={`You've been added to ${householdLabel(myHouseholds?.[arrived]?.name, arrived)}`}
+            actions={
+              <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Btn
+                  kind="primary"
+                  small
+                  onClick={() => {
+                    rememberHouseholds(myHouseholds);
+                    setCode(arrived);
+                    finishOnboarding();
+                  }}
+                >
+                  Switch to it
+                </Btn>
+                <Btn small onClick={() => rememberHouseholds(myHouseholds)}>Not now</Btn>
+              </div>
+            }
+          >
+            You joined it in a browser or on another phone. This one can open it too.
+          </NoticeCard>
+        )}
+
         {/* Two different messages, deliberately not merged. The first is an
             offer; the second is a fact about the data. */}
         {tooOld && (
@@ -823,11 +1114,9 @@ export default function App() {
             role="alert"
             style={{ background: C.tomatoSoft, border: `1px solid ${C.tomato}`, borderRadius: 10, padding: "12px 14px", marginBottom: 12, fontSize: 13, color: C.ink }}
           >
-            <b style={{ color: C.tomato }}>Update to keep editing.</b> Another device in this household is
-            running a newer version of the app and has saved something this
-            version doesn't fully understand. You can still see the list —
-            changes are paused until this device updates, so nothing gets
-            overwritten.
+            <b style={{ color: C.tomato }}>Update to keep editing.</b> Another phone here is on a
+            newer version. You can still see the list; edits are paused so
+            nothing gets overwritten.
             <div style={{ marginTop: 8 }}>
               <Btn kind="danger" onClick={() => location.reload()}>Reload to update</Btn>
             </div>
@@ -886,6 +1175,16 @@ export default function App() {
                than nowhere: the app has to keep working offline afterwards,
                and a fresh code is exactly what a first run would have made. */
             restoreHousehold={(c) => restoreHousehold(c, user)}
+            householdName={householdName}
+            installPrompt={{ ask: settingsInstallOffer.ask, onInstall: doInstall }}
+            /* Optimistic on success: the subscription will confirm it a
+               moment later, but the field should not appear to forget what
+               was just typed while that round trip happens. */
+            setHouseholdName={async (name) => {
+              const res = await setHouseholdName(code, name, user);
+              if (res && res.ok) setHouseholdNameState(res.name || "");
+              return res;
+            }}
             graceDays={GRACE_DAYS}
             leaveHousehold={async () => {
               const res = await leaveHousehold(code, user, isGuest);
@@ -977,13 +1276,7 @@ export default function App() {
         }}
       >
         <div style={{ maxWidth: 720, margin: "0 auto", display: "flex" }}>
-          {[
-            { id: "list", label: "List" },
-            { id: "meals", label: "Meals" },
-            { id: "week", label: "Week plan" },
-            { id: "pantry", label: "Ingredients" },
-            { id: "settings", label: "Settings" },
-          ].map((t) => (
+          {TABS.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
@@ -995,23 +1288,25 @@ export default function App() {
                 minWidth: 0,
                 height: BOTTOM_NAV_H,
                 fontFamily: fontBody,
-                // MEASURED, not chosen: at 320px each tab gets 64px and
-                // "Ingredients" is 68px at 12px type, so it ellipsised to
-                // "Ingredien…". clamp shrinks the label only on the phones
-                // that need it and leaves 12px everywhere there is room —
-                // 10px at 320, 11.6px at 375, 12px from 388 up.
-                /* RE-MEASURED FOR BOLD, which is wider — the old
-                   clamp(10px, 3.1vw, 12px) was measured at weight 500 and
-                   ellipsised "Ingredients" at 320 AND 390 the moment the
-                   weight went up. "Ingredients" needs 6.49px of width per 1px
-                   of type at 700, and each of five tabs gets (width/5 - 2)px:
-                   62px at 320, 76px at 390. These numbers leave ~6% headroom
-                   rather than sitting on the limit, because the sandbox that
-                   measured them falls back to system-ui — Space Grotesk 700
-                   on a real phone is not guaranteed to be identical.
-                   The net is about 1px smaller and a great deal heavier.
-                   tabbar.spec.mjs asserts no label ellipsises at any width. */
-                fontSize: "clamp(9px, 2.85vw, 11.5px)",
+                /* MEASURED, not chosen, and re-measured for item 87's
+                   rename. The constraint is arithmetic: five labels share the
+                   width, each tab gets (width/5 - 2)px, and the widest label
+                   decides the size. It used to be "Ingredients" at 6.49px of
+                   width per 1px of type, which forced a cap of 11.5px — under
+                   the app's own 12px floor, with no way to lift it except a
+                   shorter word. So the words got shorter: Ingredients ->
+                   Pantry, Week plan -> Plan.
+                   The widest is now "Settings" at 4.71px per 1px of type,
+                   which fits 13.2px in the 62px a tab gets on a 320px screen.
+                   12px there leaves ~10% headroom, and the headroom matters
+                   because the sandbox that measures this falls back to
+                   system-ui — Space Grotesk 700 on a real phone is not
+                   guaranteed identical. 12.0px at 320, 13.5 at 375, 14 from
+                   389 up.
+                   tabbar.spec.mjs asserts no label ellipsises at any width,
+                   and fits.spec.mjs now measures the bar like everything else
+                   rather than exempting it. */
+                fontSize: "clamp(12px, 3.6vw, 14px)",
                 letterSpacing: "-0.01em",
                 fontWeight: 700,
                 padding: "0 1px",

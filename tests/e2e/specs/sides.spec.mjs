@@ -42,7 +42,7 @@ const listAmount = (page, name) =>
 // planning (or behind Edit in the shopping stage). Skipping this step is what
 // made the sides button look missing when this suite was first sketched.
 const startPlanning = async (page) => {
-  await page.tab("Week plan");
+  await page.tab("Plan");
   const start = page.locator("button").filter({ hasText: /^Start planning$/ }).first();
   if (await start.count()) {
     await start.click();
@@ -87,7 +87,7 @@ test("SHOULD: a side added to a slot is stored on it and feeds the shopping list
       "the side should be stored on the slot it was added to"
     );
 
-    await page.tab("Week plan");
+    await page.tab("Plan");
     await page.tab("List");
     assert.deepEqual(
       await listedNames(page),
@@ -283,8 +283,8 @@ test("SHOULD: 'already have the ingredients' silences the sides as well as the m
   }
 });
 
-test("SHOULD: the Meals tab shows a recipe planned as a side, and drops only that side", async () => {
-  /* The Meals tab's "on the plan" chips are how you find where a recipe is
+test("SHOULD: the Recipes tab shows a recipe planned as a side, and drops only that side", async () => {
+  /* The Recipes tab's "on the plan" chips are how you find where a recipe is
      used. A side that didn't appear there would be invisible from the recipe
      — and its ✕ has to remove the SIDE, not the whole slot. */
   const page = await openApp(BASE, { catalog: sidesCatalog() });
@@ -293,7 +293,7 @@ test("SHOULD: the Meals tab shows a recipe planned as a side, and drops only tha
     await pickMain(page, "Mon Dinner", "Stir-fry");
     await addSide(page, "Mon Dinner", "Green beans");
 
-    await page.tab("Meals");
+    await page.tab("Recipes");
     const remove = page.getByRole("button", { name: "Remove Green beans from Mon Dinner" });
     assert.equal(await remove.count(), 1, "a recipe used as a side should show the slot it's in");
     assert.ok(

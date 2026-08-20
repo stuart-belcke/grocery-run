@@ -287,6 +287,340 @@ Tier 4 — multi-device / integrations (highest risk, do last)
 
 18. Export to / link with a Google calendar, keyed off the household.
 
+90. [DONE] NAME A HOUSEHOLD. Proposed while the onboarding work was still in flight,
+    and deliberately queued behind it: "once we get this working flawlessly,
+    we can improve the household names by allowing the user to create a name."
+    Right sequence — the app currently cannot say WHOSE household you just
+    joined, only home-cx2ur9zg, and that gap turned up while writing the join
+    confirmation (item 89).
+
+    THE NAME MUST NOT GO IN THE KEY, which is the one part of the proposal to
+    change. The suggestion was to make the name unique internally "by
+    appending a string similar to what we currently have" — read as a slug
+    key like `stuarts-household-cx2ur9zg`, that is expensive and slightly
+    unsafe:
+      - THE CODE TRAVELS. It is in every invite link, every message somebody
+        forwards, every screenshot. A key that reads "stuarts-household-…"
+        tells anyone who sees it whose it is; the current code deliberately
+        means nothing to a stranger.
+      - RENAMING WOULD BE A MIGRATION. Change the key and the whole node
+        moves, every device's cached code breaks, and every users/{uid}/
+        households entry is orphaned. With a separate field a rename is one
+        write.
+      - IT WOULD UNDO ITEM 88. The rules now require ^home-[a-z0-9]{4,34}$
+        precisely so a mangled URL cannot be laundered into a code. A slug
+        key needs that loosened again, and that guard was not cheap to learn.
+      - UNIQUENESS IS NOT NEEDED. A display name is a label, not an
+        identifier. Two households may both be "Home" with no consequence,
+        and enforcing otherwise is a check that buys nothing.
+
+    SO: households/{code}/name, key untouched. Readable by members (the $code
+    ".read" already covers it), writable by full members (ditto ".write"), a
+    ".validate" for a string with a length cap. No rules restructuring.
+
+    WHERE IT SHOWS, all places that currently print a code at a person:
+    the household list in Settings, the deleted-and-recoverable list, the
+    switch-household dialog, the leave dialogs, and item 89's join
+    confirmation ("You've joined Stuart's Household").
+
+    ONE WRINKLE WORTH KNOWING BEFORE STARTING: a person holding an invite
+    CANNOT read the name yet — reads require a membership record, which is
+    the thing they are about to get. So "You've been invited to Stuart's
+    Household" on the first-run screen would need either the name riding in
+    the link (leaking it into URLs and messages) or a public read on part of
+    the household. Neither is worth it: show the name AFTER joining, and
+    leave the invitation generic.
+
+    THE NAME IS THE PROOF IT WORKED — this is the reason to build it, and it
+    is worth more than "nicer labels". Asked for directly: "it will be better
+    to know that it worked when it says you joined household xyz." A generic
+    "You've joined the household" is the app asserting success; a named one
+    lets the person CHECK it against the household they were invited to.
+    That distinction matters most on the exact screen where nothing else is
+    verifiable — a phone that has never seen this app, a list of groceries
+    that would look equally plausible if it were the wrong household's.
+    The two failures it catches are real and both have happened here: a
+    device that silently minted its OWN household instead of joining (item
+    84), and a device that landed in a household it had joined earlier
+    instead of the invited one (the adoption effect picking most-recent).
+    Neither is visible in a list of groceries. Both are obvious the second
+    the confirmation names the wrong household.
+
+    Note the wrinkle above cuts the other way here: the join confirmation is
+    the FIRST moment the name is readable, which is also the moment it is
+    worth the most. Nothing is lost by the invitation staying generic.
+
+    SEQUENCE AGAINST THE HOME-SCREEN PROMPT (item 91, mocked up, unbuilt).
+    Build names FIRST, then the prompt. The prompt's headline is the join
+    confirmation — it is the same sentence — and without a name it confirms
+    nothing beyond "something happened". Names are small: one field, one
+    .validate, one rename control in Settings, and the fallback below. That
+    is a smaller change than the prompt itself, so ordering it first costs
+    a day and stops the prompt shipping in a form we intend to reword.
+
+    FALLBACK IS REQUIRED, not optional. Every household that exists today
+    has no name, and a member can join one before anybody names it, so
+    every display site needs `name || code` and reads acceptably either way:
+      named    "You've joined Stuart's Household"
+      unnamed  "You've joined home-cx2ur9zg"
+    The unnamed line is ugly and still does the job — it is checkable
+    against the invite link, which contains the same code. Do NOT default
+    the name to something like "Home": identical for everyone, confirms
+    nothing, and it would be indistinguishable from a real name.
+
+    AS BUILT
+    --------
+    householdLabel(name, code) and hasHouseholdName(name) in lib.js are the
+    single display rule; nothing formats a household any other way.
+    cleanHouseholdName collapses whitespace and caps at HOUSEHOLD_NAME_MAX,
+    which a unit test asserts against the number in database.rules.json —
+    two places had to agree and nothing else checked it.
+
+    THE CODE IS STILL SHOWN, quieter, beneath the name. Dropping it would
+    break the two things a code is FOR: matching a household against the
+    invite link somebody sent you, and reading it out when something has
+    gone wrong. The name answers "which one is this"; the code answers "is
+    this the one in the link".
+
+    THE INDEX CARRIES ITS OWN COPY OF THE NAME, and that is not an
+    optimisation — it is the only way the deleted-household list can be
+    drawn. Reading households/{code}/anything needs a membership record, and
+    leaving DELETES that record in the same write that stamps the tombstone.
+    So the instant a household becomes restorable, its name is unreadable to
+    the one person who needs to identify it before pressing Restore.
+    users/{uid}/households/{code}/name stays readable, so the copy has to
+    already be there. It is refreshed whenever this device proves membership
+    and whenever a live name arrives, which bounds the staleness at "the
+    next time this phone opens that household" — also the first moment it
+    could matter. Needed no rules change: users/{uid} is already scoped to
+    the account.
+
+    RULES: only a `.validate` was added. Read and write already came out
+    right from the $code rules — any member may READ the name, only a FULL
+    member may write it. A guest renaming the household they were let into
+    for one afternoon is not a thing that should be possible, and a rules
+    test asserts exactly that (mutation-checked: dropping the role clause
+    from the $code .write fails it independently of the ten other guest
+    tests). Clearing the name is a DELETE, which skips .validate — which is
+    what lets the rule require a non-empty string without making "no name"
+    unreachable.
+
+    NOT TESTED: the rename control itself. It lives behind syncEnabled, so a
+    local-only build never renders it and the e2e suite cannot reach it —
+    the same gap as leaving and restoring a household. The pure logic and
+    the rules under it are both covered; the wiring between them is not.
+
+91. [DONE] PROMPT TO ADD THE APP TO THE HOME SCREEN.
+
+    WHY: a phone that follows an invite link lands in a browser tab, and on
+    iOS it always will — an installed icon app cannot catch a link there.
+    The tab gets buried behind everything else and the app looks like it
+    stopped working. Nothing in the app currently says "put this on your
+    home screen", so the only people who have done it were told to by hand.
+
+    FIVE STATES, each with its own path to it:
+      A   full invite, iPhone   — after the invite redeems, over the list
+      B   full invite, Android  — identical but "⋮ Menu → Install app"
+      C1  guest holding a real account — no browser trap at all
+      C2  guest signed in anonymously — confirmation only, no ask
+      D   Settings → Account    — the permanent one, for after "Not now"
+
+    THE PROMPT IS TWO HALVES, and C2 is what forced the split: a
+    CONFIRMATION that names the household, which everybody gets, and a
+    HOME-SCREEN ASK, which C2 alone does not. Keep them separable in the
+    code — the confirmation is the load-bearing half.
+
+    C2 WAS DRAFTED WITH A WARNING AND THE WARNING IS CUT. It told an
+    account-less guest that adding the app to their home screen would not
+    work for them. Wrong on three counts, and worth writing down because
+    the draft looked reasonable:
+      - IT WAS UNVERIFIED. It rested on iOS giving a home-screen PWA
+        storage separate from Safari. Nobody has tested that here. Writing
+        an untested claim as a prohibition is exactly what the Android
+        gesture line in this same item refuses to do.
+      - IT WAS ALREADY SAID, better, earlier. Onboarding.jsx:235 ships
+        "No account needed — but clearing this browser means a new link"
+        ON THE JOIN CARD, before they commit, where it can still change
+        the decision instead of only worrying them afterwards.
+      - THE FAILURE IT PREVENTS IS CHEAP. Add the icon anyway and it opens
+        on the first-run screen while the browser tab keeps working.
+        Confusing for a moment, nothing lost. That does not justify a card
+        you cannot dismiss.
+    The sign-in offer went with it. It existed as the escape hatch from
+    the warning; with no warning it is an account pitch on a success
+    screen, against the two-tap path that is the whole point of that
+    route. It belongs on the join card (open decision 2) and in Settings.
+
+    C1 IS THE CASE THE FIRST DRAFT GOT WRONG and it is worth restating: the
+    rules read role == 'guest' OR provider != anonymous, so a guest
+    membership may be held by a REAL ACCOUNT. Guest is a role, not an
+    identity. Only an anonymous guest is stuck in one browser. Somebody who
+    already uses this app can help with your shop from their own installed
+    app — that works today and nothing in the UI says so.
+
+    ONE CODE CHANGE UNDERLIES C1 vs C2 either way: watchAuthUser currently
+    drops isAnonymous, so the app cannot tell the two guests apart. Small,
+    and worth doing regardless of the four decisions.
+
+    HEADLINE DEPENDS ON ITEM 90 — see the sequencing note there. A, B and C1
+    all open with the join confirmation, and that sentence is only worth its
+    space once it can name the household. Build names first.
+
+    ANDROID STEP 2 IS UNVERIFIED. Android CAN route a link into an installed
+    app, but only via a .well-known/assetlinks.json this app does not
+    publish, so the assumption is "browser, same as iOS". Nobody has tested
+    it on a real Android phone. Do not write the copy as if it were known.
+
+    THE ANDROID PROMPT IS A BUTTON, NOT A PICTURE OF A MENU. Chrome fires
+    `beforeinstallprompt`; stash the event and call .prompt() on a tap and
+    the OS install dialog opens. Safari has never implemented it and never
+    will as far as anyone knows, so iOS can only ever draw the Share ->
+    Add to Home Screen gesture. That asymmetry is the whole difference
+    between states A and B and it is not cosmetic: one is a tap, the other
+    is a person following instructions.
+
+    IMPLEMENT BOTH PATHS AND LET THE EVENT DECIDE. Not a fallback bolted on
+    to a happy path — the event genuinely may not arrive even on Chrome:
+    it is gated behind engagement heuristics, it never fires if the app is
+    already installed, and it does not fire twice. So: hold the event if it
+    comes and show a real Install button; show the gesture card if it does
+    not. Never show both.
+
+    WHAT WAS ACTUALLY VERIFIED HERE, and what was not:
+      - VERIFIED, Chromium via CDP Page.getAppManifest against the real
+        build: the manifest parses with ZERO errors and Chrome reads all
+        five icons. It previously shipped only an SVG at sizes:"any" plus
+        the 180px apple-touch-icon, which sits on the edge of Chrome's bar;
+        it now also ships 192, 512 and a maskable 512 PNG.
+      - VERIFIED: the service worker registers and reaches `active` under
+        `npx vite preview`. It could not before — see the isSecureContext
+        fix in main.jsx. `beforeinstallprompt` requires an active worker
+        with a fetch handler, so this was a hard blocker on the button.
+      - NOT VERIFIED, and not verifiable here: that the event FIRES.
+        Headless Chromium suppresses it by design; it returned false in a
+        run where the manifest and worker were both good. It needs a real
+        Android phone. The event-or-gesture split above is what makes that
+        acceptable rather than a gamble.
+      - NOT VERIFIED: whether an iOS home-screen app really does get
+        storage separate from Safari. Everything here treats it as unknown.
+        Test on a real iPhone: sign in, Add to Home Screen, open the icon,
+        see whether you are still signed in.
+
+    ALL FOUR DECISIONS RESOLVED, and how:
+      (1) NAME THE HOUSEHOLD. Item 90 became a prerequisite rather than a
+          follow-up and shipped first. The confirmation reads "You've joined
+          Stuart's Household", falling back to the code.
+      (2) THE GUEST CARD OFFERS SIGNING IN. This was the missing step for
+          C1 and it is now on the first-run screen: a guest link leads with
+          Join, then Sign in DIRECTLY BENEATH IT rather than under "Just me,
+          on this device", which is not an alternative to helping with
+          somebody else's shop. A signed-in guest is not asked to type a
+          name — the account has one and joinWithInvite already falls back
+          to it.
+      (3) C2's WARNING IS GONE. See above.
+      (4) SHIPPED A AND D BOTH. A is the one that gets seen; D is the one
+          still there next week, and it is the same computed offer with
+          `dismissed` forced false so that "Not now" cannot hide it from
+          somebody who has come looking.
+
+    "GUEST" WAS OVERLOADED AND THE FIX WAS NOT A NEW WORD. It was doing two
+    jobs: the ROLE (limited, revocable access) and the SIGN-IN STATE (no
+    account). Onboarding.jsx even had the conflation written down as a
+    design justification — "a guest link needs nothing from Sign in (a guest
+    never has an account)" — which is false and is why C1 was invisible.
+    Only ONE of the two needs a noun. The role keeps "guest": it is a chip in
+    the member list, a button, and a value in the rules. The sign-in state
+    gets no noun at all and is phrased as a condition ("no account needed",
+    "sign in first to keep it on your account"). Both doors are now labelled
+    "Join as guest", because the role IS guest either way and labelling them
+    differently would imply signing in buys full membership, which the
+    invite and the rules both refuse.
+    A LEXICAL RENAME (guest -> helper throughout) was considered and NOT
+    done: it is roughly 15 strings, it is reversible, and it is a naming
+    preference rather than a correctness fix now that the logical overload
+    is gone. The wire value `role: 'guest'` must not change regardless —
+    every device writes it, the rules compare the literal string, and the
+    `!= 'guest'` asymmetry is load-bearing.
+
+    WHAT IS TESTED, AND WHAT IS NOT:
+      - installPromptState and devicePlatform: unit tests over the whole
+        matrix, including that the CONFIRMATION survives every case that
+        removes the ask.
+      - The WIRING: tests/e2e/specs/installoffer.spec.mjs, in a real browser
+        with a real per-context user-agent — the iOS gesture, the Android
+        gesture, silence on a browser it cannot place, a synthetic
+        beforeinstallprompt turning the instructions into a button, that
+        button calling .prompt() exactly once and then going away, an
+        anonymous guest getting the confirmation and nothing else, and
+        "Not now" surviving a round trip while the Settings note does not
+        care about it.
+      - The MOMENT OF JOINING is seeded (INSTALL_PREVIEW_KEY), because a
+        real join needs the database the e2e build compiles out. Platform,
+        the held event and standalone-ness all still come from the real
+        browser, so the branch under test is the real one.
+      - NOT TESTED ANYWHERE: that Chrome actually fires the event on a real
+        phone, and the rename control in Settings, which lives behind
+        syncEnabled and therefore cannot appear in a local-only build — the
+        same gap as leaving and restoring a household.
+
+
+92. [DONE] A HOUSEHOLD JOINED SOMEWHERE ELSE. The gap items 90 and 91 left
+    open, found by asking the right question of the finished work: "does one
+    of these scenarios cover recovering a link when they are signed in with
+    the home icon?" None of the five did.
+
+    THE FAILURE, IN FULL. Somebody already has Grocery Run on their home
+    screen and is signed in. You send them an invite link. They tap it — and
+    it opens in the BROWSER, because on iOS a link cannot be routed to an
+    installed app; there is no mechanism for it. They join there, get the
+    confirmation there, then open their icon and find their OWN household
+    with nothing to say the new one exists. The membership is real and
+    sitting on their account. The icon app never looks: the adoption effect
+    in App.jsx only moves a device that has not committed to a household yet
+    (`if (onboarded ...) return`), and an installed app committed long ago.
+
+    That is state C1 — the guest who already has an account, the case the
+    whole C1/C2 split was FOR — failing at the last step. And it is a
+    restatement of the original report: "it takes me the SME to get another
+    phone up and going and even I can't get it to work."
+
+    THE INDEX IS THE FIX, because users/{uid}/households is per-ACCOUNT and
+    server-side. It gains an entry the moment the join lands, wherever that
+    happened, so any other signed-in device can notice. Same mechanism covers
+    joining on a laptop and picking it up on a phone.
+
+    NEW MEANS "NOT SEEN BY THIS DEVICE", NOT "RECENTLY CREATED". A timestamp
+    comparison would re-announce a household after any long offline spell and
+    would depend on two clocks agreeing. A seen-set is local, exact, and
+    needs no clock. It is per DEVICE, not per account: an account with two
+    phones should be told on both.
+
+    THE FIRST RUN AFTER THIS SHIPS MUST BE SILENT. Every existing device has
+    no seen-set, and announcing every household somebody is already in would
+    be the app shouting news that is months old. `null` is never-recorded and
+    seeds silently; `[]` is a real, empty, recorded set and suppresses
+    nothing. Tombstoned households are seeded too, so deleting one and
+    restoring it later cannot come back as "you have been added to".
+
+    SWITCHING IS THE ACTION, not a link into Settings. Not knowing where the
+    household went is the entire failure; telling somebody to go and find it
+    is half a fix.
+
+    NOT SHOWN BESIDE THE JOIN CONFIRMATION. On the device that did the
+    joining both would fire at once and say the same thing twice, one of them
+    offering to switch you to where you already are.
+
+    TESTED: nine unit tests over the pure decision, and
+    tests/e2e/specs/joinedelsewhere.spec.mjs for the wiring — the announcement
+    itself, the name and its fall back to the code, that Switch really moves
+    the device and persists, that "Not now" survives a reload without moving
+    it, that a first-ever run stays quiet and stays quiet on the SECOND open
+    too, deleted households, the household you are already in, signed out,
+    and the two cards never appearing together.
+    The index has no database in a local-only build (subscribeMyHouseholds
+    answers `{}`), so it is seeded — see HOUSEHOLDS_PREVIEW_KEY. Nothing this
+    browser could be made to DO would produce a household joined elsewhere;
+    that is the definition of the case.
 
 Hygiene — not features, and not sequenced
 ------------------------------------------
@@ -3018,6 +3352,562 @@ treatment: the store moved into the details panel and the name grew.
     Verified unclipped and with no horizontal overflow at both 320 and
     390px. 203/203.
 
+89. [DONE] THE INVITE DID NOT SURVIVE SIGNING IN, so adding a second phone
+    was impossible by the route the screen itself told you to take.
+    Reported plainly: "it takes me the SME to get another phone up and going
+    and even I can't get it to work. How would anyone (guests included) be
+    able to use this app without me there to onboard them?"
+
+    THE ANSWER IS NOT MORE COPY. It was read from the hash into React state
+    and stored nowhere else, while the hash was wiped on load — so the invite
+    existed in exactly one place, in memory, on a screen whose own
+    instruction was "sign in below, then come back to this screen". Any
+    sign-in that NAVIGATES took it with it, and TWO OF THE THREE ROUTES
+    NAVIGATE:
+      - the emailed sign-in link returns to origin+pathname, hash stripped,
+        deliberately and with a comment saying so (item 42)
+      - the Google popup falls back to signInWithRedirect whenever a browser
+        blocks popups, which iOS does readily
+    Only an in-page Google popup kept it. Item 82 fixed the screen closing
+    on sign-in; it never covered the screen being RELOADED by one. Come back
+    as instructed and there is nothing to come back to.
+
+    PERSISTED (PENDING_INVITE_KEY). Written when a link arrives, read at
+    startup AFTER the hash so a freshly tapped link still wins, cleared by
+    finishOnboarding — which is every way the question gets answered:
+    redeemed, or declined with Start my own list.
+    THE ADDRESS BAR STILL FORGETS. Those were always two properties and had
+    been tested as one: the URL must forget so a link cannot be re-redeemed
+    or screenshotted; the SCREEN must remember so signing in can leave and
+    return. The old test asserted the field came back EMPTY after a reload —
+    it was documenting the bug.
+
+    AND IT REDEEMS ITSELF once there is an account to redeem it for. Tapping
+    the link is one statement of intent, signing in is the second; a "Join
+    household" button afterwards asked for a third, and that last step is
+    where this kept dying. MEMBER INVITES ONLY — a guest link needs a typed
+    NAME, the only thing that will identify them in the member list, so that
+    screen keeps its button and asks for the name rather than for a decision.
+    Guarded by a ref, not state, so a failure cannot retry on every render,
+    and the screen says "Joining the household…" because a screen that
+    appears to do nothing for a second reads as broken.
+
+    WHAT IS STILL NOT PROVED HERE: redemption needs the database this build
+    compiles out, so the e2e covers the invite SURVIVING the round trip and
+    being forgotten when declined, not the join itself. Mutation-tested —
+    removing the restore fails both. The round trip driven is the real one:
+    arrive on a link, then load the bare URL with no hash, which is exactly
+    what a browser does returning from an email link.
+
+    277 unit, 67 rules, 213 e2e, `npm run check` green.
+
+88. [DONE] A MANGLED INVITE LINK MADE A HOUSEHOLD NAMED AFTER THE URL —
+    AGAIN, and not by the route item 81 closed. Reported from a real attempt
+    to add the second phone: the link was copied, sent, and opened on the
+    other phone, and the app "made another household rather than joining the
+    invited household". Pasting the same link into the code field then "just
+    used the whole link as a household".
+
+    ITEM 81 ONLY COVERED LINKS THAT STILL HAD THEIR FRAGMENT. classifyJoinInput
+    unwraps "#join=..." and has since — verified, it still does, for the
+    normal link, the guest link, a link with no scheme, one wrapped in angle
+    brackets, one with a trailing full stop and one with a newline through
+    the middle. All fine.
+
+    THE FRAGMENT IS THE PART THAT GOES MISSING. It is never sent to a server,
+    which is exactly why the invite was put there — and exactly why any
+    redirect, link shortener, preview card or "tidy this URL" feature drops
+    it. What arrives is the bare site address. cleanCode reduced that to
+    "httpsstuart-belckegithubiogrocery-run": 37 characters of [a-z0-9-], a
+    legal household code under the old rule, carrying no `invite` field so
+    item 81's rules guard did not apply either. An unclaimed household is
+    claimable by design. So it did not fail — it silently made a household
+    named after the URL and put the phone in it. Both reported symptoms are
+    that one mechanism.
+
+    THE RULE IS: DO NOT LAUNDER. cleanCode exists to forgive case and stray
+    spaces, not to manufacture a code out of a sentence. A real code is
+    [a-z0-9-] and nothing else, so a slash, a colon, a dot or a space means
+    this is a URL and the honest answer is to say so. `notacode` now, with a
+    message that says what actually happened — the link lost its invite in
+    transit — because the person pasting it did nothing wrong.
+
+    AND A SHAPE, IN BOTH PLACES THAT DECIDE. validCode: "home-" plus base-36,
+    which is all newHouseholdCode has ever produced and what all seven live
+    households match. parseInvite checks it too, which catches the remaining
+    variant (a link whose "#" arrived percent-encoded still contains a "~",
+    so it reached parseInvite and made a 40-character code paired with a real
+    token). database.rules.json enforces the same shape, tightened from
+    [a-z0-9-]{8,40} — AND THAT HALF IS THE ONE THAT MATTERS HERE, because a
+    phone can be running a cached older bundle, which is precisely the
+    situation being reported. A client-side fix alone would not have held.
+
+    newHouseholdCode MOVED TO lib.js, beside validCode. A generator and the
+    check for what it generates living in different files is how the two came
+    to disagree about what a code is. Caught by an existing test on the way —
+    "every lib helper a component calls is imported there" — which noticed
+    App.jsx still importing it through the sync seam.
+
+    MUTATION-TESTED BOTH HALVES: loosening the rules back to [a-z0-9-]{8,40}
+    fails the rules test; deleting the client guard fails the unit test.
+    AND ONE EXISTING TEST HAD TO CHANGE ITS FIXTURE rather than its
+    assertion: item 81's test used the URL-shaped code, which the new shape
+    rule now refuses outright — so it would have passed without the invite
+    clause ever being reached. It uses an ordinary unclaimed code now. A rule
+    is only proved by a case that gets as far as it.
+
+    277 unit, 67 rules, 211 e2e, `npm run check` green.
+
+87. [DONE] THE APP READ SMALL AND EXPLAINED TOO MUCH. Both reported from
+    using it on a phone: "some text is too small, some notes are too wordy
+    or unnecessary." Plus one placement bug alongside them.
+
+    A. DELETED HOUSEHOLDS WERE LISTED ABOVE THE LIVE ONES. A "Deleted, still
+       recoverable" list read first, in a section whose whole job is telling
+       you where you can go — and the deleted ones are precisely where you
+       cannot. Below now. The live list also renders whenever there is a
+       deleted one under it, so the deleted list is never the only thing on
+       screen with nothing above it to be the answer to.
+
+    B. A 12px FLOOR, AND 13px FOR ANYTHING THAT IS A SENTENCE. There were 28
+       places at 10px and 11px. None of them was a decision about the app —
+       they accumulated one at a time, each defensible where it sat. The
+       rule now is about the READER, not the element: a label can be small
+       because you scan it, a sentence cannot because you read it.
+       231 declarations before, 93 at 13 and 80 at 12 after.
+
+       THE TAB BAR NEEDED A RENAME, NOT A NUMBER. Its labels were
+       clamp(9px, 2.85vw, 11.5px) — arithmetic rather than taste: five
+       labels share the width, and "Ingredients" at weight 700 needs 6.49px
+       of width per 1px of type against the 62px a tab gets on a 320px
+       screen (item 74 measured this). Anything bigger ellipsises, which
+       tabbar.spec.mjs fails on. So the bar was exempted from the floor,
+       written down as the one place the app went under 12, and the real fix
+       named: a shorter word. Asked, and answered — Ingredients became
+       PANTRY.
+       RE-MEASURED AFTER, RATHER THAN ASSUMED, and the measurement moved the
+       problem instead of solving it: with "Ingredients" gone the widest
+       label was "Week plan" at 5.87px per 1px, which still capped at 10.6px
+       on a 320px screen. Two words had to go, so Week plan became PLAN —
+       first "Week", then Plan on the reasonable objection that a tab which
+       ever wrapped would read as "Week" sitting on a line above "plan".
+       Plan is also the better word: every other tab is a thing, and this
+       one is the thing you do.
+       The widest is now "Settings" at 4.71px per 1px — 13.2px in the same
+       62px. clamp(12px, 3.6vw, 14px) leaves ~10% headroom at the tightest
+       width, which matters because the sandbox measuring it falls back to
+       system-ui and Space Grotesk 700 on a real phone is not guaranteed
+       identical. 11.5px at best before; 12 at 320, 13.5 at 375, 14 from 389.
+       THE EXEMPTION IS GONE. fits.spec measures the bar like everything
+       else, so there is no longer anywhere in the app that renders under 12.
+       NOTHING WRAPS EITHER, and that was measured rather than assumed —
+       every label against the room it has, at 320/360/375/390/430px. The
+       tightest is "Settings" needing 56px of the 62px available at 320.
+
+       RENAMING A TAB TOUCHES FOUR PLACES, and one of them was a trap. The
+       label, the help text (help.js writes {Braced} tab names that render
+       bold, deliberately spelled the same), the Settings prose, and the
+       tests. lib.test.js ALREADY had "every {name} in the help text is a
+       real tab label" — and it held the help text against its own hardcoded
+       copy of the labels, so renaming the tab and updating that one line
+       would have kept it green while the bar and the help disagreed. The
+       tab list moved into lib.js as TABS and the test reads from it.
+       Mutation-tested: renaming a tab without touching help.js now fails
+       that test, which it could not have done before.
+
+    C. THE NOTES GOT CUT, and some got deleted rather than shortened. The
+       test applied was: does this change what I do next? "Exporting changes
+       nothing — your edits are already saved and shared" answers a worry the
+       button does not raise, so it is gone entirely. The invite note ran to
+       344 characters explaining a guest-versus-full distinction that the two
+       buttons above it already make, twice; it is 118 now and says only the
+       two things neither button says (links expire in an hour, removal is
+       permanent). Fourteen paragraphs were over 110 characters; the ones
+       left over 115 are almost all confirmation dialogs.
+
+       CONFIRMATION DIALOGS WERE DELIBERATELY NOT CUT HARD. A destructive
+       action is the one place an extra sentence earns its keep, and this
+       app has three that delete something. They were tightened, not stripped.
+
+    THE TEST FOUND WHAT THE SEARCH COULD NOT. "Nothing renders below 12px"
+    measures computed size on the rendered page, and immediately caught the
+    tab bar at 11.5 — a size that arrives from a clamp() and is invisible to
+    any grep for "fontSize: 11". Which is the general point: a size can come
+    from a shared style object, a parent, or a relative unit.
+
+    AND THE MUTATION CAUGHT A TEST PROTECTING NOTHING, again. Putting an 11
+    back on the List tab's store label left the suite GREEN — that row only
+    renders in the "all" view, which the fixture never opened. Fixed rather
+    than noted: the sweep now opens every collapsed section first, the same
+    DISCLOSURES list the overflow tests use. A second mutation on an
+    always-rendered line fails correctly. Still not total, and said in the
+    file: a row behind a dialog is not measured.
+
+    D. THREE SECTION HEADINGS DELETED, from the same question: "notes like
+       'Where it lives' — is that necessary?" It was not. A category label
+       earns its place by telling you something the line under it does not.
+
+       WHERE IT LIVES (Pantry) sat above "Usually at Costco · aisle 3" — the
+       same fact, in capitals, twice.
+       WHERE TO BUY IT (List row) sat above a dropdown reading "Costco", in
+       a panel belonging to one item, with a sentence under it already
+       saying which of the two answers is in force. The select keeps its
+       aria-label, so a screen reader loses nothing.
+       ON THE SHOPPING LIST (Pantry) was worse than redundant: the checkbox
+       under it says a staple is "listed only when we run out", which the
+       heading directly contradicts.
+
+       ON THE LIST FOR STAYS, and the contrast is the rule: a column of
+       quantities and meal names ("2 cups — Stir fry") is genuinely
+       ambiguous without a heading. That one adds a fact. The other three
+       repeated one.
+
+       AND IT CAUGHT THE SAME DRIFT AGAIN. Two FAQ answers told people to
+       "pick a store under Where to buy it" and "set the aisle under Where
+       it lives" — labels that had just stopped existing. lib.test.js holds
+       the help text to real TAB names; nothing holds it to the names of
+       anything else on screen. Fixed here by hand; worth knowing the guard
+       is narrower than it looks.
+
+    E. TWO MORE, AND THEY NEEDED OPPOSITE FIXES. Asked as one question —
+       should "Choose a meal" and the servings line be darker or bigger? —
+       and the honest answer was one each, for a reason worth writing down.
+
+       MEASURED FIRST, because "too faint" is a claim with a number. C.faint
+       (#63695B) is 5.67:1 on white and 5.20 on paper; both pass AA, which
+       needs 4.5 under ~18px. So neither was a contrast failure and neither
+       fix is about the colour being illegal.
+
+       "CHOOSE A MEAL" WAS THE WRONG COLOUR FOR WHAT IT IS. It is the
+       primary action on an empty day, painted in the grey this app uses for
+       supporting notes — which reads as disabled, or as already handled, on
+       the one row whose entire job is to be tapped. Ink, at 13.84:1. Size
+       unchanged: a week can show 21 of these rows and they are a control,
+       not reading.
+
+       "SERVES 4 · onion, garlic, …" IS supporting text, and darkening it
+       would have been the wrong fix twice over — the recipe name above it
+       is 18px display bold, so ink would put the two in competition on a
+       screen you scan rather than read. 12px -> 13px instead, which is
+       just item 87B's own rule applied where it had been missed: a line you
+       read, not a label you glance at.
+
+       THE GENERAL SHAPE: faint-versus-ink is a question about what the text
+       IS, and size is a question about how it is consumed. Reaching for the
+       same lever for both is how a UI ends up either uniformly shouty or
+       uniformly unreadable.
+
+    F. THE LIST TAB'S COUNTS — the actual thing being asked about, once the
+       question was pinned down. "3 left to buy" and "2 meals selected" were
+       both faint 13px throughout, which gave the one figure you check most
+       in a shop — at arm's length, in shop lighting, holding a trolley —
+       exactly the same weight as the words around it.
+
+       THE NUMBER IS THE CONTENT; the words are its label. The count is now
+       ink and bold at 15px with the label left faint at 13, which is
+       emphasis without the line shouting, and the same pattern for both
+       counts rather than a different idea per line.
+       TABULAR NUMERALS, because it changes as you tick things off and
+       proportional digits make it jump sideways when 10 becomes 9.
+
+       AND IT NAMES ITS UNIT NOW: "3 items left to buy", not "3 left to
+       buy". The argument is not that the bare number is unclear on its own
+       — it is that the count directly beneath it says "2 meals selected",
+       so one line named what it counted and the other did not. On a screen
+       showing both, that asymmetry is the thing that makes you look twice.
+       Pluralised, like the meals line. Costs nothing in layout: the bar is
+       79px at 320 and 68px at 390 either way.
+
+       IT COSTS 3px OF THE STICKY BAR at 390px (65 -> 68) and nothing at 320
+       (79 either way) — measured before and after, because the comment
+       sitting on that bar warns specifically about it growing, and the
+       thing it warns about is a WRAPPED LINE costing about a seventh of the
+       screen. A taller glyph is not that.
+
+    G. AND THE MEALS TAB'S ONE ORIENTING LINE — "Choose meals — the shopping
+       list totals every ingredient automatically." Asked as "darker or
+       larger", and the answer here is darker, because it was ALREADY at
+       13px, the size this app uses for a sentence. Size was not the lever
+       left. Ink.
+
+       KEPT RATHER THAN CUT, which is worth saying since this same pass
+       deleted six other notes. The test all of those failed was "does this
+       restate the control beside it" — and this one does not. It answers
+       what picking a meal actually DOES, which nothing on the screen shows
+       until after you have already done it. HOW_IT_WORKS says it too, but
+       that is read once before you have an account and then lives in
+       Settings; this is the only place it is said where the action is.
+
+       SAME MISTAKE AS "CHOOSE A MEAL", one tab over: a line doing real work
+       painted in the grey reserved for notes beside things that explain
+       themselves. Which is the pattern behind every fix in E, F and G — the
+       app had one grey for "supporting" and had quietly filed several
+       load-bearing sentences under it.
+
+    H. "LIVES" WAS THE WRONG WORD, EVERYWHERE IT APPEARED. Reported as
+       exactly that: "'Where it always lives' isn't descriptive. 'Lives'
+       isn't the right word."
+
+       IT MEANT "WHICH SHOP YOU BUY IT AT" and read as "where you keep it" —
+       worst of all on the PANTRY tab, where a cupboard is precisely what
+       the word suggests. It had spread to five places: the Pantry intro
+       (both the member and guest versions), the two halves of the List
+       row's store line, the just-this-trip-or-always dialog, and a FAQ
+       answer. Every one now names the thing: "the store you usually buy it
+       at", "which store you buy it at", "which store an ingredient comes
+       from".
+
+       A METAPHOR THAT NEEDS THE READER TO ALREADY KNOW THE ANSWER is not
+       doing the job of a label, and this one had propagated by being copied
+       from wherever it was written first — which is how a wrong word
+       becomes the house term for something.
+
+       ALSO REMOVED: "Everything you buy." from the head of the same
+       paragraph. It sits directly under a heading reading "Your
+       ingredients", so it was the heading again, in a sentence.
+
+    I. AND THEN THE COUNTS LOOKED WRONG WHERE THEY SAT — reported as "the
+       spacing looks weird now", which was fair: F caused it. Two problems,
+       one self-inflicted and one that had been there all along.
+
+       THEY ARE NOT THE SAME KIND OF NUMBER, and F treated them alike "for
+       consistency", which was the mistake. "Items left to buy" changes
+       every time you tick something off and is checked across a whole trip.
+       "Meals selected" does not move once you are in the shop — it is
+       context for why the list looks like it does. Two heavy numbers, one
+       pushed to the right of one row and one to the left of the next,
+       zigzag. So the meals count went back to plain faint and moved ACROSS
+       to sit beside Done shopping: what is in this trip and ending this
+       trip are one thought, and the row stops having two things stranded at
+       opposite edges.
+
+       THE OLDER BUG, WHICH ONLY MEASURING FOUND: the pinned count was
+       right-aligned by a <div style={{flex:1}}/> spacer, and that row
+       WRAPS. A spacer is a flex ITEM, so when the count wrapped to a second
+       line the spacer stayed behind on the first — the count sat at the
+       LEFT edge at 390px and the RIGHT edge at 320px. A figure you check
+       across a whole trip moving side to side depending on the phone. An
+       auto margin is applied per line and holds the edge either way.
+       Measured after: items and Done shopping both end at 306 on a 320px
+       screen and 376 on a 390px one, which is the alignment that was never
+       there before.
+
+    J. MEALS BECAME RECIPES, and Settings stopped opening itself. Two
+       questions, one session.
+
+       "MEALS" NAMED THE WRONG HALF OF A DISTINCTION THE APP ALREADY MAKES.
+       A recipe is the stored thing; a meal is a recipe put on a day. That
+       tab holds recipes — you browse them, write them, paste them in, edit
+       them — and the tab that deals in meals is Plan. RECIPES / PLAN says
+       which is which; MEALS / PLAN did not. It also answers the question
+       somebody actually arrives with ("where do I add a recipe?") with the
+       word they arrived using.
+       "Meal" survives everywhere it means an eating occasion: meal types,
+       "Add unplanned meal", "2 meals selected". Two words for two things,
+       rather than one word for both.
+       COSTS NOTHING IN WIDTH: "Recipes" needs 52px of the 62 a tab gets at
+       320px, still under "Settings" at 56, so the clamp from B is untouched.
+
+       HOUSEHOLD WAS OPENING ITSELF SINCE ITEM 37, when the household CODE
+       was the thing you came to Settings to read and pass to the other
+       phone. That reason expired when invites became links and the code
+       stopped granting anything (items 42, 48, 37-CONTRACT). Nothing ever
+       recorded it as a decision — it was left behind, which is why the
+       answer to "why is this open?" was not in the file.
+       An expanded section on a screen whose job is showing what is
+       available pushes the rest below the fold. Closed: all six headings
+       sit in 426px of an 844px phone instead of 510.
+
+       THE ORDER IS: How it works, Household, Account, Preferences, Unit
+       converter, Export & recover.
+
+       ORIENTATION FIRST, which is a correction to my own first pass. I put
+       "How it works" fifth on the reasoning that a weekly user does not
+       need orienting — true of the person who built the app, and the answer
+       came back that it should be first because it is what somebody SEES
+       first. That is the stronger argument for this app specifically: two
+       people use it, one of them built it, and the other opens Settings
+       rarely and needs the map before the controls. Designing the order
+       around the reader who knows least is the right default when the
+       screen has room for all six headings anyway.
+       Then the two you might have actually come to change (Household,
+       Account — adjacent because one gates the other, and the access-denied
+       message in Household points straight at it; they were four sections
+       apart before), then the ones you read, then the one that can lose
+       data.
+
+    K. AND THEN THE COUNT MOVED OUT OF THE PINNED BAR, and the meals count
+       went entirely. Asked for directly, and both are right.
+
+       THE COUNT SITS WITH THE LIST NOW, on the same line as Done shopping,
+       which is the line the first item starts under. The pinned strip is
+       the scarcest space on the one tab you scroll while holding a trolley
+       — item 51 cut it down for exactly that reason — and this was the
+       tab's own status rather than a control, which is what the pinned
+       strip is for. It returns 28px of permanently-pinned height at 390px
+       (68 -> 40); at 320 the bar is 79px either way, because the two
+       grouping toggles wrap there on their own.
+       THE TRADE, SAID PLAINLY: it no longer follows you down a long list.
+       That is a real loss...
+
+       ...AND IT WAS THE WRONG TRADE, which came back within the hour: "I
+       like it pinned to the top", then "what about putting Done shopping
+       and the items count in [it]". Both right, and the second is the
+       better idea than either thing I had built.
+
+       WHAT IS PINNED IS NOW WHAT CHANGES DURING A SHOP — how many are left,
+       and the way to end the trip. THE GROUPING TOGGLES SCROLL AWAY, which
+       is the part I had never questioned: you pick All items or By store
+       once and then walk the shop, so permanently-pinned height was being
+       spent on a decision already made.
+
+       THREE ARRANGEMENTS, MEASURED, because this bar has been wrong in both
+       directions now:
+         everything pinned (item 51's old shape)   123px @320   84px @390
+         toggles pinned, count below (87K's first) 79px @320    40px @390
+         count + Done pinned, toggles scrolling    45px @320    45px @390
+       The last is one line at every width from 320 to 430, because two short
+       things fit where four did not. It is also the only one that does not
+       change height when the phone does.
+
+       ...AND THEN THE ANSWER WAS "everything pinned to the top", which is
+       where it landed. Four arrangements in one session, which is what
+       happens when a layout question is argued instead of measured — so all
+       four numbers are in ListTab.jsx now, at 320px and 390px:
+         everything pinned (SHIPPED)              123px / 84px
+         count + Done pinned, toggles scrolling    45px / 45px
+         toggles pinned, count below               79px / 40px
+         everything pinned, forced line break     133px / 94px
+       TWO LINES AT 390 IS THE FLOOR for keeping all of it: the count and
+       Done shopping fill one line and neither toggle fits beside them.
+       Item 51 cut this header down when it came to THREE wrapped lines —
+       this is two, which is the thing worth knowing about the trade.
+
+       THE ORDER IN THE SOURCE IS LOAD-BEARING: count and Done first, so a
+       wrap displaces the toggles rather than them. What gets pushed down
+       should be the decision you already made, not the number you keep
+       checking. A forced flexBasis:100% break was tried and cost 10px at
+       both widths by stopping the toggles sharing a line where they fit.
+
+       AND THE COST IS NOW ASSERTED, not remembered. "The pinned List header
+       stays two lines, with the count on the first" holds a height budget
+       per width — 100px at 390, 140px at 320 — plus the ordering, because a
+       height check alone would pass on a layout that pushed the count to
+       the second line. Budgets rather than exact pixels: the sandbox falls
+       back to system-ui where a phone has Space Grotesk, so equality would
+       fail on font metrics rather than on layout.
+       WRITING IT REVEALED A NUMBER WORTH KNOWING: at 320px this header is
+       THREE lines (123px), not two. The grouping toggles wrap on their own
+       at that width whatever else is in the bar, so a third line there is
+       inherent to pinning all of it — not a regression, but not what 390px
+       shows either, and the budgets say so per width rather than pretending
+       one answer covers both.
+       Mutation-tested: forcing the count onto its own line takes 320px to
+       161px and fails it.
+
+       AND ONE LABEL GOT SHORTER ON ITS OWN MERITS while measuring: "All
+       items A–Z" is now "All items". The A–Z described a sort that the
+       OTHER toggle owns and that this view does not let you change, so the
+       label was naming something you cannot do.
+
+       A DESTRUCTIVE BUTTON IN A PERMANENTLY TAPPABLE SPOT was item 51's
+       stated reason for keeping Done shopping below, and the concern was
+       right. What answers it: the button does not do anything — it opens a
+       confirm dialog, and the dialog ends the trip. A mis-tap costs a
+       Cancel. Ending the trip is also the one action you want reachable
+       with a trolley in the other hand. Recorded rather than quietly
+       overridden, because it was a real reason and it is being traded away
+       on purpose.
+
+       "N MEALS SELECTED" IS DELETED, not moved. It did not change once you
+       were in the shop, it answered a question the Recipes tab answers
+       better, and it was the second heavy number making that corner busy.
+       Its `selectedMealCount` and the `servingsByRecipe` call feeding it
+       went with it — a removed line that leaves its computation behind is
+       half a removal.
+
+       The count reads left and the action sits right: status, then what to
+       do about it.
+
+    M. DOES "HOW IT WORKS" NEED TO EXPLAIN HOUSEHOLDS? Asked with the right
+       follow-up attached — "or is that too much?" — and the answer is a
+       clause, not a section.
+
+       THE WORD WAS ALREADY THERE, UNDEFINED. The third line of the summary
+       said "Everyone in the household sees the same {List}", and a whole
+       Settings section is called Household, and nothing anywhere said what
+       one IS. The app's central idea, left to be inferred from context by
+       the person least likely to manage it — the second phone, who did not
+       build any of this.
+
+       "A household is you and whoever you shop with." Thirteen words, in
+       the line that was already using the term. What a household IS belongs
+       in the summary; what you can DO with one — invite, remove, leave,
+       restore, the 30-day undo — belongs on the Household section and in
+       its own dialogs, where it already is. Explaining membership in the
+       overview WOULD be too much, which is what the question was really
+       asking.
+
+       NO NEW FAQ EITHER. Searching "household" already returns the invite,
+       guest and offline answers; what was missing was the definition, and a
+       definition sitting three lines from the top of the section does not
+       need to be findable by search as well.
+
+    N. THE LANDING PAGE AND THE GUEST FLOW, reviewed properly after being
+       asked whether they had been — they had not. The type and prose passes
+       had touched those files; nobody had driven either as a FLOW. Two real
+       findings, one of them mine from this same session.
+
+       MINE: "SIGN IN BELOW, THEN COME BACK" WITH NO SIGN IN BELOW. Hiding
+       the Sign in card for a signed-in visitor (item 87) left the member-
+       invite banner pointing at a card that was no longer on the screen.
+       That is precisely the shape of the bug item 82 fixed — a screen whose
+       own instruction cannot be followed — reintroduced by a change made to
+       tidy the same screen. Two wordings now: signed out gets "sign in
+       below, then come back", signed in gets "it's filled in below — tap
+       Join household to accept".
+
+       AND THE CARD ORDER IGNORED THE INVITE. A signed-in visitor holding an
+       invite saw "Just me, on this device" ABOVE "Join a household" — the
+       recommended-looking option being the one that abandons the link they
+       arrived on. Order follows why you are here now: an invite waiting puts
+       Join first; no invite (the left-your-last-household case) puts Create
+       first.
+
+       THE OTHER ONE PREDATES THIS SESSION: "Add to week's plan" on the
+       Recipes tab was offered to guests. Assigning a day writes state/plan,
+       which the rules deliberately do not re-grant — so a guest could tap
+       it, pick a day and a meal, press Add, and have the write refused at
+       the end. Item 41 hid every other guest-blocked control for exactly
+       this reason and missed this one. The Plan tab itself was careful — an
+       empty slot renders "—" for a guest rather than "Choose a meal" — so
+       the app was hiding the door on one tab and leaving it painted on the
+       other. Hidden, not disabled, per item 41's own rule.
+       Covered in guest.spec.mjs against a full member as the control, and
+       mutation-tested: putting the button back for guests fails it.
+
+       WHAT THE REVIEW DID NOT FIND: the five landing states all render the
+       right cards and the right banner, and the guest's button counts differ
+       from a member's on exactly the tabs they should (Recipes 9 v 14, Plan
+       1 v 9, Pantry 14 v 18) and match where they should (List 12 v 12,
+       Settings 6 v 6). Driven at 390px, not read.
+
+    L. AND A SECOND STALE LITERAL IN A TEST, the same shape as the one in
+       B's rename. "searchHelp ignores the tab markup" searched for the
+       hardcoded string "meals", so renaming the tab broke it — and the
+       tempting fix is to edit the literal, which is how it would have gone
+       wrong quietly next time. It derives the braced names from the FAQs
+       now and requires every one of them to be findable.
+
+    ALSO RENAMED FOR CONSISTENCY, not just for width: "Save to Ingredients"
+    on the List tab is "Save to Pantry", and the prose that said "the
+    Ingredients tab" says Pantry. A rename that leaves the old word in the
+    sentences pointing at it is half a rename.
+
+    274 unit, 65 rules, 210 e2e, `npm run check` green. Verified in a
+    browser across all five tabs: no clipped text, no sideways scroll, and
+    the tab sizes measured at 320/360/375/390/430px rather than reasoned.
+
 86. [DONE] THE TWO PLACES THIS DIVERGED FROM HOW OTHER APPS DO IT.
     Asked after the household design was written up: "would this be how
     other apps handle data?" Mostly yes — access by membership record rather
@@ -3107,6 +3997,27 @@ treatment: the store moved into the details panel and the name grew.
     MUTATION-TESTED FOUR TIMES: ignoring the grace period fails 3, sweeping
     orphans unasked fails 1, dropping the claim guard from the rules fails
     2, dropping deletedAt from the restore case fails 1.
+
+    AND THEN VERIFIED LIVE, on the real database, the same day — the part
+    the tests structurally cannot reach, because leaving and restoring both
+    need a database the browser build compiles out. What actually happened,
+    in order, on the account that had been collecting junk households since
+    item 81:
+      - seven households, six of them junk. WORTH RECORDING WHY THE SWEEP
+        COULD NOT HELP: it collects households with NO members, and every
+        one of the six carried a membership record — that is precisely what
+        the churn bug did. They were never orphans. The advice to "run the
+        script to clear the junk" was wrong for the case it was given for.
+        They were cleared the way a person would: switch to each, leave it.
+      - the leave stamped all six. A dry-run sweep then reported exactly
+        `6 within grace, 0 orphans` and `nothing to erase`, with the one
+        real household untouched. The classification is right about real
+        data, not just about fixtures.
+      - RESTORE PUT ONE BACK, into the list of households the account is in.
+        That closes the last unproven step: membership record back first,
+        stamps cleared second, against production rules.
+    So the whole path — delete, classify, restore — has now run once end to
+    end outside the emulator.
 
     ONE TRAP FOUND WHILE WIRING IT UP: `node --test` runs each FILE in its
     own process, in parallel, and both rules suites start an emulator on the

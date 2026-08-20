@@ -90,7 +90,7 @@ test("SHOULD: a backup can be taken and re-imported without losing the list", as
   const page = await openApp(BASE, { catalog });
   try {
     // Put something on the list worth preserving.
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.searchIngredients("Broccoli");
     await page.clickText(/^\+ List$/);
     await page.waitForTimeout(500);
@@ -132,7 +132,7 @@ test("SHOULD: a malformed backup is refused rather than wiping the list", async 
   const broccoli = idOf(catalog, "Broccoli");
   const page = await openApp(BASE, { catalog });
   try {
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.searchIngredients("Broccoli");
     await page.clickText(/^\+ List$/);
     await page.waitForTimeout(500);

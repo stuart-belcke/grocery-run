@@ -6,7 +6,7 @@
 import { useState, useMemo, useRef } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop, SuggestInput } from "../ui";
-import { UNASSIGNED, keyForName, aisleKey, unitKeyFor, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, servingsByRecipe, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg } from "../lib";
+import { UNASSIGNED, keyForName, aisleKey, unitKeyFor, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg } from "../lib";
 
 export function ListTab({ data, update, updateCatalog, isGuest }) {
   const [view, setView] = useState("store");
@@ -32,7 +32,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
 
   // Live-filtered ingredient matches for the "add shopping item" field. A custom
   // dropdown (rather than a native <datalist>, which renders unreliably) so it
-  // always shows as you type and matches the Ingredients tab's search feel.
+  // always shows as you type and matches the Pantry tab's search feel.
   const suggestions = useMemo(() => ingredientMatches(knownItems, extra.name), [knownItems, extra.name]);
   const sugOpen = showSug && suggestions.length > 0;
   // Picking a known ingredient fills in the unit its recipes usually use
@@ -58,16 +58,14 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
   // by somebody allowed to write the catalog.
   const canEditDefault = (item) => !isGuest && !!data.config[item.key];
   const storeOptions = [...data.stores, UNASSIGNED];
-  const totals = servingsByRecipe(data);
-  const selectedMealCount = Object.values(totals).filter((s) => s > 0).length;
   const remaining = items.filter((i) => !data.list.checked[i.key]).length;
 
   /* Item 44: the ingredient's PERMANENT home, edited from the row you are
      already looking at. Setting an aisle used to mean leaving the list, going
-     to Ingredients and searching for the item you had in your hand — mid-shop,
+     to Pantry and searching for the item you had in your hand — mid-shop,
      which is the only time you ever learn what aisle something is in.
 
-     The same two writes the Ingredients tab makes, deliberately: one
+     The same two writes the Pantry tab makes, deliberately: one
      setIngredientCfg call each, so there is no second way to write a store.
      Distinct from `overrides`, which is a reroute for TODAY. Both are set from
      the same control in the panel now — it asks which you meant — so this is
@@ -181,7 +179,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
 
   // End of trip. The rule throughout: what you CHECKED OFF is done with, and
   // what you didn't get carries to the next list rather than being wiped.
-  // Deliberately does not touch d.plan — "Clear week" on the Week plan tab
+  // Deliberately does not touch d.plan — "Clear week" on the Plan tab
   // owns that, and clearing a week's planning from the shopping list is a
   // bigger reset than finishing a trip implies.
   const doneShopping = () => {
@@ -262,7 +260,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
     update((d) => {
       d.list.extras[key] = { name, qty: Number(extra.qty) || 1, unit: extra.unit.trim() };
       // "Save to Ingredients" only means "remember this name so it's suggested
-      // next time". Where it lives is the Ingredients tab's job, and the
+      // next time". Where it lives is the Pantry tab's job, and the
       // store control in the item's panel handles a reroute — this used to
       // write the same `store` value to a default, an override, or an aisle
       // map depending on invisible state.
@@ -370,7 +368,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
               {item.staple && (
                 <span
                   title="A home staple you marked as needing more"
-                  style={{ marginLeft: 6, fontSize: 10, fontWeight: 600, background: C.goldSoft, color: C.gold, padding: "1px 6px", borderRadius: 999, whiteSpace: "nowrap" }}
+                  style={{ marginLeft: 6, fontSize: 12, fontWeight: 600, background: C.goldSoft, color: C.gold, padding: "1px 6px", borderRadius: 999, whiteSpace: "nowrap" }}
                 >
                   🏠 staple
                 </span>
@@ -383,12 +381,12 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
                   is about store-flow ordering and is false in by-store A-Z,
                   which is exactly where the heading is. */}
               {view === "all" ? (
-                <span style={{ marginLeft: 8, fontSize: 11, color: C.faint, whiteSpace: "nowrap" }}>
+                <span style={{ marginLeft: 8, fontSize: 12, color: C.faint, whiteSpace: "nowrap" }}>
                   {itemStore}
                   {aisle !== "" ? ` \u00b7 aisle ${aisle}` : ""}
                 </span>
               ) : (
-                showAisle && aisle !== "" && <span style={{ marginLeft: 8, fontSize: 11, color: C.faint }}>aisle {aisle}</span>
+                showAisle && aisle !== "" && <span style={{ marginLeft: 8, fontSize: 12, color: C.faint }}>aisle {aisle}</span>
               )}
             </span>
           </button>
@@ -430,7 +428,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
         {open && (
           <div style={{ margin: "8px 0 2px 28px", padding: "10px 12px", background: C.paper, border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 12 }}>
             <div style={{ marginBottom: 6 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 4 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 4 }}>
                 On the list for
               </div>
               {item.staple && (
@@ -461,9 +459,13 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
                 exactly what the guest role grants. Only the "always" branch is
                 a catalog write, and that is the branch they are never offered. */}
             <div style={{ borderTop: `1px dashed ${C.line}`, paddingTop: 8, marginTop: 2 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 6 }}>
-                Where to buy it
-              </div>
+              {/* NO HEADING. A dropdown reading "Costco" inside an item's own
+                  panel is a store, and the sentence under it already says which
+                  of the two answers is in force ("Just for this trip.
+                  You usually buy it at Costco."). The select keeps its aria-label,
+                  so nothing is lost for a screen reader.
+                  "On the list for" above DOES stay: a column of quantities and
+                  meal names is genuinely ambiguous without it. */}
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <select
                   value={itemStore}
@@ -497,10 +499,10 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
               <div style={{ color: C.faint, marginTop: 6 }}>
                 {data.list.overrides[item.key] != null ? (
                   <>
-                    Just for this trip. It normally lives at <b style={{ color: C.ink }}>{homeCfg.store}</b>.
+                    Just for this trip. You usually buy it at <b style={{ color: C.ink }}>{homeCfg.store}</b>.
                   </>
                 ) : (
-                  <>Where it always lives.</>
+                  <>The store you usually buy it at.</>
                 )}
               </div>
             </div>
@@ -580,7 +582,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
     body = (
       <div style={{ textAlign: "center", padding: "48px 16px", color: C.faint }}>
         <div style={{ fontFamily: fontDisplay, fontSize: 20, color: C.ink, marginBottom: 6 }}>Nothing on the list yet</div>
-        Pick meals on the Meals tab, or add a shopping item above.
+        Pick meals on the Recipes tab, or add a shopping item above.
       </div>
     );
   } else if (view === "all") {
@@ -605,32 +607,53 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
 
   return (
     <div>
-      {/* What's pinned here was cut down deliberately. The whole header — both
-          toggles, Done shopping, and the full status line — came to three
-          wrapped lines at 390px, about a seventh of the screen permanently
-          gone, which costs more than it gives on the one tab you scroll while
-          holding a trolley.
-          So: the grouping toggles and the count that changes as you shop.
-          "Done shopping" is once per trip and stays below, which also keeps a
-          destructive button out of a permanently tappable spot. */}
+      {/* EVERYTHING IS PINNED, and the cost is written down because this bar
+          has now been wrong in three directions and the number is the only
+          thing that settles it.
+
+          MEASURED, at 320px and 390px:
+            everything pinned (this)                  123px / 84px
+            count + Done pinned, toggles scrolling     45px / 45px
+            toggles pinned, count below the bar        79px / 40px
+          Two lines at 390 is the floor for keeping all of it: the count and
+          Done shopping fill one line, and neither toggle fits beside them.
+          Item 51 cut this header down when it came to THREE wrapped lines at
+          390 — this is two, and it is the arrangement that was asked for
+          knowing what it costs.
+
+          THE COUNT AND DONE SHOPPING COME FIRST IN THE SOURCE, so a wrap
+          pushes the toggles down rather than them: what gets displaced
+          should be the decision you already made, not the number you keep
+          checking. A forced flexBasis:100% break was tried and cost 10px at
+          both widths by stopping the toggles sharing a line where they fit.
+
+          A DESTRUCTIVE BUTTON IN A PERMANENTLY TAPPABLE SPOT was item 51's
+          stated reason for keeping Done shopping below, and the concern was
+          right. What answers it is that the button does not do anything — it
+          opens a confirm dialog, and the dialog ends the trip, so a mis-tap
+          costs a Cancel. Ending the trip is also the one action you want
+          reachable with a trolley in the other hand. */}
       <StickyBar>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-          <Seg options={[{ value: "all", label: "All items A–Z" }, { value: "store", label: "By store" }]} value={view} onChange={setView} />
-          {view === "store" && <Seg options={[{ value: "az", label: "A–Z" }, { value: "flow", label: "Store flow" }]} value={storeSort} onChange={setStoreSort} />}
-          <div style={{ flex: 1 }} />
           <span style={{ fontSize: 13, color: C.faint, whiteSpace: "nowrap" }}>
-            {remaining} left to buy
+            <b style={{ fontSize: 15, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{remaining}</b> item{remaining === 1 ? "" : "s"} left to buy
           </span>
+          <Btn kind="danger" style={{ marginLeft: "auto" }} onClick={() => setConfirmDone(true)}>Done shopping</Btn>
+          {/* The toggles come SECOND so that when the bar wraps — and at
+              320px it does — the count and Done shopping are the line that
+              stays on top. A wrap pushes whatever is last down, and what is
+              last should be the decision you already made rather than the
+              number you keep checking.
+              NO forced flexBasis:100% break: tried, and it cost 10px at both
+              widths by stopping the toggles sharing a line where they fit. */}
+          <Seg options={[{ value: "all", label: "All items" }, { value: "store", label: "By store" }]} value={view} onChange={setView} />
+          {view === "store" && <Seg options={[{ value: "az", label: "A–Z" }, { value: "flow", label: "Store flow" }]} value={storeSort} onChange={setStoreSort} />}
         </div>
       </StickyBar>
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", margin: "10px 0 8px" }}>
-        <span style={{ fontSize: 13, color: C.faint }}>
-          {selectedMealCount} meal{selectedMealCount === 1 ? "" : "s"} selected
-        </span>
-        <div style={{ flex: 1 }} />
-        <Btn kind="danger" onClick={() => setConfirmDone(true)}>Done shopping</Btn>
-      </div>
+
+
+
 
       {/* Its own object, not a clause in the status line above. This is the
           answer to "why is my list short?", so it needs to look like something
@@ -668,8 +691,8 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
           </button>
           {showBought && (
             <div style={{ padding: "0 14px 12px" }}>
-              <div style={{ fontSize: 12, color: C.faint, marginBottom: 4 }}>
-                Kept off the list because an earlier trip covered them. Put one back if you don't actually have it.
+              <div style={{ fontSize: 13, color: C.faint, marginBottom: 4 }}>
+                Kept off the list — an earlier trip covered these.
               </div>
               <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
                 {boughtRows.map((r) => (
@@ -871,12 +894,10 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
         onCancel={() => setConfirmDone(false)}
       >
         <p style={{ margin: "0 0 8px" }}>
-          Everything you <b style={{ color: C.ink }}>checked off</b> comes off the list — you have it now, whether it came from a recipe, a home staple, or
-          your own additions. Whatever you didn't get stays on the list for next time.
+          Everything you <b style={{ color: C.ink }}>checked off</b> comes off the list. Whatever you didn&apos;t get stays on for next time.
         </p>
         <p style={{ margin: 0 }}>
-          Meals picked on the Meals tab are unselected, and your <b style={{ color: C.ink }}>week plan is kept</b>. Start a new plan on the Week plan tab starts a
-          fresh buying cycle.
+          Meals are unselected, and your <b style={{ color: C.ink }}>week plan is kept</b>.
         </p>
       </ConfirmDialog>
 
@@ -888,10 +909,10 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
         onCancel={() => setAskSave(null)}
         choices={[
           { label: "Just this list", kind: "ghost", onClick: () => commitExtra(false) },
-          { label: "Save to Ingredients", kind: "primary", onClick: () => commitExtra(true) },
+          { label: "Save to Pantry", kind: "primary", onClick: () => commitExtra(true) },
         ]}
       >
-        <b style={{ color: C.ink }}>{askSave}</b> isn't in your Ingredients yet. Saving it means it's suggested next time you type — set its store and aisle on the Ingredients tab. Otherwise it's a one-time buy.
+        <b style={{ color: C.ink }}>{askSave}</b> isn't in your Ingredients yet. Saving it means it's suggested next time you type — set its store and aisle on the Pantry tab. Otherwise it's a one-time buy.
       </ChoiceDialog>
 
       {/* The question that replaced the second dropdown. Asked because the app
@@ -909,8 +930,8 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
         ]}
       >
         <b style={{ color: C.ink }}>Just this trip</b> moves it for today only and it goes back afterwards.{" "}
-        <b style={{ color: C.ink }}>Always</b> makes {askStore ? askStore.store : "it"} where this
-        item lives from now on, for everyone in the household.
+        <b style={{ color: C.ink }}>Always</b> makes {askStore ? askStore.store : "it"} the store you
+        buy this from now on, for everyone in the household.
       </ChoiceDialog>
 
       <ConfirmDialog

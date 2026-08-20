@@ -1,6 +1,6 @@
 /* ------------------------------------------------------------------ */
 /*  RecipeDetail — read-only view of a recipe's ingredients (with
-    quantities) and cooking notes. Shared by the Meals tab (tap a card
+    quantities) and cooking notes. Shared by the Recipes tab (tap a card
     to expand) and the Week tab (tap a planned meal or side). Purely
     presentational aside from the wake-lock toggle below; pass it a
     recipe object.
@@ -41,7 +41,7 @@ export function RecipeDetail({ recipe, servings, mult, onMult }) {
   return (
     <div style={{ marginTop: 6, padding: "10px 12px", background: C.paper, border: `1px solid ${C.line}`, borderRadius: 8 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint }}>
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint }}>
           {scaled ? `Ingredients · for ${r2(servings)} sv` : `Ingredients · makes ${base} sv`}
           {scaled && servings !== base ? ` (recipe makes ${base})` : ""}
         </div>
@@ -105,13 +105,13 @@ export function RecipeDetail({ recipe, servings, mult, onMult }) {
                 }}
               />
             </span>
-            <span style={{ fontSize: 11, fontWeight: 500, color: awake ? C.green : C.faint, whiteSpace: "nowrap" }}>
+            <span style={{ fontSize: 12, fontWeight: 500, color: awake ? C.green : C.faint, whiteSpace: "nowrap" }}>
               Keep screen on
             </span>
             {/* The app's own separator for "two facts, not one phrase" —
                 as in "Ingredients · for 4 sv". Without it the row reads as
                 the single sentence "Keep screen on 30 min". */}
-            <span style={{ fontSize: 11, color: C.faint, whiteSpace: "nowrap" }}>· {WAKE_LOCK_MINUTES} min</span>
+            <span style={{ fontSize: 12, color: C.faint, whiteSpace: "nowrap" }}>· {WAKE_LOCK_MINUTES} min</span>
           </button>
         )}
       </div>
@@ -143,7 +143,7 @@ export function RecipeDetail({ recipe, servings, mult, onMult }) {
               +
             </button>
           </span>
-          <span style={{ fontSize: 11, color: C.faint }}>
+          <span style={{ fontSize: 12, color: C.faint }}>
             {batches === 1 ? `one batch · ${r2(base)} sv` : `${batches} batches · ${r2(base * batches)} sv`}
           </span>
         </div>
@@ -190,7 +190,7 @@ export function RecipeDetail({ recipe, servings, mult, onMult }) {
       )}
       {recipe.notes && (
         <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${C.line}` }}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 4 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 4 }}>
             Notes{scale !== 1 ? ` · ×${r2(scale)}` : ""}
           </div>
           {/* AMOUNTS IN THE STEPS MOVE WITH THE BATCH; times and temperatures
@@ -199,7 +199,7 @@ export function RecipeDetail({ recipe, servings, mult, onMult }) {
               scaleRecipeText in lib.js for why touching those would be
               actively wrong rather than merely untidy. */}
           {scale !== 1 && (
-            <div style={{ fontSize: 11, color: C.faint, marginBottom: 4 }}>
+            <div style={{ fontSize: 13, color: C.faint, marginBottom: 4 }}>
               Amounts below are scaled. Times and temperatures are as written.
             </div>
           )}

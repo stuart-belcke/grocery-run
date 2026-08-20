@@ -31,7 +31,7 @@
 //    keyed by name, so it would render "ing_7f3a2b" where a name belongs and
 //    join none of its recipes to their config. Exactly what the gate is for.
 // 3: plan slots can carry side dishes (`plan[day][type].sides`) alongside the
-//    main. An older build's own reassignment path (the Meals tab's "Add to
+//    main. An older build's own reassignment path (the Recipes tab's "Add to
 //    week's plan") overwrites a slot wholesale rather than merging into it, so
 //    it would silently drop another device's sides the moment it re-picked
 //    that slot's main. The gate buys the same certainty item 23 used it for.

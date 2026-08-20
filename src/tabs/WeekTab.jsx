@@ -1,5 +1,5 @@
 /* ------------------------------------------------------------------ */
-/*  Week plan tab — assign a recipe + servings to each day/meal slot; every
+/*  Plan tab (the week) — assign a recipe + servings to each day/meal slot; every
     slot feeds the shopping list unless it's ticked "already have the
     ingredients".  */
 /* ------------------------------------------------------------------ */
@@ -191,9 +191,9 @@ export function WeekTab({ data, update, isGuest }) {
   };
 
   const plannedCount = plannedMealCount(data);
-  // Meals added straight to the shopping list on the Meals tab ("Add
+  // Meals added straight to the shopping list on the Recipes tab ("Add
   // unplanned meal"), with no day assigned here — otherwise only visible by
-  // scrolling the Meals tab and noticing which cards show an "Unplanned" pill.
+  // scrolling the Recipes tab and noticing which cards show an "Unplanned" pill.
   const unplanned = useMemo(() => unplannedMeals(data), [data]);
   const removeUnplanned = (id) =>
     update((d) => {
@@ -205,7 +205,7 @@ export function WeekTab({ data, update, isGuest }) {
   // ingredient) and grouped differently per role:
   //   main — tagged for that slot's meal type first, then everything else.
   //   side — recipes marked "🥗 Side" first (a recipe-level trait, set in the
-  //     Meals tab editor), then the meal-type groups as for a main. A side
+  //     Recipes tab editor), then the meal-type groups as for a main. A side
   //     picker also drops whatever's already in this slot — the main and any
   //     side already added — so re-tapping one can't create a duplicate; the
   //     only way to remove one is the ✕ on its row.
@@ -287,16 +287,16 @@ export function WeekTab({ data, update, isGuest }) {
               color: C.ink,
             }}
           >
-            <span aria-hidden style={{ fontSize: 10 }}>{unplannedOpen ? "▾" : "▸"}</span>
+            <span aria-hidden style={{ fontSize: 12 }}>{unplannedOpen ? "▾" : "▸"}</span>
             Unplanned meals
-            <span style={{ background: C.green, color: "#fff", borderRadius: 999, fontSize: 11, fontWeight: 700, minWidth: 16, textAlign: "center", padding: "1px 5px" }}>
+            <span style={{ background: C.green, color: "#fff", borderRadius: 999, fontSize: 12, fontWeight: 700, minWidth: 16, textAlign: "center", padding: "1px 5px" }}>
               {unplanned.length}
             </span>
           </button>
           {unplannedOpen && (
             <div style={{ marginTop: 6, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: 8 }}>
-              <p style={{ margin: "0 0 6px", fontSize: 12, color: C.faint, padding: "0 4px" }}>
-                On the shopping list without a day here — added from the Meals tab's "Add unplanned meal".
+              <p style={{ margin: "0 0 6px", fontSize: 13, color: C.faint, padding: "0 4px" }}>
+                On the shopping list, but not on a day.
               </p>
               {unplanned.map((u) => (
                 <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 7, background: C.paper, marginBottom: 4 }}>
@@ -326,7 +326,7 @@ export function WeekTab({ data, update, isGuest }) {
           tapped. Nothing is hidden and nothing is stored about it. */}
       {recipesSorted.length === 0 ? (
         <div style={{ textAlign: "center", padding: "48px 16px", color: C.faint, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12 }}>
-          Add some meals on the Meals tab first, then plan them here.
+          Add some meals on the Recipes tab first, then plan them here.
         </div>
       ) : (
         days.map((day) => {
@@ -378,12 +378,20 @@ export function WeekTab({ data, update, isGuest }) {
                         // rather than an invitation.
                         <span style={{ flex: 1, fontSize: 13, color: C.faint, padding: "7px 10px" }}>—</span>
                       ) : !recipe ? (
-                        // Empty slot — addable in either mode.
+                        /* Empty slot — addable in either mode.
+                           INK, NOT FAINT (item 87). This is the primary action
+                           on an empty day and it was painted the grey the app
+                           uses for supporting notes, which reads as "disabled"
+                           or "already handled" on the one row whose whole job
+                           is to be tapped. Not a contrast failure — faint is
+                           5.67:1 on white and passes AA — but 5.67 against
+                           ink's 13.84 is the difference between a note and a
+                           button, and this is a button. */
                         <button
                           onClick={() => openPicker(day, type)}
                           aria-label={`Choose a meal for ${day} ${type}`}
                           title="Tap to choose a meal"
-                          style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", fontFamily: fontBody, fontSize: 13, padding: "7px 10px", borderRadius: 8, cursor: "pointer", border: `1px solid ${C.line}`, background: "#fff", color: C.faint }}
+                          style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", fontFamily: fontBody, fontSize: 13, padding: "7px 10px", borderRadius: 8, cursor: "pointer", border: `1px solid ${C.line}`, background: "#fff", color: C.ink }}
                         >
                           <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>＋</span>
                           Choose a meal
@@ -443,7 +451,7 @@ export function WeekTab({ data, update, isGuest }) {
                     </div>
                     {/* FULL WIDTH OF THE DAY CARD, not indented under the
                         meal-type label like the controls are. An opened
-                        recipe is the same thing the Meals tab opens, and
+                        recipe is the same thing the Recipes tab opens, and
                         it is what you are reading while you cook — 78px of
                         left margin bought nothing and cost a column of
                         ingredient names on a phone. The label column is for
@@ -572,7 +580,7 @@ export function WeekTab({ data, update, isGuest }) {
                       onClick={() => openPicker(day, defaultType(day))}
                       aria-label={`Choose a meal for ${day}`}
                       title="Tap to choose a meal"
-                      style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", fontFamily: fontBody, fontSize: 13, padding: "7px 10px", borderRadius: 8, cursor: "pointer", border: `1px solid ${C.line}`, background: "#fff", color: C.faint }}
+                      style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", fontFamily: fontBody, fontSize: 13, padding: "7px 10px", borderRadius: 8, cursor: "pointer", border: `1px solid ${C.line}`, background: "#fff", color: C.ink }}
                     >
                       <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>＋</span>
                       Choose a meal
@@ -664,7 +672,7 @@ export function WeekTab({ data, update, isGuest }) {
               ) : (
                 pickGroups.map((g) => (
                   <div key={g.label} style={{ marginBottom: 6 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, padding: "8px 12px 4px" }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, padding: "8px 12px 4px" }}>
                       {g.label}
                     </div>
                     {g.recipes.map((r) => {

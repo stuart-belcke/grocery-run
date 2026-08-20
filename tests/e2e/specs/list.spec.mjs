@@ -24,7 +24,7 @@ test("adding an ingredient you already have doesn't ask to remember it", async (
   try {
     await addFromList(page, "Orzo");
     const prompts = (await page.getByRole("button").allTextContents()).filter((t) =>
-      /Save to Ingredients/i.test(t)
+      /Save to Pantry/i.test(t)
     );
     assert.deepEqual(prompts, [], "Orzo is already an ingredient — nothing to remember");
     assertNoPageErrors(page, assert);
@@ -44,7 +44,7 @@ test("a hand-added known ingredient attaches to it rather than shadowing it", as
     const extras = Object.keys((await page.readState()).list.extras);
     assert.deepEqual(extras, [id], "the hand-added entry must key by the ingredient's id");
 
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     await page.searchIngredients("Orzo");
     const rows = await page.ingredientRows(/orzo/i);
     assert.equal(rows.length, 1, `expected one Orzo row, got ${JSON.stringify(rows)}`);
@@ -59,7 +59,7 @@ test("remembering a brand-new item mints an id, and it appears once", async () =
   const page = await openApp(BASE, { catalog: cleanCatalog() });
   try {
     await addFromList(page, "Sparklers");
-    const save = page.locator("button").filter({ hasText: /Save to Ingredients/i }).first();
+    const save = page.locator("button").filter({ hasText: /Save to Pantry/i }).first();
     assert.ok(await save.count(), "an unknown item should offer to be remembered");
     await save.click();
     await page.waitForTimeout(500);
@@ -131,7 +131,7 @@ test("a recipe amount and a hand-added amount combine into one row", async () =>
   const catalog = smallCatalog();
   const page = await openApp(BASE, { catalog });
   try {
-    await page.tab("Week plan");
+    await page.tab("Plan");
     await page.getByLabel("Choose a meal for Mon").click();
     await page.waitForTimeout(400);
     await page.locator("button").filter({ hasText: /Stir-fry/ }).first().click();
@@ -161,7 +161,7 @@ test("putting a bought item back returns it to the list", async () => {
   const catalog = smallCatalog();
   const page = await openApp(BASE, { catalog });
   try {
-    await page.tab("Week plan");
+    await page.tab("Plan");
     await page.getByLabel("Choose a meal for Mon").click();
     await page.waitForTimeout(400);
     await page.locator("button").filter({ hasText: /Stir-fry/ }).first().click();

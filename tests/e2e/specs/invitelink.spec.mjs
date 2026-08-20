@@ -60,12 +60,19 @@ test("the invite is cleared from the address bar immediately", async () => {
     assert.doesNotMatch(url, /join=/, `the invite is still in the address bar: ${url}`);
     assert.doesNotMatch(url, /cx2ur9zg/, "the household code is still in the address bar");
 
-    // And it does not come back on reload — which is also what proves the
-    // hash was replaced rather than merely hidden.
+    /* The URL does not get it back on reload — which is also what proves the
+       hash was REPLACED rather than merely hidden.
+       THE FIELD DOES, and that is item 89 rather than a regression. This
+       test used to assert the field came back EMPTY, which documented the
+       invite existing in exactly one place, in memory: the behaviour that
+       made an emailed sign-in link destroy it. The two properties were
+       always separate and were tested as one — the address bar must forget,
+       so the link cannot be re-redeemed or screenshotted; the SCREEN must
+       remember, so signing in can leave the page and come back. */
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForTimeout(500);
-    assert.doesNotMatch(page.url(), /join=/);
-    assert.equal(await page.locator("#onboard-invite").inputValue(), "", "the invite came back after a reload");
+    assert.doesNotMatch(page.url(), /join=/, "the invite came back into the address bar");
+    assert.equal(await page.locator("#onboard-invite").inputValue(), INVITE, "the screen forgot the invite across a reload");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
@@ -226,10 +233,76 @@ test("choosing 'Create a household' from there gets you into the app", async () 
   const page = await openApp(BASE, { user: SIGNED_IN, mustChoose: true });
   try {
     await page.locator('button:text-is("Create a household")').click();
-    await page.getByRole("button", { name: /^ingredients$/i }).first().waitFor({ timeout: 15000 });
+    await page.getByRole("button", { name: /^pantry$/i }).first().waitFor({ timeout: 15000 });
     await page.reload({ waitUntil: "domcontentloaded" });
-    await page.getByRole("button", { name: /^ingredients$/i }).first().waitFor({ timeout: 15000 });
+    await page.getByRole("button", { name: /^pantry$/i }).first().waitFor({ timeout: 15000 });
     assert.equal(await page.locator('[aria-label="Getting started"]').count(), 0, "the screen came back after a reload — the phone is stuck");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* THE INVITE SURVIVES SIGNING IN, EVEN WHEN SIGNING IN LEAVES THE PAGE.
+
+   Reported as the thing that made adding a second phone impossible for the
+   person who wrote the app: "it takes me the SME to get another phone up and
+   going and even I can't get it to work."
+
+   THE MECHANISM. The invite was read from the hash into React state, and the
+   hash was wiped on load — so it existed in exactly one place, in memory, on
+   a screen whose own instruction was "sign in below, then come back to this
+   screen". Any sign-in that NAVIGATES took it with it, and two of the three
+   routes navigate: the emailed sign-in link returns to origin+pathname with
+   no hash by design, and the Google popup falls back to a redirect whenever
+   a browser blocks popups, which iOS does readily. You came back to the
+   screen and there was nothing on it to come back to.
+
+   WHAT THIS DRIVES is that exact round trip: arrive on a link, then reload
+   the bare URL with no hash at all — which is what the browser does when it
+   returns from an email link — and the invite has to still be there. */
+test("an invite survives coming back from a sign-in that left the page", async () => {
+  const page = await openApp(BASE, { onboarded: false, hash: `#join=${INVITE}` });
+  try {
+    assert.equal(await page.locator("#onboard-invite").inputValue(), INVITE, "the link did not reach the field");
+
+    // Signed in while away, and returned to the bare URL — no hash, which is
+    // the whole point: the hash is what used to carry it.
+    await page.evaluate((u) => localStorage.setItem("grocery-run-e2e-user-preview", u), JSON.stringify({ uid: "u-test", email: "someone@example.com" }));
+    await page.goto(BASE, { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(900);
+
+    assert.equal(
+      await page.locator('[aria-label="Getting started"]').count(),
+      1,
+      "the first-run screen closed, so the invite had nowhere to be"
+    );
+    assert.equal(
+      await page.locator("#onboard-invite").inputValue(),
+      INVITE,
+      "the invite was lost across a sign-in that left the page — the exact failure this covers"
+    );
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("choosing 'start my own list' forgets the pending invite for good", async () => {
+  /* The stored copy has to be cleared by a decision, or it comes back on the
+     next launch and offers to join a household you already declined. */
+  const page = await openApp(BASE, { onboarded: false, hash: `#join=${INVITE}` });
+  try {
+    await page.locator('button:text-is("Start my own list")').click();
+    await page.waitForTimeout(400);
+    assert.equal(
+      await page.evaluate(() => localStorage.getItem("grocery-run-pending-invite-v1")),
+      '""',
+      "the invite was still stored after being declined"
+    );
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: /^ingredients$|^pantry$/i }).first().waitFor({ timeout: 15000 });
+    assert.equal(await page.locator('[aria-label="Getting started"]').count(), 0, "a declined invite brought the first-run screen back");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

@@ -34,7 +34,7 @@ test("a brand new browser is asked how it wants in, not dropped into a household
     assert.ok(await onFirstRun(page), "a fresh browser skipped the first-run screen");
     // And specifically NOT the app: seeing a working list is the exact
     // confusion this replaces.
-    assert.equal(await page.locator('button:has-text("Week plan")').count(), 0, "landed in the app instead");
+    assert.equal(await page.locator('button:has-text("Plan")').count(), 0, "landed in the app instead");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
@@ -59,7 +59,7 @@ test("starting your own list gets you into the app, and stays that way", async (
   try {
     await page.locator('button:has-text("Start my own list")').click();
     await page.waitForTimeout(500);
-    assert.equal(await page.locator('button:has-text("Week plan")').count(), 1, "did not reach the app");
+    assert.equal(await page.locator('button:has-text("Plan")').count(), 1, "did not reach the app");
 
     // The choice has to survive a reload, or it is asked again every launch.
     await page.reload({ waitUntil: "domcontentloaded" });
@@ -92,10 +92,10 @@ test("the screen says what the app IS before it asks for anything", async () => 
        in the suite would notice. */
     const named = await page.evaluate(() => [...document.querySelectorAll("ol b")].map((e) => e.textContent.trim()));
     assert.ok(named.length > 0, "no tab is named in the explanation");
-    const TAB_LABELS = ["List", "Meals", "Week plan", "Ingredients", "Settings"];
+    const TAB_LABELS = ["List", "Recipes", "Plan", "Pantry", "Settings"];
     for (const n of named) assert.ok(TAB_LABELS.includes(n), `"${n}" is bolded as a tab but no tab is called that — the labels are ${JSON.stringify(TAB_LABELS)}`);
     // Every tab worth explaining gets named. Settings is deliberately not one.
-    assert.deepEqual([...new Set(named)].sort(), ["Ingredients", "List", "Meals", "Week plan"]);
+    assert.deepEqual([...new Set(named)].sort(), ["List", "Pantry", "Plan", "Recipes"]);
 
     // Above the choices, not buried under them: the point is reading it
     // BEFORE deciding. Compared by position on the page, not by source order.
@@ -161,21 +161,51 @@ test("a guest link needs no account, and does not send you to sign in", async ()
   }
 });
 
-test("a guest link leads with Join, not Sign in — a guest never needs an account", async () => {
-  // The default order puts Sign in first because a full invite needs an
-  // account. A guest link is the one route that needs NEITHER an account
-  // NOR the "just me" fallback, so making it lead with the one card that
-  // actually applies is what "know exactly what to do next" means here.
+test("a guest link leads with Join, then offers Sign in as the alternative", async () => {
+  /* The default order puts Sign in first because a full invite needs an
+     account. A guest link leads with Join, because it is the quicker way in
+     and it is why they are here.
+
+     SIGN IN NOW SITS SECOND, not last, and the old order was justified by a
+     claim that turned out to be false: "a guest never has an account". The
+     rules read role == 'guest' OR provider != anonymous, so a REAL ACCOUNT
+     may hold a guest membership — somebody who already uses this app helping
+     with your shop from their own installed app. Burying Sign in under "Just
+     me, on this device" hid that route, and "just me" is not an alternative
+     to helping with somebody else's shopping. */
   const page = await freshApp();
   try {
     await page.locator("#onboard-invite").fill("home-cx2ur9zg~abcdefgh1234~g");
     await page.waitForTimeout(250);
 
     const order = await page.evaluate(() => [...document.querySelectorAll("h2")].map((h) => h.textContent.trim()));
-    assert.deepEqual(order, ["Join as a guest", "Just me, on this device", "Sign in"]);
+    assert.deepEqual(order, ["Join as a guest", "Sign in", "Just me, on this device"]);
 
     const body = await page.textContent("body");
     assert.match(body, /You.ve been invited to help with the shopping/, "should say what's about to happen, not just how to do it");
+    // BOTH doors named, in the sentence that tells them what to do.
+    assert.match(body, /sign in first to keep it on your account/i, "the guest card never mentions the account route");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("a guest link with an account already signed in does not ask for a name", async () => {
+  /* State C1: the person already uses this app. joinWithInvite falls back to
+     the account's own displayName and email, so asking them to type a name
+     they have already given is exactly the extra step that has stopped people
+     getting in before. */
+  const page = await openApp(BASE, {
+    onboarded: false,
+    user: { uid: "u9", email: "friend@example.com", displayName: "Friend", isAnonymous: false },
+    hash: "#join=home-cx2ur9zg~abcdefgh1234~g",
+  });
+  try {
+    assert.equal(await page.locator("#onboard-name").count(), 0, "a signed-in guest was asked to type a name");
+    // And the button still says what role is being taken — signing in first
+    // does not buy full membership, and must not look as though it does.
+    assert.equal(await page.locator('button:has-text("Join as guest")').count(), 1);
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

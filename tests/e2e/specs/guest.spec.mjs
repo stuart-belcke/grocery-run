@@ -36,16 +36,26 @@ test("Meals: a guest cannot add or edit a recipe, but can still put one on the l
   const guest = await asGuest();
   const member = await asMember();
   try {
-    await guest.tab("Meals");
-    await member.tab("Meals");
+    await guest.tab("Recipes");
+    await member.tab("Recipes");
 
     // The member is the control. Without it, this test would pass just as
     // happily if the buttons had been renamed and were missing for everyone.
     assert.ok(await count(member, 'button:text-is("Edit")'), "no Edit button for a full member — the selector is wrong, not the app");
     assert.equal(await count(guest, 'button:text-is("Edit")'), 0, "a guest was offered Edit");
 
+    /* ASSIGNING A DAY IS A PLAN WRITE, which the rules do not re-grant to a
+       guest — so the button must not be there either. It was, until item 87:
+       a guest could tap it, pick a day and a meal, press Add, and have the
+       write refused at the end of it. The Plan tab was already careful (an
+       empty slot renders "—" for a guest rather than "Choose a meal"), so
+       the app was hiding the door on one tab and leaving it painted on the
+       other. */
+    assert.ok(await count(member, 'button:text-is("Add to week\'s plan")'), "no Add to week's plan for a full member — the selector is wrong, not the app");
+    assert.equal(await count(guest, 'button:text-is("Add to week\'s plan")'), 0, "a guest was offered a button whose write the rules refuse");
+
     // Adding a meal to the LIST is a list write, so it stays.
-    assert.ok(await count(guest, 'button:text-is("Add unplanned meal")'), "a guest lost the one Meals action they are allowed");
+    assert.ok(await count(guest, 'button:text-is("Add unplanned meal")'), "a guest lost the one Recipes action they are allowed");
     assertNoPageErrors(guest, assert);
   } finally {
     await guest.done();
@@ -57,8 +67,8 @@ test("Week: a guest sees the plan but is offered nothing to change it with", asy
   const guest = await asGuest();
   const member = await asMember();
   try {
-    await guest.tab("Week plan");
-    await member.tab("Week plan");
+    await guest.tab("Plan");
+    await member.tab("Plan");
 
     assert.ok(await count(member, 'button:text-is("Start planning")'), "control missing for a member too — selector is wrong");
     assert.equal(await count(guest, 'button:text-is("Start planning")'), 0, "a guest was offered Start planning");
@@ -73,12 +83,12 @@ test("Week: a guest sees the plan but is offered nothing to change it with", asy
   }
 });
 
-test("Ingredients: a guest keeps the read-only detail and loses every editor", async () => {
+test("Pantry: a guest keeps the read-only detail and loses every editor", async () => {
   const guest = await asGuest();
   const member = await asMember();
   try {
-    await guest.tab("Ingredients");
-    await member.tab("Ingredients");
+    await guest.tab("Pantry");
+    await member.tab("Pantry");
 
     assert.ok(await count(member, 'button:text-is("Add store")'), "control missing for a member too — selector is wrong");
     assert.equal(await count(guest, 'button:text-is("Add store")'), 0, "a guest was offered the stores editor");
@@ -116,12 +126,12 @@ test("a full member still sees everything", async () => {
   // The guard against fixing this by hiding the controls from everyone.
   const page = await asMember();
   try {
-    await page.tab("Ingredients");
+    await page.tab("Pantry");
     assert.ok(await count(page, 'button:text-is("Add store")'));
     assert.ok(await count(page, 'button:text-is("Add item")'));
-    await page.tab("Week plan");
+    await page.tab("Plan");
     assert.ok(await count(page, 'button:text-is("Start planning")'));
-    await page.tab("Meals");
+    await page.tab("Recipes");
     assert.ok(await count(page, 'button:text-is("Edit")'));
     assertNoPageErrors(page, assert);
   } finally {

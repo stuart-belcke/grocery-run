@@ -15,6 +15,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { openApp, assertNoPageErrors } from "../harness.mjs";
+import { FAQS } from "../../../src/help.js";
 
 const BASE = process.env.E2E_BASE_URL;
 
@@ -56,7 +57,7 @@ test("the tab names render as names, not as {braces}", async () => {
     const body = await page.textContent("body");
     assert.doesNotMatch(body, /\{[A-Za-z]/, "tab markup is being rendered literally");
     const bolded = await page.evaluate(() => [...document.querySelectorAll("ol b")].map((e) => e.textContent.trim()));
-    const TABS = ["List", "Meals", "Week plan", "Ingredients", "Settings"];
+    const TABS = ["List", "Recipes", "Plan", "Pantry", "Settings"];
     assert.ok(bolded.length > 0, "no tab name is bolded");
     for (const b of bolded) assert.ok(TABS.includes(b), `"${b}" is bolded as a tab but no tab is called that`);
     assertNoPageErrors(page, assert);
@@ -100,18 +101,32 @@ test("searching narrows the questions, and clearing brings them back", async () 
 });
 
 test("a question opens its answer, and only one at a time", async () => {
-  // Thirteen answers open at once is a wall nobody reads; the question is the
-  // part you scan.
+  /* Thirteen answers open at once is a wall nobody reads; the question is the
+     part you scan.
+
+     THE PHRASE COMES FROM help.js, not from this file. It used to be the
+     literal "does not need an account", which was a sentence in that answer
+     until the answer was rewritten — at which point the test failed for a
+     reason that had nothing to do with opening or closing anything. A test
+     that breaks on a copy edit teaches the wrong lesson: the rewrite was
+     right and the assertion was wrong. */
+  const faq = FAQS.find((f) => /guest link/i.test(f.q));
+  assert.ok(faq, "help.js no longer has a guest-link question for this test to open");
+  // A distinctive run of words from the real answer, long enough not to
+  // appear in the question itself or in any other answer.
+  const phrase = faq.a.split(/(?<=[.!?])\s+/)[1] || faq.a.slice(0, 60);
+  const needle = new RegExp(phrase.slice(0, 40).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+
   const page = await openApp(BASE);
   try {
     await openHelp(page);
     await page.locator("#help-search").fill("guest link");
     await page.waitForTimeout(300);
 
-    assert.doesNotMatch(await page.textContent("body"), /does not need an account/, "the answer is showing before it was asked for");
+    assert.doesNotMatch(await page.textContent("body"), needle, "the answer is showing before it was asked for");
     await page.locator('button[aria-expanded]').filter({ hasText: "guest link" }).first().click();
     await page.waitForTimeout(300);
-    assert.match(await page.textContent("body"), /does not need an account/, "tapping the question did not open the answer");
+    assert.match(await page.textContent("body"), needle, "tapping the question did not open the answer");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

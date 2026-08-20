@@ -55,7 +55,7 @@ export function StickyBar({ children, style }) {
   );
 }
 
-/* Jumps back to the top of a long list. The Ingredients and Meals tabs both
+/* Jumps back to the top of a long list. The Pantry and Recipes tabs both
    grow past what anyone will scroll back through by hand, and search doesn't
    help with that — you search to FIND something, then you're left wherever
    the list left you.
@@ -441,6 +441,81 @@ export function Stripe() {
         background: `repeating-linear-gradient(45deg, ${C.green} 0 10px, ${C.paper} 10px 20px)`,
       }}
     />
+  );
+}
+
+/* ── ITEM 91: THE JOIN CONFIRMATION AND HOME-SCREEN OFFER ───────────────────
+   Presentational only — every decision about WHETHER to show this, and which
+   half, is installPromptState() in lib.js. This just draws what it is told.
+
+   GREEN, NOT GOLD. A good outcome with a next step, not a warning. The one
+   draft that used gold was telling an account-less guest NOT to do something,
+   and that card came out entirely: it rested on an untested claim about iOS
+   storage, the join card already says the true and milder version before
+   they commit, and installing anyway costs a confusing screen rather than
+   their access.
+
+   `heading` is the load-bearing half and names the household, so somebody can
+   CHECK they landed in the right one rather than take the app's word for it.
+   `ask` is the optional half.                                              */
+/* The shape both app-level good-news cards share. Extracted when the second
+   one arrived rather than copied, so that a change to the padding or the live
+   region cannot land on one and miss the other. Deliberately NOT generalised
+   past two: it is a green card with a heading, a sentence and some buttons. */
+export function NoticeCard({ heading, children, actions }) {
+  return (
+    <div
+      role="status"
+      style={{
+        background: C.greenSoft,
+        border: `1px solid ${C.green}`,
+        borderRadius: 10,
+        padding: "10px 12px",
+        margin: "0 0 12px",
+      }}
+    >
+      <div style={{ fontSize: 14, fontWeight: 700, color: C.green, marginBottom: 3 }}>{heading}</div>
+      {children && <div style={{ fontSize: 13, color: C.ink }}>{children}</div>}
+      {actions}
+    </div>
+  );
+}
+
+export function InstallOffer({ heading, children, ask, onInstall, onDismiss }) {
+  return (
+    <NoticeCard heading={heading}>
+      {children}
+
+      {/* A REAL BUTTON WHEN THE BROWSER OFFERED ONE, instructions when it did
+          not. Chrome hands over a `beforeinstallprompt` event that opens the
+          OS install dialog; Safari has never had an equivalent, so iOS can
+          only name the gesture. Never both. */}
+      {ask === "button" && (
+        <div style={{ marginTop: 8 }}>
+          <Btn kind="primary" small onClick={onInstall}>
+            Add to home screen
+          </Btn>
+        </div>
+      )}
+      {ask === "ios" && (
+        <div style={{ marginTop: 6, fontSize: 13, color: C.faint }}>
+          <span aria-hidden>↑ </span>Tap Share, then <b>Add to Home Screen</b>
+        </div>
+      )}
+      {ask === "android" && (
+        <div style={{ marginTop: 6, fontSize: 13, color: C.faint }}>
+          <span aria-hidden>⋮ </span>Open the menu, then <b>Install app</b>
+        </div>
+      )}
+
+      {onDismiss && (
+        <div style={{ marginTop: 8 }}>
+          <Btn small onClick={onDismiss}>
+            Not now
+          </Btn>
+        </div>
+      )}
+    </NoticeCard>
   );
 }
 

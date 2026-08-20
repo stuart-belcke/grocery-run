@@ -19,9 +19,15 @@
 
 // The three lines, in the order the week actually happens.
 export const HOW_IT_WORKS = [
-  "Choose what you feel like cooking on {Meals}, and give the week a shape on {Week plan}.",
-  "{List} then builds itself from those recipes — every ingredient added up, and grouped by the store and aisle you keep on {Ingredients}.",
-  "Everyone in the household sees the same {List}, so whoever is out can tick things off as they go.",
+  "Choose what you feel like cooking on {Recipes}, and give the week a shape on {Plan}.",
+  "{List} then builds itself from those recipes — every ingredient added up, and grouped by the store and aisle you keep on {Pantry}.",
+  /* DEFINES THE WORD IN THE LINE THAT ALREADY USES IT (item 87). "Household"
+     appeared here, and as a whole section of Settings, without anywhere
+     saying what one IS — the app's own term for its central idea, left to be
+     inferred. A clause is the right size for that: what a household is
+     belongs here, and what you can DO with one (invite, remove, leave,
+     restore) is on the Household section itself and in its own dialogs. */
+  "A household is you and whoever you shop with. Everyone in it sees the same {List}, so whoever is out can tick things off as they go.",
 ];
 
 /* Every entry is a question somebody actually asked, or a confusion the app
@@ -30,7 +36,7 @@ export const HOW_IT_WORKS = [
 export const FAQS = [
   {
     q: "How does something get onto the shopping list?",
-    a: "Three ways. Press Choose a meal on a day in {Week plan} — it asks which meal of the day it is, and starts on Dinner — or press Add unplanned meal on a recipe in {Meals}. Either one adds that recipe's ingredients, scaled to the servings you set. Or type it straight into the Add box at the top of {List}.",
+    a: "Three ways. Press Choose a meal on a day in {Plan} — it asks which meal of the day it is, and starts on Dinner — or press Add unplanned meal on a recipe in {Recipes}. Either one adds that recipe's ingredients, scaled to the servings you set. Or type it straight into the Add box at the top of {List}.",
     keywords: ["add", "put", "shopping", "generate", "groceries", "where do items come from", "breakfast", "lunch", "dessert", "meal type"],
   },
   {
@@ -40,17 +46,17 @@ export const FAQS = [
   },
   {
     q: "The same thing is on the list twice under two names. Why?",
-    a: "They are two different ingredients as far as the app is concerned — “Olive oil” and “Extra virgin olive oil” each get their own row, store and aisle. Fix it on {Ingredients}: open the one you want to lose and Rename it to exactly match the other, and the two merge. When you type a name the editor already knows, it offers the existing one — taking that offer is what stops it happening.",
+    a: "They are two different ingredients as far as the app is concerned — “Olive oil” and “Extra virgin olive oil” each get their own row, store and aisle. Fix it on {Pantry}: open the one you want to lose and Rename it to exactly match the other, and the two merge. When you type a name the editor already knows, it offers the existing one — taking that offer is what stops it happening.",
     keywords: ["duplicate", "twice", "merge", "rename", "two entries", "forked"],
   },
   {
     q: "How do I change where something is bought?",
-    a: "Tap the round i on the {List} row, then pick a store under Where to buy it. It asks whether that is just for this trip or from now on, because those are different things and the app cannot tell which you meant. Just this trip goes back afterwards; Always makes it the item's home for everyone in the household, the same setting the {Ingredients} tab shows.",
+    a: "Tap the round i on the {List} row, then pick a store from the dropdown. It asks whether that is just for this trip or from now on, because those are different things and the app cannot tell which you meant. Just this trip goes back afterwards; Always makes it the item's home for everyone, the same setting {Pantry} shows.",
     keywords: ["store", "shop", "supermarket", "reroute", "override", "aisle", "permanent", "today", "dropdown"],
   },
   {
     q: "Where do the aisle numbers come from?",
-    a: "You set them, per store. Easiest while you are actually standing in the aisle: tap the round i on a {List} row, then set the aisle under Where it lives. You can also set them on {Ingredients}. Switch {List} to Store flow to walk the shop in aisle order.",
+    a: "You set them, per store. Easiest while you are actually standing in the aisle: tap the round i on a {List} row, then set the aisle beside the store. You can also set them on {Pantry}. Switch {List} to Store flow to walk the shop in aisle order.",
     keywords: ["aisle", "shop", "supermarket", "store flow", "order", "walk", "number", "layout"],
   },
   {
@@ -60,17 +66,17 @@ export const FAQS = [
   },
   {
     q: "Can I paste a recipe in from a website?",
-    a: "Yes. In {Meals}, press Add, then Paste a recipe to fill this in, and paste the whole page. It fills in the name, servings, ingredients and the steps. Check it before saving — a paste is a starting point, not the final word. If it invents a name you already have, it offers the existing ingredient under the row; take the offer.",
+    a: "Yes. In {Recipes}, press Add, then Paste a recipe to fill this in, and paste the whole page. It fills in the name, servings, ingredients and the steps. Check it before saving — a paste is a starting point, not the final word. If it invents a name you already have, it offers the existing ingredient under the row; take the offer.",
     keywords: ["import", "paste", "website", "url", "copy", "recipe"],
   },
   {
     q: "What does Done shopping do?",
-    a: "It ends the trip. What you ticked off is treated as bought and stops being asked for; what you did not get stays on the list for next time. It does not clear the week — Start a new plan on {Week plan} does that.",
+    a: "It ends the trip. What you ticked off is treated as bought and stops being asked for; what you did not get stays on the list for next time. It does not clear the week — Start a new plan on {Plan} does that.",
     keywords: ["done", "finish", "trip", "clear", "checked", "bought"],
   },
   {
     q: "What is a staple, and what does Need mean?",
-    a: "A staple is something you keep in the house, so recipes calling for it do not pad the list. When you run out, mark it Need and it appears on the list on its own, with no amount — it means get more, not get 2 lb. Set both on {Ingredients}.",
+    a: "A staple is something you keep in the house, so recipes calling for it do not pad the list. When you run out, mark it Need and it appears on the list on its own, with no amount — it means get more, not get 2 lb. Set both on {Pantry}.",
     keywords: ["staple", "need", "pantry", "run out", "cupboard", "home", "out of"],
   },
   {
@@ -80,8 +86,18 @@ export const FAQS = [
   },
   {
     q: "What is a guest link?",
-    a: "A link for somebody doing the shop who does not need an account. A guest sees everything and can work the shopping list — ticking off, adding items, flagging a staple as run out — but cannot change recipes, the week plan, or where an ingredient lives. Under Household, press Guest link. Unlike a full invite it is NOT used up when somebody joins: it keeps working for its full hour, so more than one person can come in on the same link. Revoke it under Household if that is not what you want.",
-    keywords: ["guest", "link", "read only", "helper", "temporary", "no account"],
+    a: "A link for somebody helping with one shop. A guest sees everything and can work the shopping list — ticking off, adding items, flagging a staple as run out — but cannot change recipes, the week plan, or which store an ingredient comes from. Under Household, press Guest link. Guest is a ROLE, not a kind of account: whoever you send it to can join with just their name and no account, or sign in first and keep the access on their own account, which is what somebody who already uses this app would do. Either way they get the same limited access and you can revoke it. Unlike a full invite it is NOT used up when somebody joins: it keeps working for its full hour, so more than one person can come in on the same link. Revoke it under Household if that is not what you want.",
+    keywords: ["guest", "link", "read only", "helper", "temporary", "no account", "sign in"],
+  },
+  {
+    q: "Can I give the household a name?",
+    a: "Yes — Settings, under Household, \"What to call this household\". Everyone in it sees the name, and it shows up when somebody joins so they can tell they landed in the right household rather than taking the app's word for it. The code does not change and does not go away: the name is what you recognise, the code is what matches an invite link. Only full members can set it, not guests, and clearing it goes back to showing the code.",
+    keywords: ["name", "rename", "household name", "call", "label", "title"],
+  },
+  {
+    q: "How do I get the app onto my home screen?",
+    a: "On iPhone: tap Share, then Add to Home Screen. On Android: open the browser menu, then Install app — or use the button the app offers you, which opens the same dialog in one tap. It then opens without the browser bar, works offline, and stays signed in. The app offers this once after you join, and it is always available afterwards in Settings under Account. If you joined as a guest without an account, that access lives in this browser, so signing in is what carries it to the icon.",
+    keywords: ["home screen", "install", "icon", "add to home screen", "app", "pwa", "shortcut", "standalone"],
   },
   {
     q: "Where is my data, and what happens when I am offline?",

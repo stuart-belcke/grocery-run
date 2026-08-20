@@ -55,7 +55,16 @@
         // generated code (loadDeviceCode()) is 13 characters, well clear of
         // it. Doesn't gate READS — a guessed or malformed code just resolves
         // to nothing, which is harmless.
-        ".validate": "$code.matches(/^[a-z0-9-]{8,40}$/)",
+        // ITEM 88 TIGHTENED THIS from /^[a-z0-9-]{8,40}$/ to the shape the
+        // app actually mints: newHouseholdCode() is "home-" plus eight
+        // base-36 characters, and every household on this database matches.
+        // The old range was wide enough to accept a URL with its punctuation
+        // stripped — "httpsstuart-belckegithubiogrocery-run" is 37 legal
+        // characters — which is exactly how a mangled invite link minted a
+        // household named after itself. The client refuses to launder a URL
+        // into a code now; this is the half that holds when the client is a
+        // stale cached build, which is the case that actually happened.
+        ".validate": "$code.matches(/^home-[a-z0-9]{4,34}$/)",
 
         // The shopping list, week plan and staples. Deliberately NOT a full
         // schema — normalizeLocal (lib.js) spreads unrecognised fields
@@ -119,6 +128,32 @@
         },
         "deletedBy": {
           ".validate": "newData.isString()"
+        },
+
+        // Item 90. The household's DISPLAY NAME. Deliberately a field and not
+        // part of the key: the code travels in every invite link and
+        // screenshot, so a key reading "stuarts-household-…" would say whose
+        // it is to anyone who saw it, renaming would move the whole node and
+        // orphan every users/{uid}/households entry, and a slug key would need
+        // the $code .validate above loosened again — which is the guard item
+        // 88 added after a mangled URL minted a household named after itself.
+        //
+        // NO UNIQUENESS CHECK, on purpose. This is a label, not an identifier;
+        // two households may both be "Home" with no consequence. Enforcing
+        // otherwise would need a global index, which is exactly the kind of
+        // thing nothing may read here.
+        //
+        // Read and write come from the $code rules above and are already
+        // right: any member may READ it, only a FULL member may write it.
+        // A guest renaming the household they were let into for one afternoon
+        // is not a thing that should be possible.
+        //
+        // Clearing the name is a DELETE (null), which skips .validate — so
+        // this can require a non-empty string without making "no name" an
+        // unreachable state. Absent means unnamed, and the app falls back to
+        // showing the code.
+        "name": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40"
         },
 
         "catalog": {

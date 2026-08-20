@@ -9,7 +9,7 @@ import { C, fontDisplay, inputStyle } from "../theme";
 import { Btn, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop, SearchField, SuggestInput } from "../ui";
 import { UNASSIGNED, norm, cap, r2, aisleKey, aisleFor, normalizeCfg, ingredientNames, unitMatches, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient, ensureIngredientId, ingredientIdByName, mergeIngredients, setIngredientCfg, planIngredientRename } from "../lib";
 
-// Shopping-list quantity stepper, mirroring the Meals tab's "unplanned" pill so
+// Shopping-list quantity stepper, mirroring the Recipes tab's "unplanned" pill so
 // "how many of this on the list" reads the same everywhere in the app.
 const pillWrap = { display: "inline-flex", alignItems: "center", gap: 2, background: C.greenSoft, border: `1px solid ${C.green}`, borderRadius: 999, padding: "2px 3px", flexShrink: 0 };
 const pillBtn = { minWidth: 24, height: 24, padding: "0 3px", borderRadius: 999, border: "none", background: "transparent", cursor: "pointer", fontSize: 13, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", color: C.green };
@@ -19,7 +19,6 @@ const pillCount = { minWidth: 22, textAlign: "center", fontWeight: 700, fontVari
 const segWrap = { display: "inline-flex", border: `1px solid ${C.line}`, borderRadius: 999, overflow: "hidden", flexShrink: 0 };
 const segBtn = { padding: "4px 10px", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, lineHeight: 1.6 };
 // Section heading inside the expanded row panel.
-const groupLabel = { fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: C.faint, marginBottom: 6 };
 
 export function PantryTab({ data, update, updateCatalog, isGuest }) {
   const [newStore, setNewStore] = useState("");
@@ -318,8 +317,8 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
         <h2 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 2px" }}>Your ingredients</h2>
         <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
           {isGuest
-            ? "Everything the household buys. Tap \u2699 on a row to see where it lives and which meals use it \u2014 changing any of it belongs to the household's own accounts."
-            : "Everything you buy. Tap \u2699 on a row to set where it lives, its aisle (lower = earlier in your walk), and whether it's a home staple."}
+            ? "Tap \u2699 on a row to see which store an item comes from and which meals use it. Changing any of it belongs to the household's own accounts."
+            : "Tap \u2699 on a row to set which store you buy it at, its aisle (lower = earlier in your walk), and whether it's a home staple."}
         </p>
         {/* Adding a new ingredient and searching the existing ones are different
             jobs that both start with typing into a box, so they're kept in
@@ -375,7 +374,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                 >
                   <span aria-hidden>⌕</span> Filter
                   {activeFilters > 0 && (
-                    <span style={{ background: C.green, color: "#fff", borderRadius: 999, fontSize: 11, fontWeight: 700, minWidth: 16, textAlign: "center", padding: "1px 5px" }}>
+                    <span style={{ background: C.green, color: "#fff", borderRadius: 999, fontSize: 12, fontWeight: 700, minWidth: 16, textAlign: "center", padding: "1px 5px" }}>
                       {activeFilters}
                     </span>
                   )}
@@ -388,7 +387,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                       aria-label="Filters"
                       style={{ position: "absolute", zIndex: 20, top: "calc(100% + 6px)", right: 0, width: 220, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.14)", padding: 12 }}
                     >
-                      <label style={{ display: "block", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 5 }}>
+                      <label style={{ display: "block", fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 5 }}>
                         Store
                       </label>
                       <select
@@ -589,9 +588,13 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                             read-only footer below ("used in ...", "on the list"),
                             which is the part that helps in a shop. */}
                         {!isGuest && (<>
-                        <div style={groupLabel}>Where it lives</div>
+                        {/* NO HEADING. "Usually at Costco · aisle 3" is already a
+                            sentence about where the thing lives; a WHERE IT LIVES
+                            above it was the same fact in capitals. A category
+                            label earns its place by telling you something the
+                            line under it does not. */}
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                          <label style={{ fontSize: 11, color: C.faint }}>Usually at</label>
+                          <label style={{ fontSize: 12, color: C.faint }}>Usually at</label>
                           <select aria-label={`Default store for ${name}`} value={cfg.store || UNASSIGNED} onChange={(e) => setCfg(key, { store: e.target.value })} style={{ fontSize: 16, padding: "6px 6px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", maxWidth: 170 }}>
                             {[...data.stores, UNASSIGNED].map((s) => (
                               <option key={s} value={s}>
@@ -647,7 +650,11 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
 
                         </>)}
                         {!isGuest && (<>
-                        <div style={{ ...groupLabel, marginTop: 14 }}>On the shopping list</div>
+                        {/* NO HEADING, and this one was worse than redundant:
+                            the checkbox under it says a staple is "listed only
+                            when we run out", which a heading reading ON THE
+                            SHOPPING LIST directly contradicts. */}
+                        <div style={{ marginTop: 14 }} />
                         {/* Staple designation lives here rather than on the collapsed
                             row: it's a set-once property, unlike the have/need state.
                             It writes the catalog, so it goes for a guest — saying a

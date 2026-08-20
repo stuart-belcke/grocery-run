@@ -17,6 +17,19 @@ import {
   formatInvite,
   inviteUrl,
   newInviteToken,
+  validCode,
+  newHouseholdCode,
+  householdLabel,
+  newHouseholdsSince,
+  allKnownHouseholds,
+  firstIndexSeeding,
+  knownFor,
+  withKnownFor,
+  installPromptState,
+  devicePlatform,
+  hasHouseholdName,
+  cleanHouseholdName,
+  HOUSEHOLD_NAME_MAX,
   parseJoinHash,
   inviteLive,
   syncIndicator,
@@ -82,6 +95,7 @@ import {
   withUnitNotes,
   needsUnitNotes,
   parseTabMarkup,
+  TABS,
   keyboardIsOpen,
   KEYBOARD_MIN_INSET,
   searchHelp,
@@ -624,7 +638,7 @@ test("skipList on the only planned meal leaves the list empty", () => {
 });
 
 /* ---------------- unplanned meals (Week tab) ----------------
-   "Add unplanned meal" on the Meals tab writes straight to list.selections
+   "Add unplanned meal" on the Recipes tab writes straight to list.selections
    with no day/slot — the only way to see one used to be scrolling the Meals
    tab for a card showing an "Unplanned" pill. unplannedMeals is what the
    Week tab's dropdown reads instead. */
@@ -2645,7 +2659,11 @@ test("unitMatches still suggests something for a brand-new household", () => {
    both are ways it goes quietly wrong: a tab name that no longer names a tab,
    and a search that gets WIDER the more you type. */
 
-const TAB_LABELS = ["List", "Meals", "Week plan", "Ingredients", "Settings"];
+/* READ FROM THE APP'S OWN LIST, not a copy of it. This was a hardcoded
+   array, which is the same drift it exists to catch one level up: renaming a
+   tab and updating this line would have kept the test green while the tab bar
+   and the help text disagreed. TABS moved into lib.js for exactly this. */
+const TAB_LABELS = TABS.map((t) => t.label);
 
 test("every {name} in the help text is a real tab label", () => {
   /* The explanation doubles as the map — read it once and you know what the
@@ -2716,9 +2734,71 @@ test("searchHelp searches the ANSWER too, not just the question", () => {
   assert.ok(hit.length > 0);
 });
 
+/* ITEM 88: A MANGLED INVITE LINK MUST NOT BECOME A HOUSEHOLD.
+
+   Reported after a real attempt to add a second phone: the link was sent,
+   opened, and the app made a NEW household instead of joining the invited
+   one; pasting the same link into the code field then "used the whole link
+   as a household".
+
+   THE MECHANISM, and it is not the one item 81 fixed. Item 81 covered a link
+   that still had its "#join=..." fragment. A fragment is never sent to a
+   server, so it is the part of a URL that reliably goes missing — any
+   redirect, shortener, preview card or URL-tidying feature drops it. What
+   arrived was the bare site address, cleanCode reduced it to
+   "httpsstuart-belckegithubiogrocery-run" — 37 characters of [a-z0-9-],
+   a legal code under the old shape check — and an unclaimed household is
+   claimable by design. So it did not fail. It silently made a household
+   named after the URL. */
+test("a link that lost its invite is refused, not turned into a household", () => {
+  const BASE = "https://stuart-belcke.github.io/grocery-run/";
+  for (const mangled of [
+    BASE,                       // fragment stripped in transit
+    BASE + "?utm_source=sms",   // ...and replaced with tracking
+    "stuart-belcke.github.io/grocery-run/",
+    "https://example.com/grocery-run",
+  ]) {
+    const r = classifyJoinInput(mangled);
+    assert.equal(r.kind, "notacode", `"${mangled}" was accepted as ${JSON.stringify(r)}`);
+  }
+});
+
+test("a link whose # arrived percent-encoded fails as broken, not as a junk code", () => {
+  // Still contains a "~", so it reaches parseInvite, where cleanCode used to
+  // turn the whole left-hand side into a 40-character "code" paired with a
+  // real token.
+  const r = classifyJoinInput("https://stuart-belcke.github.io/grocery-run/%23join=home-cx2ur9zg~h3ub89qsyysc9qhjngel5u");
+  assert.equal(r.kind, "broken");
+});
+
+test("the codes the app actually mints still work, by every route", () => {
+  /* The guard is only worth having if it does not also refuse real invites,
+     and this is the control for the two tests above. newHouseholdCode is the
+     one thing that makes a code, so a real one is generated here rather than
+     written out — a hand-typed fixture would keep passing if the generator's
+     shape ever changed away from what validCode allows. */
+  for (let i = 0; i < 50; i++) {
+    const code = newHouseholdCode();
+    assert.ok(validCode(code), `newHouseholdCode() produced ${code}, which validCode rejects`);
+    const token = newInviteToken();
+    assert.deepEqual(classifyJoinInput(`${code}~${token}`), { kind: "invite", code, token, role: "member" });
+    assert.deepEqual(classifyJoinInput(inviteUrl("https://x.test/app/", code, token, "guest")), { kind: "invite", code, token, role: "guest" });
+    assert.deepEqual(classifyJoinInput(code), { kind: "code", code });
+  }
+});
+
 test("searchHelp ignores the tab markup, so a tab name is searchable", () => {
-  // "{Meals}" must match a search for "meals".
-  assert.ok(searchHelp(FAQS, "meals").length > 0, "a tab name in braces is not findable");
+  /* A tab name written {Like This} must match a plain search for it — the
+     braces are markup, not something anybody types.
+     DERIVED FROM THE FAQS THEMSELVES, not a hardcoded "meals": that literal
+     went stale the moment the tab was renamed, and a test that has to be
+     edited alongside a rename is a test that can be edited WRONG alongside
+     one. Every braced name actually present has to be findable. */
+  const braced = [...new Set(FAQS.flatMap((f) => parseTabMarkup(f.a).filter((x) => x.tab).map((x) => x.tab)))];
+  assert.ok(braced.length >= 3, `only ${braced.length} tab names in the FAQs — the markup is probably not being parsed`);
+  for (const name of braced) {
+    assert.ok(searchHelp(FAQS, name.toLowerCase()).length > 0, `"${name}" is marked up as a tab but a search for it finds nothing`);
+  }
 });
 
 test("searchHelp returns everything for an empty query and nothing for nonsense", () => {
@@ -3205,4 +3285,258 @@ test("unwrapping a link changes nothing for input that isn't one", () => {
   assert.deepEqual(classifyJoinInput("home-cx2ur9zg"), { kind: "code", code: "home-cx2ur9zg" });
   assert.deepEqual(classifyJoinInput("home-cx2ur9zg~short"), { kind: "broken" });
   assert.deepEqual(classifyJoinInput("hello"), { kind: "short" });
+});
+
+/* ── ITEM 90: HOUSEHOLD NAMES ─────────────────────────────────────────────
+   The name exists so a join can be CHECKED rather than believed, so the
+   cases that matter are the ones where a name is missing or junk: falling
+   back to something meaningless would defeat the whole point. */
+
+test("an unnamed household shows its code, which is what the invite link contains", () => {
+  assert.equal(householdLabel("", "home-cx2ur9zg"), "home-cx2ur9zg");
+  assert.equal(householdLabel(null, "home-cx2ur9zg"), "home-cx2ur9zg");
+  assert.equal(householdLabel(undefined, "home-cx2ur9zg"), "home-cx2ur9zg");
+});
+
+test("a name that is only whitespace is not a name", () => {
+  // Otherwise a household could be labelled with a blank, which reads as the
+  // app having lost the household rather than as it being unnamed.
+  assert.equal(householdLabel("   ", "home-cx2ur9zg"), "home-cx2ur9zg");
+  assert.equal(hasHouseholdName("   "), false);
+  assert.equal(hasHouseholdName(""), false);
+  assert.equal(hasHouseholdName("Stuart's Household"), true);
+});
+
+test("a named household shows the name", () => {
+  assert.equal(householdLabel("Stuart's Household", "home-cx2ur9zg"), "Stuart's Household");
+  // Surrounding whitespace never reaches the screen.
+  assert.equal(householdLabel("  Stuart's Household  ", "home-cx2ur9zg"), "Stuart's Household");
+});
+
+test("householdLabel never returns an empty string for a real code", () => {
+  for (const name of ["", " ", null, undefined, "\t\n"]) {
+    assert.notEqual(householdLabel(name, "home-cx2ur9zg"), "");
+  }
+});
+
+test("cleanHouseholdName collapses whitespace and caps at what the rules accept", () => {
+  assert.equal(cleanHouseholdName("  Stuart's   Household \n"), "Stuart's Household");
+  assert.equal(cleanHouseholdName("x".repeat(200)).length, HOUSEHOLD_NAME_MAX);
+  // Whitespace-only becomes "", which the caller writes as null — a DELETE,
+  // which skips .validate. An empty string would be refused by the rules.
+  assert.equal(cleanHouseholdName("   "), "");
+  assert.equal(cleanHouseholdName(null), "");
+});
+
+test("the rules cap and the client cap are the same number", () => {
+  // Two places had to agree and nothing else checks it. A client cap looser
+  // than the rules' would let somebody type a name that is silently refused.
+  const rules = readFileSync(new URL("../database.rules.json", import.meta.url), "utf8");
+  const m = rules.match(/"name":\s*\{\s*"\.validate":\s*"([^"]+)"/);
+  assert.ok(m, "database.rules.json has no .validate for the household name");
+  assert.match(m[1], new RegExp(`length <= ${HOUSEHOLD_NAME_MAX}\\b`));
+});
+
+test("a name the client would produce always passes the rules' own shape check", () => {
+  // Mirrors the .validate expression: a non-empty string within the cap.
+  for (const raw of ["Stuart's Household", "  spaced  out  ", "é", "x".repeat(999)]) {
+    const cleaned = cleanHouseholdName(raw);
+    assert.equal(typeof cleaned, "string");
+    assert.ok(cleaned.length > 0 && cleaned.length <= HOUSEHOLD_NAME_MAX, `${raw} -> ${cleaned}`);
+  }
+});
+
+/* ── ITEM 91: WHAT THE HOME-SCREEN PROMPT SHOWS ───────────────────────────
+   The prompt is two halves and the whole point is that they come apart: a
+   confirmation everybody gets, and a home-screen ask that several people
+   should not. */
+
+const offer = (over) => installPromptState({ standalone: false, installEvent: null, platform: "ios", anonymous: false, dismissed: false, ...over });
+
+test("a phone already on the home screen is offered nothing at all", () => {
+  // Not even the confirmation: it belongs to the moment of joining, and a
+  // standalone launch is not that moment.
+  assert.deepEqual(offer({ standalone: true }), { confirm: false, ask: "" });
+  assert.deepEqual(offer({ standalone: true, installEvent: {} }), { confirm: false, ask: "" });
+});
+
+test("a held install event wins over the platform, and gives a real button", () => {
+  // The event is the only thing that proves a one-tap install is available.
+  // Platform is used for WORDS, never to decide there is a button.
+  assert.deepEqual(offer({ installEvent: {}, platform: "android" }), { confirm: true, ask: "button" });
+  assert.deepEqual(offer({ installEvent: {}, platform: "ios" }), { confirm: true, ask: "button" });
+  assert.deepEqual(offer({ installEvent: {}, platform: "unknown" }), { confirm: true, ask: "button" });
+});
+
+test("with no event, each platform gets its own gesture named", () => {
+  assert.equal(offer({ platform: "ios" }).ask, "ios");
+  assert.equal(offer({ platform: "android" }).ask, "android");
+});
+
+test("an unrecognised platform is told nothing about the home screen", () => {
+  // A confident wrong instruction is worse than none. The join is still
+  // confirmed, which is the half that matters.
+  assert.deepEqual(offer({ platform: "unknown" }), { confirm: true, ask: "" });
+});
+
+test("an anonymous guest gets the confirmation and NO home-screen ask", () => {
+  /* The draft warned this person that a home-screen icon would not carry
+     their access. Cut: it rested on an untested belief about iOS storage,
+     the join card already says the true and milder version BEFORE they
+     commit, and installing anyway costs a confusing screen rather than
+     their access. So — no ask, and no warning either. */
+  for (const platform of ["ios", "android", "unknown"]) {
+    assert.deepEqual(offer({ anonymous: true, platform }), { confirm: true, ask: "" });
+  }
+  // Not even when the browser offered a one-tap install.
+  assert.deepEqual(offer({ anonymous: true, installEvent: {} }), { confirm: true, ask: "" });
+});
+
+test("a GUEST WITH AN ACCOUNT is treated like anybody else", () => {
+  /* The case the first draft got wrong. Guest is a ROLE, not an identity —
+     the rules read role == 'guest' OR provider != anonymous, so a guest
+     membership can sit on a real account. Only `anonymous` narrows anything
+     here, and holding a guest role is not one of this function's inputs. */
+  assert.deepEqual(offer({ anonymous: false, platform: "ios" }), { confirm: true, ask: "ios" });
+  assert.deepEqual(offer({ anonymous: false, installEvent: {} }), { confirm: true, ask: "button" });
+});
+
+test("\"Not now\" silences the whole card, not just the ask", () => {
+  assert.deepEqual(offer({ dismissed: true }), { confirm: false, ask: "" });
+  assert.deepEqual(offer({ dismissed: true, installEvent: {} }), { confirm: false, ask: "" });
+});
+
+test("devicePlatform only ever reports what it can actually tell", () => {
+  assert.equal(devicePlatform("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"), "ios");
+  assert.equal(devicePlatform("Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)"), "ios");
+  assert.equal(devicePlatform("Mozilla/5.0 (Linux; Android 14; Pixel 8)"), "android");
+  // A desktop has no home screen to add to, and neither has an empty string.
+  assert.equal(devicePlatform("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"), "unknown");
+  assert.equal(devicePlatform("Mozilla/5.0 (Windows NT 10.0; Win64; x64)"), "unknown");
+  assert.equal(devicePlatform(""), "unknown");
+  assert.equal(devicePlatform(null), "unknown");
+});
+
+test("the confirmation half survives every case that removes the ask", () => {
+  // Restating the design as an assertion: apart from an already-installed
+  // phone and an explicit "Not now", the join is ALWAYS confirmed. That is
+  // the half that lets somebody check they landed in the right household.
+  for (const over of [{ anonymous: true }, { platform: "unknown" }, { platform: "android" }, { installEvent: {} }]) {
+    assert.equal(offer(over).confirm, true, JSON.stringify(over));
+  }
+});
+
+/* ── ITEM 92: A HOUSEHOLD JOINED SOMEWHERE ELSE ───────────────────────────
+   Tapping an invite link never opens the installed app, so a person who
+   already has Grocery Run joins in the browser and their icon app never
+   notices. These decide what that icon app should announce. */
+
+const IDX = {
+  "home-mine": { updatedAt: 300 },
+  "home-new": { updatedAt: 200 },
+};
+
+test("a household this device has never seen is announced", () => {
+  assert.deepEqual(newHouseholdsSince(["home-mine"], IDX, "home-mine"), ["home-new"]);
+});
+
+test("the household you are already in is never announced", () => {
+  // It is on screen. Offering to switch you to where you are is nonsense.
+  assert.deepEqual(newHouseholdsSince([], IDX, "home-new"), ["home-mine"]);
+  assert.deepEqual(newHouseholdsSince([], { "home-a": {} }, "home-a"), []);
+});
+
+test("a household already seen is not announced again", () => {
+  assert.deepEqual(newHouseholdsSince(["home-mine", "home-new"], IDX, "home-mine"), []);
+});
+
+test("a DELETED household is never announced", () => {
+  /* It is a tombstone waiting for the sweep. The database refuses every read
+     on it, so switching would land on a household that cannot be opened. */
+  const idx = { "home-mine": { updatedAt: 1 }, "home-gone": { updatedAt: 2, deletedAt: 999 } };
+  assert.deepEqual(newHouseholdsSince(["home-mine"], idx, "home-mine"), []);
+});
+
+test("newest first, so the one just joined leads", () => {
+  const idx = { "home-a": { updatedAt: 10 }, "home-b": { updatedAt: 99 }, "home-c": { updatedAt: 50 } };
+  assert.deepEqual(newHouseholdsSince([], idx, "home-x"), ["home-b", "home-c", "home-a"]);
+});
+
+test("a device that has never recorded a seen-set stays SILENT", () => {
+  /* The first open after this ships. Every household somebody is already in
+     would otherwise be announced as news, which is the app shouting about
+     things that happened months ago. `null` is never-recorded; `[]` is a
+     real, empty, recorded set and does NOT suppress anything. */
+  assert.equal(firstIndexSeeding(null), true);
+  assert.equal(firstIndexSeeding(undefined), true);
+  assert.equal(firstIndexSeeding("nonsense"), true);
+  assert.equal(firstIndexSeeding([]), false);
+  assert.equal(firstIndexSeeding(["home-a"]), false);
+});
+
+test("seeding remembers everything currently in the index, tombstones included", () => {
+  /* A household you deleted and later restored must not come back as though
+     somebody had just added you to it — you were there all along, and the
+     restore is already its own visible action. */
+  const idx = { "home-a": {}, "home-gone": { deletedAt: 1 } };
+  assert.deepEqual(allKnownHouseholds(null, idx).sort(), ["home-a", "home-gone"]);
+  // And it never forgets what it already knew.
+  assert.deepEqual(allKnownHouseholds(["home-old"], idx).sort(), ["home-a", "home-gone", "home-old"]);
+});
+
+test("an index that has not answered yet announces nothing", () => {
+  // `null` means the subscription has not reported. Treating it as an empty
+  // index is the same mistake that once claimed a junk household.
+  assert.deepEqual(newHouseholdsSince(["home-a"], null, "home-a"), []);
+  assert.deepEqual(newHouseholdsSince(["home-a"], undefined, "home-a"), []);
+});
+
+test("restoring a deleted household does not announce it afterwards", () => {
+  // The full sequence: seen, deleted, restored. Nothing new at any point.
+  let known = allKnownHouseholds(null, { "home-a": {}, "home-b": {} });
+  const deleted = { "home-a": {}, "home-b": { deletedAt: 5 } };
+  assert.deepEqual(newHouseholdsSince(known, deleted, "home-a"), []);
+  const restored = { "home-a": {}, "home-b": { updatedAt: 9 } };
+  assert.deepEqual(newHouseholdsSince(known, restored, "home-a"), []);
+});
+
+/* The seen-set is stored per device but KEYED BY UID, because two people
+   share these phones. */
+
+test("no account means no seen-set, which means silence", () => {
+  // The signed-out case, and it falls out rather than needing its own branch.
+  assert.equal(knownFor({ u1: ["home-a"] }, null), null);
+  assert.equal(knownFor({ u1: ["home-a"] }, undefined), null);
+  assert.equal(firstIndexSeeding(knownFor({ u1: ["home-a"] }, null)), true);
+});
+
+test("one account's seen-set is not another's", () => {
+  /* Without this, signing out and signing in as the other person would
+     announce every household THEY are in as though somebody had just added
+     them to it. */
+  const store = { u1: ["home-a"], u2: ["home-b"] };
+  assert.deepEqual(knownFor(store, "u1"), ["home-a"]);
+  assert.deepEqual(knownFor(store, "u2"), ["home-b"]);
+  // An account this device has never seen gets the silent seeding path.
+  assert.equal(knownFor(store, "u3"), null);
+  assert.equal(firstIndexSeeding(knownFor(store, "u3")), true);
+});
+
+test("writing one account's set leaves the others untouched", () => {
+  const store = { u1: ["home-a"], u2: ["home-b"] };
+  assert.deepEqual(withKnownFor(store, "u1", ["home-a", "home-c"]), {
+    u1: ["home-a", "home-c"],
+    u2: ["home-b"],
+  });
+});
+
+test("a missing or malformed store is treated as empty, not as a crash", () => {
+  // localStorage holds whatever was there last, including from older builds.
+  assert.equal(knownFor(null, "u1"), null);
+  assert.equal(knownFor("nonsense", "u1"), null);
+  assert.equal(knownFor({ u1: "not an array" }, "u1"), null);
+  assert.deepEqual(withKnownFor(null, "u1", ["home-a"]), { u1: ["home-a"] });
+  // An array here is the OLD unkeyed shape. It must not be spread into the
+  // new one, where its indices would become uid keys.
+  assert.deepEqual(withKnownFor(["home-old"], "u1", ["home-a"]), { u1: ["home-a"] });
 });
