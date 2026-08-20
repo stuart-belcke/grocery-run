@@ -622,6 +622,59 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     browser could be made to DO would produce a household joined elsewhere;
     that is the definition of the case.
 
+93. [DONE] "JOINED" AND "NO ACCESS TO THIS HOUSEHOLD" ON SCREEN AT ONCE.
+    Reported from a real phone, with a clean reproduction: from the home
+    screen icon, remove the other account from the household; generate a
+    fresh invite; paste the link into Safari, where that account is signed
+    in and already pointed at the same household. The join SUCCEEDS — the
+    field says "Joined — this phone now syncs with that household" — and the
+    header keeps saying "No access to this household" until a manual reload,
+    which fixes it.
+
+    THE JOIN REALLY WORKED. Nothing was wrong with the invite, the rules, or
+    the membership record. What was stale was the LISTENER.
+
+    THE MECHANISM, and it turns on an identity comparison:
+      - A denial is TERMINAL. Firebase drops the listener that hit it, so a
+        household that starts refusing reads never starts allowing them
+        again on its own. The only recovery is subscribing afresh.
+      - The subscribe effect is keyed on [code, membershipTick].
+      - Redeeming an invite for the household this phone is ALREADY pointed
+        at calls commitJoin -> setCode(SAME VALUE). React bails on an equal
+        state write, so `code` does not change.
+      - Nothing bumped membershipTick from the Settings join path either.
+      - So neither effect re-ran, the dead listener was never replaced, and
+        accessDenied — only ever cleared when data ARRIVES — stood.
+
+    THAT CASE IS NOT A CORNER, IT IS THE RECOVERY PATH. "I lost access and
+    somebody sent me a fresh invite" means by definition that the code in
+    the field is the code already loaded. The one flow most likely to need
+    the fix was the one flow that could not get it.
+
+    TWO FIXES, and the second is the one that makes the class impossible:
+      1. A successful joinWithInvite from Settings now bumps membershipTick.
+         That mechanism already existed and is documented in App.jsx as "the
+         only recovery"; it simply had no way to fire from there.
+      2. accessDenied is CLEARED as each new subscription attempt begins. A
+         denial describes one attempt, not the app. Deriving the banner only
+         from arriving data meant any refusal outlived whatever caused it —
+         showing "No access" while access was being established. "Connecting"
+         then the truth is honest; a stale refusal is not.
+
+    WHY THE ONBOARDING JOIN PATH NEVER HIT THIS: it flips `onboarded` false
+    -> true, which is a dependency of the claim effect, so that re-runs and
+    bumps the tick on its way past. Restore is safe for a different reason —
+    it never calls setCode, and the switch afterwards always changes it.
+
+    NOT COVERED BY A TEST, and it cannot be here. Both halves live in the
+    wiring between Firebase listeners and React effect dependencies, and the
+    e2e build compiles the database out — the same gap as leaving and
+    restoring a household. Verified by reading the code against a
+    reproduction the reporter could repeat on demand. Anything changed here
+    is unverified until somebody repeats that walk: remove an account, send
+    it a fresh invite, paste the link, and watch the header WITHOUT
+    reloading.
+
 Hygiene — not features, and not sequenced
 ------------------------------------------
 None of these ship anything on their own. They're what keeps the app cheap to

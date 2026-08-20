@@ -551,6 +551,15 @@ export default function App() {
     // A denial is terminal for the listener that hit it (Firebase removes it),
     // so this both records the fact and is the reason the effect re-runs on
     // membershipTick — that resubscribe is the only recovery.
+    /* A DENIAL BELONGS TO ONE ATTEMPT, NOT TO THE APP. Clearing it here, as
+       a fresh attempt begins, is what stops a refusal from a previous code —
+       or from before an invite was redeemed — being painted over a household
+       that is about to read perfectly well. Without this the banner outlived
+       the thing it described: the status is re-derived only when data
+       ARRIVES, so anything slow or empty left the last refusal on screen.
+       Showing "connecting" for a moment and then the truth is honest; showing
+       "No access" while access is being established is not. */
+    setAccessDenied(false);
     const denied = () => setAccessDenied(true);
     const unsub = subscribeHousehold(code, (remote) => {
       // Anything arriving at all proves the read was allowed.
@@ -1169,7 +1178,31 @@ export default function App() {
             isGuest={isGuest}
             createInvite={(opts) => createInvite(code, user, opts)}
             revokeInvite={(token) => revokeInvite(code, token)}
-            joinWithInvite={joinWithInvite}
+            /* A SUCCESSFUL JOIN HAS TO FORCE A RESUBSCRIBE, even when the
+               code does not change — and especially then.
+
+               Redeeming an invite for the household this phone is ALREADY
+               pointed at is not a corner case, it is the recovery path: you
+               were removed (or never had access), the listener was denied,
+               somebody sends a fresh invite, and the code in the field is
+               the code already in `code`. commitJoin then calls setCode with
+               an identical value, React bails out, and neither this effect
+               nor the claim effect above re-runs.
+
+               A denial is TERMINAL — Firebase drops the listener that hit it
+               — so nothing reopens it and the household stays unreadable
+               until a manual page reload, while the join itself really did
+               work. Reported from a real phone: "Joined — this phone now
+               syncs with that household" sitting under a red "No access to
+               this household", and a refresh fixing it.
+
+               membershipTick already exists as the documented recovery; it
+               simply had no way to fire from here. */
+            joinWithInvite={async (...args) => {
+              const res = await joinWithInvite(...args);
+              if (res && res.ok) setMembershipTick((n) => n + 1);
+              return res;
+            }}
             removeMember={(uid) => removeMember(code, uid)}
             /* Leaving lands this phone on a NEW household of its own rather
                than nowhere: the app has to keep working offline afterwards,
