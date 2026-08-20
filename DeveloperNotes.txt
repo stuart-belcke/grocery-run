@@ -331,6 +331,85 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     the household. Neither is worth it: show the name AFTER joining, and
     leave the invitation generic.
 
+    THE NAME IS THE PROOF IT WORKED — this is the reason to build it, and it
+    is worth more than "nicer labels". Asked for directly: "it will be better
+    to know that it worked when it says you joined household xyz." A generic
+    "You've joined the household" is the app asserting success; a named one
+    lets the person CHECK it against the household they were invited to.
+    That distinction matters most on the exact screen where nothing else is
+    verifiable — a phone that has never seen this app, a list of groceries
+    that would look equally plausible if it were the wrong household's.
+    The two failures it catches are real and both have happened here: a
+    device that silently minted its OWN household instead of joining (item
+    84), and a device that landed in a household it had joined earlier
+    instead of the invited one (the adoption effect picking most-recent).
+    Neither is visible in a list of groceries. Both are obvious the second
+    the confirmation names the wrong household.
+
+    Note the wrinkle above cuts the other way here: the join confirmation is
+    the FIRST moment the name is readable, which is also the moment it is
+    worth the most. Nothing is lost by the invitation staying generic.
+
+    SEQUENCE AGAINST THE HOME-SCREEN PROMPT (item 91, mocked up, unbuilt).
+    Build names FIRST, then the prompt. The prompt's headline is the join
+    confirmation — it is the same sentence — and without a name it confirms
+    nothing beyond "something happened". Names are small: one field, one
+    .validate, one rename control in Settings, and the fallback below. That
+    is a smaller change than the prompt itself, so ordering it first costs
+    a day and stops the prompt shipping in a form we intend to reword.
+
+    FALLBACK IS REQUIRED, not optional. Every household that exists today
+    has no name, and a member can join one before anybody names it, so
+    every display site needs `name || code` and reads acceptably either way:
+      named    "You've joined Stuart's Household"
+      unnamed  "You've joined home-cx2ur9zg"
+    The unnamed line is ugly and still does the job — it is checkable
+    against the invite link, which contains the same code. Do NOT default
+    the name to something like "Home": identical for everyone, confirms
+    nothing, and it would be indistinguishable from a real name.
+
+91. PROMPT TO ADD THE APP TO THE HOME SCREEN. Mocked up, argued over, NOT
+    built — four decisions still open. Recorded here so the mockup is not
+    the only record of it.
+
+    WHY: a phone that follows an invite link lands in a browser tab, and on
+    iOS it always will — an installed icon app cannot catch a link there.
+    The tab gets buried behind everything else and the app looks like it
+    stopped working. Nothing in the app currently says "put this on your
+    home screen", so the only people who have done it were told to by hand.
+
+    FIVE STATES, each with its own path to it:
+      A   full invite, iPhone   — after the invite redeems, over the list
+      B   full invite, Android  — identical but "⋮ Menu → Install app"
+      C1  guest holding a real account — no browser trap at all
+      C2  guest signed in anonymously — browser-bound, offered a way out
+      D   Settings → Account    — the permanent one, for after "Not now"
+
+    C1 IS THE CASE THE FIRST DRAFT GOT WRONG and it is worth restating: the
+    rules read role == 'guest' OR provider != anonymous, so a guest
+    membership may be held by a REAL ACCOUNT. Guest is a role, not an
+    identity. Only an anonymous guest is stuck in one browser. Somebody who
+    already uses this app can help with your shop from their own installed
+    app — that works today and nothing in the UI says so.
+
+    ONE CODE CHANGE UNDERLIES C1 vs C2 either way: watchAuthUser currently
+    drops isAnonymous, so the app cannot tell the two guests apart. Small,
+    and worth doing regardless of the four decisions.
+
+    HEADLINE DEPENDS ON ITEM 90 — see the sequencing note there. A, B and C1
+    all open with the join confirmation, and that sentence is only worth its
+    space once it can name the household. Build names first.
+
+    ANDROID STEP 2 IS UNVERIFIED. Android CAN route a link into an installed
+    app, but only via a .well-known/assetlinks.json this app does not
+    publish, so the assumption is "browser, same as iOS". Nobody has tested
+    it on a real Android phone. Do not write the copy as if it were known.
+
+    OPEN DECISIONS: (1) resolved — name the household, per item 90.
+    (2) should the guest card offer signing in, which is the step C1 needs
+    and does not have. (3) does C2's warning earn its place. (4) ship A and
+    D, or D alone.
+
 
 Hygiene — not features, and not sequenced
 ------------------------------------------
