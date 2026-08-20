@@ -613,7 +613,19 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
           </span>
         }
       >
-        {!syncEnabled ? (
+        {/* `&& !user`, not just `!syncEnabled`, and only for the e2e build's
+            benefit: MEMBERS_PREVIEW_KEY / INVITES_PREVIEW_KEY seed `members`
+            and `invites`, but this branch sat in front of them regardless —
+            a local-only build is ALWAYS !syncEnabled, so the member list, the
+            Leave/Remove buttons and the invite list were unreachable no
+            matter what was seeded underneath. In every real deployment
+            syncEnabled is a fixed build-wide constant (true when Firebase is
+            configured, false when it isn't), so `user` can only be non-null
+            there when syncEnabled already is — `&& !user` changes nothing a
+            real user ever sees. It only starts to matter in the local-only
+            test bundle, where USER_PREVIEW_KEY can make `user` non-null on
+            purpose. See household.spec.mjs. */}
+        {!syncEnabled && !user ? (
           <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 0" }}>
             Saved on this device only. To sync between phones, follow &ldquo;Phone-to-phone sync&rdquo; in README.md and reopen the app. Until then, use Backup below.
           </p>

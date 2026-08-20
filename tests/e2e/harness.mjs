@@ -114,6 +114,8 @@ const MUST_CHOOSE_KEY = "grocery-run-must-choose-household-v1";
 const GUEST_PREVIEW_KEY = "grocery-run-e2e-guest-preview";
 const STATUS_PREVIEW_KEY = "grocery-run-e2e-status-preview";
 const USER_PREVIEW_KEY = "grocery-run-e2e-user-preview";
+const MEMBERS_PREVIEW_KEY = "grocery-run-e2e-members-preview";
+const INVITES_PREVIEW_KEY = "grocery-run-e2e-invites-preview";
 const INSTALL_PREVIEW_KEY = "grocery-run-e2e-install-preview";
 const HOUSEHOLDS_PREVIEW_KEY = "grocery-run-e2e-households-preview";
 const KNOWN_HOUSEHOLDS_KEY = "grocery-run-known-households-v1";
@@ -124,7 +126,7 @@ const KNOWN_HOUSEHOLDS_KEY = "grocery-run-known-households-v1";
    pins the ingredient IDS. Without a seeded catalog the app mints fresh
    random ids on first edit, so a test's ids don't match the rendered rows
    and the run proves nothing. */
-export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, onboarded = true, guest = false, hash = "", status = null, user = null, mustChoose = false, justJoined = false, userAgent = null, households = null, knownHouseholds = null } = {}) {
+export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, onboarded = true, guest = false, hash = "", status = null, user = null, members = null, invites = null, mustChoose = false, justJoined = false, userAgent = null, households = null, knownHouseholds = null } = {}) {
   /* A CONTEXT, not a browser — see the setup/teardown block above. Each one
      starts with empty localStorage and cookies, which is the whole of what
      this app persists, so a test is as isolated as it was when every test
@@ -169,7 +171,7 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
      fixture. That looked exactly like "the edit didn't persist", and it is
      the sort of harness bug that makes a suite untrustworthy rather than
      merely failing. */
-  await page.addInitScript(([c, cat, st, kD, kC, kS, kO, onb, kG, gst, kSt, sts, kU, usr, kM, must, kI, joined, kH, idx, kK, kn]) => {
+  await page.addInitScript(([c, cat, st, kD, kC, kS, kO, onb, kG, gst, kSt, sts, kU, usr, kMem, mem, kInv, inv, kM, must, kI, joined, kH, idx, kK, kn]) => {
     if (!localStorage.getItem(kD)) localStorage.setItem(kD, JSON.stringify({ code: c }));
     if (cat && !localStorage.getItem(kC + c)) localStorage.setItem(kC + c, cat);
     if (st && !localStorage.getItem(kS + c)) localStorage.setItem(kS + c, st);
@@ -193,6 +195,11 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
        in — was unreachable before this, and three reported bugs lived there.
        See USER_PREVIEW_KEY in lib.js: a production build never reads it. */
     if (usr) localStorage.setItem(kU, JSON.stringify(usr));
+    /* households/{code}/members and .../invites, faked — see
+       MEMBERS_PREVIEW_KEY / INVITES_PREVIEW_KEY in lib.js. Reachable only
+       through a real database subscription, which this build compiles out. */
+    if (mem) localStorage.setItem(kMem, JSON.stringify(mem));
+    if (inv) localStorage.setItem(kInv, JSON.stringify(inv));
     /* Left your last household — see MUST_CHOOSE_KEY in lib.js. Reachable
        only through leaveHousehold, which needs the database this build
        compiles out, so the flag is seeded instead. What it gates (the
@@ -221,7 +228,8 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
     }
   }, [code, catalog ? JSON.stringify(catalog) : null, state ? JSON.stringify(state) : null,
       DEVICE_KEY, CATALOG_PREFIX, STATE_PREFIX, ONBOARDED_KEY, onboarded, GUEST_PREVIEW_KEY, guest,
-      STATUS_PREVIEW_KEY, status, USER_PREVIEW_KEY, user, MUST_CHOOSE_KEY, mustChoose,
+      STATUS_PREVIEW_KEY, status, USER_PREVIEW_KEY, user, MEMBERS_PREVIEW_KEY, members,
+      INVITES_PREVIEW_KEY, invites, MUST_CHOOSE_KEY, mustChoose,
       INSTALL_PREVIEW_KEY, justJoined, HOUSEHOLDS_PREVIEW_KEY, households,
       KNOWN_HOUSEHOLDS_KEY, knownHouseholds]);
 

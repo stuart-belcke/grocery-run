@@ -726,6 +726,58 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     True, clear, and needed are three different bars, and this line missed
     each one in turn before clearing all three.
 
+95. [DONE] THE MEMBER LIST, LEAVING, REMOVING AND INVITING WERE STILL
+    UNTESTED AFTER USER_PREVIEW_KEY, and a coverage review is what caught it
+    rather than a phone report — the first item in this run of five not to
+    start from one. USER_PREVIEW_KEY (item 68) faked the signed-in IDENTITY
+    and closed the first half of the gap items 17/68/85/92/93 all describe.
+    It did not close all of it: subscribeMembers and subscribeInvites still
+    answer nothing without a database, so `members` and `invites` stayed
+    null in every e2e run regardless of `user` — the member list, the
+    Leave/Remove buttons (rendered per row, keyed to whose row it is), and
+    the invite list were exactly as unreachable as before item 68 shipped.
+    MEMBERS_PREVIEW_KEY / INVITES_PREVIEW_KEY (lib.js) close that, same seam
+    and same rule as every preview key before them: read only when
+    syncEnabled is false, so a production build never looks at them.
+
+    ONE MORE GATE WAS HIDING BEHIND THE DATA, and seeding alone did not
+    reach it: SettingsTab's whole "Household" section was `!syncEnabled ?
+    <Saved on this device> : <the real UI>`, and a local-only build is
+    ALWAYS !syncEnabled. No seed under that branch could ever have mattered.
+    Changed to `!syncEnabled && !user` — safe for every real deployment,
+    where syncEnabled is a fixed build-wide constant and `user` can only be
+    non-null when it's already true, so `&& !user` subtracts nothing a real
+    user ever sees. It only starts to matter in the local-only test bundle,
+    where USER_PREVIEW_KEY can make `user` non-null on purpose. Confirmed
+    with a mutation: reverting the `&& !user` and rebuilding fails the new
+    suite immediately (elements it looks for stop existing), restoring it
+    passes again.
+
+    tests/e2e/specs/household.spec.mjs, 14 tests: the member list and its
+    per-row Leave/Remove buttons, a guest's restricted view, the two-step
+    leave confirmation (its wording forks correctly on lastMemberOut and on
+    whether another household exists to land on), the remove confirmation
+    naming the right account, the invite list filtering out an expired
+    invite, and the household switcher/restore list in Settings — including
+    that Switch (commitJoin) actually moves the device and persists, since
+    that action never touches the database and so is real code under real
+    test, not a reasoned-about one.
+
+    WHAT STILL ISN'T COVERED, on purpose rather than by omission:
+    leaveHousehold, restoreHousehold, removeMember and createInvite all call
+    the real database and get nothing in a local-only build (getDb()
+    answers null) — seeding what they READ is not the same as making what
+    they WRITE succeed. Every test that reaches one of those four asserts on
+    the FAILURE message the app shows when the write can't happen, and stops
+    there; whether a real write actually lands is still items 85/92/93's gap,
+    reasoned by hand, not run here. Also left alone: the member list's OTHER
+    empty message ("Can't read the member list from here"), which needs the
+    real `accessDenied` state — set only by subscribeHousehold's error
+    callback, which needs a database same as the rest — not the status label
+    STATUS_PREVIEW_KEY fakes. A future ACCESS_DENIED-shaped seam would close
+    it the same way; not built here to keep this change to what it set out
+    to cover.
+
 Hygiene — not features, and not sequenced
 ------------------------------------------
 None of these ship anything on their own. They're what keeps the app cheap to

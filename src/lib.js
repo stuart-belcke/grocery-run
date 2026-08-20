@@ -133,6 +133,26 @@ export const GUEST_PREVIEW_KEY = "grocery-run-e2e-guest-preview";
    trusted for correctness of access. */
 export const USER_PREVIEW_KEY = "grocery-run-e2e-user-preview";
 
+/* households/{code}/members and .../invites, faked, for local-only builds
+   only — same seam and same rule as USER_PREVIEW_KEY above: a production
+   build never reads either key, so this can grant nothing.
+   IT EXISTS BECAUSE USER_PREVIEW_KEY ONLY GOT PART OF THE WAY THERE. Faking
+   `user` reaches the wiring gated on being signed in, but subscribeMembers
+   and subscribeInvites still answer nothing in a local-only build — no
+   database to subscribe to — so the member list, the Leave/Remove buttons
+   (rendered per member, keyed to whether a row is yours), the leave
+   confirmation copy (which reads the member list to know if you're the last
+   one out), and the invite list all stayed exactly as unreachable as they
+   were before USER_PREVIEW_KEY shipped.
+   WHAT THIS DOES NOT REACH: the actual mutations. leaveHousehold,
+   restoreHousehold, removeMember and createInvite all call the real
+   database and fail immediately in a local-only build (getDb() answers
+   null) — seeding the DATA they read is not the same as making the WRITE
+   succeed, and nothing here pretends otherwise. That half stays what items
+   85 and 92 already say it is: reasoned by hand, not run by a test. */
+export const MEMBERS_PREVIEW_KEY = "grocery-run-e2e-members-preview";
+export const INVITES_PREVIEW_KEY = "grocery-run-e2e-invites-preview";
+
 /* Forces a sync status in a LOCAL-ONLY build, for the e2e suite. Same seam
    and same rule as GUEST_PREVIEW_KEY above: only read when syncEnabled is
    false, so a production build never looks at it.
