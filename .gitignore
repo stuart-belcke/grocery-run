@@ -1,5 +1,8 @@
 node_modules/
-dist/
+# Any build output: `dist/` from `npm run build`, plus the ad-hoc
+# `dist-<something>/` a person makes while checking one build by hand.
+# One of those was committed once and sat in the repo for a week.
+dist*/
 
 # The database emulator writes this next to wherever it is started from.
 database-debug.log

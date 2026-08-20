@@ -66,9 +66,25 @@ createRoot(document.getElementById("root")).render(
   </ErrorBoundary>
 );
 
-// Offline support: the service worker caches the app shell so it opens
-// with no signal once installed. Only runs on https (GitHub Pages is https).
-if ("serviceWorker" in navigator && location.protocol === "https:") {
+/* Offline support: the service worker caches the app shell so it opens with no
+   signal once installed.
+
+   THE GATE USED TO BE `location.protocol === "https:"` and that was wrong in a
+   way that hid a whole feature. Service workers are allowed in any SECURE
+   CONTEXT, which includes http on localhost and 127.0.0.1 — so the old check
+   meant `npx vite preview` never registered one, the offline path could not be
+   exercised anywhere but production, and Chrome would not report the app as
+   installable locally either. `beforeinstallprompt` needs an active service
+   worker with a fetch handler, so the Android install button could not be
+   tested at all. isSecureContext is the check the platform actually uses.
+
+   LOCAL-ONLY BUILDS STILL SKIP IT, deliberately. That build is the app with
+   the network seam compiled out and it backs the e2e suite; registering a
+   worker there would precache the whole bundle on every one of 200-odd specs
+   and let one test's cached shell leak into the next. The service worker is
+   part of the seam, so it goes when the seam goes.                         */
+const localOnly = import.meta.env.VITE_LOCAL_ONLY === "1";
+if ("serviceWorker" in navigator && window.isSecureContext && !localOnly) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
       .register("./sw.js")

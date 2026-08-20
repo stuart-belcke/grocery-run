@@ -431,6 +431,41 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     publish, so the assumption is "browser, same as iOS". Nobody has tested
     it on a real Android phone. Do not write the copy as if it were known.
 
+    THE ANDROID PROMPT IS A BUTTON, NOT A PICTURE OF A MENU. Chrome fires
+    `beforeinstallprompt`; stash the event and call .prompt() on a tap and
+    the OS install dialog opens. Safari has never implemented it and never
+    will as far as anyone knows, so iOS can only ever draw the Share ->
+    Add to Home Screen gesture. That asymmetry is the whole difference
+    between states A and B and it is not cosmetic: one is a tap, the other
+    is a person following instructions.
+
+    IMPLEMENT BOTH PATHS AND LET THE EVENT DECIDE. Not a fallback bolted on
+    to a happy path — the event genuinely may not arrive even on Chrome:
+    it is gated behind engagement heuristics, it never fires if the app is
+    already installed, and it does not fire twice. So: hold the event if it
+    comes and show a real Install button; show the gesture card if it does
+    not. Never show both.
+
+    WHAT WAS ACTUALLY VERIFIED HERE, and what was not:
+      - VERIFIED, Chromium via CDP Page.getAppManifest against the real
+        build: the manifest parses with ZERO errors and Chrome reads all
+        five icons. It previously shipped only an SVG at sizes:"any" plus
+        the 180px apple-touch-icon, which sits on the edge of Chrome's bar;
+        it now also ships 192, 512 and a maskable 512 PNG.
+      - VERIFIED: the service worker registers and reaches `active` under
+        `npx vite preview`. It could not before — see the isSecureContext
+        fix in main.jsx. `beforeinstallprompt` requires an active worker
+        with a fetch handler, so this was a hard blocker on the button.
+      - NOT VERIFIED, and not verifiable here: that the event FIRES.
+        Headless Chromium suppresses it by design; it returned false in a
+        run where the manifest and worker were both good. It needs a real
+        Android phone. The event-or-gesture split above is what makes that
+        acceptable rather than a gamble.
+      - NOT VERIFIED: whether an iOS home-screen app really does get
+        storage separate from Safari. Everything here treats it as unknown.
+        Test on a real iPhone: sign in, Add to Home Screen, open the icon,
+        see whether you are still signed in.
+
     OPEN DECISIONS, two left. (2) should the guest card offer signing in,
     which is the step C1 needs and does not have. (4) ship A and D, or D
     alone. Resolved: (1) name the household, per item 90; (3) C2's warning
