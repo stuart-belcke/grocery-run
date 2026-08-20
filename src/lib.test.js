@@ -20,6 +20,9 @@ import {
   validCode,
   newHouseholdCode,
   householdLabel,
+  newHouseholdsSince,
+  allKnownHouseholds,
+  firstIndexSeeding,
   installPromptState,
   devicePlatform,
   hasHouseholdName,
@@ -3419,4 +3422,78 @@ test("the confirmation half survives every case that removes the ask", () => {
   for (const over of [{ anonymous: true }, { platform: "unknown" }, { platform: "android" }, { installEvent: {} }]) {
     assert.equal(offer(over).confirm, true, JSON.stringify(over));
   }
+});
+
+/* ── ITEM 92: A HOUSEHOLD JOINED SOMEWHERE ELSE ───────────────────────────
+   Tapping an invite link never opens the installed app, so a person who
+   already has Grocery Run joins in the browser and their icon app never
+   notices. These decide what that icon app should announce. */
+
+const IDX = {
+  "home-mine": { updatedAt: 300 },
+  "home-new": { updatedAt: 200 },
+};
+
+test("a household this device has never seen is announced", () => {
+  assert.deepEqual(newHouseholdsSince(["home-mine"], IDX, "home-mine"), ["home-new"]);
+});
+
+test("the household you are already in is never announced", () => {
+  // It is on screen. Offering to switch you to where you are is nonsense.
+  assert.deepEqual(newHouseholdsSince([], IDX, "home-new"), ["home-mine"]);
+  assert.deepEqual(newHouseholdsSince([], { "home-a": {} }, "home-a"), []);
+});
+
+test("a household already seen is not announced again", () => {
+  assert.deepEqual(newHouseholdsSince(["home-mine", "home-new"], IDX, "home-mine"), []);
+});
+
+test("a DELETED household is never announced", () => {
+  /* It is a tombstone waiting for the sweep. The database refuses every read
+     on it, so switching would land on a household that cannot be opened. */
+  const idx = { "home-mine": { updatedAt: 1 }, "home-gone": { updatedAt: 2, deletedAt: 999 } };
+  assert.deepEqual(newHouseholdsSince(["home-mine"], idx, "home-mine"), []);
+});
+
+test("newest first, so the one just joined leads", () => {
+  const idx = { "home-a": { updatedAt: 10 }, "home-b": { updatedAt: 99 }, "home-c": { updatedAt: 50 } };
+  assert.deepEqual(newHouseholdsSince([], idx, "home-x"), ["home-b", "home-c", "home-a"]);
+});
+
+test("a device that has never recorded a seen-set stays SILENT", () => {
+  /* The first open after this ships. Every household somebody is already in
+     would otherwise be announced as news, which is the app shouting about
+     things that happened months ago. `null` is never-recorded; `[]` is a
+     real, empty, recorded set and does NOT suppress anything. */
+  assert.equal(firstIndexSeeding(null), true);
+  assert.equal(firstIndexSeeding(undefined), true);
+  assert.equal(firstIndexSeeding("nonsense"), true);
+  assert.equal(firstIndexSeeding([]), false);
+  assert.equal(firstIndexSeeding(["home-a"]), false);
+});
+
+test("seeding remembers everything currently in the index, tombstones included", () => {
+  /* A household you deleted and later restored must not come back as though
+     somebody had just added you to it — you were there all along, and the
+     restore is already its own visible action. */
+  const idx = { "home-a": {}, "home-gone": { deletedAt: 1 } };
+  assert.deepEqual(allKnownHouseholds(null, idx).sort(), ["home-a", "home-gone"]);
+  // And it never forgets what it already knew.
+  assert.deepEqual(allKnownHouseholds(["home-old"], idx).sort(), ["home-a", "home-gone", "home-old"]);
+});
+
+test("an index that has not answered yet announces nothing", () => {
+  // `null` means the subscription has not reported. Treating it as an empty
+  // index is the same mistake that once claimed a junk household.
+  assert.deepEqual(newHouseholdsSince(["home-a"], null, "home-a"), []);
+  assert.deepEqual(newHouseholdsSince(["home-a"], undefined, "home-a"), []);
+});
+
+test("restoring a deleted household does not announce it afterwards", () => {
+  // The full sequence: seen, deleted, restored. Nothing new at any point.
+  let known = allKnownHouseholds(null, { "home-a": {}, "home-b": {} });
+  const deleted = { "home-a": {}, "home-b": { deletedAt: 5 } };
+  assert.deepEqual(newHouseholdsSince(known, deleted, "home-a"), []);
+  const restored = { "home-a": {}, "home-b": { updatedAt: 9 } };
+  assert.deepEqual(newHouseholdsSince(known, restored, "home-a"), []);
 });

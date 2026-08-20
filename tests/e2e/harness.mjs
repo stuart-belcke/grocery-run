@@ -115,6 +115,8 @@ const GUEST_PREVIEW_KEY = "grocery-run-e2e-guest-preview";
 const STATUS_PREVIEW_KEY = "grocery-run-e2e-status-preview";
 const USER_PREVIEW_KEY = "grocery-run-e2e-user-preview";
 const INSTALL_PREVIEW_KEY = "grocery-run-e2e-install-preview";
+const HOUSEHOLDS_PREVIEW_KEY = "grocery-run-e2e-households-preview";
+const KNOWN_HOUSEHOLDS_KEY = "grocery-run-known-households-v1";
 
 /* Opens the app with a known household already in place.
 
@@ -122,7 +124,7 @@ const INSTALL_PREVIEW_KEY = "grocery-run-e2e-install-preview";
    pins the ingredient IDS. Without a seeded catalog the app mints fresh
    random ids on first edit, so a test's ids don't match the rendered rows
    and the run proves nothing. */
-export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, onboarded = true, guest = false, hash = "", status = null, user = null, mustChoose = false, justJoined = false, userAgent = null } = {}) {
+export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, onboarded = true, guest = false, hash = "", status = null, user = null, mustChoose = false, justJoined = false, userAgent = null, households = null, knownHouseholds = null } = {}) {
   /* A CONTEXT, not a browser — see the setup/teardown block above. Each one
      starts with empty localStorage and cookies, which is the whole of what
      this app persists, so a test is as isolated as it was when every test
@@ -167,7 +169,7 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
      fixture. That looked exactly like "the edit didn't persist", and it is
      the sort of harness bug that makes a suite untrustworthy rather than
      merely failing. */
-  await page.addInitScript(([c, cat, st, kD, kC, kS, kO, onb, kG, gst, kSt, sts, kU, usr, kM, must, kI, joined]) => {
+  await page.addInitScript(([c, cat, st, kD, kC, kS, kO, onb, kG, gst, kSt, sts, kU, usr, kM, must, kI, joined, kH, idx, kK, kn]) => {
     if (!localStorage.getItem(kD)) localStorage.setItem(kD, JSON.stringify({ code: c }));
     if (cat && !localStorage.getItem(kC + c)) localStorage.setItem(kC + c, cat);
     if (st && !localStorage.getItem(kS + c)) localStorage.setItem(kS + c, st);
@@ -207,10 +209,16 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
        out, so the flag is seeded instead. What it gates is ordinary
        rendering: which half of the offer appears, and for whom. */
     if (joined) localStorage.setItem(kI, JSON.stringify(true));
+    /* The account's household index, and which of them this device has
+       already been shown. Item 92 announces a household joined SOMEWHERE
+       ELSE, which nothing this browser does could ever produce. */
+    if (idx) localStorage.setItem(kH, JSON.stringify(idx));
+    if (kn && !localStorage.getItem(kK)) localStorage.setItem(kK, JSON.stringify(kn));
   }, [code, catalog ? JSON.stringify(catalog) : null, state ? JSON.stringify(state) : null,
       DEVICE_KEY, CATALOG_PREFIX, STATE_PREFIX, ONBOARDED_KEY, onboarded, GUEST_PREVIEW_KEY, guest,
       STATUS_PREVIEW_KEY, status, USER_PREVIEW_KEY, user, MUST_CHOOSE_KEY, mustChoose,
-      INSTALL_PREVIEW_KEY, justJoined]);
+      INSTALL_PREVIEW_KEY, justJoined, HOUSEHOLDS_PREVIEW_KEY, households,
+      KNOWN_HOUSEHOLDS_KEY, knownHouseholds]);
 
   // domcontentloaded, not networkidle: with external requests aborted there
   // is no "idle" to wait for, and the tab bar rendering is the real signal

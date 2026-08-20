@@ -564,6 +564,64 @@ Tier 4 — multi-device / integrations (highest risk, do last)
         same gap as leaving and restoring a household.
 
 
+92. [DONE] A HOUSEHOLD JOINED SOMEWHERE ELSE. The gap items 90 and 91 left
+    open, found by asking the right question of the finished work: "does one
+    of these scenarios cover recovering a link when they are signed in with
+    the home icon?" None of the five did.
+
+    THE FAILURE, IN FULL. Somebody already has Grocery Run on their home
+    screen and is signed in. You send them an invite link. They tap it — and
+    it opens in the BROWSER, because on iOS a link cannot be routed to an
+    installed app; there is no mechanism for it. They join there, get the
+    confirmation there, then open their icon and find their OWN household
+    with nothing to say the new one exists. The membership is real and
+    sitting on their account. The icon app never looks: the adoption effect
+    in App.jsx only moves a device that has not committed to a household yet
+    (`if (onboarded ...) return`), and an installed app committed long ago.
+
+    That is state C1 — the guest who already has an account, the case the
+    whole C1/C2 split was FOR — failing at the last step. And it is a
+    restatement of the original report: "it takes me the SME to get another
+    phone up and going and even I can't get it to work."
+
+    THE INDEX IS THE FIX, because users/{uid}/households is per-ACCOUNT and
+    server-side. It gains an entry the moment the join lands, wherever that
+    happened, so any other signed-in device can notice. Same mechanism covers
+    joining on a laptop and picking it up on a phone.
+
+    NEW MEANS "NOT SEEN BY THIS DEVICE", NOT "RECENTLY CREATED". A timestamp
+    comparison would re-announce a household after any long offline spell and
+    would depend on two clocks agreeing. A seen-set is local, exact, and
+    needs no clock. It is per DEVICE, not per account: an account with two
+    phones should be told on both.
+
+    THE FIRST RUN AFTER THIS SHIPS MUST BE SILENT. Every existing device has
+    no seen-set, and announcing every household somebody is already in would
+    be the app shouting news that is months old. `null` is never-recorded and
+    seeds silently; `[]` is a real, empty, recorded set and suppresses
+    nothing. Tombstoned households are seeded too, so deleting one and
+    restoring it later cannot come back as "you have been added to".
+
+    SWITCHING IS THE ACTION, not a link into Settings. Not knowing where the
+    household went is the entire failure; telling somebody to go and find it
+    is half a fix.
+
+    NOT SHOWN BESIDE THE JOIN CONFIRMATION. On the device that did the
+    joining both would fire at once and say the same thing twice, one of them
+    offering to switch you to where you already are.
+
+    TESTED: nine unit tests over the pure decision, and
+    tests/e2e/specs/joinedelsewhere.spec.mjs for the wiring — the announcement
+    itself, the name and its fall back to the code, that Switch really moves
+    the device and persists, that "Not now" survives a reload without moving
+    it, that a first-ever run stays quiet and stays quiet on the SECOND open
+    too, deleted households, the household you are already in, signed out,
+    and the two cards never appearing together.
+    The index has no database in a local-only build (subscribeMyHouseholds
+    answers `{}`), so it is seeded — see HOUSEHOLDS_PREVIEW_KEY. Nothing this
+    browser could be made to DO would produce a household joined elsewhere;
+    that is the definition of the case.
+
 Hygiene — not features, and not sequenced
 ------------------------------------------
 None of these ship anything on their own. They're what keeps the app cheap to

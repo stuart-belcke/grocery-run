@@ -68,6 +68,24 @@ export const INSTALL_DISMISSED_KEY = "grocery-run-install-dismissed-v1";
    exercise is the real branch. */
 export const INSTALL_PREVIEW_KEY = "grocery-run-e2e-install-preview";
 
+/* Item 92. Which households this DEVICE has already seen on this account's
+   index, so a household joined somewhere else can be announced exactly once.
+   Per device, because the question is "has this screen shown it to you yet" —
+   an account with two phones should be told on both. */
+export const KNOWN_HOUSEHOLDS_KEY = "grocery-run-known-households-v1";
+
+/* The account's household INDEX, faked, for local-only builds only — same
+   seam and same rule as the preview keys below: a production build never
+   reads it, so this can grant nothing.
+
+   It exists because subscribeMyHouseholds answers `{}` with no database, so
+   in a local-only build the index is permanently empty and everything driven
+   by it — the household list, the switcher, and item 92's whole reason for
+   existing — is unreachable by a test. Item 92 announces a household this
+   account joined ELSEWHERE, which by definition cannot be produced by
+   anything this browser does. */
+export const HOUSEHOLDS_PREVIEW_KEY = "grocery-run-e2e-households-preview";
+
 /* Forces the guest view in a LOCAL-ONLY build, for the e2e suite.
    Guest-ness comes from a members/{uid} record in the database, so a build
    with sync compiled out can never produce one and the guest UI would be
@@ -2623,6 +2641,59 @@ export function devicePlatform(ua) {
   if (/iPhone|iPad|iPod/i.test(s)) return "ios";
   if (/Android/i.test(s)) return "android";
   return "unknown";
+}
+
+/* ── ITEM 92: A HOUSEHOLD JOINED SOMEWHERE ELSE ─────────────────────────────
+   The gap items 90 and 91 left open, and it is the case they were most about.
+
+   TAPPING AN INVITE LINK NEVER OPENS THE INSTALLED APP. On iOS it cannot —
+   there is no mechanism to route a link to a home-screen app — so somebody who
+   already has Grocery Run on their phone joins in SAFARI, sees the
+   confirmation there, then opens their icon and finds their own household with
+   no sign the new one exists. The membership is real and on their account;
+   the icon app simply never looks, because the adoption effect in App.jsx
+   only moves a device that has not committed to a household yet, and an
+   installed app committed long ago.
+
+   THE INDEX IS THE FIX because it is per-ACCOUNT and server-side.
+   users/{uid}/households gains an entry the moment the join lands, wherever
+   it happened, so every other signed-in device can notice. That also covers
+   joining on a laptop and picking it up on a phone, which is the same problem
+   wearing a different hat.
+
+   WHAT COUNTS AS NEW IS "not seen by THIS DEVICE before", not "recently
+   created". A timestamp comparison would re-announce a household every time a
+   device was offline for a while, and would depend on two clocks agreeing.
+   A seen-set is local, exact, and needs no clock. */
+
+// Codes in the index that this device has never seen and is not already in.
+// `known` is null for a device that has never recorded a set — see
+// firstIndexSeeding below, which is the case that must stay silent.
+export function newHouseholdsSince(known, index, currentCode) {
+  if (!index) return [];
+  const seen = new Set(Array.isArray(known) ? known : []);
+  return Object.keys(index)
+    .filter((c) => c && c !== currentCode && !index[c]?.deletedAt && !seen.has(c))
+    .sort((a, b) => (index[b]?.updatedAt || 0) - (index[a]?.updatedAt || 0));
+}
+
+/* Every code currently worth remembering, for writing back to the seen set.
+   INCLUDES TOMBSTONED ONES. A household you deleted and later restored must
+   not be announced as though somebody had just added you to it — you were
+   there all along, and the restore is already its own visible action. */
+export function allKnownHouseholds(known, index) {
+  const seen = new Set(Array.isArray(known) ? known : []);
+  for (const c of Object.keys(index || {})) seen.add(c);
+  return [...seen];
+}
+
+/* TRUE ONLY FOR A DEVICE THAT HAS NEVER RECORDED A SEEN SET — which is every
+   device the first time it runs a build containing this. It must seed the set
+   silently: announcing every household somebody is already in, on the first
+   open after an update, would be the app shouting news that is years old.
+   `null` is the never-recorded state; `[]` is a real, empty, recorded set. */
+export function firstIndexSeeding(known) {
+  return !Array.isArray(known);
 }
 
 /* Trim and cap a typed name to what the rules will accept. Returns "" for a

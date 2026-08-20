@@ -38,7 +38,7 @@ import {
   setHouseholdName,
 } from "./sync";
 import { C, fontDisplay, fontBody, syncTone, BOTTOM_NAV_H, BOTTOM_NAV_Z } from "./theme";
-import { Stripe, Btn, ChoiceDialog, InstallOffer, useKeyboardOpen } from "./ui";
+import { Stripe, Btn, ChoiceDialog, InstallOffer, NoticeCard, useKeyboardOpen } from "./ui";
 import {
   LOCAL_KEY,
   TABS,
@@ -48,6 +48,11 @@ import {
   PENDING_INVITE_KEY,
   INSTALL_DISMISSED_KEY,
   INSTALL_PREVIEW_KEY,
+  KNOWN_HOUSEHOLDS_KEY,
+  HOUSEHOLDS_PREVIEW_KEY,
+  newHouseholdsSince,
+  allKnownHouseholds,
+  firstIndexSeeding,
   installPromptState,
   devicePlatform,
   householdLabel,
@@ -644,7 +649,47 @@ export default function App() {
 
   // The account's own list of households, live. Scoped to the user rather
   // than the household, so it survives switching between them.
-  useEffect(() => subscribeMyHouseholds(user, setMyHouseholds), [user]);
+  useEffect(() => {
+    /* Local-only builds have no index to subscribe to — subscribeMyHouseholds
+       answers {} — so a test seeds one instead. See HOUSEHOLDS_PREVIEW_KEY.
+       A production build takes the real branch and never reads it. */
+    if (!syncEnabled) {
+      setMyHouseholds(loadJSON(HOUSEHOLDS_PREVIEW_KEY) || {});
+      return;
+    }
+    return subscribeMyHouseholds(user, setMyHouseholds);
+  }, [user]);
+
+  /* ── ITEM 92: A HOUSEHOLD JOINED SOMEWHERE ELSE ─────────────────────────
+     Tapping an invite link never opens the installed app — on iOS it cannot —
+     so somebody who already has Grocery Run on their phone joins in the
+     BROWSER, and their icon app, long since onboarded, never notices. The
+     membership is real and sitting on their account; the adoption effect
+     above only ever moves a device that has not committed yet.
+
+     The index is per-account and server-side, so this device can see the join
+     even though it happened in another browser, or on another phone entirely.
+     Everything about WHICH codes count is in lib.js and tested there. */
+  const [knownHouseholds, setKnownHouseholds] = useState(() => loadJSON(KNOWN_HOUSEHOLDS_KEY));
+  const rememberHouseholds = (index) => {
+    const next = allKnownHouseholds([...(Array.isArray(knownHouseholds) ? knownHouseholds : []), code], index);
+    setKnownHouseholds(next);
+    saveJSON(KNOWN_HOUSEHOLDS_KEY, next);
+  };
+  useEffect(() => {
+    // `null` is "the index has not answered yet" and must not be mistaken for
+    // an empty one — the same distinction the adoption effect turns on.
+    if (!user || myHouseholds === null) return;
+    /* SEED SILENTLY THE FIRST TIME. Every device running this build for the
+       first time has no seen-set, and announcing every household somebody is
+       already in would be the app shouting news that is years old. */
+    if (firstIndexSeeding(knownHouseholds)) rememberHouseholds(myHouseholds);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, myHouseholds]);
+  const arrivedHouseholds = firstIndexSeeding(knownHouseholds)
+    ? []
+    : newHouseholdsSince(knownHouseholds, myHouseholds, code);
+  const arrived = arrivedHouseholds[0];
 
   /* ── ITEM 91: THE HOME-SCREEN OFFER ─────────────────────────────────────
      Three pieces of browser state, none of which lib.js may touch, feeding one
@@ -1009,6 +1054,45 @@ export default function App() {
               ? "You can work the shopping list — tick things off and add what's missing."
               : "This phone shows the same list now."}
           </InstallOffer>
+        )}
+
+        {/* ITEM 92. A HOUSEHOLD THIS ACCOUNT JOINED SOMEWHERE ELSE.
+
+            NOT SHOWN AT THE SAME TIME AS THE JOIN CONFIRMATION: on the device
+            that did the joining both would fire at once and say the same
+            thing twice, in two cards, one of which offers to switch you to
+            where you already are.
+
+            SWITCHING IS THE ACTION, not a link into Settings. The whole
+            failure this fixes is somebody not knowing the household is there;
+            telling them to go and find it is only half a fix.
+
+            NAMED, not coded, and the name comes from the mirrored copy in the
+            index (item 90) — the household's own node is readable here, but
+            the mirror is what the household LIST already uses and the two must
+            not disagree in the same screenful. */}
+        {!justJoined && arrived && (
+          <NoticeCard
+            heading={`You've been added to ${householdLabel(myHouseholds?.[arrived]?.name, arrived)}`}
+            actions={
+              <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Btn
+                  kind="primary"
+                  small
+                  onClick={() => {
+                    rememberHouseholds(myHouseholds);
+                    setCode(arrived);
+                    finishOnboarding();
+                  }}
+                >
+                  Switch to it
+                </Btn>
+                <Btn small onClick={() => rememberHouseholds(myHouseholds)}>Not now</Btn>
+              </div>
+            }
+          >
+            You joined it in a browser or on another phone. This one can open it too.
+          </NoticeCard>
         )}
 
         {/* Two different messages, deliberately not merged. The first is an

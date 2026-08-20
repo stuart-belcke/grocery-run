@@ -458,7 +458,11 @@ export function Stripe() {
    `heading` is the load-bearing half and names the household, so somebody can
    CHECK they landed in the right one rather than take the app's word for it.
    `ask` is the optional half.                                              */
-export function InstallOffer({ heading, children, ask, onInstall, onDismiss }) {
+/* The shape both app-level good-news cards share. Extracted when the second
+   one arrived rather than copied, so that a change to the padding or the live
+   region cannot land on one and miss the other. Deliberately NOT generalised
+   past two: it is a green card with a heading, a sentence and some buttons. */
+export function NoticeCard({ heading, children, actions }) {
   return (
     <div
       role="status"
@@ -472,6 +476,15 @@ export function InstallOffer({ heading, children, ask, onInstall, onDismiss }) {
     >
       <div style={{ fontSize: 14, fontWeight: 700, color: C.green, marginBottom: 3 }}>{heading}</div>
       {children && <div style={{ fontSize: 13, color: C.ink }}>{children}</div>}
+      {actions}
+    </div>
+  );
+}
+
+export function InstallOffer({ heading, children, ask, onInstall, onDismiss }) {
+  return (
+    <NoticeCard heading={heading}>
+      {children}
 
       {/* A REAL BUTTON WHEN THE BROWSER OFFERED ONE, instructions when it did
           not. Chrome hands over a `beforeinstallprompt` event that opens the
@@ -502,7 +515,7 @@ export function InstallOffer({ heading, children, ask, onInstall, onDismiss }) {
           </Btn>
         </div>
       )}
-    </div>
+    </NoticeCard>
   );
 }
 
