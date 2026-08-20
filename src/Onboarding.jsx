@@ -145,35 +145,25 @@ export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError, i
             offer. Hiding the Sign in card for a signed-in visitor (item 87)
             left this saying "sign in below" with no Sign in below.
 
-            "SIGN IN BELOW, THEN COME BACK TO THIS SCREEN TO ACCEPT IT" WAS
-            THE ORIGINAL !signedIn WORDING, and asked about directly, twice:
-            first "why does it say come back to this screen to accept it",
-            then "where is it specifically that we have to return to" —
-            proof the sentence read as an INSTRUCTION rather than a
-            description. Nobody "comes back" to anything; the browser does
-            that on its own, mid sign-in, and it lands on this exact URL
-            because that is literally what it was told to reload
-            (sendEmailSignInLink sets url: origin + pathname — nowhere else
-            exists to name). Two problems, not one: "come back" implied an
-            action the reader had to perform, and "accept it" implied a
-            decision they had to make, and item 89 removed the decision for
-            the ordinary case — a tapped link redeems itself, the
-            "Joining the household…" banner is what happens next, nobody
-            taps anything.
-            THE REWRITE DESCRIBES NEITHER STEP AS SOMETHING TO DO. It states
-            the one true fact worth knowing before tapping Sign in: the
-            invite is not lost if the browser goes somewhere else first.
-            Still correct for the narrow second case this condition also
-            covers — an invite typed into the box by hand, which the
-            autoJoined effect does not watch and genuinely needs the manual
-            tap afterward — because "finishes joining" says nothing about
-            HOW, and the Join household button is sitting right there either
-            way. */}
+            item 94, three drafts, is why the !signedIn line is this short.
+            "...then come back to this screen to accept it" named a
+            destination that doesn't exist (asked directly: "where is it
+            specifically that we have to return to" — nowhere; the browser
+            reloads this exact URL on its own) and a decision that item 89
+            already removed (a tapped link redeems itself). Cutting the
+            travel reassurance too, on the same finding: the "Joining the
+            household…" banner below already covers "is this working" at
+            the moment it is true, so a sentence pre-empting a worry the
+            reader has not had yet was explaining more than asked. "Sign in
+            to join" mirrors the button beneath it and claims nothing about
+            mechanism, so it stays honest for the narrow case this condition
+            also covers — an invite typed in by hand, which does not
+            auto-redeem and still needs the Join household tap after. */}
         {memberInvite && (
           <div style={{ fontSize: 13, fontWeight: 500, color: C.green, padding: "10px 12px", background: C.greenSoft, borderRadius: 8, marginBottom: 12 }}>
             {signedIn
               ? "You've been invited to join a household. It's filled in below — tap Join household to accept."
-              : "You've been invited to join a household. Sign in below — it finishes joining on its own, even if that takes you away from the app for a moment."}
+              : "You've been invited to join a household. Sign in to join."}
           </div>
         )}
         {/* Nobody sent this browser here — it's a plain first open, e.g.

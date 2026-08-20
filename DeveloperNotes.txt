@@ -704,12 +704,27 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     manual-paste case — "finishes joining" names no mechanism, and the Join
     household button is there regardless.
 
-    ONE ROUND OF FEEDBACK WAS NOT ENOUGH, and that is the lesson worth
-    keeping: the first rewrite fixed the half that was factually wrong
-    (a claimed mechanism that no longer existed) and left the half that was
-    STRUCTURALLY wrong — instruction-shaped language for something the
-    reader takes no action on — because that half was still technically
-    true. True and clear are different bars.
+    A THIRD ROUND CUT THE REASSURANCE TOO: "Sign in below — it finishes
+    joining on its own, even if that takes you away from the app for a
+    moment." No longer wrong, but read directly and offered unprompted:
+    "You've been invited to join a household. Sign in to join." The
+    "Joining the household…" banner already answers "is this working" at
+    the moment that question is actually live — pre-empting a worry the
+    reader had not had yet was explaining more than asked, the same
+    mistake as items 14 and 47 found elsewhere in this app. Still honest
+    for the manual-paste case: the sentence claims no mechanism, so
+    whether it joins itself or waits for the Join household tap, nothing
+    here said anything that turned out false.
+
+    TWO ROUNDS OF FEEDBACK WERE NOT ENOUGH, and that is the lesson worth
+    keeping over the specific wording. The first rewrite fixed what was
+    factually wrong (a claimed mechanism that no longer existed) and left
+    what was STRUCTURALLY wrong (instruction-shaped language for something
+    the reader takes no action on) because that half was still technically
+    true. The second fixed the structure and left a sentence that was true,
+    clear, AND STILL UNNECESSARY — explaining a worry before it was asked.
+    True, clear, and needed are three different bars, and this line missed
+    each one in turn before clearing all three.
 
 Hygiene — not features, and not sequenced
 ------------------------------------------
