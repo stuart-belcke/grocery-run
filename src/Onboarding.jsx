@@ -143,12 +143,25 @@ export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError, i
             in — and getting this wrong is the exact shape of the bug item 82
             fixed: a screen telling you to do something the screen does not
             offer. Hiding the Sign in card for a signed-in visitor (item 87)
-            left this saying "sign in below" with no Sign in below. */}
+            left this saying "sign in below" with no Sign in below.
+
+            "TO ACCEPT IT" USED TO BE THE !signedIn WORDING, and it overclaimed
+            once item 89 shipped: for the ordinary case — this text is showing
+            because a TAPPED LINK filled the box in — signing in does not need
+            accepting, the autoJoined effect below redeems it by itself and the
+            "Joining the household…" banner is what actually happens next.
+            "Finish joining" is honest without naming a mechanism, because the
+            other case this same condition covers — someone typed or pasted an
+            invite into the box themselves — genuinely IS NOT auto-redeemed
+            (the effect watches linkInvite, the tapped-link state, not this
+            field's local text) and still needs the manual tap after signing
+            in. One sentence has to be true for both, so it describes the
+            outcome rather than the means. */}
         {memberInvite && (
           <div style={{ fontSize: 13, fontWeight: 500, color: C.green, padding: "10px 12px", background: C.greenSoft, borderRadius: 8, marginBottom: 12 }}>
             {signedIn
               ? "You've been invited to join a household. It's filled in below — tap Join household to accept."
-              : "You've been invited to join a household. Sign in below, then come back to this screen to accept it."}
+              : "You've been invited to join a household. Sign in below, then come back to this screen to finish joining."}
           </div>
         )}
         {/* Nobody sent this browser here — it's a plain first open, e.g.
