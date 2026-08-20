@@ -145,23 +145,35 @@ export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError, i
             offer. Hiding the Sign in card for a signed-in visitor (item 87)
             left this saying "sign in below" with no Sign in below.
 
-            "TO ACCEPT IT" USED TO BE THE !signedIn WORDING, and it overclaimed
-            once item 89 shipped: for the ordinary case — this text is showing
-            because a TAPPED LINK filled the box in — signing in does not need
-            accepting, the autoJoined effect below redeems it by itself and the
-            "Joining the household…" banner is what actually happens next.
-            "Finish joining" is honest without naming a mechanism, because the
-            other case this same condition covers — someone typed or pasted an
-            invite into the box themselves — genuinely IS NOT auto-redeemed
-            (the effect watches linkInvite, the tapped-link state, not this
-            field's local text) and still needs the manual tap after signing
-            in. One sentence has to be true for both, so it describes the
-            outcome rather than the means. */}
+            "SIGN IN BELOW, THEN COME BACK TO THIS SCREEN TO ACCEPT IT" WAS
+            THE ORIGINAL !signedIn WORDING, and asked about directly, twice:
+            first "why does it say come back to this screen to accept it",
+            then "where is it specifically that we have to return to" —
+            proof the sentence read as an INSTRUCTION rather than a
+            description. Nobody "comes back" to anything; the browser does
+            that on its own, mid sign-in, and it lands on this exact URL
+            because that is literally what it was told to reload
+            (sendEmailSignInLink sets url: origin + pathname — nowhere else
+            exists to name). Two problems, not one: "come back" implied an
+            action the reader had to perform, and "accept it" implied a
+            decision they had to make, and item 89 removed the decision for
+            the ordinary case — a tapped link redeems itself, the
+            "Joining the household…" banner is what happens next, nobody
+            taps anything.
+            THE REWRITE DESCRIBES NEITHER STEP AS SOMETHING TO DO. It states
+            the one true fact worth knowing before tapping Sign in: the
+            invite is not lost if the browser goes somewhere else first.
+            Still correct for the narrow second case this condition also
+            covers — an invite typed into the box by hand, which the
+            autoJoined effect does not watch and genuinely needs the manual
+            tap afterward — because "finishes joining" says nothing about
+            HOW, and the Join household button is sitting right there either
+            way. */}
         {memberInvite && (
           <div style={{ fontSize: 13, fontWeight: 500, color: C.green, padding: "10px 12px", background: C.greenSoft, borderRadius: 8, marginBottom: 12 }}>
             {signedIn
               ? "You've been invited to join a household. It's filled in below — tap Join household to accept."
-              : "You've been invited to join a household. Sign in below, then come back to this screen to finish joining."}
+              : "You've been invited to join a household. Sign in below — it finishes joining on its own, even if that takes you away from the app for a moment."}
           </div>
         )}
         {/* Nobody sent this browser here — it's a plain first open, e.g.
