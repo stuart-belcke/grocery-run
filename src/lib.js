@@ -43,6 +43,31 @@ export const MUST_CHOOSE_KEY = "grocery-run-must-choose-household-v1";
    deliberately skipped. */
 export const PENDING_INVITE_KEY = "grocery-run-pending-invite-v1";
 
+/* Item 91. "Not now" on the home-screen offer, remembered per DEVICE.
+   Per device and not per account, because the question is about this phone's
+   home screen, not about who is signed in — and signing out and back in must
+   not start asking again. The permanent version of the same offer lives in
+   Settings -> Account, which is where somebody who changes their mind goes;
+   that one is a note rather than a prompt and has nothing to dismiss. */
+export const INSTALL_DISMISSED_KEY = "grocery-run-install-dismissed-v1";
+
+/* Forces the just-joined state in a LOCAL-ONLY build, for the e2e suite.
+   Same seam and same rule as GUEST_PREVIEW_KEY / USER_PREVIEW_KEY below: only
+   read when syncEnabled is false, so a production build never looks at it.
+
+   IT EXISTS BECAUSE THE CONFIRMATION CANNOT OTHERWISE BE REACHED BY A TEST.
+   It appears after a successful join, joining needs a real database, and the
+   e2e build compiles the database out — so the whole banner, the platform
+   branches under it and the "Not now" that silences it would be exactly the
+   kind of untested WIRING that every bug this app has actually shipped lived
+   in. The pure decision (installPromptState) is unit-tested to death and
+   still proves nothing about whether App renders it.
+
+   The seam fakes only the MOMENT of joining. Platform, the held install event
+   and standalone-ness all still come from the real browser, so what the tests
+   exercise is the real branch. */
+export const INSTALL_PREVIEW_KEY = "grocery-run-e2e-install-preview";
+
 /* Forces the guest view in a LOCAL-ONLY build, for the e2e suite.
    Guest-ness comes from a members/{uid} record in the database, so a build
    with sync compiled out can never produce one and the guest UI would be
@@ -2488,6 +2513,131 @@ export function cleanCode(s) {
     .toLowerCase()
     .replace(/[^a-z0-9-]/g, "")
     .slice(0, 40);
+}
+
+/* ── ITEM 90: WHAT A HOUSEHOLD IS CALLED ────────────────────────────────────
+   A household has a code, which is its identity, and optionally a name, which
+   is what a person reads. Everything user-facing goes through householdLabel()
+   so the two can never drift apart in one place and not another.
+
+   THE NAME IS THE PROOF A JOIN WORKED. That is why it exists, and it is worth
+   more than a nicer label: "You've joined the household" is the app asserting
+   success, "You've joined Stuart's Household" lets somebody CHECK it against
+   the household they were invited to. On a phone that has never run this app,
+   nothing else on screen is verifiable — a shopping list looks equally
+   plausible if it belongs to the wrong household. Two failures that really
+   happened here are invisible without it: a device that minted its OWN
+   household instead of joining (item 84), and one that landed in a household
+   it had joined earlier rather than the invited one.
+
+   UNNAMED IS A NORMAL STATE, NOT AN ERROR. Every household that existed before
+   this shipped has no name, and somebody can join one before anybody names it.
+   So the fallback is the code, which is genuinely checkable: it is the same
+   string that is sitting in the invite link they just tapped.
+
+   NO DEFAULT LIKE "Home". It would be identical for everyone, confirm nothing,
+   and be indistinguishable from a name somebody actually chose. */
+export const HOUSEHOLD_NAME_MAX = 40;
+
+// What to show a person for a household. Never returns empty for a real code.
+export function householdLabel(name, code) {
+  const trimmed = String(name == null ? "" : name).trim();
+  return trimmed || String(code || "");
+}
+
+// True when this household is showing a name somebody chose, rather than
+// falling back to its code. Callers use it to decide whether a code is worth
+// showing SEPARATELY — printing "Stuart's Household (home-cx2ur9zg)" is useful,
+// printing "home-cx2ur9zg (home-cx2ur9zg)" is not.
+export function hasHouseholdName(name) {
+  return householdLabel(name, "") !== "";
+}
+
+/* ── ITEM 91: THE HOME-SCREEN PROMPT ────────────────────────────────────────
+   A phone that follows an invite link lands in a browser tab, and on iOS it
+   always will — an installed icon app cannot catch a link there. The tab gets
+   buried and the app looks like it stopped working. Nothing in the app said
+   "put this on your home screen", so everybody who has done it was told to by
+   hand.
+
+   THE PROMPT IS TWO HALVES AND THEY ARE SEPARABLE:
+     - the CONFIRMATION, which names the household. Everybody gets this. It is
+       the load-bearing half: it is what lets somebody CHECK they landed in
+       the household they were invited to rather than take the app's word.
+     - the HOME-SCREEN ASK. Not everybody gets this.
+
+   ANDROID GETS A BUTTON, iOS GETS INSTRUCTIONS, and that asymmetry is the
+   platform's, not a design choice. Chrome fires `beforeinstallprompt`; hold
+   the event and calling .prompt() opens the real OS install dialog. Safari has
+   never implemented it, so iOS can only draw the Share -> Add to Home Screen
+   gesture and hope. One is a tap; the other is a person following directions.
+
+   THE EVENT MAY SIMPLY NOT ARRIVE, even on Chrome — it is behind engagement
+   heuristics, it never fires when the app is already installed, and it does
+   not fire twice. So this decides between them on whether the event is
+   actually in hand, never on a guess about the platform. */
+
+// What the prompt should currently show. Pure so the whole matrix is testable
+// without a browser; every input is something App already knows.
+//
+//   standalone   already running from the home screen
+//   installEvent a held beforeinstallprompt (Android/Chrome), or null
+//   platform     "ios" | "android" | "unknown", only used to pick words
+//   anonymous    signed in with no account behind it
+//   dismissed    they tapped "Not now" on this device
+//
+// Returns { confirm, ask } where `ask` is "button", "ios", "android" or "".
+export function installPromptState({ standalone, installEvent, platform, anonymous, dismissed } = {}) {
+  // Nothing to offer a phone that already did it, and nothing to confirm
+  // either — the confirmation belongs to the moment of joining.
+  if (standalone) return { confirm: false, ask: "" };
+  if (dismissed) return { confirm: false, ask: "" };
+
+  /* AN ANONYMOUS GUEST GETS THE CONFIRMATION AND NOTHING ELSE. The draft used
+     to warn them that a home-screen icon would not carry their access — cut,
+     for three reasons. It rested on an UNTESTED belief about iOS keeping
+     home-screen storage separate from Safari. The true, milder version
+     already ships on the join card BEFORE they commit ("clearing this browser
+     means a new link"), where it can still change the decision. And adding
+     the icon anyway costs them a confusing screen, not their access: the icon
+     opens on first-run while the browser tab keeps working.
+     So: no ask, and no warning either. Silence is the whole fix. */
+  if (anonymous) return { confirm: true, ask: "" };
+
+  if (installEvent) return { confirm: true, ask: "button" };
+  if (platform === "ios") return { confirm: true, ask: "ios" };
+  if (platform === "android") return { confirm: true, ask: "android" };
+  // Platform unknown and no event: confirm the join, say nothing about the
+  // home screen. A confident wrong instruction is worse than none.
+  return { confirm: true, ask: "" };
+}
+
+/* Which gesture to name. ONLY used to choose a noun — this is the one place
+   the app reads a user-agent, and it never changes behaviour, only wording.
+   Returns "unknown" rather than guessing, which is what makes the "say
+   nothing" branch above reachable instead of decorative. */
+export function devicePlatform(ua) {
+  const s = String(ua || "");
+  // iPadOS 13+ reports itself as a Mac; the touch check is what separates a
+  // real iPad from a desktop, and a desktop has no home screen to add to.
+  if (/iPhone|iPad|iPod/i.test(s)) return "ios";
+  if (/Android/i.test(s)) return "android";
+  return "unknown";
+}
+
+/* Trim and cap a typed name to what the rules will accept. Returns "" for a
+   name that is only whitespace, which the caller writes as null — clearing the
+   name rather than storing a blank string, because a delete skips .validate
+   and an empty string would fail it.
+
+   The cap matches HOUSEHOLD_NAME_MAX and database.rules.json. Silently
+   truncating is right here: the field is a label, and refusing a long paste
+   outright would be a worse experience than shortening it. */
+export function cleanHouseholdName(s) {
+  return String(s == null ? "" : s)
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, HOUSEHOLD_NAME_MAX);
 }
 
 // The role rides in the STRING, because the account redeeming an invite

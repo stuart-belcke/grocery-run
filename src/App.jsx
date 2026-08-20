@@ -34,9 +34,11 @@ import {
   signOutUser,
   signInAnonymouslyForGuest,
   recordHouseholdMembership,
+  subscribeHouseholdName,
+  setHouseholdName,
 } from "./sync";
 import { C, fontDisplay, fontBody, syncTone, BOTTOM_NAV_H, BOTTOM_NAV_Z } from "./theme";
-import { Stripe, Btn, ChoiceDialog, useKeyboardOpen } from "./ui";
+import { Stripe, Btn, ChoiceDialog, InstallOffer, useKeyboardOpen } from "./ui";
 import {
   LOCAL_KEY,
   TABS,
@@ -44,6 +46,11 @@ import {
   ONBOARDED_KEY,
   MUST_CHOOSE_KEY,
   PENDING_INVITE_KEY,
+  INSTALL_DISMISSED_KEY,
+  INSTALL_PREVIEW_KEY,
+  installPromptState,
+  devicePlatform,
+  householdLabel,
   GUEST_PREVIEW_KEY,
   USER_PREVIEW_KEY,
   STATUS_PREVIEW_KEY,
@@ -639,6 +646,107 @@ export default function App() {
   // than the household, so it survives switching between them.
   useEffect(() => subscribeMyHouseholds(user, setMyHouseholds), [user]);
 
+  /* ── ITEM 91: THE HOME-SCREEN OFFER ─────────────────────────────────────
+     Three pieces of browser state, none of which lib.js may touch, feeding one
+     pure decision (installPromptState). */
+
+  // Already running from the home screen? Then there is nothing to offer.
+  // `navigator.standalone` is Safari's own, older flag and is the only one
+  // that answers on an iPhone; the media query is everyone else's.
+  const [standalone, setStandalone] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(display-mode: standalone)");
+    const read = () => setStandalone(mq.matches || window.navigator.standalone === true);
+    read();
+    mq.addEventListener?.("change", read);
+    return () => mq.removeEventListener?.("change", read);
+  }, []);
+
+  /* The moment of joining, which is the only moment the confirmation belongs
+     to. Deliberately NOT persisted: reopening the app tomorrow is not a join,
+     and a confirmation that reappears is no longer a confirmation. */
+  const [justJoined, setJustJoined] = useState(() => (syncEnabled ? false : !!loadJSON(INSTALL_PREVIEW_KEY)));
+
+  /* THE HELD INSTALL EVENT. Chrome fires this when it judges the app
+     installable; preventDefault stops its own mini-infobar so the offer
+     appears where we choose, and keeping the event is what lets a real button
+     open the OS dialog later. Safari never fires it, which is exactly why the
+     wording branch exists rather than assuming a platform. */
+  const [installEvent, setInstallEvent] = useState(null);
+  useEffect(() => {
+    const hold = (e) => {
+      e.preventDefault();
+      setInstallEvent(e);
+    };
+    // Once installed the event is spent and the offer is pointless. Clearing
+    // both is what stops the app nagging a phone that just did what was asked.
+    const done = () => {
+      setInstallEvent(null);
+      setJustJoined(false);
+    };
+    window.addEventListener("beforeinstallprompt", hold);
+    window.addEventListener("appinstalled", done);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", hold);
+      window.removeEventListener("appinstalled", done);
+    };
+  }, []);
+
+  const [installDismissed, setInstallDismissed] = useState(() => !!loadJSON(INSTALL_DISMISSED_KEY));
+  const platform = useMemo(
+    () => devicePlatform(typeof navigator === "undefined" ? "" : navigator.userAgent),
+    []
+  );
+  const installOffer = installPromptState({
+    standalone,
+    installEvent,
+    platform,
+    anonymous: !!(user && user.isAnonymous),
+    dismissed: installDismissed,
+  });
+  /* The SAME decision with `dismissed` forced false, for the permanent note in
+     Settings. That is not a fudge — the two are answering different questions.
+     The banner asks "should this interrupt them right now", which "Not now"
+     settles for good. The Settings note asks "is there anything to offer this
+     phone at all", and the person who goes looking for it in Settings has by
+     definition changed their mind. Everything else is shared, so the two can
+     never name a different gesture or appear on a phone already installed. */
+  const settingsInstallOffer = installPromptState({
+    standalone,
+    installEvent,
+    platform,
+    anonymous: !!(user && user.isAnonymous),
+    dismissed: false,
+  });
+  const dismissInstall = () => {
+    setInstallDismissed(true);
+    saveJSON(INSTALL_DISMISSED_KEY, true);
+  };
+  const doInstall = async () => {
+    if (!installEvent) return;
+    // One event, one use. Clearing it first means a second tap cannot call
+    // .prompt() again, which throws.
+    const e = installEvent;
+    setInstallEvent(null);
+    try {
+      await e.prompt();
+    } catch {
+      /* the dialog was dismissed, or the event had already been used */
+    }
+  };
+
+  /* Item 90: the current household's name. Its own subscription because it is
+     one short string that changes almost never, and because every member can
+     read it — including a guest, who sees the name but cannot change it.
+     Cleared the instant the code changes so a stale name from the household
+     you just left can never be shown over the one you just opened. */
+  const [householdName, setHouseholdNameState] = useState("");
+  useEffect(() => {
+    setHouseholdNameState("");
+    return subscribeHouseholdName(code, user, (n) => setHouseholdNameState(n || ""));
+  }, [code, user]);
+
   /* Signing in on a device that has not committed to a household yet should
      land on one the ACCOUNT already has, not on the code this browser
      invented seconds ago. Without it, a reinstall or an incognito window
@@ -744,6 +852,13 @@ export default function App() {
     }
     setCode(parsed.code);
     finishOnboarding();
+    /* Item 91. The one moment the confirmation belongs to. Set for EVERY
+       successful join, guest or member, anonymous or not — checking you
+       landed in the right household is worth as much to somebody helping
+       with one shop as to somebody moving in. What differs between them is
+       only whether a home-screen offer rides along; installPromptState
+       decides that, not this. */
+    setJustJoined(true);
     return { ok: true };
   };
 
@@ -866,6 +981,36 @@ export default function App() {
           {catalogNote && <div style={{ fontSize: 12, color: C.faint, marginTop: 8 }}>{catalogNote}</div>}
         </header>
 
+        {/* ITEM 91. THE JOIN CONFIRMATION. Above the tab content rather than
+            inside the List tab, because it is about the app rather than about
+            the list, and because it must not fight the List tab's pinned
+            header for the top of the screen.
+
+            THE HEADING NAMES THE HOUSEHOLD (item 90) and that is the point of
+            it: everything else on this screen would look identical if the
+            phone had landed in the wrong household — or in a fresh empty one
+            of its own, which is exactly what item 84 was. Unnamed households
+            fall back to the code, which is checkable against the invite link
+            they just tapped. */}
+        {justJoined && installOffer.confirm && (
+          <InstallOffer
+            heading={`You've joined ${householdLabel(householdName, code)}`}
+            ask={installOffer.ask}
+            onInstall={doInstall}
+            onDismiss={() => {
+              setJustJoined(false);
+              // "Not now" answers the home-screen question for good; it does
+              // not merely close this one card. Only recorded when there was
+              // actually an offer to decline.
+              if (installOffer.ask) dismissInstall();
+            }}
+          >
+            {isGuest
+              ? "You can work the shopping list — tick things off and add what's missing."
+              : "This phone shows the same list now."}
+          </InstallOffer>
+        )}
+
         {/* Two different messages, deliberately not merged. The first is an
             offer; the second is a fact about the data. */}
         {tooOld && (
@@ -934,6 +1079,16 @@ export default function App() {
                than nowhere: the app has to keep working offline afterwards,
                and a fresh code is exactly what a first run would have made. */
             restoreHousehold={(c) => restoreHousehold(c, user)}
+            householdName={householdName}
+            installPrompt={{ ask: settingsInstallOffer.ask, onInstall: doInstall }}
+            /* Optimistic on success: the subscription will confirm it a
+               moment later, but the field should not appear to forget what
+               was just typed while that round trip happens. */
+            setHouseholdName={async (name) => {
+              const res = await setHouseholdName(code, name, user);
+              if (res && res.ok) setHouseholdNameState(res.name || "");
+              return res;
+            }}
             graceDays={GRACE_DAYS}
             leaveHousehold={async () => {
               const res = await leaveHousehold(code, user, isGuest);

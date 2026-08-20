@@ -287,7 +287,7 @@ Tier 4 — multi-device / integrations (highest risk, do last)
 
 18. Export to / link with a Google calendar, keyed off the household.
 
-90. NAME A HOUSEHOLD. Proposed while the onboarding work was still in flight,
+90. [DONE] NAME A HOUSEHOLD. Proposed while the onboarding work was still in flight,
     and deliberately queued behind it: "once we get this working flawlessly,
     we can improve the household names by allowing the user to create a name."
     Right sequence — the app currently cannot say WHOSE household you just
@@ -368,9 +368,49 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     the name to something like "Home": identical for everyone, confirms
     nothing, and it would be indistinguishable from a real name.
 
-91. PROMPT TO ADD THE APP TO THE HOME SCREEN. Mocked up, argued over, NOT
-    built — four decisions still open. Recorded here so the mockup is not
-    the only record of it.
+    AS BUILT
+    --------
+    householdLabel(name, code) and hasHouseholdName(name) in lib.js are the
+    single display rule; nothing formats a household any other way.
+    cleanHouseholdName collapses whitespace and caps at HOUSEHOLD_NAME_MAX,
+    which a unit test asserts against the number in database.rules.json —
+    two places had to agree and nothing else checked it.
+
+    THE CODE IS STILL SHOWN, quieter, beneath the name. Dropping it would
+    break the two things a code is FOR: matching a household against the
+    invite link somebody sent you, and reading it out when something has
+    gone wrong. The name answers "which one is this"; the code answers "is
+    this the one in the link".
+
+    THE INDEX CARRIES ITS OWN COPY OF THE NAME, and that is not an
+    optimisation — it is the only way the deleted-household list can be
+    drawn. Reading households/{code}/anything needs a membership record, and
+    leaving DELETES that record in the same write that stamps the tombstone.
+    So the instant a household becomes restorable, its name is unreadable to
+    the one person who needs to identify it before pressing Restore.
+    users/{uid}/households/{code}/name stays readable, so the copy has to
+    already be there. It is refreshed whenever this device proves membership
+    and whenever a live name arrives, which bounds the staleness at "the
+    next time this phone opens that household" — also the first moment it
+    could matter. Needed no rules change: users/{uid} is already scoped to
+    the account.
+
+    RULES: only a `.validate` was added. Read and write already came out
+    right from the $code rules — any member may READ the name, only a FULL
+    member may write it. A guest renaming the household they were let into
+    for one afternoon is not a thing that should be possible, and a rules
+    test asserts exactly that (mutation-checked: dropping the role clause
+    from the $code .write fails it independently of the ten other guest
+    tests). Clearing the name is a DELETE, which skips .validate — which is
+    what lets the rule require a non-empty string without making "no name"
+    unreachable.
+
+    NOT TESTED: the rename control itself. It lives behind syncEnabled, so a
+    local-only build never renders it and the e2e suite cannot reach it —
+    the same gap as leaving and restoring a household. The pure logic and
+    the rules under it are both covered; the wiring between them is not.
+
+91. [DONE] PROMPT TO ADD THE APP TO THE HOME SCREEN.
 
     WHY: a phone that follows an invite link lands in a browser tab, and on
     iOS it always will — an installed icon app cannot catch a link there.
@@ -466,10 +506,62 @@ Tier 4 — multi-device / integrations (highest risk, do last)
         Test on a real iPhone: sign in, Add to Home Screen, open the icon,
         see whether you are still signed in.
 
-    OPEN DECISIONS, two left. (2) should the guest card offer signing in,
-    which is the step C1 needs and does not have. (4) ship A and D, or D
-    alone. Resolved: (1) name the household, per item 90; (3) C2's warning
-    comes out, above.
+    ALL FOUR DECISIONS RESOLVED, and how:
+      (1) NAME THE HOUSEHOLD. Item 90 became a prerequisite rather than a
+          follow-up and shipped first. The confirmation reads "You've joined
+          Stuart's Household", falling back to the code.
+      (2) THE GUEST CARD OFFERS SIGNING IN. This was the missing step for
+          C1 and it is now on the first-run screen: a guest link leads with
+          Join, then Sign in DIRECTLY BENEATH IT rather than under "Just me,
+          on this device", which is not an alternative to helping with
+          somebody else's shop. A signed-in guest is not asked to type a
+          name — the account has one and joinWithInvite already falls back
+          to it.
+      (3) C2's WARNING IS GONE. See above.
+      (4) SHIPPED A AND D BOTH. A is the one that gets seen; D is the one
+          still there next week, and it is the same computed offer with
+          `dismissed` forced false so that "Not now" cannot hide it from
+          somebody who has come looking.
+
+    "GUEST" WAS OVERLOADED AND THE FIX WAS NOT A NEW WORD. It was doing two
+    jobs: the ROLE (limited, revocable access) and the SIGN-IN STATE (no
+    account). Onboarding.jsx even had the conflation written down as a
+    design justification — "a guest link needs nothing from Sign in (a guest
+    never has an account)" — which is false and is why C1 was invisible.
+    Only ONE of the two needs a noun. The role keeps "guest": it is a chip in
+    the member list, a button, and a value in the rules. The sign-in state
+    gets no noun at all and is phrased as a condition ("no account needed",
+    "sign in first to keep it on your account"). Both doors are now labelled
+    "Join as guest", because the role IS guest either way and labelling them
+    differently would imply signing in buys full membership, which the
+    invite and the rules both refuse.
+    A LEXICAL RENAME (guest -> helper throughout) was considered and NOT
+    done: it is roughly 15 strings, it is reversible, and it is a naming
+    preference rather than a correctness fix now that the logical overload
+    is gone. The wire value `role: 'guest'` must not change regardless —
+    every device writes it, the rules compare the literal string, and the
+    `!= 'guest'` asymmetry is load-bearing.
+
+    WHAT IS TESTED, AND WHAT IS NOT:
+      - installPromptState and devicePlatform: unit tests over the whole
+        matrix, including that the CONFIRMATION survives every case that
+        removes the ask.
+      - The WIRING: tests/e2e/specs/installoffer.spec.mjs, in a real browser
+        with a real per-context user-agent — the iOS gesture, the Android
+        gesture, silence on a browser it cannot place, a synthetic
+        beforeinstallprompt turning the instructions into a button, that
+        button calling .prompt() exactly once and then going away, an
+        anonymous guest getting the confirmation and nothing else, and
+        "Not now" surviving a round trip while the Settings note does not
+        care about it.
+      - The MOMENT OF JOINING is seeded (INSTALL_PREVIEW_KEY), because a
+        real join needs the database the e2e build compiles out. Platform,
+        the held event and standalone-ness all still come from the real
+        browser, so the branch under test is the real one.
+      - NOT TESTED ANYWHERE: that Chrome actually fires the event on a real
+        phone, and the rename control in Settings, which lives behind
+        syncEnabled and therefore cannot appear in a local-only build — the
+        same gap as leaving and restoring a household.
 
 
 Hygiene — not features, and not sequenced

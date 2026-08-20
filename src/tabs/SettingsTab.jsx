@@ -7,12 +7,53 @@
 import { useState, useEffect, useMemo } from "react";
 import { C, fontBody, inputStyle, syncTone } from "../theme";
 import { Btn, ConfirmDialog, AlertDialog, Section, Seg, HelpText } from "../ui";
-import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, remapStateIngredientIds, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, inviteLive, newInviteToken, searchHelp, writeErrorAdvice } from "../lib";
+import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, remapStateIngredientIds, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, inviteLive, newInviteToken, searchHelp, writeErrorAdvice, householdLabel, hasHouseholdName, cleanHouseholdName, HOUSEHOLD_NAME_MAX } from "../lib";
 import { syncEnabled } from "../sync";
 import { HOW_IT_WORKS, FAQS } from "../help";
 import { UnitConverter } from "../UnitConverter";
 
-export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, sync, writeError, user, accessDenied, myHouseholds, members, invites, isGuest, createInvite, revokeInvite, joinWithInvite, removeMember, leaveHousehold, restoreHousehold, graceDays = 30, authError, signInWithGoogle, sendEmailSignInLink, signOutUser, initialInvite = "" }) {
+/* One household, as a person reads it. Item 90.
+
+   THE CODE STAYS VISIBLE EVEN WHEN THERE IS A NAME, quieter and underneath.
+   Dropping it would break the two things the code is actually for: matching a
+   household against the invite link somebody sent you, and reading it out to
+   the other person when something has gone wrong. The name answers "which
+   one is this"; the code answers "is this the one in the link". Both are
+   needed, so both are shown — the name first, because it is the one a person
+   can hold in their head. */
+function HouseholdLabel({ name, code, dim }) {
+  const named = hasHouseholdName(name);
+  return (
+    <span style={{ flex: 1, minWidth: 0 }}>
+      <span
+        style={{
+          display: "block",
+          wordBreak: "break-all",
+          color: dim ? C.faint : C.ink,
+          fontFamily: named ? fontBody : "ui-monospace, Menlo, monospace",
+          fontWeight: named ? 500 : 400,
+        }}
+      >
+        {householdLabel(name, code)}
+      </span>
+      {named && (
+        <span
+          style={{
+            display: "block",
+            fontSize: 12,
+            color: C.faint,
+            fontFamily: "ui-monospace, Menlo, monospace",
+            wordBreak: "break-all",
+          }}
+        >
+          {code}
+        </span>
+      )}
+    </span>
+  );
+}
+
+export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, sync, writeError, user, accessDenied, myHouseholds, members, invites, isGuest, createInvite, revokeInvite, joinWithInvite, removeMember, leaveHousehold, restoreHousehold, graceDays = 30, authError, signInWithGoogle, sendEmailSignInLink, signOutUser, initialInvite = "", householdName = "", setHouseholdName, installPrompt }) {
   const prefs = data.prefs;
   const setPref = (patch) => updateCatalog((c) => ({ ...c, prefs: { ...c.prefs, ...patch } }));
   // The members node as written: { uid: { email, displayName, updatedAt } }.
@@ -35,9 +76,21 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
     const seen = { ...(myHouseholds || {}) };
     if (code && !seen[code]) seen[code] = { updatedAt: 0 };
     return Object.entries(seen)
-      .map(([c, v]) => ({ code: c, updatedAt: (v && v.updatedAt) || 0, deletedAt: (v && v.deletedAt) || 0 }))
+      .map(([c, v]) => ({
+        code: c,
+        updatedAt: (v && v.updatedAt) || 0,
+        deletedAt: (v && v.deletedAt) || 0,
+        /* The name comes from the INDEX, not from the household — see
+           mirrorHouseholdName in sync.js. A deleted household has no
+           membership record for this account, so its own node is unreadable;
+           the mirrored copy is the only name left to identify it by, and
+           identifying it is the entire point of the Restore row.
+           For the household currently open, the live subscription is fresher,
+           so prefer that. */
+        name: (c === code && householdName) || (v && v.name) || "",
+      }))
       .sort((a, b) => b.updatedAt - a.updatedAt);
-  }, [myHouseholds, code]);
+  }, [myHouseholds, code, householdName]);
   /* Item 86. A DELETED HOUSEHOLD IS STILL LISTED, separately, until the
      sweep takes it. It is not somewhere this account can go — no membership
      record, so the database refuses every read — which is exactly why it
@@ -45,6 +98,36 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
   const liveHouseholds = useMemo(() => myHouseholdList.filter((h) => !h.deletedAt), [myHouseholdList]);
   const deletedHouseholds = useMemo(() => myHouseholdList.filter((h) => h.deletedAt), [myHouseholdList]);
   const [restoring, setRestoring] = useState("");
+
+  /* ITEM 90: the household name, as an editable draft.
+     Seeded from the live name and RE-SEEDED whenever that changes — which
+     covers both the first load (the subscription answers after the first
+     render) and a rename made on the other phone. Keying the effect on the
+     code as well means switching households does not carry the old name into
+     the new household's field, which would offer to rename it to something
+     from somewhere else. */
+  const [nameDraft, setNameDraft] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const [nameMsg, setNameMsg] = useState("");
+  useEffect(() => {
+    setNameDraft(householdLabel(householdName, ""));
+    setNameMsg("");
+  }, [householdName, code]);
+
+  const doSaveName = async () => {
+    if (!setHouseholdName) return;
+    setSavingName(true);
+    setNameMsg("");
+    const res = await setHouseholdName(cleanHouseholdName(nameDraft));
+    setSavingName(false);
+    if (res && res.ok) {
+      setNameMsg(res.name ? `Now called ${res.name}.` : "Name cleared — showing the code again.");
+    } else if (res && res.reason === "denied") {
+      setNameMsg("The database refused that — only full members can rename a household.");
+    } else {
+      setNameMsg("Couldn't save the name. Check the connection and try again.");
+    }
+  };
 
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
@@ -547,6 +630,46 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
             <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 12px" }}>
               Everyone in a household shares one live shopping list, week plan and set of recipes.
             </p>
+
+            {/* ITEM 90: NAMING THIS HOUSEHOLD. First in the section because it
+                is the household's identity, and because everything below it
+                reads better once there is a name to put in.
+
+                NOT SHOWN TO A GUEST. The rules refuse the write, and a control
+                that always fails is worse than no control.
+
+                The code is NOT replaced by the name anywhere — see
+                HouseholdLabel. The name is what a person recognises; the code
+                is what matches an invite link. */}
+            {!isGuest && (
+              <div style={{ marginBottom: 14 }}>
+                <label htmlFor="household-name" style={{ fontSize: 13, color: C.faint, display: "block", marginBottom: 4 }}>
+                  What to call this household
+                </label>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <input
+                    id="household-name"
+                    style={{ ...inputStyle, flex: 1, minWidth: 160 }}
+                    value={nameDraft}
+                    maxLength={HOUSEHOLD_NAME_MAX}
+                    placeholder="Stuart's Household"
+                    onChange={(e) => setNameDraft(e.target.value)}
+                  />
+                  <Btn
+                    disabled={savingName || cleanHouseholdName(nameDraft) === householdLabel(householdName, "")}
+                    onClick={doSaveName}
+                  >
+                    {savingName ? "Saving…" : "Save name"}
+                  </Btn>
+                </div>
+                <p style={{ fontSize: 13, color: C.faint, margin: "6px 0 0" }}>
+                  {nameMsg ||
+                    (hasHouseholdName(householdName)
+                      ? "Everyone in the household sees this name. Clearing it goes back to showing the code."
+                      : "Give it a name and joining phones can tell they landed in the right household.")}
+                </p>
+              </div>
+            )}
             {/* Item 37: the list you check when someone can't get in. Reads
                 households/{code}/members, whose email and displayName are
                 denormalized onto each record exactly so this never has to
@@ -690,9 +813,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                 <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
                   {liveHouseholds.map((h) => (
                     <li key={h.code} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 13 }}>
-                      <span style={{ flex: 1, minWidth: 0, fontFamily: "ui-monospace, Menlo, monospace", wordBreak: "break-all", color: C.ink }}>
-                        {h.code}
-                      </span>
+                      <HouseholdLabel name={h.name} code={h.code} />
                       {h.code === code ? (
                         <span style={{ fontSize: 12, color: C.green, fontWeight: 500 }}>this phone</span>
                       ) : (
@@ -713,9 +834,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                 <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
                   {deletedHouseholds.map((h) => (
                     <li key={h.code} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 13 }}>
-                      <span style={{ flex: 1, minWidth: 0, fontFamily: "ui-monospace, Menlo, monospace", wordBreak: "break-all", color: C.faint }}>
-                        {h.code}
-                      </span>
+                      <HouseholdLabel name={h.name} code={h.code} dim />
                       <Btn small disabled={restoring === h.code} onClick={() => doRestore(h.code)}>
                         {restoring === h.code ? "Restoring…" : "Restore"}
                       </Btn>
@@ -755,6 +874,47 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         title="Account"
         aside={user ? <span style={{ fontSize: 12, fontWeight: 400, color: C.faint }}>{user.displayName || user.email}</span> : null}
       >
+        {/* ITEM 91, THE PERMANENT HALF — and it sits ABOVE the sync branch
+            on purpose. The confirmation over the list is shown once and can
+            be dismissed; this is where the same offer lives afterwards, for
+            the person who tapped "Not now" in week one and is tired of
+            hunting for the browser tab in week three.
+
+            IN "Account" because this is where "who am I on this phone"
+            already lives. OUTSIDE the syncEnabled branch because putting the
+            app on the home screen has nothing whatever to do with the
+            database — it is a property of the phone, it works offline, and a
+            build with no sync configured still deserves the offer.
+
+            A NOTE, NOT A PROMPT: no "Not now", because there is nothing to
+            dismiss twice. It disappears on its own once the app runs from the
+            home screen, and it is never shown to an anonymous guest, who has
+            no account to carry across.
+
+            installPrompt is the same object App feeds the banner, so the two
+            can never disagree about whether there is anything to offer or
+            which gesture to name. */}
+        {installPrompt && installPrompt.ask && (
+          <div style={{ fontSize: 13, color: C.ink, margin: "8px 0 12px", padding: "10px 12px", background: C.greenSoft, border: `1px solid ${C.green}`, borderRadius: 8, lineHeight: 1.5 }}>
+            <b style={{ color: C.green }}>Open it from your home screen.</b> It opens without the
+            browser bar, works offline and stays signed in.
+            {installPrompt.ask === "button" && (
+              <div style={{ marginTop: 8 }}>
+                <Btn kind="primary" small onClick={installPrompt.onInstall}>Add to home screen</Btn>
+              </div>
+            )}
+            {installPrompt.ask === "ios" && (
+              <div style={{ fontSize: 13, color: C.faint, marginTop: 6 }}>
+                <span aria-hidden>↑ </span>Tap Share, then <b>Add to Home Screen</b>
+              </div>
+            )}
+            {installPrompt.ask === "android" && (
+              <div style={{ fontSize: 13, color: C.faint, marginTop: 6 }}>
+                <span aria-hidden>⋮ </span>Open the menu, then <b>Install app</b>
+              </div>
+            )}
+          </div>
+        )}
         {!syncEnabled ? (
           <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 0" }}>
             Sign-in needs the phone-to-phone sync setup above turned on first.
@@ -775,6 +935,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
             <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
               Signing out keeps this phone&apos;s data and stops it syncing until you sign back in.
             </p>
+
             {/* NAME THE ACTUAL REMEDY. This used to say "check the code above
                 matches the other phone exactly", which sends you to fix the
                 one thing that is not broken: since invites landed, a correct

@@ -12,7 +12,7 @@
  * ------------------------------------------------------------------ */
 
 import { firebaseConfig, syncEnabled } from "./firebase-config";
-import { planWrite, cleanCode, newInviteToken, newHouseholdCode } from "./lib";
+import { planWrite, cleanCode, newInviteToken, newHouseholdCode, cleanHouseholdName } from "./lib";
 
 /* ------------------------- write failure signal ---------------------
    A rejected write (security rules, quota, a malformed payload) used to be
@@ -469,8 +469,20 @@ async function getAuthInstance() {
   return authPromise;
 }
 
-// cb(userOrNull), where user is { uid, email, displayName }. Fires
-// immediately with the current state, then on every sign-in / sign-out.
+/* cb(userOrNull), where user is { uid, email, displayName, isAnonymous }.
+   Fires immediately with the current state, then on every sign-in / sign-out.
+
+   `isAnonymous` USED TO BE DROPPED HERE, and dropping it flattened a
+   distinction the whole app depends on. GUEST IS A ROLE, NOT AN IDENTITY: the
+   rules read `role == 'guest' OR provider != anonymous`, so a guest membership
+   may perfectly well be held by a REAL ACCOUNT — somebody who already uses
+   this app for their own shopping, helping with yours for an afternoon.
+   Signing in anonymously is a convenience for a person who has no account,
+   never a requirement of the guest role.
+
+   Without this field the app cannot tell those two apart, so it had to assume
+   every guest was browser-bound and say so. That assumption was wrong for the
+   commonest case and made the better one invisible. */
 export function watchAuthUser(cb) {
   if (!syncEnabled) {
     cb(null);
@@ -481,7 +493,9 @@ export function watchAuthUser(cb) {
   getAuthInstance().then(async (auth) => {
     if (!auth || !live) return;
     const { onAuthStateChanged } = await import("firebase/auth");
-    off = onAuthStateChanged(auth, (u) => cb(u ? { uid: u.uid, email: u.email, displayName: u.displayName } : null));
+    off = onAuthStateChanged(auth, (u) =>
+      cb(u ? { uid: u.uid, email: u.email, displayName: u.displayName, isAnonymous: !!u.isAnonymous } : null)
+    );
   });
   return () => {
     live = false;
@@ -694,12 +708,102 @@ export async function recordHouseholdMembership(code, user) {
        asking the database. This is the only way to answer "which am I in?" */
     await update(ref(db, `users/${user.uid}/households/${code}`), { updatedAt: Date.now() });
     reportWriteOk();
+    // The name is mirrored into that index separately, and only once we are
+    // certainly a member — see mirrorHouseholdName for why the index has to
+    // carry a copy at all.
+    mirrorHouseholdName(code, user).catch(() => {});
     return true;
   } catch (e) {
     if (e && e.code === "PERMISSION_DENIED") return false;
     reportWriteError(e, "membership record for this device");
     return false;
   }
+}
+
+/* ── ITEM 90: THE HOUSEHOLD'S NAME ──────────────────────────────────────────
+   The name lives at households/{code}/name and is the truth. A COPY also
+   lives at users/{uid}/households/{code}/name, and that copy is not an
+   optimisation — it is the only way one of the lists can be drawn at all.
+
+   WHY THE INDEX HAS TO CARRY ITS OWN COPY. Reading households/{code}/anything
+   requires a membership record. Leaving DELETES your membership record (it is
+   the same write that stamps the tombstone). So the moment a household lands
+   in the "deleted, restorable" list, its name is unreadable to the very person
+   who needs to identify it before pressing Restore. The index under
+   users/{uid} stays readable — the rules scope it to the account itself — so
+   the name has to already be there.
+
+   STALENESS IS BOUNDED AND SELF-CORRECTING. The copy is refreshed every time
+   this device proves it is a member (recordHouseholdMembership) and every time
+   it sees a live name arrive for the household it is currently in. So a rename
+   by the other phone shows up here the next time this phone opens that
+   household — which is also the first moment it could possibly matter. */
+
+// Read the live name once and write it into this account's index. Silent on
+// failure: an unnamed household, a lost race, or a household we turn out not
+// to be in are all ordinary, and none of them is worth an error indicator.
+export async function mirrorHouseholdName(code, user) {
+  const db = await getDb();
+  if (!db || !user || !code) return;
+  const { ref, get, update } = await import("firebase/database");
+  const snap = await get(ref(db, `households/${code}/name`));
+  const name = snap.exists() ? snap.val() : null;
+  await update(ref(db, `users/${user.uid}/households/${code}`), { name: name || null });
+}
+
+/* Rename a household. Full members only — the rules enforce that, and it is
+   deliberate: a guest let in for one afternoon should not be able to rename
+   the place. An empty name is written as null, DELETING the field, because a
+   delete skips .validate while an empty string would fail it. */
+export async function setHouseholdName(code, name, user) {
+  const db = await getDb();
+  if (!db || !code) return { ok: false, reason: "offline" };
+  const { ref, update } = await import("firebase/database");
+  const value = cleanHouseholdName(name) || null;
+  try {
+    await update(ref(db, `households/${code}`), { name: value });
+    // Keep this account's own index in step immediately, so the household
+    // list does not show the old name until the next reload.
+    if (user) await update(ref(db, `users/${user.uid}/households/${code}`), { name: value });
+    reportWriteOk();
+    return { ok: true, name: value };
+  } catch (e) {
+    if (e && e.code === "PERMISSION_DENIED") return { ok: false, reason: "denied" };
+    reportWriteError(e, "the household name");
+    return { ok: false };
+  }
+}
+
+/* Watch the current household's name. Separate from the state and catalog
+   subscriptions on purpose: this is one short string, it changes almost never,
+   and every device that can read the household can read it. Also refreshes
+   this account's mirrored copy whenever the live value differs, which is what
+   makes a rename on the other phone reach this phone's household list. */
+export function subscribeHouseholdName(code, user, cb) {
+  if (!syncEnabled || !code) {
+    cb(null);
+    return () => {};
+  }
+  let stop = () => {};
+  let last;
+  (async () => {
+    const db = await getDb();
+    if (!db) return;
+    const { ref, onValue, update } = await import("firebase/database");
+    stop = onValue(
+      ref(db, `households/${code}/name`),
+      (snap) => {
+        const name = snap.exists() ? snap.val() : null;
+        cb(name);
+        if (user && name !== last) {
+          last = name;
+          update(ref(db, `users/${user.uid}/households/${code}`), { name: name || null }).catch(() => {});
+        }
+      },
+      () => cb(null)
+    );
+  })();
+  return () => stop();
 }
 
 /* The households this account has been a member of, newest first. Live, so
@@ -752,6 +856,9 @@ export async function restoreHousehold(code, user) {
     await update(ref(db, `households/${code}`), { deletedAt: null, deletedBy: null });
     await update(ref(db, `users/${user.uid}/households/${code}`), { deletedAt: null, updatedAt: Date.now() });
     reportWriteOk();
+    // Readable again now that the membership record is back — and the mirrored
+    // copy is what the restored household will be listed under.
+    mirrorHouseholdName(code, user).catch(() => {});
     return { ok: true };
   } catch (e) {
     // The expected failure: the grace period ran out and the sweep took it.
@@ -868,6 +975,14 @@ export async function joinWithInvite(code, token, user, role = "member", display
     /* already in; the invite expires on its own */
   }
   reportWriteOk();
+  /* Pull the household's name into this account's index the moment the join
+     lands. This is the first instant it is readable at all — reads need the
+     membership record that was just written — and it is also the instant it
+     is worth the most, because the join confirmation is about to be shown and
+     naming the household is what lets somebody CHECK that they ended up in
+     the right one. Not awaited: the join has already succeeded, and a slow or
+     failed name read must not turn a successful join into a failure. */
+  mirrorHouseholdName(code, user).catch(() => {});
   return { ok: true };
 }
 

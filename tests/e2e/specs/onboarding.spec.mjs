@@ -161,21 +161,51 @@ test("a guest link needs no account, and does not send you to sign in", async ()
   }
 });
 
-test("a guest link leads with Join, not Sign in — a guest never needs an account", async () => {
-  // The default order puts Sign in first because a full invite needs an
-  // account. A guest link is the one route that needs NEITHER an account
-  // NOR the "just me" fallback, so making it lead with the one card that
-  // actually applies is what "know exactly what to do next" means here.
+test("a guest link leads with Join, then offers Sign in as the alternative", async () => {
+  /* The default order puts Sign in first because a full invite needs an
+     account. A guest link leads with Join, because it is the quicker way in
+     and it is why they are here.
+
+     SIGN IN NOW SITS SECOND, not last, and the old order was justified by a
+     claim that turned out to be false: "a guest never has an account". The
+     rules read role == 'guest' OR provider != anonymous, so a REAL ACCOUNT
+     may hold a guest membership — somebody who already uses this app helping
+     with your shop from their own installed app. Burying Sign in under "Just
+     me, on this device" hid that route, and "just me" is not an alternative
+     to helping with somebody else's shopping. */
   const page = await freshApp();
   try {
     await page.locator("#onboard-invite").fill("home-cx2ur9zg~abcdefgh1234~g");
     await page.waitForTimeout(250);
 
     const order = await page.evaluate(() => [...document.querySelectorAll("h2")].map((h) => h.textContent.trim()));
-    assert.deepEqual(order, ["Join as a guest", "Just me, on this device", "Sign in"]);
+    assert.deepEqual(order, ["Join as a guest", "Sign in", "Just me, on this device"]);
 
     const body = await page.textContent("body");
     assert.match(body, /You.ve been invited to help with the shopping/, "should say what's about to happen, not just how to do it");
+    // BOTH doors named, in the sentence that tells them what to do.
+    assert.match(body, /sign in first to keep it on your account/i, "the guest card never mentions the account route");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("a guest link with an account already signed in does not ask for a name", async () => {
+  /* State C1: the person already uses this app. joinWithInvite falls back to
+     the account's own displayName and email, so asking them to type a name
+     they have already given is exactly the extra step that has stopped people
+     getting in before. */
+  const page = await openApp(BASE, {
+    onboarded: false,
+    user: { uid: "u9", email: "friend@example.com", displayName: "Friend", isAnonymous: false },
+    hash: "#join=home-cx2ur9zg~abcdefgh1234~g",
+  });
+  try {
+    assert.equal(await page.locator("#onboard-name").count(), 0, "a signed-in guest was asked to type a name");
+    // And the button still says what role is being taken — signing in first
+    // does not buy full membership, and must not look as though it does.
+    assert.equal(await page.locator('button:has-text("Join as guest")').count(), 1);
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

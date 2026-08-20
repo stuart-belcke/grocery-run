@@ -444,6 +444,68 @@ export function Stripe() {
   );
 }
 
+/* ── ITEM 91: THE JOIN CONFIRMATION AND HOME-SCREEN OFFER ───────────────────
+   Presentational only — every decision about WHETHER to show this, and which
+   half, is installPromptState() in lib.js. This just draws what it is told.
+
+   GREEN, NOT GOLD. A good outcome with a next step, not a warning. The one
+   draft that used gold was telling an account-less guest NOT to do something,
+   and that card came out entirely: it rested on an untested claim about iOS
+   storage, the join card already says the true and milder version before
+   they commit, and installing anyway costs a confusing screen rather than
+   their access.
+
+   `heading` is the load-bearing half and names the household, so somebody can
+   CHECK they landed in the right one rather than take the app's word for it.
+   `ask` is the optional half.                                              */
+export function InstallOffer({ heading, children, ask, onInstall, onDismiss }) {
+  return (
+    <div
+      role="status"
+      style={{
+        background: C.greenSoft,
+        border: `1px solid ${C.green}`,
+        borderRadius: 10,
+        padding: "10px 12px",
+        margin: "0 0 12px",
+      }}
+    >
+      <div style={{ fontSize: 14, fontWeight: 700, color: C.green, marginBottom: 3 }}>{heading}</div>
+      {children && <div style={{ fontSize: 13, color: C.ink }}>{children}</div>}
+
+      {/* A REAL BUTTON WHEN THE BROWSER OFFERED ONE, instructions when it did
+          not. Chrome hands over a `beforeinstallprompt` event that opens the
+          OS install dialog; Safari has never had an equivalent, so iOS can
+          only name the gesture. Never both. */}
+      {ask === "button" && (
+        <div style={{ marginTop: 8 }}>
+          <Btn kind="primary" small onClick={onInstall}>
+            Add to home screen
+          </Btn>
+        </div>
+      )}
+      {ask === "ios" && (
+        <div style={{ marginTop: 6, fontSize: 13, color: C.faint }}>
+          <span aria-hidden>↑ </span>Tap Share, then <b>Add to Home Screen</b>
+        </div>
+      )}
+      {ask === "android" && (
+        <div style={{ marginTop: 6, fontSize: 13, color: C.faint }}>
+          <span aria-hidden>⋮ </span>Open the menu, then <b>Install app</b>
+        </div>
+      )}
+
+      {onDismiss && (
+        <div style={{ marginTop: 8 }}>
+          <Btn small onClick={onDismiss}>
+            Not now
+          </Btn>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Btn({ children, onClick, kind = "ghost", small, style, title, disabled, ...rest }) {
   const base = {
     fontFamily: fontBody,

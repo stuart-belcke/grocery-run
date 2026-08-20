@@ -19,6 +19,12 @@ import {
   newInviteToken,
   validCode,
   newHouseholdCode,
+  householdLabel,
+  installPromptState,
+  devicePlatform,
+  hasHouseholdName,
+  cleanHouseholdName,
+  HOUSEHOLD_NAME_MAX,
   parseJoinHash,
   inviteLive,
   syncIndicator,
@@ -3274,4 +3280,143 @@ test("unwrapping a link changes nothing for input that isn't one", () => {
   assert.deepEqual(classifyJoinInput("home-cx2ur9zg"), { kind: "code", code: "home-cx2ur9zg" });
   assert.deepEqual(classifyJoinInput("home-cx2ur9zg~short"), { kind: "broken" });
   assert.deepEqual(classifyJoinInput("hello"), { kind: "short" });
+});
+
+/* ── ITEM 90: HOUSEHOLD NAMES ─────────────────────────────────────────────
+   The name exists so a join can be CHECKED rather than believed, so the
+   cases that matter are the ones where a name is missing or junk: falling
+   back to something meaningless would defeat the whole point. */
+
+test("an unnamed household shows its code, which is what the invite link contains", () => {
+  assert.equal(householdLabel("", "home-cx2ur9zg"), "home-cx2ur9zg");
+  assert.equal(householdLabel(null, "home-cx2ur9zg"), "home-cx2ur9zg");
+  assert.equal(householdLabel(undefined, "home-cx2ur9zg"), "home-cx2ur9zg");
+});
+
+test("a name that is only whitespace is not a name", () => {
+  // Otherwise a household could be labelled with a blank, which reads as the
+  // app having lost the household rather than as it being unnamed.
+  assert.equal(householdLabel("   ", "home-cx2ur9zg"), "home-cx2ur9zg");
+  assert.equal(hasHouseholdName("   "), false);
+  assert.equal(hasHouseholdName(""), false);
+  assert.equal(hasHouseholdName("Stuart's Household"), true);
+});
+
+test("a named household shows the name", () => {
+  assert.equal(householdLabel("Stuart's Household", "home-cx2ur9zg"), "Stuart's Household");
+  // Surrounding whitespace never reaches the screen.
+  assert.equal(householdLabel("  Stuart's Household  ", "home-cx2ur9zg"), "Stuart's Household");
+});
+
+test("householdLabel never returns an empty string for a real code", () => {
+  for (const name of ["", " ", null, undefined, "\t\n"]) {
+    assert.notEqual(householdLabel(name, "home-cx2ur9zg"), "");
+  }
+});
+
+test("cleanHouseholdName collapses whitespace and caps at what the rules accept", () => {
+  assert.equal(cleanHouseholdName("  Stuart's   Household \n"), "Stuart's Household");
+  assert.equal(cleanHouseholdName("x".repeat(200)).length, HOUSEHOLD_NAME_MAX);
+  // Whitespace-only becomes "", which the caller writes as null — a DELETE,
+  // which skips .validate. An empty string would be refused by the rules.
+  assert.equal(cleanHouseholdName("   "), "");
+  assert.equal(cleanHouseholdName(null), "");
+});
+
+test("the rules cap and the client cap are the same number", () => {
+  // Two places had to agree and nothing else checks it. A client cap looser
+  // than the rules' would let somebody type a name that is silently refused.
+  const rules = readFileSync(new URL("../database.rules.json", import.meta.url), "utf8");
+  const m = rules.match(/"name":\s*\{\s*"\.validate":\s*"([^"]+)"/);
+  assert.ok(m, "database.rules.json has no .validate for the household name");
+  assert.match(m[1], new RegExp(`length <= ${HOUSEHOLD_NAME_MAX}\\b`));
+});
+
+test("a name the client would produce always passes the rules' own shape check", () => {
+  // Mirrors the .validate expression: a non-empty string within the cap.
+  for (const raw of ["Stuart's Household", "  spaced  out  ", "é", "x".repeat(999)]) {
+    const cleaned = cleanHouseholdName(raw);
+    assert.equal(typeof cleaned, "string");
+    assert.ok(cleaned.length > 0 && cleaned.length <= HOUSEHOLD_NAME_MAX, `${raw} -> ${cleaned}`);
+  }
+});
+
+/* ── ITEM 91: WHAT THE HOME-SCREEN PROMPT SHOWS ───────────────────────────
+   The prompt is two halves and the whole point is that they come apart: a
+   confirmation everybody gets, and a home-screen ask that several people
+   should not. */
+
+const offer = (over) => installPromptState({ standalone: false, installEvent: null, platform: "ios", anonymous: false, dismissed: false, ...over });
+
+test("a phone already on the home screen is offered nothing at all", () => {
+  // Not even the confirmation: it belongs to the moment of joining, and a
+  // standalone launch is not that moment.
+  assert.deepEqual(offer({ standalone: true }), { confirm: false, ask: "" });
+  assert.deepEqual(offer({ standalone: true, installEvent: {} }), { confirm: false, ask: "" });
+});
+
+test("a held install event wins over the platform, and gives a real button", () => {
+  // The event is the only thing that proves a one-tap install is available.
+  // Platform is used for WORDS, never to decide there is a button.
+  assert.deepEqual(offer({ installEvent: {}, platform: "android" }), { confirm: true, ask: "button" });
+  assert.deepEqual(offer({ installEvent: {}, platform: "ios" }), { confirm: true, ask: "button" });
+  assert.deepEqual(offer({ installEvent: {}, platform: "unknown" }), { confirm: true, ask: "button" });
+});
+
+test("with no event, each platform gets its own gesture named", () => {
+  assert.equal(offer({ platform: "ios" }).ask, "ios");
+  assert.equal(offer({ platform: "android" }).ask, "android");
+});
+
+test("an unrecognised platform is told nothing about the home screen", () => {
+  // A confident wrong instruction is worse than none. The join is still
+  // confirmed, which is the half that matters.
+  assert.deepEqual(offer({ platform: "unknown" }), { confirm: true, ask: "" });
+});
+
+test("an anonymous guest gets the confirmation and NO home-screen ask", () => {
+  /* The draft warned this person that a home-screen icon would not carry
+     their access. Cut: it rested on an untested belief about iOS storage,
+     the join card already says the true and milder version BEFORE they
+     commit, and installing anyway costs a confusing screen rather than
+     their access. So — no ask, and no warning either. */
+  for (const platform of ["ios", "android", "unknown"]) {
+    assert.deepEqual(offer({ anonymous: true, platform }), { confirm: true, ask: "" });
+  }
+  // Not even when the browser offered a one-tap install.
+  assert.deepEqual(offer({ anonymous: true, installEvent: {} }), { confirm: true, ask: "" });
+});
+
+test("a GUEST WITH AN ACCOUNT is treated like anybody else", () => {
+  /* The case the first draft got wrong. Guest is a ROLE, not an identity —
+     the rules read role == 'guest' OR provider != anonymous, so a guest
+     membership can sit on a real account. Only `anonymous` narrows anything
+     here, and holding a guest role is not one of this function's inputs. */
+  assert.deepEqual(offer({ anonymous: false, platform: "ios" }), { confirm: true, ask: "ios" });
+  assert.deepEqual(offer({ anonymous: false, installEvent: {} }), { confirm: true, ask: "button" });
+});
+
+test("\"Not now\" silences the whole card, not just the ask", () => {
+  assert.deepEqual(offer({ dismissed: true }), { confirm: false, ask: "" });
+  assert.deepEqual(offer({ dismissed: true, installEvent: {} }), { confirm: false, ask: "" });
+});
+
+test("devicePlatform only ever reports what it can actually tell", () => {
+  assert.equal(devicePlatform("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"), "ios");
+  assert.equal(devicePlatform("Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)"), "ios");
+  assert.equal(devicePlatform("Mozilla/5.0 (Linux; Android 14; Pixel 8)"), "android");
+  // A desktop has no home screen to add to, and neither has an empty string.
+  assert.equal(devicePlatform("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"), "unknown");
+  assert.equal(devicePlatform("Mozilla/5.0 (Windows NT 10.0; Win64; x64)"), "unknown");
+  assert.equal(devicePlatform(""), "unknown");
+  assert.equal(devicePlatform(null), "unknown");
+});
+
+test("the confirmation half survives every case that removes the ask", () => {
+  // Restating the design as an assertion: apart from an already-installed
+  // phone and an explicit "Not now", the join is ALWAYS confirmed. That is
+  // the half that lets somebody check they landed in the right household.
+  for (const over of [{ anonymous: true }, { platform: "unknown" }, { platform: "android" }, { installEvent: {} }]) {
+    assert.equal(offer(over).confirm, true, JSON.stringify(over));
+  }
 });

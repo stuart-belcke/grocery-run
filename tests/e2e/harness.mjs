@@ -114,6 +114,7 @@ const MUST_CHOOSE_KEY = "grocery-run-must-choose-household-v1";
 const GUEST_PREVIEW_KEY = "grocery-run-e2e-guest-preview";
 const STATUS_PREVIEW_KEY = "grocery-run-e2e-status-preview";
 const USER_PREVIEW_KEY = "grocery-run-e2e-user-preview";
+const INSTALL_PREVIEW_KEY = "grocery-run-e2e-install-preview";
 
 /* Opens the app with a known household already in place.
 
@@ -121,12 +122,17 @@ const USER_PREVIEW_KEY = "grocery-run-e2e-user-preview";
    pins the ingredient IDS. Without a seeded catalog the app mints fresh
    random ids on first edit, so a test's ids don't match the rendered rows
    and the run proves nothing. */
-export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, onboarded = true, guest = false, hash = "", status = null, user = null, mustChoose = false } = {}) {
+export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, onboarded = true, guest = false, hash = "", status = null, user = null, mustChoose = false, justJoined = false, userAgent = null } = {}) {
   /* A CONTEXT, not a browser — see the setup/teardown block above. Each one
      starts with empty localStorage and cookies, which is the whole of what
      this app persists, so a test is as isolated as it was when every test
      got its own browser process. */
-  const context = await (await getBrowser()).newContext();
+  /* userAgent is overridden per CONTEXT, which is the only place Playwright
+     lets it be set — and it has to be real here rather than stubbed on
+     navigator, because the app reads navigator.userAgent at mount to choose
+     between "Tap Share" and "Open the menu". Stubbing it after load would
+     test a branch the browser never took. */
+  const context = await (await getBrowser()).newContext(userAgent ? { userAgent } : {});
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
@@ -161,7 +167,7 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
      fixture. That looked exactly like "the edit didn't persist", and it is
      the sort of harness bug that makes a suite untrustworthy rather than
      merely failing. */
-  await page.addInitScript(([c, cat, st, kD, kC, kS, kO, onb, kG, gst, kSt, sts, kU, usr, kM, must]) => {
+  await page.addInitScript(([c, cat, st, kD, kC, kS, kO, onb, kG, gst, kSt, sts, kU, usr, kM, must, kI, joined]) => {
     if (!localStorage.getItem(kD)) localStorage.setItem(kD, JSON.stringify({ code: c }));
     if (cat && !localStorage.getItem(kC + c)) localStorage.setItem(kC + c, cat);
     if (st && !localStorage.getItem(kS + c)) localStorage.setItem(kS + c, st);
@@ -196,9 +202,15 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
     // it stays gone. The app writes `false` rather than removing the key, so
     // "already answered" is what getItem tests for here.
     if (must && !localStorage.getItem(kM)) localStorage.setItem(kM, JSON.stringify(true));
+    /* The moment of joining — see INSTALL_PREVIEW_KEY in lib.js. Reachable
+       only through a real join, which needs the database this build compiles
+       out, so the flag is seeded instead. What it gates is ordinary
+       rendering: which half of the offer appears, and for whom. */
+    if (joined) localStorage.setItem(kI, JSON.stringify(true));
   }, [code, catalog ? JSON.stringify(catalog) : null, state ? JSON.stringify(state) : null,
       DEVICE_KEY, CATALOG_PREFIX, STATE_PREFIX, ONBOARDED_KEY, onboarded, GUEST_PREVIEW_KEY, guest,
-      STATUS_PREVIEW_KEY, status, USER_PREVIEW_KEY, user, MUST_CHOOSE_KEY, mustChoose]);
+      STATUS_PREVIEW_KEY, status, USER_PREVIEW_KEY, user, MUST_CHOOSE_KEY, mustChoose,
+      INSTALL_PREVIEW_KEY, justJoined]);
 
   // domcontentloaded, not networkidle: with external requests aborted there
   // is no "idle" to wait for, and the tab bar rendering is the real signal

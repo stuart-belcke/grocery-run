@@ -567,3 +567,99 @@ t("a REAL invite still redeems, and a real first claim still works", async () =>
   await wipe();
   assert.ok(await allowed(write("households/home-freshclaim/members/carol", member("c@x.com"), "carol")));
 });
+
+/* ── ITEM 90: THE HOUSEHOLD NAME ──────────────────────────────────────────
+   A label, not an identifier. The interesting question is not "can a member
+   set it" — that follows from the $code ".write" — but the two ways it could
+   go wrong: a GUEST renaming the household they were let in to for one
+   afternoon, and a name that is not a name getting stored. */
+
+t("a full member can name the household, and everyone in it can read the name", async () => {
+  await wipe();
+  await write(`${H}/members/alice`, member("a@x.com"), "alice");
+  assert.ok(await allowed(patch(H, { name: "Stuart's Household" }, "alice")));
+
+  await write(`${H}/invites/tokn`, { by: "alice", exp: soon(), role: "guest" }, "alice");
+  await write(`${H}/members/gina`, { ...member(null), invite: "tokn", role: "guest" }, "gina");
+  const got = await read(`${H}/name`, "gina");
+  assert.ok(got.ok, "a guest in the household cannot read its name");
+  assert.equal(await got.json(), "Stuart's Household");
+});
+
+t("a GUEST cannot rename the household", async () => {
+  /* The reason the name is a field on the household rather than something
+     each member keeps: it is shared, so it needs the same asymmetry as the
+     rest of the household. Somebody helping with one afternoon's shop should
+     not be able to rename the place for everybody. */
+  await wipe();
+  await write(`${H}/members/alice`, member("a@x.com"), "alice");
+  await write(`${H}/invites/tokn`, { by: "alice", exp: soon(), role: "guest" }, "alice");
+  await write(`${H}/members/gina`, { ...member(null), invite: "tokn", role: "guest" }, "gina");
+
+  assert.ok(!(await allowed(patch(H, { name: "Gina was here" }, "gina"))));
+  assert.ok(!(await allowed(write(`${H}/name`, "Gina was here", "gina"))));
+});
+
+t("a stranger who knows the code cannot rename or read the name", async () => {
+  await wipe();
+  await write(`${H}/members/alice`, member("a@x.com"), "alice");
+  await patch(H, { name: "Stuart's Household" }, "alice");
+  assert.ok(!(await allowed(write(`${H}/name`, "mine now", "mallory"))));
+  assert.ok(!(await allowed(read(`${H}/name`, "mallory"))));
+});
+
+t("the name has to be a non-empty string within the cap", async () => {
+  await wipe();
+  await write(`${H}/members/alice`, member("a@x.com"), "alice");
+
+  assert.ok(!(await allowed(write(`${H}/name`, "", "alice"))), "an empty name should be refused");
+  assert.ok(!(await allowed(write(`${H}/name`, 42, "alice"))), "a number is not a name");
+  assert.ok(!(await allowed(write(`${H}/name`, "x".repeat(41), "alice"))), "over the cap");
+  assert.ok(await allowed(write(`${H}/name`, "x".repeat(40), "alice")), "exactly the cap should pass");
+});
+
+t("clearing the name is a delete, and it is allowed", async () => {
+  /* This is WHY the validate can require a non-empty string: clearing goes
+     through null, and a delete skips .validate entirely. If clearing had to
+     be an empty string, the rule would have to accept "" and the app could
+     store a household labelled with a blank. */
+  await wipe();
+  await write(`${H}/members/alice`, member("a@x.com"), "alice");
+  await write(`${H}/name`, "Stuart's Household", "alice");
+  assert.ok(await allowed(remove(`${H}/name`, "alice")));
+  assert.ok(await allowed(patch(H, { name: null }, "alice")), "null through a patch should clear it too");
+});
+
+t("naming a household does not make it readable to somebody outside it", async () => {
+  // The name is the one field a joiner would most like to see BEFORE joining,
+  // and it deliberately does not work that way — reads still require a
+  // membership record, so an invitation stays generic.
+  await wipe();
+  await write(`${H}/members/alice`, member("a@x.com"), "alice");
+  await write(`${H}/name`, "Stuart's Household", "alice");
+  await write(`${H}/invites/tok5`, { by: "alice", exp: soon() }, "alice");
+  assert.ok(!(await allowed(read(`${H}/name`, "bob"))), "an invite holder could read the name before joining");
+});
+
+t("each account's own household index carries a name copy it can always read", async () => {
+  /* The mirror that makes the "deleted, still recoverable" list legible.
+     Leaving DELETES the membership record, so households/{code}/name becomes
+     unreadable to the person who just left — and identifying the household is
+     the whole job of that list. users/{uid} stays theirs. */
+  await wipe();
+  await write(`${H}/members/alice`, member("a@x.com"), "alice");
+  await write(`${H}/name`, "Stuart's Household", "alice");
+  assert.ok(await allowed(patch(`users/alice/households/${CODE}`, { name: "Stuart's Household", updatedAt: Date.now() }, "alice")));
+
+  // Alice leaves: membership gone, tombstone stamped.
+  await patch(H, { deletedAt: Date.now(), deletedBy: "alice" }, "alice");
+  await remove(`${H}/members/alice`, "alice");
+
+  assert.ok(!(await allowed(read(`${H}/name`, "alice"))), "expected the household itself to be unreadable after leaving");
+  const mirrored = await read(`users/alice/households/${CODE}/name`, "alice");
+  assert.ok(mirrored.ok, "the mirrored name should still be readable");
+  assert.equal(await mirrored.json(), "Stuart's Household");
+
+  // And it stays private to that account.
+  assert.ok(!(await allowed(read(`users/alice/households/${CODE}/name`, "mallory"))));
+});
