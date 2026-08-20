@@ -675,6 +675,57 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     it a fresh invite, paste the link, and watch the header WITHOUT
     reloading.
 
+94. [DONE] "SIGN IN BELOW, THEN COME BACK TO THIS SCREEN TO ACCEPT IT" WAS
+    STALE, AND ASKED ABOUT DIRECTLY, TWICE. First "why does it say come back
+    to this screen to accept it", then, after an explanation, "where is it
+    specifically that we have to return to" — proof the sentence itself was
+    the problem, not a missing explanation of it. Two separate claims in one
+    line, both wrong:
+      "ACCEPT IT" was written before item 89's auto-redeem existed, when a
+      manual tap really was the only way in. It now overclaims for the
+      common case (a tapped link redeems itself; nothing to accept) while
+      underclaiming for a real second case the same condition covers: an
+      invite typed or pasted into the box by hand, which the autoJoined
+      effect never sees — it watches linkInvite, the state a TAPPED link
+      fills, not this field's local text. That case still needs the tap.
+      "COME BACK TO THIS SCREEN" read as an instruction — something the
+      READER had to do — when it is something the BROWSER does, mid sign-in,
+      unprompted. There is nowhere else to name: sendEmailSignInLink sets
+      `url: origin + pathname`, the exact address already open. First fix
+      kept this half on the theory that it was true and merely paired with
+      a bad second half; asking "where do I return to" showed that framing
+      it as return-somewhere was itself the confusion, regardless of the
+      other half's wording.
+
+    THE SECOND PASS DROPS BOTH INSTRUCTIONS AND STATES THE ONE FACT THAT
+    MATTERS BEFORE TAPPING SIGN IN: the invite survives even if the browser
+    goes somewhere else first. Nothing here tells the reader to do anything
+    beyond the button already in front of them. Still true for the narrow
+    manual-paste case — "finishes joining" names no mechanism, and the Join
+    household button is there regardless.
+
+    A THIRD ROUND CUT THE REASSURANCE TOO: "Sign in below — it finishes
+    joining on its own, even if that takes you away from the app for a
+    moment." No longer wrong, but read directly and offered unprompted:
+    "You've been invited to join a household. Sign in to join." The
+    "Joining the household…" banner already answers "is this working" at
+    the moment that question is actually live — pre-empting a worry the
+    reader had not had yet was explaining more than asked, the same
+    mistake as items 14 and 47 found elsewhere in this app. Still honest
+    for the manual-paste case: the sentence claims no mechanism, so
+    whether it joins itself or waits for the Join household tap, nothing
+    here said anything that turned out false.
+
+    TWO ROUNDS OF FEEDBACK WERE NOT ENOUGH, and that is the lesson worth
+    keeping over the specific wording. The first rewrite fixed what was
+    factually wrong (a claimed mechanism that no longer existed) and left
+    what was STRUCTURALLY wrong (instruction-shaped language for something
+    the reader takes no action on) because that half was still technically
+    true. The second fixed the structure and left a sentence that was true,
+    clear, AND STILL UNNECESSARY — explaining a worry before it was asked.
+    True, clear, and needed are three different bars, and this line missed
+    each one in turn before clearing all three.
+
 Hygiene — not features, and not sequenced
 ------------------------------------------
 None of these ship anything on their own. They're what keeps the app cheap to

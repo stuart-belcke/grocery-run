@@ -143,12 +143,27 @@ export function Onboarding({ onJoin, onGoogle, onEmailLink, onSkip, authError, i
             in — and getting this wrong is the exact shape of the bug item 82
             fixed: a screen telling you to do something the screen does not
             offer. Hiding the Sign in card for a signed-in visitor (item 87)
-            left this saying "sign in below" with no Sign in below. */}
+            left this saying "sign in below" with no Sign in below.
+
+            item 94, three drafts, is why the !signedIn line is this short.
+            "...then come back to this screen to accept it" named a
+            destination that doesn't exist (asked directly: "where is it
+            specifically that we have to return to" — nowhere; the browser
+            reloads this exact URL on its own) and a decision that item 89
+            already removed (a tapped link redeems itself). Cutting the
+            travel reassurance too, on the same finding: the "Joining the
+            household…" banner below already covers "is this working" at
+            the moment it is true, so a sentence pre-empting a worry the
+            reader has not had yet was explaining more than asked. "Sign in
+            to join" mirrors the button beneath it and claims nothing about
+            mechanism, so it stays honest for the narrow case this condition
+            also covers — an invite typed in by hand, which does not
+            auto-redeem and still needs the Join household tap after. */}
         {memberInvite && (
           <div style={{ fontSize: 13, fontWeight: 500, color: C.green, padding: "10px 12px", background: C.greenSoft, borderRadius: 8, marginBottom: 12 }}>
             {signedIn
               ? "You've been invited to join a household. It's filled in below — tap Join household to accept."
-              : "You've been invited to join a household. Sign in below, then come back to this screen to accept it."}
+              : "You've been invited to join a household. Sign in to join."}
           </div>
         )}
         {/* Nobody sent this browser here — it's a plain first open, e.g.
