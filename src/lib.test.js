@@ -23,6 +23,8 @@ import {
   newHouseholdsSince,
   allKnownHouseholds,
   firstIndexSeeding,
+  knownFor,
+  withKnownFor,
   installPromptState,
   devicePlatform,
   hasHouseholdName,
@@ -3496,4 +3498,45 @@ test("restoring a deleted household does not announce it afterwards", () => {
   assert.deepEqual(newHouseholdsSince(known, deleted, "home-a"), []);
   const restored = { "home-a": {}, "home-b": { updatedAt: 9 } };
   assert.deepEqual(newHouseholdsSince(known, restored, "home-a"), []);
+});
+
+/* The seen-set is stored per device but KEYED BY UID, because two people
+   share these phones. */
+
+test("no account means no seen-set, which means silence", () => {
+  // The signed-out case, and it falls out rather than needing its own branch.
+  assert.equal(knownFor({ u1: ["home-a"] }, null), null);
+  assert.equal(knownFor({ u1: ["home-a"] }, undefined), null);
+  assert.equal(firstIndexSeeding(knownFor({ u1: ["home-a"] }, null)), true);
+});
+
+test("one account's seen-set is not another's", () => {
+  /* Without this, signing out and signing in as the other person would
+     announce every household THEY are in as though somebody had just added
+     them to it. */
+  const store = { u1: ["home-a"], u2: ["home-b"] };
+  assert.deepEqual(knownFor(store, "u1"), ["home-a"]);
+  assert.deepEqual(knownFor(store, "u2"), ["home-b"]);
+  // An account this device has never seen gets the silent seeding path.
+  assert.equal(knownFor(store, "u3"), null);
+  assert.equal(firstIndexSeeding(knownFor(store, "u3")), true);
+});
+
+test("writing one account's set leaves the others untouched", () => {
+  const store = { u1: ["home-a"], u2: ["home-b"] };
+  assert.deepEqual(withKnownFor(store, "u1", ["home-a", "home-c"]), {
+    u1: ["home-a", "home-c"],
+    u2: ["home-b"],
+  });
+});
+
+test("a missing or malformed store is treated as empty, not as a crash", () => {
+  // localStorage holds whatever was there last, including from older builds.
+  assert.equal(knownFor(null, "u1"), null);
+  assert.equal(knownFor("nonsense", "u1"), null);
+  assert.equal(knownFor({ u1: "not an array" }, "u1"), null);
+  assert.deepEqual(withKnownFor(null, "u1", ["home-a"]), { u1: ["home-a"] });
+  // An array here is the OLD unkeyed shape. It must not be spread into the
+  // new one, where its indices would become uid keys.
+  assert.deepEqual(withKnownFor(["home-old"], "u1", ["home-a"]), { u1: ["home-a"] });
 });

@@ -197,3 +197,23 @@ test("signed out, nothing is announced", async () => {
     await page.done();
   }
 });
+
+test("the other person signing in on a shared phone is not spammed", async () => {
+  /* Two people share these phones. The seen-set is per device but keyed by
+     uid, so somebody signing in here for the first time gets their own
+     households SEEDED, not announced — otherwise switching accounts would
+     read as "you have been added to" for every household they already live
+     in. The set below belongs to a different account entirely. */
+  const page = await openApp(BASE, {
+    user: { uid: "u2", email: "them@example.com", displayName: "Them", isAnonymous: false },
+    households: { [HERE]: { updatedAt: 10 }, "home-theirs": { updatedAt: 99, name: "Their place" } },
+    knownHouseholds: null,
+  });
+  try {
+    await page.waitForTimeout(600);
+    assert.equal(await page.locator(NOTICE).count(), 0, "announced an account's own households on first sign-in");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});

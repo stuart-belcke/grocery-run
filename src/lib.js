@@ -68,11 +68,34 @@ export const INSTALL_DISMISSED_KEY = "grocery-run-install-dismissed-v1";
    exercise is the real branch. */
 export const INSTALL_PREVIEW_KEY = "grocery-run-e2e-install-preview";
 
-/* Item 92. Which households this DEVICE has already seen on this account's
-   index, so a household joined somewhere else can be announced exactly once.
-   Per device, because the question is "has this screen shown it to you yet" —
-   an account with two phones should be told on both. */
+/* Item 92. Which households have already been announced on this device, so a
+   household joined somewhere else is announced exactly once.
+
+   STORED PER DEVICE, KEYED BY UID: { [uid]: [code, ...] }. Both halves of
+   that matter.
+   Per DEVICE, because the question is "has this screen shown it to you yet",
+   and an account with two phones should be told on both.
+   Keyed by UID, because two people share these phones. Without the key,
+   signing out and signing in as the other person would announce every
+   household THEY are in as though somebody had just added them — and it
+   makes the signed-out case fall out for free, since there is no uid to look
+   up and therefore nothing to compare against. */
 export const KNOWN_HOUSEHOLDS_KEY = "grocery-run-known-households-v1";
+
+// The seen-set for one account, or null when there is nobody to look up —
+// which firstIndexSeeding then reads as "never recorded", i.e. stay silent.
+export function knownFor(store, uid) {
+  if (!uid || !store || typeof store !== "object") return null;
+  const got = store[uid];
+  return Array.isArray(got) ? got : null;
+}
+
+// Put one account's seen-set back, leaving every other account's alone.
+export function withKnownFor(store, uid, codes) {
+  const base = store && typeof store === "object" && !Array.isArray(store) ? store : {};
+  if (!uid) return base;
+  return { ...base, [uid]: codes };
+}
 
 /* The account's household INDEX, faked, for local-only builds only — same
    seam and same rule as the preview keys below: a production build never

@@ -213,7 +213,12 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
        already been shown. Item 92 announces a household joined SOMEWHERE
        ELSE, which nothing this browser does could ever produce. */
     if (idx) localStorage.setItem(kH, JSON.stringify(idx));
-    if (kn && !localStorage.getItem(kK)) localStorage.setItem(kK, JSON.stringify(kn));
+    /* Keyed by uid, matching the app — see KNOWN_HOUSEHOLDS_KEY. A test that
+       seeds a set without an account to hang it on is seeding nothing, which
+       is exactly the signed-out case and should stay that way. */
+    if (kn && usr && usr.uid && !localStorage.getItem(kK)) {
+      localStorage.setItem(kK, JSON.stringify({ [usr.uid]: kn }));
+    }
   }, [code, catalog ? JSON.stringify(catalog) : null, state ? JSON.stringify(state) : null,
       DEVICE_KEY, CATALOG_PREFIX, STATE_PREFIX, ONBOARDED_KEY, onboarded, GUEST_PREVIEW_KEY, guest,
       STATUS_PREVIEW_KEY, status, USER_PREVIEW_KEY, user, MUST_CHOOSE_KEY, mustChoose,

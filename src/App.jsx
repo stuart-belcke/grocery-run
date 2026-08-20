@@ -50,6 +50,8 @@ import {
   INSTALL_PREVIEW_KEY,
   KNOWN_HOUSEHOLDS_KEY,
   HOUSEHOLDS_PREVIEW_KEY,
+  knownFor,
+  withKnownFor,
   newHouseholdsSince,
   allKnownHouseholds,
   firstIndexSeeding,
@@ -670,25 +672,35 @@ export default function App() {
      The index is per-account and server-side, so this device can see the join
      even though it happened in another browser, or on another phone entirely.
      Everything about WHICH codes count is in lib.js and tested there. */
-  const [knownHouseholds, setKnownHouseholds] = useState(() => loadJSON(KNOWN_HOUSEHOLDS_KEY));
+  const [knownStore, setKnownStore] = useState(() => loadJSON(KNOWN_HOUSEHOLDS_KEY));
+  // The seen-set for whoever is signed in — null when nobody is, which
+  // firstIndexSeeding reads as "never recorded" and so stays silent. That is
+  // the signed-out case, and it holds without depending on what
+  // subscribeMyHouseholds happens to return for a null user.
+  const knownHouseholds = knownFor(knownStore, user?.uid);
   const rememberHouseholds = (index) => {
-    const next = allKnownHouseholds([...(Array.isArray(knownHouseholds) ? knownHouseholds : []), code], index);
-    setKnownHouseholds(next);
+    if (!user) return;
+    const codes = allKnownHouseholds([...(knownHouseholds || []), code], index);
+    const next = withKnownFor(knownStore, user.uid, codes);
+    setKnownStore(next);
     saveJSON(KNOWN_HOUSEHOLDS_KEY, next);
   };
   useEffect(() => {
     // `null` is "the index has not answered yet" and must not be mistaken for
     // an empty one — the same distinction the adoption effect turns on.
     if (!user || myHouseholds === null) return;
-    /* SEED SILENTLY THE FIRST TIME. Every device running this build for the
-       first time has no seen-set, and announcing every household somebody is
-       already in would be the app shouting news that is years old. */
+    /* SEED SILENTLY THE FIRST TIME THIS ACCOUNT IS SEEN HERE. A device running
+       this build for the first time has no seen-set, and announcing every
+       household somebody is already in would be the app shouting news that is
+       months old. The same guard covers the other person signing in on a
+       shared phone: their households are seeded, not announced. */
     if (firstIndexSeeding(knownHouseholds)) rememberHouseholds(myHouseholds);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, myHouseholds]);
-  const arrivedHouseholds = firstIndexSeeding(knownHouseholds)
-    ? []
-    : newHouseholdsSince(knownHouseholds, myHouseholds, code);
+  const arrivedHouseholds =
+    !user || firstIndexSeeding(knownHouseholds)
+      ? []
+      : newHouseholdsSince(knownHouseholds, myHouseholds, code);
   const arrived = arrivedHouseholds[0];
 
   /* ── ITEM 91: THE HOME-SCREEN OFFER ─────────────────────────────────────
