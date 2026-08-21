@@ -60,6 +60,8 @@ import {
   householdLabel,
   GUEST_PREVIEW_KEY,
   USER_PREVIEW_KEY,
+  MEMBERS_PREVIEW_KEY,
+  INVITES_PREVIEW_KEY,
   STATUS_PREVIEW_KEY,
   CATALOG_KEY,
   storageOk,
@@ -209,8 +211,12 @@ export default function App() {
   // null until the index has actually been read — see subscribeMyHouseholds.
   const [myHouseholds, setMyHouseholds] = useState(null);
   // households/{code}/members and .../invites, for the Settings list.
-  const [members, setMembers] = useState(null);
-  const [invites, setInvites] = useState(null);
+  /* Real data when sync is on; in a local-only build a preview roster, so the
+     member list and its Leave/Remove buttons are reachable by tests. See
+     MEMBERS_PREVIEW_KEY / INVITES_PREVIEW_KEY. subscribeMembers/subscribeInvites
+     no-op without a database, so nothing ever overwrites this seed there. */
+  const [members, setMembers] = useState(() => (syncEnabled ? null : loadJSON(MEMBERS_PREVIEW_KEY) || null));
+  const [invites, setInvites] = useState(() => (syncEnabled ? null : loadJSON(INVITES_PREVIEW_KEY) || null));
   // Set when a guest tries an edit their role doesn't cover. The rules would
   // refuse it anyway; catching it here means a clear sentence instead of the
   // generic "Sync error" a rejected write produces.

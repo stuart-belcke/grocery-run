@@ -2,6 +2,7 @@ import { Component } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.jsx";
 import { C, fontBody, fontDisplay } from "./theme.js";
+import { canReloadForUpdate } from "./lib.js";
 
 // Item 35: a render throw used to give a white screen with no way back — the
 // worst-timed failure this app has, since it happens mid-shop. State is
@@ -85,6 +86,53 @@ createRoot(document.getElementById("root")).render(
    part of the seam, so it goes when the seam goes.                         */
 const localOnly = import.meta.env.VITE_LOCAL_ONLY === "1";
 if ("serviceWorker" in navigator && window.isSecureContext && !localOnly) {
+  /* WAS THERE A WORKER ALREADY? Captured BEFORE registering, and the whole
+     auto-reload below turns on it.
+     sw.js calls clients.claim(), so the very first visit also fires
+     `controllerchange` — going from no controller to one. That is an install,
+     not an update, and reloading on it would make every first open of the app
+     reload itself once for no reason. A controller that existed beforehand is
+     what makes a later change mean "a NEW build took over". */
+  const hadController = !!navigator.serviceWorker.controller;
+
+  /* Reload the tab once a new build has taken control — but only at a moment
+     that costs nothing. See canReloadForUpdate in lib.js for what "costs
+     nothing" means and why it is not just a preference.
+     The existing "Update available" dialog stays as the manual way out: a tab
+     that somehow never reaches a safe moment can still be reloaded by hand,
+     and that dialog fires off catalog.json, which notices a deploy before the
+     worker has finished installing it. */
+  let updateReady = false;
+  let refreshing = false;
+
+  const applyUpdate = () => {
+    if (!updateReady || refreshing) return;
+    if (
+      !canReloadForUpdate({
+        visibilityState: document.visibilityState,
+        activeTag: document.activeElement && document.activeElement.tagName,
+        contentEditable: !!(document.activeElement && document.activeElement.isContentEditable),
+        dialogOpen: !!document.querySelector('[role="dialog"]'),
+      })
+    ) {
+      return; // busy — try again on the next event below
+    }
+    refreshing = true; // reload() is not instant; without this the events below re-enter
+    window.location.reload();
+  };
+
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!hadController) return; // first install claiming the page, not a new build
+    updateReady = true;
+    applyUpdate();
+  });
+
+  /* The moments a busy tab stops being busy. `focusout` is deferred by a tick
+     because activeElement is not updated until after it fires, so checking
+     immediately would still see the field being left. */
+  document.addEventListener("visibilitychange", applyUpdate);
+  window.addEventListener("focusout", () => setTimeout(applyUpdate, 0));
+
   window.addEventListener("load", () => {
     navigator.serviceWorker
       .register("./sw.js")

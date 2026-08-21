@@ -27,8 +27,11 @@ import {
   withKnownFor,
   installPromptState,
   devicePlatform,
+  canReloadForUpdate,
   hasHouseholdName,
   cleanHouseholdName,
+  exampleHouseholdName,
+  GENERIC_HOUSEHOLD_EXAMPLE,
   HOUSEHOLD_NAME_MAX,
   parseJoinHash,
   inviteLive,
@@ -2460,6 +2463,59 @@ test("keyboardIsOpen assumes NO keyboard when it cannot tell", () => {
   assert.equal(keyboardIsOpen(600, 900), false);
 });
 
+/* ---------------- when a new build may reload the tab ----------------
+   A release installs in the background; the open tab keeps running the old
+   code until something reloads it. Reloading automatically is the fix, and
+   reloading at the wrong moment is a worse bug than the one it fixes — the
+   list survives on disk, but a half-typed item, an open dialog and the scroll
+   position on a twelve-screen tab do not. */
+
+test("a tab nobody is looking at can always be reloaded", () => {
+  // The common case, and the one that costs nothing: a phone in a pocket.
+  assert.equal(canReloadForUpdate({ visibilityState: "hidden" }), true);
+  // Busy-ness is irrelevant when it is not on screen — a field can hold focus
+  // in a backgrounded tab, and nobody is typing into it.
+  assert.equal(canReloadForUpdate({ visibilityState: "hidden", activeTag: "INPUT" }), true);
+  assert.equal(canReloadForUpdate({ visibilityState: "hidden", dialogOpen: true }), true);
+});
+
+test("a visible tab with nothing in progress can be reloaded", () => {
+  assert.equal(canReloadForUpdate({ visibilityState: "visible" }), true);
+  assert.equal(canReloadForUpdate({ visibilityState: "visible", activeTag: "BODY" }), true);
+  assert.equal(canReloadForUpdate({ visibilityState: "visible", activeTag: "BUTTON" }), true);
+});
+
+test("somebody part-way through saying something is never interrupted", () => {
+  /* Each of these is a sentence in progress. Losing it mid-aisle is the exact
+     failure this guard exists for. */
+  assert.equal(canReloadForUpdate({ visibilityState: "visible", activeTag: "INPUT" }), false);
+  assert.equal(canReloadForUpdate({ visibilityState: "visible", activeTag: "TEXTAREA" }), false);
+  // An open picker is a decision in progress just as much as typing is.
+  assert.equal(canReloadForUpdate({ visibilityState: "visible", activeTag: "SELECT" }), false);
+  assert.equal(canReloadForUpdate({ visibilityState: "visible", contentEditable: true }), false);
+  // A dialog is a question waiting for an answer — reloading answers it for them.
+  assert.equal(canReloadForUpdate({ visibilityState: "visible", dialogOpen: true }), false);
+});
+
+test("the tag test does not depend on how the browser cases it", () => {
+  // document.activeElement.tagName is upper-case in HTML documents and lower
+  // in XML ones. Getting this wrong would silently disable the whole guard.
+  assert.equal(canReloadForUpdate({ visibilityState: "visible", activeTag: "input" }), false);
+  assert.equal(canReloadForUpdate({ visibilityState: "visible", activeTag: "TextArea" }), false);
+});
+
+test("an unknown visibility is treated as not being watched, not as busy", () => {
+  /* "prerender", a browser that reports nothing, or a call with no argument at
+     all. Waiting forever on a value nobody sets would quietly reinstate the
+     stale-tab bug this fixes, so the fallback is to reload rather than to
+     block. Safe because the states that are not "visible" are the ones nobody
+     is looking at. */
+  assert.equal(canReloadForUpdate({ visibilityState: "prerender" }), true);
+  assert.equal(canReloadForUpdate({ visibilityState: undefined }), true);
+  assert.equal(canReloadForUpdate({}), true);
+  assert.equal(canReloadForUpdate(), true);
+});
+
 /* ---------------- the invite token ----------------
    The only thing that authorises joining a household, so its strength should
    be arithmetic rather than an estimate. The previous version base36-encoded
@@ -2808,17 +2864,28 @@ test("searchHelp returns everything for an empty query and nothing for nonsense"
   assert.deepEqual(searchHelp(null, "x"), []);
 });
 
-test("the FAQ does not claim a guest link is single-use", () => {
-  /* It said "works once" for both, which is false for half the cases: a
-     guest cannot delete the token they redeemed (invites/$token .write
-     requires role != 'guest'), so a guest link stays live for its full hour.
-     Asserted because it is the kind of sentence that reads fine and is
-     wrong — see item 50. */
+test("the FAQ says BOTH links are single-use, because now they both are", () => {
+  /* INVERTED BY ITEM 50, and kept rather than deleted — the sentence is still
+     the kind that reads fine and is wrong, only the truth moved.
+     It used to say "works once" for both, which was false for half the cases:
+     a guest could not delete the token they redeemed, so a guest link stayed
+     live for its full hour. The rule now lets a redeemer burn the one invite
+     their member record names (database.rules.json, invites/$token .write),
+     so joinWithInvite's delete finally succeeds for a guest too and the
+     answer is true for both.
+     THE OLD ASSERTION IS THE NEW ONE'S MIRROR: if that rules clause were
+     ever reverted, this test would keep passing while the app lied again —
+     which is why tests/rules/rules.test.mjs holds the clause itself. This
+     one only holds the PROSE to the decision. */
   const invite = FAQS.find((f) => /add another phone/i.test(f.q));
   const guest = FAQS.find((f) => /guest link/i.test(f.q));
   assert.match(invite.a, /works once/, "the full-invite answer should still say it is single-use");
-  assert.match(guest.a, /not used up|more than one person|keeps working/i, "the guest answer must not imply single use");
-  assert.doesNotMatch(guest.a, /works once/, "the guest answer claims single use, which is false");
+  assert.match(guest.a, /works once/, "the guest answer should now say it is single-use too");
+  assert.doesNotMatch(
+    guest.a,
+    /not used up|more than one person can|keeps working for its full hour/i,
+    "the guest answer still promises the old reusable behaviour"
+  );
 });
 
 test("every FAQ is answerable and none is a duplicate", () => {
@@ -3335,6 +3402,52 @@ test("the rules cap and the client cap are the same number", () => {
   const m = rules.match(/"name":\s*\{\s*"\.validate":\s*"([^"]+)"/);
   assert.ok(m, "database.rules.json has no .validate for the household name");
   assert.match(m[1], new RegExp(`length <= ${HOUSEHOLD_NAME_MAX}\\b`));
+});
+
+test("the example household name is built from whoever is signed in", () => {
+  assert.equal(exampleHouseholdName("Stuart"), "Stuart's Household");
+  // FIRST WORD ONLY: nobody types their surname into this field, and a full
+  // name plus "'s Household" is what pushes it past the length cap.
+  assert.equal(exampleHouseholdName("Stuart Belcke"), "Stuart's Household");
+  assert.equal(exampleHouseholdName("  Ada   Lovelace  "), "Ada's Household");
+});
+
+test("the example capitalises a lower-case name rather than showing it as typed", () => {
+  // Google hands back whatever the account holds, which is not always capped.
+  assert.equal(exampleHouseholdName("stuart"), "Stuart's Household");
+  // Only the first letter — mangling the rest would wreck a name like "de Vries".
+  assert.equal(exampleHouseholdName("de Vries"), "De's Household");
+});
+
+test("a name ending in s still gets 's, because a placeholder should not have an opinion", () => {
+  assert.equal(exampleHouseholdName("Chris"), "Chris's Household");
+});
+
+test("with nobody signed in the example names no one", () => {
+  // The signed-out case, and the email-only one: deriving "S.belcke92's
+  // Household" from a local part would be worse than no example at all.
+  for (const raw of [null, undefined, "", "   ", "\t\n"]) {
+    assert.equal(exampleHouseholdName(raw), GENERIC_HOUSEHOLD_EXAMPLE);
+  }
+});
+
+test("the example is never longer than the field will accept", () => {
+  // An example the app would refuse to save is not an example.
+  const long = exampleHouseholdName("x".repeat(HOUSEHOLD_NAME_MAX));
+  assert.equal(long, GENERIC_HOUSEHOLD_EXAMPLE);
+  for (const raw of ["Stuart", "Chris", "x".repeat(200), "Ada Lovelace", null]) {
+    assert.ok(exampleHouseholdName(raw).length <= HOUSEHOLD_NAME_MAX, `${raw} is too long to save`);
+  }
+});
+
+test("the example is only ever an example — it is never a name the app would store", () => {
+  /* The placeholder must not become a DEFAULT. Item 90's "NO DEFAULT LIKE
+     Home" still holds: a household with no name reads as its code, and
+     nothing here may quietly turn into a stored value. This pins the two
+     apart — what the field SUGGESTS and what an empty field MEANS. */
+  assert.equal(hasHouseholdName(""), false);
+  assert.equal(householdLabel("", "home-cx2ur9zg"), "home-cx2ur9zg");
+  assert.notEqual(exampleHouseholdName("Stuart"), householdLabel("", "home-cx2ur9zg"));
 });
 
 test("a name the client would produce always passes the rules' own shape check", () => {

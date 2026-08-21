@@ -410,6 +410,100 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     the same gap as leaving and restoring a household. The pure logic and
     the rules under it are both covered; the wiring between them is not.
 
+    CORRECTION, ITEM 95: the control DOES render in a local-only build now.
+    Item 95 changed that gate to `!syncEnabled && !user`, so faking a
+    signed-in user brings the whole Household section up, rename field
+    included — verified in a browser, not reasoned. What is still
+    unreachable is narrower and worth stating exactly: subscribeHouseholdName
+    calls `cb(null)` without a database, so `householdName` is permanently
+    "" there. Everything keyed on hasHouseholdName(householdName) — the
+    "sees this name" helper line, and the name-over-code layout in
+    HouseholdLabel — therefore never renders in a test. The EMPTY half is
+    now covered; the NAMED half needs a seam of its own.
+
+    THREE SENTENCES SAID THE CODE COMES BACK WHEN IT NEVER WENT AWAY.
+    Reported from reading the screen: "that doesn't make sense because the
+    household code is still a field shown below." Correct, and it was wrong
+    in three places, the third found only by grepping for the claim rather
+    than for the sentence:
+      - SettingsTab's helper line, "Clearing it goes back to showing the
+        code";
+      - the FAQ in help.js, which contradicted ITSELF in one paragraph: "The
+        code does not change and does not go away... clearing it goes back to
+        showing the code";
+      - doSaveName's own confirmation, "Name cleared — showing the code
+        again", which is the line a person sees at the exact moment they
+        clear it.
+    All three were written before this item's own "THE CODE IS STILL SHOWN,
+    quieter, beneath the name" decision landed, and none was updated when
+    it did — the same drift as item 72's "Clear week" and item 75's doc bug,
+    which is now three times this exact failure has been found by a person
+    reading the screen rather than by a test. Prose has no assertion holding
+    it to the code it describes.
+    All three now say what is LOST (the name) rather than what supposedly
+    returns: "Clear it and they see the code instead", "clearing it means
+    people see the code again instead of a name", "Name cleared — people see
+    the code instead". The helper line and the confirmation both sit behind
+    householdName being non-empty or a real write landing, so both are string
+    changes this build cannot render — unverified in a browser, and said so
+    here rather than counted as covered.
+
+    GREP FOR THE CLAIM, NOT THE SENTENCE, is the lesson worth keeping. The
+    first pass fixed two of the three because it searched for the exact
+    string "goes back to showing the code"; the third said the same false
+    thing in different words ("showing the code again") and survived. A
+    wrong idea gets reworded as it spreads, so the search has to be for the
+    idea.
+
+    THE PLACEHOLDER GAINED AN "e.g." in the same pass, from the question that
+    led here: "shouldn't it be generic to let people know a name isn't set
+    yet?" It was already a placeholder over an empty field, not a stored
+    value — but "Stuart's Household" is a plausible enough name that grey
+    text alone does not carry the distinction on a phone, and the field is
+    empty exactly when the confusion lands. Kept as an EXAMPLE rather than
+    becoming "Enter a household name": the label above already says what the
+    field is, so an instruction repeats it, while an example shows the shape
+    of a good answer. Verified in a browser — placeholder "e.g. Stuart's
+    Household", field value "", code field below reading home-e2etest, which
+    is the reported complaint reproduced and then fixed.
+
+    THEN THE EXAMPLE STOPPED BEING HARDCODED, asked for immediately after:
+    "use the person's logged in name rather than hard coding the example."
+    Right, and for a reason beyond tidiness — "Stuart's Household" is ONE
+    person's, and this app has two users on two phones, so for the other one
+    the field where they name their own household was suggesting somebody
+    else's. exampleHouseholdName(displayName) in lib.js, pure and tested:
+      FIRST WORD ONLY — "Stuart Belcke's Household" is not what anybody would
+      type, and a full name plus "'s Household" is what pushes an example
+      past HOUSEHOLD_NAME_MAX, leaving one the app would refuse to save. The
+      length is checked rather than assumed, and falls back when it fails.
+      cap() ON THE FIRST LETTER ONLY. Google returns whatever the account
+      holds, not always capitalised. Capitalising more would wreck "de Vries".
+      NOT DERIVED FROM AN EMAIL. An email-link sign-in leaves displayName
+      null, and a local part gives "S.belcke92's Household" — worse than no
+      example. That case falls back to "Our Household" with the signed-out
+      one, which names nobody.
+      "Chris's", NOT "Chris'". Style guides disagree; a placeholder is not
+      the place to hold an opinion, so it takes the form that is never wrong
+      to read rather than branching on a final letter.
+
+    STILL NOT A DEFAULT, and a test pins it: item 90's "NO DEFAULT LIKE Home"
+    is about what an unnamed household MEANS (it reads as its code), and
+    nothing here may quietly become a stored value. A placeholder can be
+    personal precisely because it is never saved.
+
+    TESTED BOTH LAYERS, which the signed-in seams (item 95) are what made
+    possible — this field never rendered in a test before them. Six unit
+    tests over the pure function, and two in household.spec.mjs asserting the
+    rendered `placeholder` attribute AND that `value` is still "". That pair
+    is the point: a placeholder and a value are indistinguishable in a
+    screenshot and opposite in meaning, so only reading both attributes in a
+    real browser settles the thing that was actually reported.
+    MUTATION: hardcoding `first` back to "Stuart" fails 5 unit tests and both
+    e2e tests, and nothing else. Applied by line number and the changed line
+    printed, per item 77 — a mutation that silently fails to apply makes its
+    green meaningless.
+
 91. [DONE] PROMPT TO ADD THE APP TO THE HOME SCREEN.
 
     WHY: a phone that follows an invite link lands in a browser tab, and on
@@ -725,6 +819,361 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     clear, AND STILL UNNECESSARY — explaining a worry before it was asked.
     True, clear, and needed are three different bars, and this line missed
     each one in turn before clearing all three.
+
+95. [DONE] THE MEMBER LIST, LEAVING, REMOVING AND INVITING WERE STILL
+    UNTESTED AFTER USER_PREVIEW_KEY, and a coverage review is what caught it
+    rather than a phone report — the first item in this run of five not to
+    start from one. USER_PREVIEW_KEY (item 68) faked the signed-in IDENTITY
+    and closed the first half of the gap items 17/68/85/92/93 all describe.
+    It did not close all of it: subscribeMembers and subscribeInvites still
+    answer nothing without a database, so `members` and `invites` stayed
+    null in every e2e run regardless of `user` — the member list, the
+    Leave/Remove buttons (rendered per row, keyed to whose row it is), and
+    the invite list were exactly as unreachable as before item 68 shipped.
+    MEMBERS_PREVIEW_KEY / INVITES_PREVIEW_KEY (lib.js) close that, same seam
+    and same rule as every preview key before them: read only when
+    syncEnabled is false, so a production build never looks at them.
+
+    ONE MORE GATE WAS HIDING BEHIND THE DATA, and seeding alone did not
+    reach it: SettingsTab's whole "Household" section was `!syncEnabled ?
+    <Saved on this device> : <the real UI>`, and a local-only build is
+    ALWAYS !syncEnabled. No seed under that branch could ever have mattered.
+    Changed to `!syncEnabled && !user` — safe for every real deployment,
+    where syncEnabled is a fixed build-wide constant and `user` can only be
+    non-null when it's already true, so `&& !user` subtracts nothing a real
+    user ever sees. It only starts to matter in the local-only test bundle,
+    where USER_PREVIEW_KEY can make `user` non-null on purpose. Confirmed
+    with a mutation: reverting the `&& !user` and rebuilding fails the new
+    suite immediately (elements it looks for stop existing), restoring it
+    passes again.
+
+    tests/e2e/specs/household.spec.mjs, 14 tests: the member list and its
+    per-row Leave/Remove buttons, a guest's restricted view, the two-step
+    leave confirmation (its wording forks correctly on lastMemberOut and on
+    whether another household exists to land on), the remove confirmation
+    naming the right account, the invite list filtering out an expired
+    invite, and the household switcher/restore list in Settings — including
+    that Switch (commitJoin) actually moves the device and persists, since
+    that action never touches the database and so is real code under real
+    test, not a reasoned-about one.
+
+    WHAT STILL ISN'T COVERED, on purpose rather than by omission:
+    leaveHousehold, restoreHousehold, removeMember and createInvite all call
+    the real database and get nothing in a local-only build (getDb()
+    answers null) — seeding what they READ is not the same as making what
+    they WRITE succeed. Every test that reaches one of those four asserts on
+    the FAILURE message the app shows when the write can't happen, and stops
+    there; whether a real write actually lands is still items 85/92/93's gap,
+    reasoned by hand, not run here. Also left alone: the member list's OTHER
+    empty message ("Can't read the member list from here"), which needs the
+    real `accessDenied` state — set only by subscribeHousehold's error
+    callback, which needs a database same as the rest — not the status label
+    STATUS_PREVIEW_KEY fakes. A future ACCESS_DENIED-shaped seam would close
+    it the same way; not built here to keep this change to what it set out
+    to cover.
+
+96. [DONE] THE SERVICE WORKER HAD NO TESTS, and its own header describes a
+    real incident. Picked off a coverage review rather than a report: the
+    cache name used to be a constant ("grocery-run-v2"), and since `activate`
+    only deletes caches whose name DIFFERS from the current one, a name that
+    never changed meant nothing was ever evicted. Every bundle the app had
+    ever shipped stayed cached and stayed servable, and because a failed
+    navigation falls back to the last cached index.html — which references old
+    hashed JS still sitting in that same cache — a phone could quietly boot a
+    months-old release and keep running it across restarts. On an app two
+    people shop from weekly that is a wrong list, not a cosmetic bug. The fix
+    shipped; nothing held it.
+
+    IT REGISTERS THE WORKER BY HAND, and the gate in main.jsx stays as it is.
+    That gate (`!localOnly`) is right: precaching the bundle on each of
+    250-odd specs would be slow, and one test's cached shell leaking into the
+    next is the kind of harness bug that makes a suite worth less than none.
+    So serviceworker.spec.mjs opts IN per context instead of the gate being
+    loosened for everybody. Two things make that safe, both PROBED rather
+    than assumed before a line was written: stampServiceWorker is
+    `apply: "build"` with no VITE_LOCAL_ONLY branch, so dist/sw.js here is
+    the real stamped worker and not a stand-in; and a fresh browser context
+    reports caches.keys() of [], which is what keeps the shells apart.
+
+    THE OBVIOUS TEST WOULD HAVE PROTECTED NOTHING, and finding that out is
+    most of the value in this item. Seeding a cache called
+    "grocery-run-oldbuild" and watching activate delete it passes just as
+    happily on the BROKEN worker — a constant "grocery-run-v2" still differs
+    from that name and still evicts it. Eviction was never what broke. The
+    NAME NOT CHANGING BETWEEN BUILDS was. The first draft of this file
+    shipped exactly that useless test, with a title claiming it covered the
+    incident, and only the mutation run showed it was passing for an
+    unrelated reason (a trailing assertion that duplicated another test).
+    Same trap as item 77's "Minute rice", found the same way.
+
+    SO THE CHAIN IS TESTED AT BOTH ENDS, and it takes two tests because one
+    cannot see the other's failure:
+      - the STAMPING half — the build id is sha1 over the emitted asset
+        filenames, recomputed in the test from the built artifact. Change the
+        bundle, the filenames change, the hash changes, the name changes.
+        Node-side; it is a fact about dist/sw.js and does not pay for a
+        browser.
+      - the USAGE half — the running worker's cache really is named
+        `grocery-run-<that id>`, contains every manifest entry, contains the
+        script index.html loads, and evicts everything else on activate.
+    TWO MUTATIONS, AND THEY FAIL DISJOINT SETS, which is the proof neither
+    test is redundant:
+      A. CACHE hardcoded to "grocery-run-v2" (the shipped bug): 3 browser
+         tests fail, the stamping test PASSES.
+      B. the plugin's build id hardcoded to "v2" (the same bug at the other
+         end): the stamping test fails ALONE — the browser tests see a
+         well-formed name matching the stamped id and are satisfied, while
+         every build silently reuses one cache.
+    Without B's test a build-id regression would ship clean.
+
+    ALSO COVERED, AND IT IS THE POINT OF THE THING: the app opens with the
+    network off. Asserted on the rendered Pantry tab rather than on a 200,
+    because a navigation can be served from cache and still hand back a shell
+    whose scripts are missing — which is what the eviction bug produced, and
+    it looks like a blank page rather than an error. This is also the first
+    use of context.setOffline() anywhere in the suite; CLAUDE.md has cited
+    "an offline gate hole" as a bug reasoning got wrong since before there was
+    any way to drive it.
+
+    NOT COVERED, deliberately: the catalog.json network-first-and-refresh
+    branch and the "only cache an ok response" guard. Both need the server to
+    change what it returns mid-test, and tests/e2e/server.mjs has an SPA
+    fallback that answers almost everything with index.html — so a 404 is
+    hard to produce and a changed response harder. Worth a mutable fixture
+    server if either branch ever misbehaves; not worth one today.
+
+97. [DONE — FIRST SLICE] sync.js HAD NO TESTS AT ALL, and the reason was
+    mechanical rather than neglect. 1,104 lines, 39 exports, and everything
+    that reaches a phone goes through it. Two things made it un-importable by
+    `node --test`:
+      1. firebase-config.js reads `import.meta.env`, which exists only under
+         Vite. In node it is `undefined`, so reading a property off it throws
+         before a test can run.
+      2. sync.js imported "./firebase-config" and "./lib" with NO extension.
+         Vite resolves that; node ESM does not. A latent portability bug in
+         its own right — nothing but the bundler was making those resolve.
+    (2) is fixed at the source. Explicit extensions behave identically under
+    Vite, and the rest of the tree already writes them ("./version.js").
+
+    (1) IS DELIBERATELY NOT FIXED, and measuring is what settled it. The
+    obvious repair is to guard the read — `import.meta.env?.VITE_LOCAL_ONLY`,
+    or a ternary with a process.env fallback. That BREAKS THE SAFETY PROPERTY
+    the file's own comment describes: Vite can only inline the flag, and so
+    tree-shake firebaseConfig away entirely, when the expression is exactly
+    `import.meta.env.VITE_LOCAL_ONLY`. Guard it and syncEnabled stops being
+    statically false, the config survives, and the REAL shared databaseURL
+    ships inside the local-only bundle that 256 e2e tests run against.
+    Tried it, built both ways, grepped: absent before, PRESENT after. Reverted.
+    So the config stays exactly as written and the test stubs the module.
+
+    AND THE DOCUMENTED CHECK FOR THAT PROPERTY IS WRONG, found while doing
+    this — which is worth more than the tests it turned up in. Item 75 says
+    the dist/ left behind is verified as the real bundle "by grepping the
+    output for firebaseio.com, which the local-only build does not contain".
+    It does contain it. The Firebase SDK chunks ship in a local-only build
+    too — the app never calls them, but they are on disk — and that string is
+    inside them, so the grep MATCHES ON A GOOD BUILD and has been reporting a
+    false positive to anyone who ran it. A check that cannot fail is not a
+    check. The string that actually discriminates is the project host,
+    "grocery-run-d5e06": absent from a local-only build, present in a real
+    one, both confirmed here and used as the gate for the revert above.
+    Item 75 is corrected in place.
+    Same class as the useless eviction test in item 96, two items apart: both
+    looked like verification and neither could fail. Worth asking of any check
+    written from now on — what would make this report red?
+
+    THE FLAG IS SCOPED TO ONE FILE. Module mocking is behind
+    --experimental-test-module-mocks, and putting an experimental flag on the
+    whole suite for one file's sake is a cost every other test pays. `npm
+    test` now runs the .test.js files unflagged exactly as before, then the
+    .test.mjs files under their own command. `npm run check` picks both up
+    because it already calls `npm test`.
+
+    WHAT THIS SLICE COVERS — the sync-OFF half, 12 tests:
+      - THE LOCAL-ONLY CONTRACT, and the strongest assertion is passive:
+        firebase/app, firebase/database and firebase/auth are stubbed with a
+        Proxy that RECORDS any access. sync.js imports them dynamically inside
+        each call, so a missing `if (!syncEnabled)` guard shows up as a named
+        failure rather than as a phone quietly talking to the database a
+        local-only build must never reach. Fourteen mutations and writes are
+        driven through it and the recorded list must be empty.
+      - every subscription returns a working unsubscribe (App.jsx returns
+        these straight out of useEffect — one answering undefined throws on
+        cleanup, on every tab change, in the build with no database);
+      - the mutations report that they did NOT happen, because SettingsTab
+        branches on exactly those values to say "Couldn't leave";
+      - watchAuthUser actually answers null rather than staying silent, since
+        "don't know yet" and "signed out" need opposite UI;
+      - the localStorage cache layer, which is not gated on sync at all.
+    MUTATION-TESTED BOTH HALVES: removing the syncEnabled guard from getApp
+    and getDb fails the leak test and the mutation-return test and nothing
+    else; making forgetHouseholdCache drop only the state copy — ITEM 85'S
+    ACTUAL BUG, the household you left staying restorable on the phone — fails
+    exactly the test written for it, by its own message.
+
+    WHAT IT DOES NOT COVER, and the honest reason. Everything needing a live
+    database: the 250ms write debounce, the lastWritten retry that keeps a
+    rejected edit from being dropped from every future diff, the sequencer,
+    auth, invites. Those are the highest-risk logic in the file and they are
+    still untested. They are not reachable with sync off, and reaching them by
+    stubbing Firebase would mean asserting on the stub rather than on
+    Firebase — a test that passes because the fake agrees with itself. The
+    right home is a suite driving the real emulator, the way tests/rules
+    already does for the rules and the sweep scripts. That is the next slice,
+    and it is a bigger one than this.
+
+99. [DONE] A NEW RELEASE NOW TAKES OVER AN OPEN TAB BY ITSELF. Asked for
+    directly — "I am inclined to do the force reload on new version push, it
+    seems that is what is industry standard."
+
+    HALF RIGHT, AND THE HALF THAT IS WRONG IS THE ONE THAT MATTERS HERE. Auto
+    updating IS mainstream (vite-plugin-pwa ships `registerType: 'autoUpdate'`
+    and plenty of apps use it). What is NOT standard is reloading the instant
+    the worker takes over, with no regard for what the person is doing — the
+    pattern most PWA guidance actually recommends is the prompt, which this
+    app already had. So the decision taken is auto-update WITH a guard, not
+    either extreme.
+
+    WHAT THE OLD BEHAVIOUR ACTUALLY WAS, since it was never written down: the
+    service worker already fetched and installed a new build on its own
+    (main.jsx calls reg.update() on visibilitychange and online, sw.js calls
+    skipWaiting + clients.claim). What was missing is that nothing ever
+    reloaded the PAGE, so a tab already open kept running the old JavaScript
+    out of memory until somebody reopened the app or tapped the "Update
+    available" dialog. Download automatic, apply manual.
+
+    WHY A BARE RELOAD WOULD HAVE BEEN A WORSE BUG THAN THE ONE IT FIXES. The
+    list, week plan and recipes are on disk and survive a reload. What does
+    not: the half-typed item in the add field, a recipe being edited, the
+    household-name draft, the scroll position on a tab that measures twelve
+    screens against the real catalog (item 51e), and whichever panel or dialog
+    was open. This app is used one-handed, mid-shop. version.js already says
+    the quiet part — "every bump costs somebody a forced update in a
+    supermarket" — and doing that on every deploy rather than every
+    APP_DATA_VERSION bump would spend it far more often.
+
+    THE GUARD, and canReloadForUpdate (lib.js, pure, tested) is all of it:
+      HIDDEN IS ALWAYS SAFE. Not being looked at means reloading is invisible
+      and costs nothing, and that is where most updates will land — a phone
+      that has been in a pocket.
+      VISIBLE RELOADS ONLY WHEN NOTHING IS IN PROGRESS: no focused
+      INPUT/TEXTAREA/SELECT, nothing contentEditable, no open [role="dialog"].
+      Each of those is a sentence or a decision part-way through.
+      ANYTHING NOT "visible" COUNTS AS UNWATCHED, including "prerender" and a
+      browser that reports nothing. Blocking on an unknown value would quietly
+      reinstate the stale-tab bug this exists to fix, so the fallback is to
+      reload rather than to wait forever.
+    A busy tab is retried rather than given up on: visibilitychange, and
+    focusout deferred by a tick because activeElement is not updated until
+    after that event fires.
+
+    TWO THINGS THAT WOULD EACH HAVE BEEN A BUG ON THEIR OWN:
+      `hadController`, captured BEFORE registering. clients.claim() fires
+      controllerchange on the FIRST visit too — no controller, then one — and
+      treating that as an update would make every first open of the app reload
+      itself once, for nothing.
+      `refreshing`, because location.reload() is not instant and the two
+      listeners above would otherwise re-enter it.
+
+    THE DIALOG STAYS, as the manual way out. It fires off catalog.json's
+    appBuild, which notices a deploy BEFORE the worker has finished installing
+    it, and it is the escape for a tab that somehow never reaches a safe
+    moment.
+
+    TESTED: five unit tests over the decision, and the mutation — dropping the
+    guard so it always returns true — fails exactly the two that assert a busy
+    tab is left alone, and nothing else.
+    NOT TESTED, and it cannot be here: the WIRING. main.jsx skips service
+    worker registration entirely in a local-only build, deliberately (see item
+    96), so the controllerchange listener does not exist in the bundle the e2e
+    suite runs. Verified as far as the build goes rather than reasoned:
+    "controllerchange" IS present in the production bundle and absent from the
+    local-only one, which is exactly the split intended — and also why no test
+    here can drive it. Same shape as the gaps in item 98. Anything changed in
+    that block is unverified until somebody watches a real deploy land on a
+    real phone: leave the app open, push a release, switch away and back.
+
+98. THE TEST GAPS THAT ARE LEFT, written down in one place because they were
+    scattered across seven items and a person had to already know where to
+    look. Items 95, 96 and 97 each closed part of a hole and each recorded
+    what it did NOT close, in its own entry. This is that list, gathered.
+    NOT a plan and not sequenced — a register, so nothing here is rediscovered
+    a third time. Ranked by what a failure would cost.
+
+    98a. THE FOUR WRITES BEHIND A SIGNED-IN USER — leaveHousehold,
+        restoreHousehold, removeMember, createInvite. Item 95 covered the
+        RENDERING around them; every test that reaches one of these asserts on
+        the failure message instead, because getDb() answers null with no
+        database. So the mutations themselves have never been run by anything.
+        COST: highest here. Leaving deletes a household for everyone, and the
+        last-member path tombstones it. Item 85's bug lived exactly here and
+        was found by a person, not a test.
+        NEEDS: the emulator, or the by-hand walk items 85/92/93 already
+        describe — delete a household, run the sweep dry, press Restore.
+
+    98b. sync.js's WRITE PATH — the 250ms debounce, the lastWritten retry that
+        keeps a rejected edit from being dropped out of every future diff, the
+        sequencer, auth, invites. Item 97 covered the sync-OFF half and said
+        plainly that this is the risky half.
+        COST: silent data loss between two phones, which is the failure this
+        app cannot afford and the hardest to notice.
+        NEEDS: the real emulator. Stubbing Firebase to reach it tests the
+        stub. tests/rules already drives the emulator jar directly and is the
+        model.
+
+    98c. THE `accessDenied` SEAM. The member list has two empty states and
+        only one is reachable: "Nobody yet" renders, "Can't read the member
+        list from here" does not. accessDenied is set solely by
+        subscribeHousehold's error callback, which needs a database.
+        STATUS_PREVIEW_KEY fakes the status LABEL, not this state.
+        COST: low on its own, but this is the screen somebody opens WHEN
+        ACCESS IS BROKEN, so its broken-case text is the half that matters.
+        NEEDS: an ACCESS_DENIED-shaped preview seam, same shape as the ones
+        item 95 added. Small.
+
+    98d. THE `householdName` SEAM. subscribeHouseholdName calls cb(null)
+        without a database, so householdName is permanently "" in a test.
+        Everything keyed on hasHouseholdName never renders: the "Everyone in
+        the household sees this name" helper, the "Name cleared" confirmation,
+        and HouseholdLabel's name-over-code layout. Item 90's correction
+        rewrote two of those strings and could not render either.
+        NEEDS: a preview seam. Small, and it pairs naturally with 98c.
+
+    98e. THE SERVICE WORKER'S TWO REMAINING BRANCHES — catalog.json's
+        network-first-and-refresh, and the "only cache an ok response" guard
+        that stops a 404 being served back forever. Item 96 covers install,
+        activate, eviction and offline boot.
+        NEEDS: a fixture server that can change what it returns mid-test.
+        tests/e2e/server.mjs has an SPA fallback that answers almost
+        everything with index.html, so a 404 is hard to even produce.
+
+    98f. NOTHING HOLDS help.js's FAQ TO THE UI IT DESCRIBES. Item 90's
+        correction found the same false sentence in three places, and a fourth
+        stale line was introduced INTO THE NOTE ABOUT IT one commit later.
+        Three of those had drifted from a decision recorded in this file.
+        Prose has no assertion holding it to the code, and proofreading has
+        now demonstrably failed at it four times.
+        THE PATTERN ALREADY EXISTS: help.test.js holds every {Braced} tab name
+        in the help text to the real TABS array, for exactly this reason.
+        WHAT IT WOULD LOOK LIKE: harder than the tab-name check, because a
+        claim is not a token. Probably narrow and specific rather than
+        general — assert that any FAQ answer naming a BUTTON names one that
+        exists, the way the tab check works. Worth a real think before
+        building; a vague version of this would be noise.
+
+    98g. THE AUTO-RELOAD WIRING (item 99). main.jsx skips service worker
+        registration in a local-only build, so the controllerchange listener,
+        the hadController first-visit guard and the retry-on-focusout are not
+        in the bundle the e2e suite runs — confirmed by grepping both builds.
+        The DECISION under them is unit-tested; the wiring is not.
+        NEEDS: either a spec that serves a production-shaped build (which the
+        safety rules deliberately make awkward) or a hand-walk of a real
+        deploy. Cheapest honest option is the hand-walk.
+
+    NOT LISTED BECAUSE THEY ARE FINE: the pure layer (312 unit tests), the
+    rules (47, on the real emulator), the sweep scripts, and the rendered UI
+    (256 e2e). The gaps above are all one of two shapes — needs a database, or
+    needs prose held to code.
 
 Hygiene — not features, and not sequenced
 ------------------------------------------
@@ -1330,7 +1779,7 @@ rather than saving them for a cleanup that never gets scheduled.
     could not be tested at all. The test asserts the DISTRIBUTION, because the
     old one did not look wrong; it looked like a random string.
 
-50. A GUEST LINK IS REUSABLE FOR ITS FULL HOUR; A FULL INVITE IS NOT.
+50. [DONE] A GUEST LINK IS REUSABLE FOR ITS FULL HOUR; A FULL INVITE IS NOT.
     Both are the same mechanism and only the `role` field differs, so this
     asymmetry is accidental rather than designed.
     joinWithInvite DELETES the token after redeeming it, and that deletion is
@@ -1347,6 +1796,50 @@ rather than saving them for a cleanup that never gets scheduled.
     guest cannot be given blanket delete on invites without also letting them
     revoke everyone else's. The narrow grant would be "delete a token whose
     id equals the `invite` field on your own member record".
+
+    [DONE] DECIDED: SINGLE-USE, matching a full invite. Asked directly and
+    answered directly. The grant is exactly the one predicted above, which is
+    the whole change — a second clause on invites/$token .write:
+        !newData.exists()
+        && members/$uid/invite == $token
+    Delete only, and only the token that let YOU in. NO APP CODE CHANGED:
+    joinWithInvite has always called remove() straight after redeeming and
+    swallowed the refusal, so the rule is the entire fix and the client's
+    existing second write simply starts succeeding.
+
+    WHY NOT ALSO MAKE `invite` IMMUTABLE, which was the other way to close it.
+    Without immutability a guest could in principle rewrite their own member
+    record to name a different token and burn that. Measured against what it
+    buys them: members/$uid .validate already freezes `role`, so they can only
+    ever repoint at another GUEST invite — and repointing means redeeming it,
+    which consumes it, which is the behaviour being shipped anyway. No role
+    changes, no full invite reachable. Against that, immutability would refuse
+    a re-redeem by somebody who still HAS a member record, and item 93's
+    recovery path — lost access, sent a fresh link — is that exact shape. The
+    cheaper guarantee was not worth breaking the recovery path for.
+
+    THE ORIGINAL WORRY STILL HOLDS, and is tested: a non-member holding the
+    code cannot burn anything, because the clause reads THEIR member record.
+
+    FIVE RULES TESTS, on the real emulator (79 pass, 0 skipped — the jar is
+    fetchable in this environment after all, which earlier sessions could not
+    do): the guest can burn the token they came in on; cannot burn any other,
+    guest or full; cannot MINT or edit one, not even the token their own
+    record names, so naming it buys a delete and nothing else; a non-member
+    and an anonymous stranger can burn neither; and a full member can still
+    revoke anything, which the added clause must not have narrowed.
+    MUTATION: reverting the clause fails exactly one test — the new one — and
+    nothing else, which is what says the other four were already true and are
+    guarding rather than re-proving the fix.
+
+    THE COPY FOLLOWED THE BEHAVIOUR, in both places, and the test that used to
+    assert the OLD promise is inverted rather than deleted: help.js now says a
+    guest link works once and to send a second for a second person, the
+    Settings panel says the same where it describes the link it has just
+    made, and lib.test.js holds the FAQ to it. That test only holds the PROSE
+    — if the rules clause were reverted it would keep passing while the app
+    lied again, which is why rules.test.mjs holds the clause itself. Item 98f
+    is the general version of that gap.
 
 51. UX EVALUATION — measured, not assessed. Driven in a real browser at 390px
     and 320px against the REAL catalog (22 recipes, 146 ingredients) with four
@@ -4541,6 +5034,12 @@ treatment: the store moved into the details panel and the name grew.
     (rm -rf dist): exit 0, all five stages ran, and the dist/ it leaves is
     the REAL bundle — checked by grepping the output for firebaseio.com,
     which the local-only build does not contain.
+    [CORRECTED BY ITEM 97: that grep is wrong and always was. The Firebase
+    SDK chunks ship in a local-only build too and the string "firebaseio.com"
+    is inside them, so it matches on a GOOD build — it has been reporting a
+    false positive to anyone who ran it. The string that discriminates is the
+    project host, "grocery-run-d5e06": absent from a local-only build,
+    present in a real one.]
 
     STATED IN CLAUDE.md, INCLUDING THE ONE WAY A LOCAL GREEN LIES: rules
     tests SKIP without a JVM and the emulator jar, so `check` can pass on a

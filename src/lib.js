@@ -133,6 +133,26 @@ export const GUEST_PREVIEW_KEY = "grocery-run-e2e-guest-preview";
    trusted for correctness of access. */
 export const USER_PREVIEW_KEY = "grocery-run-e2e-user-preview";
 
+/* households/{code}/members and .../invites, faked, for local-only builds
+   only — same seam and same rule as USER_PREVIEW_KEY above: a production
+   build never reads either key, so this can grant nothing.
+   IT EXISTS BECAUSE USER_PREVIEW_KEY ONLY GOT PART OF THE WAY THERE. Faking
+   `user` reaches the wiring gated on being signed in, but subscribeMembers
+   and subscribeInvites still answer nothing in a local-only build — no
+   database to subscribe to — so the member list, the Leave/Remove buttons
+   (rendered per member, keyed to whether a row is yours), the leave
+   confirmation copy (which reads the member list to know if you're the last
+   one out), and the invite list all stayed exactly as unreachable as they
+   were before USER_PREVIEW_KEY shipped.
+   WHAT THIS DOES NOT REACH: the actual mutations. leaveHousehold,
+   restoreHousehold, removeMember and createInvite all call the real
+   database and fail immediately in a local-only build (getDb() answers
+   null) — seeding the DATA they read is not the same as making the WRITE
+   succeed, and nothing here pretends otherwise. That half stays what items
+   85 and 92 already say it is: reasoned by hand, not run by a test. */
+export const MEMBERS_PREVIEW_KEY = "grocery-run-e2e-members-preview";
+export const INVITES_PREVIEW_KEY = "grocery-run-e2e-invites-preview";
+
 /* Forces a sync status in a LOCAL-ONLY build, for the e2e suite. Same seam
    and same rule as GUEST_PREVIEW_KEY above: only read when syncEnabled is
    false, so a production build never looks at it.
@@ -1796,6 +1816,43 @@ export function keyboardIsOpen(innerHeight, viewportHeight, threshold = KEYBOARD
   return outer - inner >= threshold;
 }
 
+/* MAY A NEW BUILD RELOAD THE PAGE RIGHT NOW?
+
+   A new release is fetched and installed in the background, but the tab that
+   is already open keeps running the OLD code until something reloads it — so
+   a phone left open for days stays on a build nobody is serving any more.
+   Reloading it automatically is the fix; reloading it AT THE WRONG MOMENT is
+   its own bug, and a worse one.
+
+   WHAT A BADLY TIMED RELOAD COSTS, and why this is not just a preference: the
+   shopping list, week plan and recipes are on disk and survive, but anything
+   still in a component does not — the half-typed item in the add field, the
+   recipe being edited, the household-name draft, the scroll position on a tab
+   that is twelve screens long, and whichever panel was open. This app is used
+   in a supermarket, one-handed, mid-shop. version.js already says the quiet
+   part: "every bump costs somebody a forced update in a supermarket."
+
+   SO: HIDDEN IS ALWAYS SAFE. If the tab is not being looked at, reloading is
+   invisible and costs nothing — that is the common case for a phone that has
+   been in a pocket, and it is where most updates will actually land.
+   VISIBLE IS SAFE ONLY WHEN NOTHING IS IN PROGRESS. A focused text field or
+   an open dialog means somebody is part-way through saying something, and
+   that is exactly what a reload throws away.
+
+   TAKES VALUES, NOT THE DOM, so it can be tested without a browser — see the
+   layout rule about lib.js. main.jsx reads document and calls this. */
+export function canReloadForUpdate({ visibilityState, activeTag, contentEditable, dialogOpen } = {}) {
+  // Anything other than a definite "visible" is treated as not being watched:
+  // "hidden", "prerender", and a browser that reports nothing at all.
+  if (visibilityState !== "visible") return true;
+  if (dialogOpen) return false;
+  if (contentEditable) return false;
+  // SELECT is included deliberately: an open picker is a decision in progress
+  // just as much as a half-typed word is.
+  const tag = String(activeTag || "").toUpperCase();
+  return !(tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT");
+}
+
 /* The invite token — the only thing that authorises joining a household.
 
    UNIFORM, BY REJECTION. The previous version base36-encoded each random byte
@@ -2592,6 +2649,42 @@ export function householdLabel(name, code) {
 // printing "home-cx2ur9zg (home-cx2ur9zg)" is not.
 export function hasHouseholdName(name) {
   return householdLabel(name, "") !== "";
+}
+
+/* The EXAMPLE shown in the empty household-name field. Built from whoever is
+   signed in rather than hardcoded, for two reasons that both came from
+   reading the real screen:
+     - A hardcoded "Stuart's Household" is one specific person's. This app has
+       two users on two phones, so for the other one it names somebody else's
+       household in the field where they name their own.
+     - It is the fix from the same report that put "e.g." in front of it. A
+       plausible name in a field that is empty until somebody types reads as a
+       name already set; one built from your OWN name reads as an offer.
+   Never a stored value and never a default — see NO DEFAULT LIKE "Home"
+   above, which still holds. This is placeholder text, so it can be personal
+   without becoming an identity.
+
+   FIRST WORD ONLY. "Stuart Belcke's Household" is not what anybody would
+   type, and a full name plus "'s Household" can blow HOUSEHOLD_NAME_MAX,
+   leaving an example that cannot actually be saved.
+
+   NOT DERIVED FROM AN EMAIL when there is no display name. A local part like
+   "s.belcke92" makes "S.belcke92's Household", which is worse than no example
+   at all — so that case falls back with the rest.
+
+   ONE APOSTROPHE RULE, INCLUDING FOR NAMES ENDING IN S. "Chris's" over
+   "Chris'" because style guides disagree and a placeholder is not the place
+   to have an opinion; picking the one that is never wrong to READ beats
+   branching on a final letter. */
+export const GENERIC_HOUSEHOLD_EXAMPLE = "Our Household";
+
+export function exampleHouseholdName(displayName) {
+  const first = String(displayName == null ? "" : displayName).trim().split(/\s+/)[0] || "";
+  if (!first) return GENERIC_HOUSEHOLD_EXAMPLE;
+  const named = `${cap(first)}'s Household`;
+  // An example longer than the field allows would be an example of something
+  // the app would refuse to save.
+  return named.length <= HOUSEHOLD_NAME_MAX ? named : GENERIC_HOUSEHOLD_EXAMPLE;
 }
 
 /* ── ITEM 91: THE HOME-SCREEN PROMPT ────────────────────────────────────────

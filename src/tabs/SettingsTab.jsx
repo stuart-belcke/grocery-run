@@ -7,7 +7,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { C, fontBody, inputStyle, syncTone } from "../theme";
 import { Btn, ConfirmDialog, AlertDialog, Section, Seg, HelpText } from "../ui";
-import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, remapStateIngredientIds, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, inviteLive, newInviteToken, searchHelp, writeErrorAdvice, householdLabel, hasHouseholdName, cleanHouseholdName, HOUSEHOLD_NAME_MAX } from "../lib";
+import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, remapStateIngredientIds, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, inviteLive, newInviteToken, searchHelp, writeErrorAdvice, householdLabel, hasHouseholdName, cleanHouseholdName, exampleHouseholdName, HOUSEHOLD_NAME_MAX } from "../lib";
 import { syncEnabled } from "../sync";
 import { HOW_IT_WORKS, FAQS } from "../help";
 import { UnitConverter } from "../UnitConverter";
@@ -121,7 +121,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
     const res = await setHouseholdName(cleanHouseholdName(nameDraft));
     setSavingName(false);
     if (res && res.ok) {
-      setNameMsg(res.name ? `Now called ${res.name}.` : "Name cleared — showing the code again.");
+      setNameMsg(res.name ? `Now called ${res.name}.` : "Name cleared — people see the code instead.");
     } else if (res && res.reason === "denied") {
       setNameMsg("The database refused that — only full members can rename a household.");
     } else {
@@ -613,7 +613,19 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
           </span>
         }
       >
-        {!syncEnabled ? (
+        {/* `&& !user`, not just `!syncEnabled`, and only for the e2e build's
+            benefit: MEMBERS_PREVIEW_KEY / INVITES_PREVIEW_KEY seed `members`
+            and `invites`, but this branch sat in front of them regardless —
+            a local-only build is ALWAYS !syncEnabled, so the member list, the
+            Leave/Remove buttons and the invite list were unreachable no
+            matter what was seeded underneath. In every real deployment
+            syncEnabled is a fixed build-wide constant (true when Firebase is
+            configured, false when it isn't), so `user` can only be non-null
+            there when syncEnabled already is — `&& !user` changes nothing a
+            real user ever sees. It only starts to matter in the local-only
+            test bundle, where USER_PREVIEW_KEY can make `user` non-null on
+            purpose. See household.spec.mjs. */}
+        {!syncEnabled && !user ? (
           <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 0" }}>
             Saved on this device only. To sync between phones, follow &ldquo;Phone-to-phone sync&rdquo; in README.md and reopen the app. Until then, use Backup below.
           </p>
@@ -652,7 +664,17 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                     style={{ ...inputStyle, flex: 1, minWidth: 160 }}
                     value={nameDraft}
                     maxLength={HOUSEHOLD_NAME_MAX}
-                    placeholder="Stuart's Household"
+                    /* "e.g." because a bare plausible name reads as a name
+                       somebody already set — placeholder grey is not enough
+                       of a signal on a phone, and this field is empty until
+                       a name exists, which is exactly when the confusion
+                       lands. The example stays rather than becoming "Enter a
+                       household name": the label above already says what the
+                       field is, so an instruction here would say it twice,
+                       while an example shows the SHAPE of a good answer.
+                       Built from the signed-in name rather than hardcoded —
+                       see exampleHouseholdName. */
+                    placeholder={`e.g. ${exampleHouseholdName(user && user.displayName)}`}
                     onChange={(e) => setNameDraft(e.target.value)}
                   />
                   <Btn
@@ -665,7 +687,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                 <p style={{ fontSize: 13, color: C.faint, margin: "6px 0 0" }}>
                   {nameMsg ||
                     (hasHouseholdName(householdName)
-                      ? "Everyone in the household sees this name. Clearing it goes back to showing the code."
+                      ? "Everyone in the household sees this name. Clear it and they see the code instead."
                       : "Give it a name and joining phones can tell they landed in the right household.")}
                 </p>
               </div>
@@ -739,7 +761,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                       </div>
                       <p style={{ fontSize: 12, color: C.faint, margin: "0 0 8px" }}>
                         {newInvite.role === "guest"
-                          ? "Opening it lets them shop the list. They can't change recipes or the week, and they don't need an account."
+                          ? "Opening it lets them shop the list. They can't change recipes or the week, and they don't need an account. Good for an hour, once — send another for a second person."
                           : "They open it, sign in, and they're in. Good for an hour, once."}
                       </p>
                       <input

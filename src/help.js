@@ -86,12 +86,12 @@ export const FAQS = [
   },
   {
     q: "What is a guest link?",
-    a: "A link for somebody helping with one shop. A guest sees everything and can work the shopping list — ticking off, adding items, flagging a staple as run out — but cannot change recipes, the week plan, or which store an ingredient comes from. Under Household, press Guest link. Guest is a ROLE, not a kind of account: whoever you send it to can join with just their name and no account, or sign in first and keep the access on their own account, which is what somebody who already uses this app would do. Either way they get the same limited access and you can revoke it. Unlike a full invite it is NOT used up when somebody joins: it keeps working for its full hour, so more than one person can come in on the same link. Revoke it under Household if that is not what you want.",
+    a: "A link for somebody helping with one shop. A guest sees everything and can work the shopping list — ticking off, adding items, flagging a staple as run out — but cannot change recipes, the week plan, or which store an ingredient comes from. Under Household, press Guest link. Guest is a ROLE, not a kind of account: whoever you send it to can join with just their name and no account, or sign in first and keep the access on their own account, which is what somebody who already uses this app would do. Either way they get the same limited access and you can revoke it. Like a full invite it works once — whoever opens it first uses it up, so send a second link for a second person. It also expires after an hour if nobody uses it, and you can revoke it under Household before then.",
     keywords: ["guest", "link", "read only", "helper", "temporary", "no account", "sign in"],
   },
   {
     q: "Can I give the household a name?",
-    a: "Yes — Settings, under Household, \"What to call this household\". Everyone in it sees the name, and it shows up when somebody joins so they can tell they landed in the right household rather than taking the app's word for it. The code does not change and does not go away: the name is what you recognise, the code is what matches an invite link. Only full members can set it, not guests, and clearing it goes back to showing the code.",
+    a: "Yes — Settings, under Household, \"What to call this household\". Everyone in it sees the name, and it shows up when somebody joins so they can tell they landed in the right household rather than taking the app's word for it. The code does not change and does not go away: the name is what you recognise, the code is what matches an invite link. Only full members can set it, not guests, and clearing it means people see the code again instead of a name.",
     keywords: ["name", "rename", "household name", "call", "label", "title"],
   },
   {

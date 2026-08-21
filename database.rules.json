@@ -263,10 +263,33 @@
         // full member. members/$uid case 3 requires the two to agree, so the
         // link's power is fixed when it's created and can't be talked up
         // when it's redeemed.
+        //
+        // ITEM 50: THE SECOND .write CLAUSE IS WHAT MAKES A GUEST LINK
+        // SINGLE-USE. It used to be reusable for its full hour, and that was
+        // an accident rather than a decision: joinWithInvite deletes the
+        // token straight after redeeming, but the first clause refuses a
+        // GUEST that write, the app swallowed the refusal, and the link
+        // stayed live. A full invite was single-use only because its redeemer
+        // ends up a full member and so passes clause 1.
+        // So: anybody may DELETE the one invite their own member record names
+        // as the one they came in on. Narrow on purpose —
+        //   !newData.exists()  delete only, never create or edit;
+        //   members/$uid/invite == $token  it has to be the token that let
+        //   THEM in, which they can only have got by redeeming it through
+        //   members/$uid case 3 while it was live.
+        // The "burn every outstanding invite" worry above still cannot
+        // happen: naming a token requires having redeemed it, and role is
+        // immutable (see members/$uid .validate), so a guest can only ever
+        // consume guest links — which is what holding the link already lets
+        // them do. No path here changes anyone's role.
+        // Deliberately NOT paired with making `invite` immutable, which was
+        // the other way to close the same gap: that would refuse a re-redeem
+        // by somebody who still HAS a member record, and item 93's recovery
+        // path — lost access, sent a fresh link — is exactly that shape.
         "invites": {
           ".read": "auth != null && root.child('households').child($code).child('members').child(auth.uid).exists()",
           "$token": {
-            ".write": "auth != null && root.child('households').child($code).child('members').child(auth.uid).exists() && root.child('households').child($code).child('members').child(auth.uid).child('role').val() != 'guest'",
+            ".write": "auth != null && ((root.child('households').child($code).child('members').child(auth.uid).exists() && root.child('households').child($code).child('members').child(auth.uid).child('role').val() != 'guest') || (!newData.exists() && root.child('households').child($code).child('members').child(auth.uid).child('invite').val() == $token))",
             ".validate": "newData.hasChildren(['by', 'exp']) && newData.child('exp').isNumber() && newData.child('by').val() == auth.uid && (!newData.hasChild('role') || newData.child('role').val() == 'guest' || newData.child('role').val() == 'member')"
           }
         }
