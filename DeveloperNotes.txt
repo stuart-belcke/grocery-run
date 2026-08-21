@@ -872,6 +872,76 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     it the same way; not built here to keep this change to what it set out
     to cover.
 
+96. [DONE] THE SERVICE WORKER HAD NO TESTS, and its own header describes a
+    real incident. Picked off a coverage review rather than a report: the
+    cache name used to be a constant ("grocery-run-v2"), and since `activate`
+    only deletes caches whose name DIFFERS from the current one, a name that
+    never changed meant nothing was ever evicted. Every bundle the app had
+    ever shipped stayed cached and stayed servable, and because a failed
+    navigation falls back to the last cached index.html — which references old
+    hashed JS still sitting in that same cache — a phone could quietly boot a
+    months-old release and keep running it across restarts. On an app two
+    people shop from weekly that is a wrong list, not a cosmetic bug. The fix
+    shipped; nothing held it.
+
+    IT REGISTERS THE WORKER BY HAND, and the gate in main.jsx stays as it is.
+    That gate (`!localOnly`) is right: precaching the bundle on each of
+    250-odd specs would be slow, and one test's cached shell leaking into the
+    next is the kind of harness bug that makes a suite worth less than none.
+    So serviceworker.spec.mjs opts IN per context instead of the gate being
+    loosened for everybody. Two things make that safe, both PROBED rather
+    than assumed before a line was written: stampServiceWorker is
+    `apply: "build"` with no VITE_LOCAL_ONLY branch, so dist/sw.js here is
+    the real stamped worker and not a stand-in; and a fresh browser context
+    reports caches.keys() of [], which is what keeps the shells apart.
+
+    THE OBVIOUS TEST WOULD HAVE PROTECTED NOTHING, and finding that out is
+    most of the value in this item. Seeding a cache called
+    "grocery-run-oldbuild" and watching activate delete it passes just as
+    happily on the BROKEN worker — a constant "grocery-run-v2" still differs
+    from that name and still evicts it. Eviction was never what broke. The
+    NAME NOT CHANGING BETWEEN BUILDS was. The first draft of this file
+    shipped exactly that useless test, with a title claiming it covered the
+    incident, and only the mutation run showed it was passing for an
+    unrelated reason (a trailing assertion that duplicated another test).
+    Same trap as item 77's "Minute rice", found the same way.
+
+    SO THE CHAIN IS TESTED AT BOTH ENDS, and it takes two tests because one
+    cannot see the other's failure:
+      - the STAMPING half — the build id is sha1 over the emitted asset
+        filenames, recomputed in the test from the built artifact. Change the
+        bundle, the filenames change, the hash changes, the name changes.
+        Node-side; it is a fact about dist/sw.js and does not pay for a
+        browser.
+      - the USAGE half — the running worker's cache really is named
+        `grocery-run-<that id>`, contains every manifest entry, contains the
+        script index.html loads, and evicts everything else on activate.
+    TWO MUTATIONS, AND THEY FAIL DISJOINT SETS, which is the proof neither
+    test is redundant:
+      A. CACHE hardcoded to "grocery-run-v2" (the shipped bug): 3 browser
+         tests fail, the stamping test PASSES.
+      B. the plugin's build id hardcoded to "v2" (the same bug at the other
+         end): the stamping test fails ALONE — the browser tests see a
+         well-formed name matching the stamped id and are satisfied, while
+         every build silently reuses one cache.
+    Without B's test a build-id regression would ship clean.
+
+    ALSO COVERED, AND IT IS THE POINT OF THE THING: the app opens with the
+    network off. Asserted on the rendered Pantry tab rather than on a 200,
+    because a navigation can be served from cache and still hand back a shell
+    whose scripts are missing — which is what the eviction bug produced, and
+    it looks like a blank page rather than an error. This is also the first
+    use of context.setOffline() anywhere in the suite; CLAUDE.md has cited
+    "an offline gate hole" as a bug reasoning got wrong since before there was
+    any way to drive it.
+
+    NOT COVERED, deliberately: the catalog.json network-first-and-refresh
+    branch and the "only cache an ok response" guard. Both need the server to
+    change what it returns mid-test, and tests/e2e/server.mjs has an SPA
+    fallback that answers almost everything with index.html — so a 404 is
+    hard to produce and a changed response harder. Worth a mutable fixture
+    server if either branch ever misbehaves; not worth one today.
+
 Hygiene — not features, and not sequenced
 ------------------------------------------
 None of these ship anything on their own. They're what keeps the app cheap to
