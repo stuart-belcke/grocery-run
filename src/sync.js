@@ -11,8 +11,8 @@
  *  and the app falls back to localStorage only.
  * ------------------------------------------------------------------ */
 
-import { firebaseConfig, syncEnabled } from "./firebase-config";
-import { planWrite, cleanCode, newInviteToken, newHouseholdCode, cleanHouseholdName } from "./lib";
+import { firebaseConfig, syncEnabled } from "./firebase-config.js";
+import { planWrite, cleanCode, newInviteToken, newHouseholdCode, cleanHouseholdName } from "./lib.js";
 
 /* ------------------------- write failure signal ---------------------
    A rejected write (security rules, quota, a malformed payload) used to be

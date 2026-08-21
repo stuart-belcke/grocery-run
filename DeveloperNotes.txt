@@ -942,6 +942,86 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     hard to produce and a changed response harder. Worth a mutable fixture
     server if either branch ever misbehaves; not worth one today.
 
+97. [DONE — FIRST SLICE] sync.js HAD NO TESTS AT ALL, and the reason was
+    mechanical rather than neglect. 1,104 lines, 39 exports, and everything
+    that reaches a phone goes through it. Two things made it un-importable by
+    `node --test`:
+      1. firebase-config.js reads `import.meta.env`, which exists only under
+         Vite. In node it is `undefined`, so reading a property off it throws
+         before a test can run.
+      2. sync.js imported "./firebase-config" and "./lib" with NO extension.
+         Vite resolves that; node ESM does not. A latent portability bug in
+         its own right — nothing but the bundler was making those resolve.
+    (2) is fixed at the source. Explicit extensions behave identically under
+    Vite, and the rest of the tree already writes them ("./version.js").
+
+    (1) IS DELIBERATELY NOT FIXED, and measuring is what settled it. The
+    obvious repair is to guard the read — `import.meta.env?.VITE_LOCAL_ONLY`,
+    or a ternary with a process.env fallback. That BREAKS THE SAFETY PROPERTY
+    the file's own comment describes: Vite can only inline the flag, and so
+    tree-shake firebaseConfig away entirely, when the expression is exactly
+    `import.meta.env.VITE_LOCAL_ONLY`. Guard it and syncEnabled stops being
+    statically false, the config survives, and the REAL shared databaseURL
+    ships inside the local-only bundle that 256 e2e tests run against.
+    Tried it, built both ways, grepped: absent before, PRESENT after. Reverted.
+    So the config stays exactly as written and the test stubs the module.
+
+    AND THE DOCUMENTED CHECK FOR THAT PROPERTY IS WRONG, found while doing
+    this — which is worth more than the tests it turned up in. Item 75 says
+    the dist/ left behind is verified as the real bundle "by grepping the
+    output for firebaseio.com, which the local-only build does not contain".
+    It does contain it. The Firebase SDK chunks ship in a local-only build
+    too — the app never calls them, but they are on disk — and that string is
+    inside them, so the grep MATCHES ON A GOOD BUILD and has been reporting a
+    false positive to anyone who ran it. A check that cannot fail is not a
+    check. The string that actually discriminates is the project host,
+    "grocery-run-d5e06": absent from a local-only build, present in a real
+    one, both confirmed here and used as the gate for the revert above.
+    Item 75 is corrected in place.
+    Same class as the useless eviction test in item 96, two items apart: both
+    looked like verification and neither could fail. Worth asking of any check
+    written from now on — what would make this report red?
+
+    THE FLAG IS SCOPED TO ONE FILE. Module mocking is behind
+    --experimental-test-module-mocks, and putting an experimental flag on the
+    whole suite for one file's sake is a cost every other test pays. `npm
+    test` now runs the .test.js files unflagged exactly as before, then the
+    .test.mjs files under their own command. `npm run check` picks both up
+    because it already calls `npm test`.
+
+    WHAT THIS SLICE COVERS — the sync-OFF half, 12 tests:
+      - THE LOCAL-ONLY CONTRACT, and the strongest assertion is passive:
+        firebase/app, firebase/database and firebase/auth are stubbed with a
+        Proxy that RECORDS any access. sync.js imports them dynamically inside
+        each call, so a missing `if (!syncEnabled)` guard shows up as a named
+        failure rather than as a phone quietly talking to the database a
+        local-only build must never reach. Fourteen mutations and writes are
+        driven through it and the recorded list must be empty.
+      - every subscription returns a working unsubscribe (App.jsx returns
+        these straight out of useEffect — one answering undefined throws on
+        cleanup, on every tab change, in the build with no database);
+      - the mutations report that they did NOT happen, because SettingsTab
+        branches on exactly those values to say "Couldn't leave";
+      - watchAuthUser actually answers null rather than staying silent, since
+        "don't know yet" and "signed out" need opposite UI;
+      - the localStorage cache layer, which is not gated on sync at all.
+    MUTATION-TESTED BOTH HALVES: removing the syncEnabled guard from getApp
+    and getDb fails the leak test and the mutation-return test and nothing
+    else; making forgetHouseholdCache drop only the state copy — ITEM 85'S
+    ACTUAL BUG, the household you left staying restorable on the phone — fails
+    exactly the test written for it, by its own message.
+
+    WHAT IT DOES NOT COVER, and the honest reason. Everything needing a live
+    database: the 250ms write debounce, the lastWritten retry that keeps a
+    rejected edit from being dropped from every future diff, the sequencer,
+    auth, invites. Those are the highest-risk logic in the file and they are
+    still untested. They are not reachable with sync off, and reaching them by
+    stubbing Firebase would mean asserting on the stub rather than on
+    Firebase — a test that passes because the fake agrees with itself. The
+    right home is a suite driving the real emulator, the way tests/rules
+    already does for the rules and the sweep scripts. That is the next slice,
+    and it is a bigger one than this.
+
 Hygiene — not features, and not sequenced
 ------------------------------------------
 None of these ship anything on their own. They're what keeps the app cheap to
@@ -4757,6 +4837,12 @@ treatment: the store moved into the details panel and the name grew.
     (rm -rf dist): exit 0, all five stages ran, and the dist/ it leaves is
     the REAL bundle — checked by grepping the output for firebaseio.com,
     which the local-only build does not contain.
+    [CORRECTED BY ITEM 97: that grep is wrong and always was. The Firebase
+    SDK chunks ship in a local-only build too and the string "firebaseio.com"
+    is inside them, so it matches on a GOOD build — it has been reporting a
+    false positive to anyone who ran it. The string that discriminates is the
+    project host, "grocery-run-d5e06": absent from a local-only build,
+    present in a real one.]
 
     STATED IN CLAUDE.md, INCLUDING THE ONE WAY A LOCAL GREEN LIES: rules
     tests SKIP without a JVM and the emulator jar, so `check` can pass on a

@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test \"src/**/*.test.js\"",
+    "test": "node --test \"src/**/*.test.js\" && node --experimental-test-module-mocks --test \"src/**/*.test.mjs\"",
     "lint": "eslint .",
     "test:e2e": "node tests/e2e/run.mjs",
     "test:rules": "node --test --test-concurrency=1 tests/rules/rules.test.mjs tests/rules/sweep.test.mjs",
