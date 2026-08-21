@@ -2614,6 +2614,42 @@ export function hasHouseholdName(name) {
   return householdLabel(name, "") !== "";
 }
 
+/* The EXAMPLE shown in the empty household-name field. Built from whoever is
+   signed in rather than hardcoded, for two reasons that both came from
+   reading the real screen:
+     - A hardcoded "Stuart's Household" is one specific person's. This app has
+       two users on two phones, so for the other one it names somebody else's
+       household in the field where they name their own.
+     - It is the fix from the same report that put "e.g." in front of it. A
+       plausible name in a field that is empty until somebody types reads as a
+       name already set; one built from your OWN name reads as an offer.
+   Never a stored value and never a default — see NO DEFAULT LIKE "Home"
+   above, which still holds. This is placeholder text, so it can be personal
+   without becoming an identity.
+
+   FIRST WORD ONLY. "Stuart Belcke's Household" is not what anybody would
+   type, and a full name plus "'s Household" can blow HOUSEHOLD_NAME_MAX,
+   leaving an example that cannot actually be saved.
+
+   NOT DERIVED FROM AN EMAIL when there is no display name. A local part like
+   "s.belcke92" makes "S.belcke92's Household", which is worse than no example
+   at all — so that case falls back with the rest.
+
+   ONE APOSTROPHE RULE, INCLUDING FOR NAMES ENDING IN S. "Chris's" over
+   "Chris'" because style guides disagree and a placeholder is not the place
+   to have an opinion; picking the one that is never wrong to READ beats
+   branching on a final letter. */
+export const GENERIC_HOUSEHOLD_EXAMPLE = "Our Household";
+
+export function exampleHouseholdName(displayName) {
+  const first = String(displayName == null ? "" : displayName).trim().split(/\s+/)[0] || "";
+  if (!first) return GENERIC_HOUSEHOLD_EXAMPLE;
+  const named = `${cap(first)}'s Household`;
+  // An example longer than the field allows would be an example of something
+  // the app would refuse to save.
+  return named.length <= HOUSEHOLD_NAME_MAX ? named : GENERIC_HOUSEHOLD_EXAMPLE;
+}
+
 /* ── ITEM 91: THE HOME-SCREEN PROMPT ────────────────────────────────────────
    A phone that follows an invite link lands in a browser tab, and on iOS it
    always will — an installed icon app cannot catch a link there. The tab gets

@@ -29,6 +29,8 @@ import {
   devicePlatform,
   hasHouseholdName,
   cleanHouseholdName,
+  exampleHouseholdName,
+  GENERIC_HOUSEHOLD_EXAMPLE,
   HOUSEHOLD_NAME_MAX,
   parseJoinHash,
   inviteLive,
@@ -3335,6 +3337,52 @@ test("the rules cap and the client cap are the same number", () => {
   const m = rules.match(/"name":\s*\{\s*"\.validate":\s*"([^"]+)"/);
   assert.ok(m, "database.rules.json has no .validate for the household name");
   assert.match(m[1], new RegExp(`length <= ${HOUSEHOLD_NAME_MAX}\\b`));
+});
+
+test("the example household name is built from whoever is signed in", () => {
+  assert.equal(exampleHouseholdName("Stuart"), "Stuart's Household");
+  // FIRST WORD ONLY: nobody types their surname into this field, and a full
+  // name plus "'s Household" is what pushes it past the length cap.
+  assert.equal(exampleHouseholdName("Stuart Belcke"), "Stuart's Household");
+  assert.equal(exampleHouseholdName("  Ada   Lovelace  "), "Ada's Household");
+});
+
+test("the example capitalises a lower-case name rather than showing it as typed", () => {
+  // Google hands back whatever the account holds, which is not always capped.
+  assert.equal(exampleHouseholdName("stuart"), "Stuart's Household");
+  // Only the first letter — mangling the rest would wreck a name like "de Vries".
+  assert.equal(exampleHouseholdName("de Vries"), "De's Household");
+});
+
+test("a name ending in s still gets 's, because a placeholder should not have an opinion", () => {
+  assert.equal(exampleHouseholdName("Chris"), "Chris's Household");
+});
+
+test("with nobody signed in the example names no one", () => {
+  // The signed-out case, and the email-only one: deriving "S.belcke92's
+  // Household" from a local part would be worse than no example at all.
+  for (const raw of [null, undefined, "", "   ", "\t\n"]) {
+    assert.equal(exampleHouseholdName(raw), GENERIC_HOUSEHOLD_EXAMPLE);
+  }
+});
+
+test("the example is never longer than the field will accept", () => {
+  // An example the app would refuse to save is not an example.
+  const long = exampleHouseholdName("x".repeat(HOUSEHOLD_NAME_MAX));
+  assert.equal(long, GENERIC_HOUSEHOLD_EXAMPLE);
+  for (const raw of ["Stuart", "Chris", "x".repeat(200), "Ada Lovelace", null]) {
+    assert.ok(exampleHouseholdName(raw).length <= HOUSEHOLD_NAME_MAX, `${raw} is too long to save`);
+  }
+});
+
+test("the example is only ever an example — it is never a name the app would store", () => {
+  /* The placeholder must not become a DEFAULT. Item 90's "NO DEFAULT LIKE
+     Home" still holds: a household with no name reads as its code, and
+     nothing here may quietly turn into a stored value. This pins the two
+     apart — what the field SUGGESTS and what an empty field MEANS. */
+  assert.equal(hasHouseholdName(""), false);
+  assert.equal(householdLabel("", "home-cx2ur9zg"), "home-cx2ur9zg");
+  assert.notEqual(exampleHouseholdName("Stuart"), householdLabel("", "home-cx2ur9zg"));
 });
 
 test("a name the client would produce always passes the rules' own shape check", () => {

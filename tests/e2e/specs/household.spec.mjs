@@ -43,6 +43,46 @@ const openSettings = async (opts) => {
   return page;
 };
 
+/* The household-name field's EXAMPLE, which is placeholder text over an
+   empty field rather than a stored value — the distinction the whole "e.g."
+   change is about, and one that only a real browser can settle: `value` and
+   `placeholder` look identical in a screenshot and are opposite in meaning.
+   Reachable at all only because the signed-in seams landed; before them this
+   field never rendered in a test. */
+test("the household-name example is built from the signed-in name, and is not a value", async () => {
+  const page = await openSettings({
+    user: { uid: "u1", email: "ada@example.com", displayName: "Ada Lovelace", isAnonymous: false },
+  });
+  try {
+    const field = page.locator("#household-name");
+    assert.equal(await field.getAttribute("placeholder"), "e.g. Ada's Household");
+    // THE REPORTED CONFUSION, pinned: the field is EMPTY. A placeholder that
+    // reads as a set name is exactly what "e.g." and the first name fix.
+    assert.equal(await field.inputValue(), "", "the example must not be a value the app would save");
+    // ...and the code never went anywhere, which is the other half of it.
+    assert.equal(await page.locator("#household-code").inputValue(), HERE);
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("signed in without a display name, the example names nobody", async () => {
+  // An email sign-in link leaves displayName null. Deriving one from the
+  // address would read as "Ada@example.com's Household".
+  const page = await openSettings({
+    user: { uid: "u1", email: "ada@example.com", displayName: null, isAnonymous: false },
+  });
+  try {
+    const placeholder = await page.locator("#household-name").getAttribute("placeholder");
+    assert.equal(placeholder, "e.g. Our Household");
+    assert.ok(!/ada/i.test(placeholder), "the email must not leak into the example");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
 test("the member list puts Leave on your own row and Remove on everyone else's", async () => {
   const page = await openSettings({
     user: ME,

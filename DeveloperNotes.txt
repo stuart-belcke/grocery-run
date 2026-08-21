@@ -467,6 +467,43 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     Household", field value "", code field below reading home-e2etest, which
     is the reported complaint reproduced and then fixed.
 
+    THEN THE EXAMPLE STOPPED BEING HARDCODED, asked for immediately after:
+    "use the person's logged in name rather than hard coding the example."
+    Right, and for a reason beyond tidiness — "Stuart's Household" is ONE
+    person's, and this app has two users on two phones, so for the other one
+    the field where they name their own household was suggesting somebody
+    else's. exampleHouseholdName(displayName) in lib.js, pure and tested:
+      FIRST WORD ONLY — "Stuart Belcke's Household" is not what anybody would
+      type, and a full name plus "'s Household" is what pushes an example
+      past HOUSEHOLD_NAME_MAX, leaving one the app would refuse to save. The
+      length is checked rather than assumed, and falls back when it fails.
+      cap() ON THE FIRST LETTER ONLY. Google returns whatever the account
+      holds, not always capitalised. Capitalising more would wreck "de Vries".
+      NOT DERIVED FROM AN EMAIL. An email-link sign-in leaves displayName
+      null, and a local part gives "S.belcke92's Household" — worse than no
+      example. That case falls back to "Our Household" with the signed-out
+      one, which names nobody.
+      "Chris's", NOT "Chris'". Style guides disagree; a placeholder is not
+      the place to hold an opinion, so it takes the form that is never wrong
+      to read rather than branching on a final letter.
+
+    STILL NOT A DEFAULT, and a test pins it: item 90's "NO DEFAULT LIKE Home"
+    is about what an unnamed household MEANS (it reads as its code), and
+    nothing here may quietly become a stored value. A placeholder can be
+    personal precisely because it is never saved.
+
+    TESTED BOTH LAYERS, which the signed-in seams (item 95) are what made
+    possible — this field never rendered in a test before them. Six unit
+    tests over the pure function, and two in household.spec.mjs asserting the
+    rendered `placeholder` attribute AND that `value` is still "". That pair
+    is the point: a placeholder and a value are indistinguishable in a
+    screenshot and opposite in meaning, so only reading both attributes in a
+    real browser settles the thing that was actually reported.
+    MUTATION: hardcoding `first` back to "Stuart" fails 5 unit tests and both
+    e2e tests, and nothing else. Applied by line number and the changed line
+    printed, per item 77 — a mutation that silently fails to apply makes its
+    green meaningless.
+
 91. [DONE] PROMPT TO ADD THE APP TO THE HOME SCREEN.
 
     WHY: a phone that follows an invite link lands in a browser tab, and on

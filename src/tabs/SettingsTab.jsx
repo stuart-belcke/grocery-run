@@ -7,7 +7,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { C, fontBody, inputStyle, syncTone } from "../theme";
 import { Btn, ConfirmDialog, AlertDialog, Section, Seg, HelpText } from "../ui";
-import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, remapStateIngredientIds, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, inviteLive, newInviteToken, searchHelp, writeErrorAdvice, householdLabel, hasHouseholdName, cleanHouseholdName, HOUSEHOLD_NAME_MAX } from "../lib";
+import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, remapStateIngredientIds, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, inviteLive, newInviteToken, searchHelp, writeErrorAdvice, householdLabel, hasHouseholdName, cleanHouseholdName, exampleHouseholdName, HOUSEHOLD_NAME_MAX } from "../lib";
 import { syncEnabled } from "../sync";
 import { HOW_IT_WORKS, FAQS } from "../help";
 import { UnitConverter } from "../UnitConverter";
@@ -671,8 +671,10 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                        lands. The example stays rather than becoming "Enter a
                        household name": the label above already says what the
                        field is, so an instruction here would say it twice,
-                       while an example shows the SHAPE of a good answer. */
-                    placeholder="e.g. Stuart's Household"
+                       while an example shows the SHAPE of a good answer.
+                       Built from the signed-in name rather than hardcoded —
+                       see exampleHouseholdName. */
+                    placeholder={`e.g. ${exampleHouseholdName(user && user.displayName)}`}
                     onChange={(e) => setNameDraft(e.target.value)}
                   />
                   <Btn
