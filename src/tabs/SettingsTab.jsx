@@ -121,7 +121,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
     const res = await setHouseholdName(cleanHouseholdName(nameDraft));
     setSavingName(false);
     if (res && res.ok) {
-      setNameMsg(res.name ? `Now called ${res.name}.` : "Name cleared — showing the code again.");
+      setNameMsg(res.name ? `Now called ${res.name}.` : "Name cleared — people see the code instead.");
     } else if (res && res.reason === "denied") {
       setNameMsg("The database refused that — only full members can rename a household.");
     } else {
@@ -664,7 +664,15 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                     style={{ ...inputStyle, flex: 1, minWidth: 160 }}
                     value={nameDraft}
                     maxLength={HOUSEHOLD_NAME_MAX}
-                    placeholder="Stuart's Household"
+                    /* "e.g." because a bare plausible name reads as a name
+                       somebody already set — placeholder grey is not enough
+                       of a signal on a phone, and this field is empty until
+                       a name exists, which is exactly when the confusion
+                       lands. The example stays rather than becoming "Enter a
+                       household name": the label above already says what the
+                       field is, so an instruction here would say it twice,
+                       while an example shows the SHAPE of a good answer. */
+                    placeholder="e.g. Stuart's Household"
                     onChange={(e) => setNameDraft(e.target.value)}
                   />
                   <Btn
@@ -677,7 +685,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                 <p style={{ fontSize: 13, color: C.faint, margin: "6px 0 0" }}>
                   {nameMsg ||
                     (hasHouseholdName(householdName)
-                      ? "Everyone in the household sees this name. Clearing it goes back to showing the code."
+                      ? "Everyone in the household sees this name. Clear it and they see the code instead."
                       : "Give it a name and joining phones can tell they landed in the right household.")}
                 </p>
               </div>

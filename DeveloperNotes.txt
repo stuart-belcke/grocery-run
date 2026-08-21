@@ -410,6 +410,63 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     the same gap as leaving and restoring a household. The pure logic and
     the rules under it are both covered; the wiring between them is not.
 
+    CORRECTION, ITEM 95: the control DOES render in a local-only build now.
+    Item 95 changed that gate to `!syncEnabled && !user`, so faking a
+    signed-in user brings the whole Household section up, rename field
+    included — verified in a browser, not reasoned. What is still
+    unreachable is narrower and worth stating exactly: subscribeHouseholdName
+    calls `cb(null)` without a database, so `householdName` is permanently
+    "" there. Everything keyed on hasHouseholdName(householdName) — the
+    "sees this name" helper line, and the name-over-code layout in
+    HouseholdLabel — therefore never renders in a test. The EMPTY half is
+    now covered; the NAMED half needs a seam of its own.
+
+    THREE SENTENCES SAID THE CODE COMES BACK WHEN IT NEVER WENT AWAY.
+    Reported from reading the screen: "that doesn't make sense because the
+    household code is still a field shown below." Correct, and it was wrong
+    in three places, the third found only by grepping for the claim rather
+    than for the sentence:
+      - SettingsTab's helper line, "Clearing it goes back to showing the
+        code";
+      - the FAQ in help.js, which contradicted ITSELF in one paragraph: "The
+        code does not change and does not go away... clearing it goes back to
+        showing the code";
+      - doSaveName's own confirmation, "Name cleared — showing the code
+        again", which is the line a person sees at the exact moment they
+        clear it.
+    All three were written before this item's own "THE CODE IS STILL SHOWN,
+    quieter, beneath the name" decision landed, and none was updated when
+    it did — the same drift as item 72's "Clear week" and item 75's doc bug,
+    which is now three times this exact failure has been found by a person
+    reading the screen rather than by a test. Prose has no assertion holding
+    it to the code it describes.
+    All three now say what is LOST (the name) rather than what supposedly
+    returns: "Clear it and they see the code instead", "clearing it means
+    people see the code again instead of a name", "Name cleared — people see
+    the code instead". The helper line and the confirmation both sit behind
+    householdName being non-empty or a real write landing, so both are string
+    changes this build cannot render — unverified in a browser, and said so
+    here rather than counted as covered.
+
+    GREP FOR THE CLAIM, NOT THE SENTENCE, is the lesson worth keeping. The
+    first pass fixed two of the three because it searched for the exact
+    string "goes back to showing the code"; the third said the same false
+    thing in different words ("showing the code again") and survived. A
+    wrong idea gets reworded as it spreads, so the search has to be for the
+    idea.
+
+    THE PLACEHOLDER GAINED AN "e.g." in the same pass, from the question that
+    led here: "shouldn't it be generic to let people know a name isn't set
+    yet?" It was already a placeholder over an empty field, not a stored
+    value — but "Stuart's Household" is a plausible enough name that grey
+    text alone does not carry the distinction on a phone, and the field is
+    empty exactly when the confusion lands. Kept as an EXAMPLE rather than
+    becoming "Enter a household name": the label above already says what the
+    field is, so an instruction repeats it, while an example shows the shape
+    of a good answer. Verified in a browser — placeholder "e.g. Stuart's
+    Household", field value "", code field below reading home-e2etest, which
+    is the reported complaint reproduced and then fixed.
+
 91. [DONE] PROMPT TO ADD THE APP TO THE HOME SCREEN.
 
     WHY: a phone that follows an invite link lands in a browser tab, and on

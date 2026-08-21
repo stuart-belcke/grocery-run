@@ -91,7 +91,7 @@ export const FAQS = [
   },
   {
     q: "Can I give the household a name?",
-    a: "Yes — Settings, under Household, \"What to call this household\". Everyone in it sees the name, and it shows up when somebody joins so they can tell they landed in the right household rather than taking the app's word for it. The code does not change and does not go away: the name is what you recognise, the code is what matches an invite link. Only full members can set it, not guests, and clearing it goes back to showing the code.",
+    a: "Yes — Settings, under Household, \"What to call this household\". Everyone in it sees the name, and it shows up when somebody joins so they can tell they landed in the right household rather than taking the app's word for it. The code does not change and does not go away: the name is what you recognise, the code is what matches an invite link. Only full members can set it, not guests, and clearing it means people see the code again instead of a name.",
     keywords: ["name", "rename", "household name", "call", "label", "title"],
   },
   {
