@@ -1022,6 +1022,79 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     already does for the rules and the sweep scripts. That is the next slice,
     and it is a bigger one than this.
 
+98. THE TEST GAPS THAT ARE LEFT, written down in one place because they were
+    scattered across seven items and a person had to already know where to
+    look. Items 95, 96 and 97 each closed part of a hole and each recorded
+    what it did NOT close, in its own entry. This is that list, gathered.
+    NOT a plan and not sequenced — a register, so nothing here is rediscovered
+    a third time. Ranked by what a failure would cost.
+
+    98a. THE FOUR WRITES BEHIND A SIGNED-IN USER — leaveHousehold,
+        restoreHousehold, removeMember, createInvite. Item 95 covered the
+        RENDERING around them; every test that reaches one of these asserts on
+        the failure message instead, because getDb() answers null with no
+        database. So the mutations themselves have never been run by anything.
+        COST: highest here. Leaving deletes a household for everyone, and the
+        last-member path tombstones it. Item 85's bug lived exactly here and
+        was found by a person, not a test.
+        NEEDS: the emulator, or the by-hand walk items 85/92/93 already
+        describe — delete a household, run the sweep dry, press Restore.
+
+    98b. sync.js's WRITE PATH — the 250ms debounce, the lastWritten retry that
+        keeps a rejected edit from being dropped out of every future diff, the
+        sequencer, auth, invites. Item 97 covered the sync-OFF half and said
+        plainly that this is the risky half.
+        COST: silent data loss between two phones, which is the failure this
+        app cannot afford and the hardest to notice.
+        NEEDS: the real emulator. Stubbing Firebase to reach it tests the
+        stub. tests/rules already drives the emulator jar directly and is the
+        model.
+
+    98c. THE `accessDenied` SEAM. The member list has two empty states and
+        only one is reachable: "Nobody yet" renders, "Can't read the member
+        list from here" does not. accessDenied is set solely by
+        subscribeHousehold's error callback, which needs a database.
+        STATUS_PREVIEW_KEY fakes the status LABEL, not this state.
+        COST: low on its own, but this is the screen somebody opens WHEN
+        ACCESS IS BROKEN, so its broken-case text is the half that matters.
+        NEEDS: an ACCESS_DENIED-shaped preview seam, same shape as the ones
+        item 95 added. Small.
+
+    98d. THE `householdName` SEAM. subscribeHouseholdName calls cb(null)
+        without a database, so householdName is permanently "" in a test.
+        Everything keyed on hasHouseholdName never renders: the "Everyone in
+        the household sees this name" helper, the "Name cleared" confirmation,
+        and HouseholdLabel's name-over-code layout. Item 90's correction
+        rewrote two of those strings and could not render either.
+        NEEDS: a preview seam. Small, and it pairs naturally with 98c.
+
+    98e. THE SERVICE WORKER'S TWO REMAINING BRANCHES — catalog.json's
+        network-first-and-refresh, and the "only cache an ok response" guard
+        that stops a 404 being served back forever. Item 96 covers install,
+        activate, eviction and offline boot.
+        NEEDS: a fixture server that can change what it returns mid-test.
+        tests/e2e/server.mjs has an SPA fallback that answers almost
+        everything with index.html, so a 404 is hard to even produce.
+
+    98f. NOTHING HOLDS help.js's FAQ TO THE UI IT DESCRIBES. Item 90's
+        correction found the same false sentence in three places, and a fourth
+        stale line was introduced INTO THE NOTE ABOUT IT one commit later.
+        Three of those had drifted from a decision recorded in this file.
+        Prose has no assertion holding it to the code, and proofreading has
+        now demonstrably failed at it four times.
+        THE PATTERN ALREADY EXISTS: help.test.js holds every {Braced} tab name
+        in the help text to the real TABS array, for exactly this reason.
+        WHAT IT WOULD LOOK LIKE: harder than the tab-name check, because a
+        claim is not a token. Probably narrow and specific rather than
+        general — assert that any FAQ answer naming a BUTTON names one that
+        exists, the way the tab check works. Worth a real think before
+        building; a vague version of this would be noise.
+
+    NOT LISTED BECAUSE THEY ARE FINE: the pure layer (312 unit tests), the
+    rules (47, on the real emulator), the sweep scripts, and the rendered UI
+    (256 e2e). The gaps above are all one of two shapes — needs a database, or
+    needs prose held to code.
+
 Hygiene — not features, and not sequenced
 ------------------------------------------
 None of these ship anything on their own. They're what keeps the app cheap to
