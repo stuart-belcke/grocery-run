@@ -2810,17 +2810,28 @@ test("searchHelp returns everything for an empty query and nothing for nonsense"
   assert.deepEqual(searchHelp(null, "x"), []);
 });
 
-test("the FAQ does not claim a guest link is single-use", () => {
-  /* It said "works once" for both, which is false for half the cases: a
-     guest cannot delete the token they redeemed (invites/$token .write
-     requires role != 'guest'), so a guest link stays live for its full hour.
-     Asserted because it is the kind of sentence that reads fine and is
-     wrong — see item 50. */
+test("the FAQ says BOTH links are single-use, because now they both are", () => {
+  /* INVERTED BY ITEM 50, and kept rather than deleted — the sentence is still
+     the kind that reads fine and is wrong, only the truth moved.
+     It used to say "works once" for both, which was false for half the cases:
+     a guest could not delete the token they redeemed, so a guest link stayed
+     live for its full hour. The rule now lets a redeemer burn the one invite
+     their member record names (database.rules.json, invites/$token .write),
+     so joinWithInvite's delete finally succeeds for a guest too and the
+     answer is true for both.
+     THE OLD ASSERTION IS THE NEW ONE'S MIRROR: if that rules clause were
+     ever reverted, this test would keep passing while the app lied again —
+     which is why tests/rules/rules.test.mjs holds the clause itself. This
+     one only holds the PROSE to the decision. */
   const invite = FAQS.find((f) => /add another phone/i.test(f.q));
   const guest = FAQS.find((f) => /guest link/i.test(f.q));
   assert.match(invite.a, /works once/, "the full-invite answer should still say it is single-use");
-  assert.match(guest.a, /not used up|more than one person|keeps working/i, "the guest answer must not imply single use");
-  assert.doesNotMatch(guest.a, /works once/, "the guest answer claims single use, which is false");
+  assert.match(guest.a, /works once/, "the guest answer should now say it is single-use too");
+  assert.doesNotMatch(
+    guest.a,
+    /not used up|more than one person can|keeps working for its full hour/i,
+    "the guest answer still promises the old reusable behaviour"
+  );
 });
 
 test("every FAQ is answerable and none is a duplicate", () => {

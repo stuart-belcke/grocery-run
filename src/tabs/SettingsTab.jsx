@@ -761,7 +761,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                       </div>
                       <p style={{ fontSize: 12, color: C.faint, margin: "0 0 8px" }}>
                         {newInvite.role === "guest"
-                          ? "Opening it lets them shop the list. They can't change recipes or the week, and they don't need an account."
+                          ? "Opening it lets them shop the list. They can't change recipes or the week, and they don't need an account. Good for an hour, once — send another for a second person."
                           : "They open it, sign in, and they're in. Good for an hour, once."}
                       </p>
                       <input

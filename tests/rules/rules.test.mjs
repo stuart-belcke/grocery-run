@@ -336,6 +336,59 @@ t("a guest invite makes a guest, and cannot be redeemed as a full member", async
   assert.ok(!(await allowed(write(`${H}/catalog/updatedAt`, 9, "gina"))));
 });
 
+/* ── ITEM 50: A GUEST LINK IS SINGLE-USE ─────────────────────────────────
+   It used to keep working for its full hour, and that was an accident, not a
+   decision: joinWithInvite deletes the token right after redeeming, the old
+   rule refused a GUEST that delete, and the app swallowed the refusal. A full
+   invite was single-use only because its redeemer ends up a full member.
+   The rule now lets anybody delete the ONE invite their own member record
+   names. These pin both halves — that it works, and that it reaches nothing
+   else. */
+
+t("a guest can burn the invite they came in on, which is what makes it single-use", async () => {
+  await write(`${H}/invites/gtok`, { by: "alice", exp: soon(), role: "guest" }, "alice");
+  await write(`${H}/members/gina`, { ...guest("g@x.com"), invite: "gtok" }, "gina");
+  // The delete joinWithInvite already attempts, and which used to be refused.
+  assert.ok(await allowed(remove(`${H}/invites/gtok`, "gina")));
+});
+
+t("a guest cannot burn an invite that is not the one they redeemed", async () => {
+  // The "anyone could burn every outstanding invite" worry the rule's comment
+  // has always carried. Naming a token requires having redeemed it.
+  await write(`${H}/invites/gtok`, { by: "alice", exp: soon(), role: "guest" }, "alice");
+  await write(`${H}/invites/other`, { by: "alice", exp: soon(), role: "guest" }, "alice");
+  await write(`${H}/members/gina`, { ...guest("g@x.com"), invite: "gtok" }, "gina");
+  assert.ok(!(await allowed(remove(`${H}/invites/other`, "gina"))));
+  // Nor a FULL invite sitting alongside it.
+  await write(`${H}/invites/ftok`, { by: "alice", exp: soon() }, "alice");
+  assert.ok(!(await allowed(remove(`${H}/invites/ftok`, "gina"))));
+});
+
+t("the new clause is delete-only — a guest still cannot mint or edit an invite", async () => {
+  await write(`${H}/invites/gtok`, { by: "alice", exp: soon(), role: "guest" }, "alice");
+  await write(`${H}/members/gina`, { ...guest("g@x.com"), invite: "gtok" }, "gina");
+  // Not even the token their own record names: naming it buys a delete, and
+  // nothing else. Otherwise a guest could re-arm their own way back in.
+  assert.ok(!(await allowed(write(`${H}/invites/gtok`, { by: "gina", exp: soon(), role: "guest" }, "gina"))));
+  assert.ok(!(await allowed(write(`${H}/invites/fresh`, { by: "gina", exp: soon(), role: "guest" }, "gina"))));
+});
+
+t("somebody who is not a member cannot burn an invite, named or not", async () => {
+  // The original reason redemption does not delete the invite in the rules:
+  // a non-member holding the code must not be able to burn what is
+  // outstanding. Still true — the clause reads THEIR member record.
+  await write(`${H}/invites/gtok`, { by: "alice", exp: soon(), role: "guest" }, "alice");
+  assert.ok(!(await allowed(remove(`${H}/invites/gtok`, "mallory"))));
+  assert.ok(!(await allowed(remove(`${H}/invites/gtok`, anon("nobody")))));
+});
+
+t("a full member can still revoke any invite, which the new clause must not have narrowed", async () => {
+  await write(`${H}/invites/gtok`, { by: "alice", exp: soon(), role: "guest" }, "alice");
+  await write(`${H}/invites/ftok`, { by: "alice", exp: soon() }, "alice");
+  assert.ok(await allowed(remove(`${H}/invites/gtok`, "alice")));
+  assert.ok(await allowed(remove(`${H}/invites/ftok`, "alice")));
+});
+
 t("a full invite cannot be downgraded into a guest record either", async () => {
   // Not a security hole, but it would make the member list lie about who
   // can do what.

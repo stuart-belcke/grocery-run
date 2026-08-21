@@ -1699,7 +1699,7 @@ rather than saving them for a cleanup that never gets scheduled.
     could not be tested at all. The test asserts the DISTRIBUTION, because the
     old one did not look wrong; it looked like a random string.
 
-50. A GUEST LINK IS REUSABLE FOR ITS FULL HOUR; A FULL INVITE IS NOT.
+50. [DONE] A GUEST LINK IS REUSABLE FOR ITS FULL HOUR; A FULL INVITE IS NOT.
     Both are the same mechanism and only the `role` field differs, so this
     asymmetry is accidental rather than designed.
     joinWithInvite DELETES the token after redeeming it, and that deletion is
@@ -1716,6 +1716,50 @@ rather than saving them for a cleanup that never gets scheduled.
     guest cannot be given blanket delete on invites without also letting them
     revoke everyone else's. The narrow grant would be "delete a token whose
     id equals the `invite` field on your own member record".
+
+    [DONE] DECIDED: SINGLE-USE, matching a full invite. Asked directly and
+    answered directly. The grant is exactly the one predicted above, which is
+    the whole change — a second clause on invites/$token .write:
+        !newData.exists()
+        && members/$uid/invite == $token
+    Delete only, and only the token that let YOU in. NO APP CODE CHANGED:
+    joinWithInvite has always called remove() straight after redeeming and
+    swallowed the refusal, so the rule is the entire fix and the client's
+    existing second write simply starts succeeding.
+
+    WHY NOT ALSO MAKE `invite` IMMUTABLE, which was the other way to close it.
+    Without immutability a guest could in principle rewrite their own member
+    record to name a different token and burn that. Measured against what it
+    buys them: members/$uid .validate already freezes `role`, so they can only
+    ever repoint at another GUEST invite — and repointing means redeeming it,
+    which consumes it, which is the behaviour being shipped anyway. No role
+    changes, no full invite reachable. Against that, immutability would refuse
+    a re-redeem by somebody who still HAS a member record, and item 93's
+    recovery path — lost access, sent a fresh link — is that exact shape. The
+    cheaper guarantee was not worth breaking the recovery path for.
+
+    THE ORIGINAL WORRY STILL HOLDS, and is tested: a non-member holding the
+    code cannot burn anything, because the clause reads THEIR member record.
+
+    FIVE RULES TESTS, on the real emulator (79 pass, 0 skipped — the jar is
+    fetchable in this environment after all, which earlier sessions could not
+    do): the guest can burn the token they came in on; cannot burn any other,
+    guest or full; cannot MINT or edit one, not even the token their own
+    record names, so naming it buys a delete and nothing else; a non-member
+    and an anonymous stranger can burn neither; and a full member can still
+    revoke anything, which the added clause must not have narrowed.
+    MUTATION: reverting the clause fails exactly one test — the new one — and
+    nothing else, which is what says the other four were already true and are
+    guarding rather than re-proving the fix.
+
+    THE COPY FOLLOWED THE BEHAVIOUR, in both places, and the test that used to
+    assert the OLD promise is inverted rather than deleted: help.js now says a
+    guest link works once and to send a second for a second person, the
+    Settings panel says the same where it describes the link it has just
+    made, and lib.test.js holds the FAQ to it. That test only holds the PROSE
+    — if the rules clause were reverted it would keep passing while the app
+    lied again, which is why rules.test.mjs holds the clause itself. Item 98f
+    is the general version of that gap.
 
 51. UX EVALUATION — measured, not assessed. Driven in a real browser at 390px
     and 320px against the REAL catalog (22 recipes, 146 ingredients) with four
