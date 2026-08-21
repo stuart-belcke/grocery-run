@@ -1022,6 +1022,77 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     already does for the rules and the sweep scripts. That is the next slice,
     and it is a bigger one than this.
 
+99. [DONE] A NEW RELEASE NOW TAKES OVER AN OPEN TAB BY ITSELF. Asked for
+    directly — "I am inclined to do the force reload on new version push, it
+    seems that is what is industry standard."
+
+    HALF RIGHT, AND THE HALF THAT IS WRONG IS THE ONE THAT MATTERS HERE. Auto
+    updating IS mainstream (vite-plugin-pwa ships `registerType: 'autoUpdate'`
+    and plenty of apps use it). What is NOT standard is reloading the instant
+    the worker takes over, with no regard for what the person is doing — the
+    pattern most PWA guidance actually recommends is the prompt, which this
+    app already had. So the decision taken is auto-update WITH a guard, not
+    either extreme.
+
+    WHAT THE OLD BEHAVIOUR ACTUALLY WAS, since it was never written down: the
+    service worker already fetched and installed a new build on its own
+    (main.jsx calls reg.update() on visibilitychange and online, sw.js calls
+    skipWaiting + clients.claim). What was missing is that nothing ever
+    reloaded the PAGE, so a tab already open kept running the old JavaScript
+    out of memory until somebody reopened the app or tapped the "Update
+    available" dialog. Download automatic, apply manual.
+
+    WHY A BARE RELOAD WOULD HAVE BEEN A WORSE BUG THAN THE ONE IT FIXES. The
+    list, week plan and recipes are on disk and survive a reload. What does
+    not: the half-typed item in the add field, a recipe being edited, the
+    household-name draft, the scroll position on a tab that measures twelve
+    screens against the real catalog (item 51e), and whichever panel or dialog
+    was open. This app is used one-handed, mid-shop. version.js already says
+    the quiet part — "every bump costs somebody a forced update in a
+    supermarket" — and doing that on every deploy rather than every
+    APP_DATA_VERSION bump would spend it far more often.
+
+    THE GUARD, and canReloadForUpdate (lib.js, pure, tested) is all of it:
+      HIDDEN IS ALWAYS SAFE. Not being looked at means reloading is invisible
+      and costs nothing, and that is where most updates will land — a phone
+      that has been in a pocket.
+      VISIBLE RELOADS ONLY WHEN NOTHING IS IN PROGRESS: no focused
+      INPUT/TEXTAREA/SELECT, nothing contentEditable, no open [role="dialog"].
+      Each of those is a sentence or a decision part-way through.
+      ANYTHING NOT "visible" COUNTS AS UNWATCHED, including "prerender" and a
+      browser that reports nothing. Blocking on an unknown value would quietly
+      reinstate the stale-tab bug this exists to fix, so the fallback is to
+      reload rather than to wait forever.
+    A busy tab is retried rather than given up on: visibilitychange, and
+    focusout deferred by a tick because activeElement is not updated until
+    after that event fires.
+
+    TWO THINGS THAT WOULD EACH HAVE BEEN A BUG ON THEIR OWN:
+      `hadController`, captured BEFORE registering. clients.claim() fires
+      controllerchange on the FIRST visit too — no controller, then one — and
+      treating that as an update would make every first open of the app reload
+      itself once, for nothing.
+      `refreshing`, because location.reload() is not instant and the two
+      listeners above would otherwise re-enter it.
+
+    THE DIALOG STAYS, as the manual way out. It fires off catalog.json's
+    appBuild, which notices a deploy BEFORE the worker has finished installing
+    it, and it is the escape for a tab that somehow never reaches a safe
+    moment.
+
+    TESTED: five unit tests over the decision, and the mutation — dropping the
+    guard so it always returns true — fails exactly the two that assert a busy
+    tab is left alone, and nothing else.
+    NOT TESTED, and it cannot be here: the WIRING. main.jsx skips service
+    worker registration entirely in a local-only build, deliberately (see item
+    96), so the controllerchange listener does not exist in the bundle the e2e
+    suite runs. Verified as far as the build goes rather than reasoned:
+    "controllerchange" IS present in the production bundle and absent from the
+    local-only one, which is exactly the split intended — and also why no test
+    here can drive it. Same shape as the gaps in item 98. Anything changed in
+    that block is unverified until somebody watches a real deploy land on a
+    real phone: leave the app open, push a release, switch away and back.
+
 98. THE TEST GAPS THAT ARE LEFT, written down in one place because they were
     scattered across seven items and a person had to already know where to
     look. Items 95, 96 and 97 each closed part of a hole and each recorded
@@ -1089,6 +1160,15 @@ Tier 4 — multi-device / integrations (highest risk, do last)
         general — assert that any FAQ answer naming a BUTTON names one that
         exists, the way the tab check works. Worth a real think before
         building; a vague version of this would be noise.
+
+    98g. THE AUTO-RELOAD WIRING (item 99). main.jsx skips service worker
+        registration in a local-only build, so the controllerchange listener,
+        the hadController first-visit guard and the retry-on-focusout are not
+        in the bundle the e2e suite runs — confirmed by grepping both builds.
+        The DECISION under them is unit-tested; the wiring is not.
+        NEEDS: either a spec that serves a production-shaped build (which the
+        safety rules deliberately make awkward) or a hand-walk of a real
+        deploy. Cheapest honest option is the hand-walk.
 
     NOT LISTED BECAUSE THEY ARE FINE: the pure layer (312 unit tests), the
     rules (47, on the real emulator), the sweep scripts, and the rendered UI

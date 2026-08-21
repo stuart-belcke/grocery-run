@@ -1816,6 +1816,43 @@ export function keyboardIsOpen(innerHeight, viewportHeight, threshold = KEYBOARD
   return outer - inner >= threshold;
 }
 
+/* MAY A NEW BUILD RELOAD THE PAGE RIGHT NOW?
+
+   A new release is fetched and installed in the background, but the tab that
+   is already open keeps running the OLD code until something reloads it — so
+   a phone left open for days stays on a build nobody is serving any more.
+   Reloading it automatically is the fix; reloading it AT THE WRONG MOMENT is
+   its own bug, and a worse one.
+
+   WHAT A BADLY TIMED RELOAD COSTS, and why this is not just a preference: the
+   shopping list, week plan and recipes are on disk and survive, but anything
+   still in a component does not — the half-typed item in the add field, the
+   recipe being edited, the household-name draft, the scroll position on a tab
+   that is twelve screens long, and whichever panel was open. This app is used
+   in a supermarket, one-handed, mid-shop. version.js already says the quiet
+   part: "every bump costs somebody a forced update in a supermarket."
+
+   SO: HIDDEN IS ALWAYS SAFE. If the tab is not being looked at, reloading is
+   invisible and costs nothing — that is the common case for a phone that has
+   been in a pocket, and it is where most updates will actually land.
+   VISIBLE IS SAFE ONLY WHEN NOTHING IS IN PROGRESS. A focused text field or
+   an open dialog means somebody is part-way through saying something, and
+   that is exactly what a reload throws away.
+
+   TAKES VALUES, NOT THE DOM, so it can be tested without a browser — see the
+   layout rule about lib.js. main.jsx reads document and calls this. */
+export function canReloadForUpdate({ visibilityState, activeTag, contentEditable, dialogOpen } = {}) {
+  // Anything other than a definite "visible" is treated as not being watched:
+  // "hidden", "prerender", and a browser that reports nothing at all.
+  if (visibilityState !== "visible") return true;
+  if (dialogOpen) return false;
+  if (contentEditable) return false;
+  // SELECT is included deliberately: an open picker is a decision in progress
+  // just as much as a half-typed word is.
+  const tag = String(activeTag || "").toUpperCase();
+  return !(tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT");
+}
+
 /* The invite token — the only thing that authorises joining a household.
 
    UNIFORM, BY REJECTION. The previous version base36-encoded each random byte

@@ -27,6 +27,7 @@ import {
   withKnownFor,
   installPromptState,
   devicePlatform,
+  canReloadForUpdate,
   hasHouseholdName,
   cleanHouseholdName,
   exampleHouseholdName,
@@ -2460,6 +2461,59 @@ test("keyboardIsOpen assumes NO keyboard when it cannot tell", () => {
   assert.equal(keyboardIsOpen(null, 500), false);
   // A viewport somehow TALLER than the window is not a keyboard either.
   assert.equal(keyboardIsOpen(600, 900), false);
+});
+
+/* ---------------- when a new build may reload the tab ----------------
+   A release installs in the background; the open tab keeps running the old
+   code until something reloads it. Reloading automatically is the fix, and
+   reloading at the wrong moment is a worse bug than the one it fixes — the
+   list survives on disk, but a half-typed item, an open dialog and the scroll
+   position on a twelve-screen tab do not. */
+
+test("a tab nobody is looking at can always be reloaded", () => {
+  // The common case, and the one that costs nothing: a phone in a pocket.
+  assert.equal(canReloadForUpdate({ visibilityState: "hidden" }), true);
+  // Busy-ness is irrelevant when it is not on screen — a field can hold focus
+  // in a backgrounded tab, and nobody is typing into it.
+  assert.equal(canReloadForUpdate({ visibilityState: "hidden", activeTag: "INPUT" }), true);
+  assert.equal(canReloadForUpdate({ visibilityState: "hidden", dialogOpen: true }), true);
+});
+
+test("a visible tab with nothing in progress can be reloaded", () => {
+  assert.equal(canReloadForUpdate({ visibilityState: "visible" }), true);
+  assert.equal(canReloadForUpdate({ visibilityState: "visible", activeTag: "BODY" }), true);
+  assert.equal(canReloadForUpdate({ visibilityState: "visible", activeTag: "BUTTON" }), true);
+});
+
+test("somebody part-way through saying something is never interrupted", () => {
+  /* Each of these is a sentence in progress. Losing it mid-aisle is the exact
+     failure this guard exists for. */
+  assert.equal(canReloadForUpdate({ visibilityState: "visible", activeTag: "INPUT" }), false);
+  assert.equal(canReloadForUpdate({ visibilityState: "visible", activeTag: "TEXTAREA" }), false);
+  // An open picker is a decision in progress just as much as typing is.
+  assert.equal(canReloadForUpdate({ visibilityState: "visible", activeTag: "SELECT" }), false);
+  assert.equal(canReloadForUpdate({ visibilityState: "visible", contentEditable: true }), false);
+  // A dialog is a question waiting for an answer — reloading answers it for them.
+  assert.equal(canReloadForUpdate({ visibilityState: "visible", dialogOpen: true }), false);
+});
+
+test("the tag test does not depend on how the browser cases it", () => {
+  // document.activeElement.tagName is upper-case in HTML documents and lower
+  // in XML ones. Getting this wrong would silently disable the whole guard.
+  assert.equal(canReloadForUpdate({ visibilityState: "visible", activeTag: "input" }), false);
+  assert.equal(canReloadForUpdate({ visibilityState: "visible", activeTag: "TextArea" }), false);
+});
+
+test("an unknown visibility is treated as not being watched, not as busy", () => {
+  /* "prerender", a browser that reports nothing, or a call with no argument at
+     all. Waiting forever on a value nobody sets would quietly reinstate the
+     stale-tab bug this fixes, so the fallback is to reload rather than to
+     block. Safe because the states that are not "visible" are the ones nobody
+     is looking at. */
+  assert.equal(canReloadForUpdate({ visibilityState: "prerender" }), true);
+  assert.equal(canReloadForUpdate({ visibilityState: undefined }), true);
+  assert.equal(canReloadForUpdate({}), true);
+  assert.equal(canReloadForUpdate(), true);
 });
 
 /* ---------------- the invite token ----------------
