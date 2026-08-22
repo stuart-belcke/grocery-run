@@ -287,6 +287,60 @@ Tier 4 — multi-device / integrations (highest risk, do last)
 
 18. Export to / link with a Google calendar, keyed off the household.
 
+101. MAKING A HOUSEHOLD IS A FIRST-RUN-ONLY ACTION, AND THAT IS NOW ODD.
+    Asked while reading Settings: "if you can get invited to multiple, why not
+    be able to make new ones?" Fair, and the asymmetry is real rather than
+    intended — it is left over from when a device had exactly one household.
+    WHERE CREATING ONE LIVES TODAY: Onboarding.jsx's "Start my own list"
+    button, and the same button relabelled "Create a household" when you have
+    just left your last one (item 85). That is all. Settings can SWITCH
+    between households (item 90's list), RESTORE a deleted one (item 86) and
+    JOIN one by invite — but it cannot make one. So an account can accumulate
+    households only by being invited to them, which is backwards: you can be
+    put in a place by somebody else but cannot open one yourself without
+    first leaving everywhere.
+    WHY IT IS NOT A ONE-BUTTON JOB, which is the reason to write it down
+    rather than just add the button:
+      - CLAIMING IS THE DANGEROUS BIT. Item 84 stopped every fresh browser
+        minting AND claiming a household, and items 83/85 are two more
+        rounds of "the app made me a household I did not ask for". A Create
+        button re-opens exactly that surface, so it has to be a deliberate,
+        confirmed action that lands you IN the new household rather than
+        quietly seeding one.
+      - IT NEEDS A NAME AT BIRTH. A second, third and fourth household called
+        home-xxxxxxxx is unreadable in the switcher; item 90's naming exists
+        precisely so a person can tell them apart. Creating one without
+        asking for a name would make the list worse the moment it is useful.
+      - WHAT DOES THE NEW ONE START WITH? An empty catalog, or a copy of the
+        starter one? Both are defensible and they are different products —
+        "a second household for the beach house" wants the recipes; "a test
+        household" does not.
+    NOT URGENT: two people, two phones, one household. Worth doing when a
+    second real household exists to want.
+
+102. PER-DEVICE VERSUS PER-HOUSEHOLD SETTINGS, as a distinction the app makes
+    but never says out loud. Raised alongside item 101 and worth revisiting
+    together.
+    TODAY EVERYTHING UNDER "Preferences" IS THE HOUSEHOLD'S — units and week
+    start live on the catalog node, decided in item 31 for a good reason:
+    two phones disagreeing about the week start would make the plan grid mean
+    different things to the two people reading it.
+    BUT THE APP ALREADY HAS PER-DEVICE STATE, it just does not call it
+    settings: the home-screen dismissal (item 91), the seen-set of announced
+    households (item 92), the device's own household code, and the caches.
+    None of it is exposed, and none of it is labelled as belonging to this
+    phone rather than to everybody.
+    THE QUESTION TO ANSWER FIRST is which side each setting belongs on, and
+    UNITS IS THE ONE THAT IS ARGUABLE — one person reading metric while the
+    other reads standard costs nothing, because it changes how a total is
+    SHOWN and not what is stored. Week start is the opposite: it is shared by
+    nature, since it changes a grid both people look at.
+    IF IT IS BUILT, THE SPLIT HAS TO BE VISIBLE. A settings screen where some
+    rows silently change the other person's phone and others do not is worse
+    than one where they all do — the current copy ("The household's settings,
+    so changing these changes them on the other phones too") is honest only
+    while it is true of every row on the screen.
+
 90. [DONE] NAME A HOUSEHOLD. Proposed while the onboarding work was still in flight,
     and deliberately queued behind it: "once we get this working flawlessly,
     we can improve the household names by allowing the user to create a name."

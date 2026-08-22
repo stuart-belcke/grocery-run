@@ -821,7 +821,26 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                     </div>
                   )}
                   <p style={{ fontSize: 13, color: C.faint, margin: "10px 0 0" }}>
-                    Links expire in an hour. Removing someone is permanent — the household code alone won&apos;t let them back in.
+                    {/* WHAT WENT, AND WHY IT WAS WORTH GOING.
+                        It read "Links expire in an hour. Removing someone is
+                        permanent — the household code alone won't let them
+                        back in." Three things wrong with the second half:
+                        REMOVING IS NOT PERMANENT. Send them a new invite and
+                        they are back. The Remove dialog says exactly that
+                        ("they'd need a new invite"), so this line contradicted
+                        the app three taps away.
+                        IT ARGUED WITH A MODEL NOBODY HOLDS. "The household
+                        code alone won't let them back in" only answers a
+                        question somebody carrying the OLD shared-code model
+                        would ask; a reader who never knew that model is just
+                        told a code they were not thinking about will not work.
+                        AND IT IS ALREADY SAID IN PLACE. The Remove dialog
+                        covers it at the moment it matters — same mistake as
+                        the Preferences note, a footer pre-explaining a dialog.
+                        WHAT SURVIVES is the one fact worth having BEFORE
+                        pressing Invite, and it now covers both kinds of link:
+                        since item 50 a guest link is single-use too. */}
+                    Links work once, and expire in an hour if nobody uses them.
                   </p>
                 </div>
               )}
@@ -952,7 +971,16 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
             )}
           </div>
         )}
-        {!syncEnabled ? (
+        {/* `&& !user`, the same one-line change already shipped for the
+            Household section above and for the same reason: a local-only
+            build is ALWAYS !syncEnabled, so the signed-in half of Account —
+            who you are signed in as, and Sign out — could not render in a
+            test no matter what was seeded. In every real deployment
+            syncEnabled is a fixed build-wide constant and `user` can only be
+            non-null when it is already true, so this subtracts nothing a real
+            user ever sees; it only matters in the test bundle, where
+            USER_PREVIEW_KEY can make `user` non-null on purpose. */}
+        {!syncEnabled && !user ? (
           <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 0" }}>
             Sign-in needs the phone-to-phone sync setup above turned on first.
           </p>
@@ -970,7 +998,13 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
               {user.displayName && user.email ? ` (${user.email})` : ""}.
             </p>
             <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
-              Signing out keeps this phone&apos;s data and stops it syncing until you sign back in.
+              {/* NO PRONOUN, because "it" had nothing safe to point at: the
+                  line read "keeps this phone's data and stops IT syncing",
+                  where the nearest noun is the DATA — so it parsed as the data
+                  doing the syncing, which is not a thing. Two plain facts
+                  instead, in the order somebody signing out cares about them:
+                  what is kept, then what stops. */}
+              Signing out keeps everything on this phone. Nothing syncs until you sign back in.
             </p>
 
             {/* NAME THE ACTUAL REMEDY. This used to say "check the code above
