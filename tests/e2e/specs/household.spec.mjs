@@ -322,6 +322,76 @@ test("the invite list shows only invites still live, not ones that expired", asy
   }
 });
 
+/* ITEM 103, from the measured Settings audit. Revoke was the only destructive
+   control in Settings with no confirmation — 69x25, the joint-smallest thing
+   on the screen, sitting against Copy at 55x25. Item 51a's pattern, rebuilt in
+   a section written after 51a was fixed. */
+
+test("Revoke asks first, names which link, and Cancel leaves the invite alone", async () => {
+  const now = Date.now();
+  const page = await openSettings({
+    user: ME,
+    members: { u1: { email: "me@example.com", updatedAt: 1 } },
+    invites: { liveTokenAAAAAA: { by: "u1", createdAt: now, exp: now + 3600000 } },
+  });
+  try {
+    await page.locator("li").filter({ hasText: "liveTo" }).getByRole("button", { name: "Revoke" }).click();
+    const dialog = page.getByRole("dialog", { name: "Revoke this link?" });
+    await dialog.waitFor({ state: "visible", timeout: 3000 });
+    // NAMES WHICH ONE: six characters of token is all the row shows, and two
+    // links can look identical at a glance.
+    assert.match(await dialog.innerText(), /liveTo/, "the confirmation does not say which link it kills");
+
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await page.waitForTimeout(200);
+    assert.equal(await page.getByRole("dialog", { name: "Revoke this link?" }).count(), 0);
+    // Still listed — Cancel must not have reached revokeInvite.
+    assert.equal(await page.locator("li").filter({ hasText: "liveTo" }).count(), 1, "Cancel revoked the invite anyway");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("a guest link says it is a guest link when you go to revoke it", async () => {
+  const now = Date.now();
+  const page = await openSettings({
+    user: ME,
+    members: { u1: { email: "me@example.com", updatedAt: 1 } },
+    invites: { guestTokenBBBB: { by: "u1", createdAt: now, exp: now + 3600000, role: "guest" } },
+  });
+  try {
+    await page.locator("li").filter({ hasText: "guestT" }).getByRole("button", { name: "Revoke" }).click();
+    const dialog = page.getByRole("dialog", { name: "Revoke this link?" });
+    await dialog.waitFor({ state: "visible", timeout: 3000 });
+    assert.match(await dialog.innerText(), /guest link/i);
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("Copy and Revoke are the same height, and Revoke is no longer the smallest control", async () => {
+  /* 51a's actual complaint was not the size alone, it was a destructive
+     control being the SMALLEST thing on screen next to something harmless. */
+  const now = Date.now();
+  const page = await openSettings({
+    user: ME,
+    members: { u1: { email: "me@example.com", updatedAt: 1 } },
+    invites: { liveTokenAAAAAA: { by: "u1", createdAt: now, exp: now + 3600000 } },
+  });
+  try {
+    const row = page.locator("li").filter({ hasText: "liveTo" });
+    const copy = await row.getByRole("button", { name: "Copy" }).boundingBox();
+    const revoke = await row.getByRole("button", { name: "Revoke" }).boundingBox();
+    assert.equal(Math.round(copy.height), Math.round(revoke.height), "the two buttons in the row are different heights");
+    assert.ok(revoke.height > 25, `Revoke is still ${revoke.height}px tall`);
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
 test("every household this account is in is listed, and Switch actually moves the device", async () => {
   const page = await openSettings({
     user: ME,

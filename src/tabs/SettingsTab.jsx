@@ -270,6 +270,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
   const [inviteMsg, setInviteMsg] = useState("");
   const [inviting, setInviting] = useState(false);
   const [askRemove, setAskRemove] = useState(null); // member pending removal
+  const [askRevoke, setAskRevoke] = useState(null); // invite pending revocation
   /* TWO CONFIRMATIONS, NOT ONE, and the step is the state: 0 closed, 1 what
      leaving does, 2 the point of no return. Everything leaving destroys is
      irreversible — the last member out deletes the household for everyone,
@@ -813,8 +814,25 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                               {i.token.slice(0, 6)}…
                               {i.role === "guest" && <span style={{ fontFamily: fontBody, color: C.gold, fontWeight: 500, marginLeft: 6 }}>guest</span>}
                             </span>
-                            <Btn small onClick={() => copyInvite(i)}>{copied === i.token ? "Copied" : "Copy"}</Btn>
-                            <Btn small kind="danger" onClick={() => revokeInvite(i.token)}>Revoke</Btn>
+                            {/* NOT `small`, and Revoke ASKS FIRST. Measured in
+                                the Settings audit (item 103) and it was item
+                                51a's pattern rebuilt: Revoke was 69x25, the
+                                joint-smallest control on the screen, sitting
+                                against Copy at 55x25 — same size, same row,
+                                one harmless and one that reached the database
+                                with no confirmation at all. Every other
+                                destructive control here asks (Remove one
+                                dialog, Leave two, Restore starter catalog
+                                one); this was the only one that did not.
+                                A mis-tap killed a link already sent, and the
+                                person holding it just got "that invite didn't
+                                work" with no way to know why — which matters
+                                more since item 50 made every link single-use.
+                                Both buttons go full size so the row stays
+                                consistent and the destructive one is no longer
+                                the smallest thing on screen. */}
+                            <Btn onClick={() => copyInvite(i)}>{copied === i.token ? "Copied" : "Copy"}</Btn>
+                            <Btn kind="danger" onClick={() => setAskRevoke(i)}>Revoke</Btn>
                           </li>
                         ))}
                       </ul>
@@ -1085,7 +1103,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         <div style={{ ...row, borderTop: `1px dashed ${C.line}` }}>
           <div style={rowLabel}>
             Units
-            <div style={{ fontSize: 12, color: C.faint }}>
+            <div style={{ fontSize: 13, color: C.faint }}>
               {prefs.units === "as-entered"
                 ? "Shown the way recipes are written, converting only within one system."
                 : prefs.units === "metric"
@@ -1231,6 +1249,31 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         <b style={{ color: C.ink }}>{askRemove && (askRemove.email || askRemove.displayName || askRemove.uid)}</b> will
         lose access to this household&apos;s list, meals and settings. Knowing the
         household code won&apos;t get them back in — they&apos;d need a new invite.
+      </ConfirmDialog>
+
+      {/* ITEM 103. The confirmation Revoke never had. It is not as grave as
+          removing somebody — nobody loses access they already have — but it
+          is irreversible for the link itself and it acts on a person who is
+          not here: whoever is holding that link gets "that invite didn't
+          work" and no way to know why.
+          NAMES WHICH LINK, because the list shows six characters of a token
+          and two of them look identical at a glance. Says the ROLE too, since
+          a guest link and a full invite are worth different amounts of
+          bother to re-send. */}
+      <ConfirmDialog
+        open={!!askRevoke}
+        title="Revoke this link?"
+        confirmLabel="Revoke"
+        onConfirm={() => {
+          revokeInvite(askRevoke.token);
+          setAskRevoke(null);
+        }}
+        onCancel={() => setAskRevoke(null)}
+      >
+        The {askRevoke && askRevoke.role === "guest" ? "guest link" : "invite link"} starting{" "}
+        <b style={{ color: C.ink }}>{askRevoke && askRevoke.token.slice(0, 6)}</b> stops working
+        immediately. If you have already sent it, whoever has it can no longer join — send
+        them a new one instead.
       </ConfirmDialog>
 
       {/* STEP 1 — WHAT LEAVING DOES. Says which of the two cases this is:
