@@ -1028,9 +1028,24 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
 
       <Section title="Preferences">
         <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 4px" }}>
+          {/* ONE FACT, AND IT IS THE SURPRISING ONE: these are the
+              HOUSEHOLD's settings, so changing them changes the other phone
+              too (item 31 \u2014 two phones disagreeing about the week start would
+              make the plan grid mean different things).
+              WHAT WAS CUT, AND WHY, because the sentence read fine: it went
+              on "These change how things are SHOWN \u2014 nothing is rewritten, so
+              you can switch back at any time." Both halves are already said
+              BETTER one row down, at the moment they matter \u2014 the Units row
+              says "Totals converted to grams and litres", the Week row says
+              "Meals stay where they're planned". So it pre-explained at the
+              top what each control explains in place, which is items 14, 47
+              and 87's mistake, and item 94's third round is the record of
+              cutting a line that was true, clear and still unnecessary.
+              (It also shouted a word in body copy, which nothing else here
+              does.) */}
           {isGuest
-            ? "Units and week start are the household's own settings, shared by everyone in it. You can see what they are; changing them belongs to the household's accounts."
-            : "Shared by the whole household, so everyone sees the same thing. These change how things are SHOWN \u2014 nothing is rewritten, so you can switch back at any time."}
+            ? "Units and week start are the household's settings, shared by everyone in it. Only full members can change them."
+            : "The household's settings, so changing these changes them on the other phones too."}
         </p>
 
         <div style={{ ...row, borderTop: `1px dashed ${C.line}` }}>
