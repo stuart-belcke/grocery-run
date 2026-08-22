@@ -46,6 +46,8 @@ import {
   ONBOARDED_KEY,
   MUST_CHOOSE_KEY,
   PENDING_INVITE_KEY,
+  INVITE_DISMISSED_KEY,
+  invitePrompt,
   INSTALL_DISMISSED_KEY,
   INSTALL_PREVIEW_KEY,
   KNOWN_HOUSEHOLDS_KEY,
@@ -242,6 +244,15 @@ export default function App() {
      it is the one case where the first-run screen is shown to somebody the
      app already knows. */
   const [mustChoose, setMustChoose] = useState(() => !!loadJSON(MUST_CHOOSE_KEY));
+
+  /* An invite this device was offered and refused. Persisted, because the
+     INVITE itself is persisted — without remembering the refusal the card
+     would come back on every launch until the link expired. */
+  const [dismissedInvite, setDismissedInvite] = useState(() => loadJSON(INVITE_DISMISSED_KEY) || "");
+  const refuseInvite = (inv) => {
+    saveJSON(INVITE_DISMISSED_KEY, inv);
+    setDismissedInvite(inv);
+  };
 
   const finishOnboarding = () => {
     saveJSON(ONBOARDED_KEY, true);
@@ -1121,6 +1132,113 @@ export default function App() {
             You joined it in a browser or on another phone. This one can open it too.
           </NoticeCard>
         )}
+
+        {/* A TAPPED INVITE ON A PHONE THAT ALREADY USES THE APP.
+
+            REPORTED: a link sent to a second phone opened in Safari with the
+            account already signed in, and joined nothing — no message, no
+            trace. Pasting the same link into the join field by hand worked,
+            which is what made the link look broken when it was not.
+            Two gates both turn on `onboarded`: the auto-redeem effect below
+            bails on it, and the first-run screen — the only place with a Join
+            button — renders only when it is false. Auto-redeem was built for
+            a brand-new browser; an established one fell between the two and
+            there was no third path. This is that path.
+
+            AN OFFER, NOT A SILENT REDEEM. Letting the auto-redeem run when
+            onboarded would move an established phone to another household the
+            instant a link opened — the unannounced switch items 82-85 kept
+            producing. Reversible beats fast here.
+
+            NOT BESIDE THE OTHER TWO. `arrived` (item 92) and `justJoined`
+            each already say something about which household this is; a third
+            card in the same screenful would be the "two cards saying the same
+            thing" mistake item 92 records. invitePrompt decides the rest —
+            what to do when signed out, when the invite names the household
+            already open, and when reads are being refused (item 93's
+            recovery, where redeeming IS the fix). */}
+        {!justJoined && !arrived && invitePrompt({
+          invite: linkInvite,
+          authReady,
+          signedIn: !!user,
+          onboarded,
+          currentCode: code,
+          accessDenied,
+          dismissed: dismissedInvite,
+        }) && (() => {
+          const offer = invitePrompt({
+            invite: linkInvite,
+            authReady,
+            signedIn: !!user,
+            onboarded,
+            currentCode: code,
+            accessDenied,
+            dismissed: dismissedInvite,
+          });
+          const named = householdLabel(myHouseholds?.[offer.code]?.name, offer.code);
+          if (offer.kind === "already-in") {
+            return (
+              <NoticeCard
+                heading="That invite is for this household"
+                actions={
+                  <div style={{ marginTop: 8 }}>
+                    <Btn small onClick={() => refuseInvite(linkInvite)}>OK</Btn>
+                  </div>
+                }
+              >
+                You are already in {named} on this phone, so there is nothing to accept.
+              </NoticeCard>
+            );
+          }
+          if (offer.kind === "sign-in") {
+            return (
+              <NoticeCard
+                heading={`You've been invited to ${named}`}
+                actions={
+                  <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <Btn kind="primary" small onClick={() => signInWithGoogle().catch(() => {})}>Sign in</Btn>
+                    <Btn small onClick={() => refuseInvite(linkInvite)}>Not now</Btn>
+                  </div>
+                }
+              >
+                An invite is accepted for an account, not a phone. Sign in and this
+                phone can join. Settings has the email option if you would rather use that.
+              </NoticeCard>
+            );
+          }
+          return (
+            <NoticeCard
+              heading={`You've been invited to ${named}`}
+              actions={
+                <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <Btn
+                    kind="primary"
+                    small
+                    disabled={autoJoining}
+                    onClick={() => {
+                      const parsed = classifyJoinInput(linkInvite);
+                      if (parsed.kind !== "invite") return;
+                      setAutoJoining(true);
+                      joinFromOnboarding(parsed).then((res) => {
+                        setAutoJoining(false);
+                        if (!res.ok) setAutoJoinError(res.message || "That invite didn't work. Ask for a new link.");
+                      });
+                    }}
+                  >
+                    {autoJoining ? "Joining…" : "Join"}
+                  </Btn>
+                  <Btn small onClick={() => refuseInvite(linkInvite)}>Not now</Btn>
+                </div>
+              }
+            >
+              {autoJoinError
+                ? autoJoinError
+                : offer.role === "guest"
+                  ? "You can shop the list. Recipes and the week plan stay read-only. This phone keeps the household it is on until you accept."
+                  : "This phone keeps the household it is on until you accept."}
+            </NoticeCard>
+          );
+        })()}
 
         {/* Two different messages, deliberately not merged. The first is an
             offer; the second is a fact about the data. */}

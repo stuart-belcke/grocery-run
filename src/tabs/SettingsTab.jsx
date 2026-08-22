@@ -4,7 +4,7 @@
     tab stays focused on stores and ingredient defaults.               */
 /* ------------------------------------------------------------------ */
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { C, fontBody, inputStyle, syncTone } from "../theme";
 import { Btn, ConfirmDialog, AlertDialog, Section, Seg, HelpText } from "../ui";
 import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, remapStateIngredientIds, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, inviteLive, newInviteToken, searchHelp, writeErrorAdvice, householdLabel, hasHouseholdName, cleanHouseholdName, exampleHouseholdName, HOUSEHOLD_NAME_MAX } from "../lib";
@@ -192,7 +192,22 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
     }
   };
 
-  useEffect(() => setCodeInput(code), [code]);
+  /* REFILL THE FIELD WHEN THE HOUSEHOLD CHANGES — but NOT on mount, which is
+     what this used to do and what silently ate a tapped invite.
+     An effect with a dependency array still runs after the FIRST render, so
+     `setCodeInput(code)` overwrote the `initialInvite || code` the field was
+     seeded with a moment earlier. The one place a tapped invite was meant to
+     surface on an already-onboarded phone wiped it before anybody saw it, so
+     the link left no trace anywhere in the UI.
+     Comparing against the previous value keeps the intent — switch household,
+     see the new code — without touching the field on the render where the
+     invite arrives. */
+  const lastCode = useRef(code);
+  useEffect(() => {
+    if (lastCode.current === code) return;
+    lastCode.current = code;
+    setCodeInput(code);
+  }, [code]);
 
   /* One field, two meanings, decided by whether the text parses as an invite.
      A bare code is "switch to a household I'm ALREADY in" — the recovery path

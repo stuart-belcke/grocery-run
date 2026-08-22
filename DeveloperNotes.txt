@@ -1022,6 +1022,78 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     already does for the rules and the sweep scripts. That is the next slice,
     and it is a bigger one than this.
 
+100. [DONE] A TAPPED INVITE DID NOTHING ON A PHONE THAT ALREADY USED THE APP.
+    Reported from the first real use of the shipped invite work: "I sent a
+    link to a second phone. Tapping it brought it to Safari and the email was
+    already signed in. But it didn't join the household the invite was from.
+    Pasting it into the join field from the home-screen app, same email signed
+    in, worked."
+
+    NOT A REGRESSION FROM #116 — checked before theorising: that PR touched
+    only `members`/`invites` in App.jsx and nothing in this area. This is
+    original behaviour, and it is the invite road's version of the hole item
+    92 fixed on the household-index road.
+
+    TWO GATES, BOTH ON `onboarded`, AND NO THIRD PATH:
+      App.jsx, the auto-redeem effect — `if (!linkInvite || !user ||
+      onboarded || ...) return;`. Auto-redeem was built for a BRAND NEW
+      browser (item 89, where the invite had to survive a sign-in).
+      App.jsx, the first-run screen — the only place with a Join button —
+      renders only when `!onboarded`.
+    So an established browser matched neither. The invite was read out of the
+    link and persisted, and then nothing acted on it and nothing mentioned it.
+
+    AND THE ONE PLACE IT WAS MEANT TO SURFACE WIPED IT. SettingsTab seeded the
+    join field with `initialInvite || code` and then ran
+    `useEffect(() => setCodeInput(code), [code])` — which, like every effect
+    with a dependency array, ALSO RUNS AFTER THE FIRST RENDER. So the field was
+    overwritten with the current household code before anybody saw the invite.
+    That is why the link left no trace anywhere on screen, and why pasting by
+    hand looked like the only thing that worked: it was.
+    Fixed by comparing against the previous code in a ref, so the field still
+    refills when you switch household but is untouched on mount.
+
+    AN OFFER, NOT A SILENT REDEEM. The tempting fix is to drop `onboarded`
+    from the effect's bail-out. That would move an established phone to
+    another household the instant a link opened — the unannounced switch items
+    82-85 kept producing, and the reason item 92 offers "Switch to it" rather
+    than switching. So: a card, matching item 92's, with Join and Not now.
+
+    THE DECISION IS invitePrompt (lib.js, pure, tested), AND ITS RULE ORDER IS
+    THE DESIGN. Written as a table because the corner cases are the point:
+      nothing before authReady — deciding early flashes "sign in" at somebody
+        who IS signed in, the trap the sync indicator already has;
+      nothing when !onboarded — the first-run screen owns that, and two cards
+        offering the same join is item 92's recorded mistake;
+      nothing for anything that is not an invite — a link whose #fragment went
+        missing arrives as the bare site address, and item 88 is the record of
+        what happens when that gets laundered into a household;
+      nothing once refused — the invite is persisted, so without remembering
+        the refusal the card returns on every launch until the link expires;
+      signed out -> offer the SIGN-IN, not a join. This was a SECOND hole
+        found while writing the table: an established browser that is signed
+        out also skips the first-run screen, so it got nothing either;
+      the household you are already on -> say so rather than offer a pointless
+        switch — a THIRD case nothing handled;
+      ...unless reads are being refused, which is item 93's recovery path:
+        "I lost access and somebody sent a fresh invite" means by definition
+        the invite names the code already loaded, and redeeming it is the fix.
+        Treating that as a no-op would break the one flow most likely to need
+        it.
+
+    TESTED, AND THE MUTATIONS ARE WHAT MAKE IT WORTH ANYTHING: ten unit tests
+    over the table, eight in tests/e2e/specs/invitewaiting.spec.mjs driving
+    the real reported scenario — reachable only because item 95's USER_PREVIEW
+    seam exists, since `user` must be non-null for any of it.
+      Restoring the field wipe fails exactly the field test.
+      Removing the card fails five of the eight; the other three still pass,
+      correctly, because they assert the card is ABSENT (mangled link,
+      first-run browser) — those are guards against over-eagerness, not proof
+      of the fix, and are only meaningful alongside the five.
+    NOT COVERED: the redeem itself, which needs a real database. The Join
+    button's failure message is what a local-only build can produce and that
+    is what the test asserts.
+
 99. [DONE] A NEW RELEASE NOW TAKES OVER AN OPEN TAB BY ITSELF. Asked for
     directly — "I am inclined to do the force reload on new version push, it
     seems that is what is industry standard."

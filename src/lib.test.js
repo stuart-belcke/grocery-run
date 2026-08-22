@@ -28,6 +28,7 @@ import {
   installPromptState,
   devicePlatform,
   canReloadForUpdate,
+  invitePrompt,
   hasHouseholdName,
   cleanHouseholdName,
   exampleHouseholdName,
@@ -3652,4 +3653,100 @@ test("a missing or malformed store is treated as empty, not as a crash", () => {
   // An array here is the OLD unkeyed shape. It must not be spread into the
   // new one, where its indices would become uid keys.
   assert.deepEqual(withKnownFor(["home-old"], "u1", ["home-a"]), { u1: ["home-a"] });
+});
+
+/* ---------------- a tapped invite on a phone that already uses the app ----
+   REPORTED: a link sent to a second phone opened in Safari with the account
+   already signed in, and joined nothing — no message, no trace. The same link
+   pasted into the join field by hand worked.
+   Two gates in App.jsx both turn on `onboarded`: the auto-redeem effect bails
+   on it, and the first-run screen (the only place with a Join button) renders
+   only when it is false. An established browser fell between them.
+   Each test below is one corner of that, written as the behaviour wanted
+   rather than the behaviour found. */
+
+const INV = formatInvite("home-friends", "abcdefgh1234");
+const GUEST_INV = formatInvite("home-friends", "abcdefgh1234", "guest");
+const ON = { invite: INV, authReady: true, signedIn: true, onboarded: true, currentCode: "home-mine" };
+
+test("THE REPORTED BUG: an onboarded, signed-in phone is offered the join", () => {
+  const got = invitePrompt(ON);
+  assert.equal(got && got.kind, "join", "a tapped invite did nothing on a phone that already uses the app");
+  assert.equal(got.code, "home-friends");
+  assert.equal(got.role, "member");
+});
+
+test("a guest link is offered too, and says it is a guest link", () => {
+  /* Guest links cannot auto-redeem — they need a typed NAME, the only thing
+     that identifies that person in the member list — so the offer has to
+     carry the role through rather than assume a full member. */
+  const got = invitePrompt({ ...ON, invite: GUEST_INV });
+  assert.equal(got && got.kind, "join");
+  assert.equal(got.role, "guest");
+});
+
+test("onboarded but SIGNED OUT is sent to sign in, not to a join that cannot work", () => {
+  /* A second hole in the same place: an established browser that is signed
+     out skips the first-run screen too, so it got nothing at all. An invite
+     is accepted for an ACCOUNT, so the honest next step is signing in. */
+  const got = invitePrompt({ ...ON, signedIn: false });
+  assert.equal(got && got.kind, "sign-in");
+  assert.equal(got.code, "home-friends");
+});
+
+test("an invite for the household you are ALREADY in says so, instead of offering a pointless switch", () => {
+  const got = invitePrompt({ ...ON, currentCode: "home-friends" });
+  assert.equal(got && got.kind, "already-in");
+});
+
+test("...unless reads are being refused, which is the recovery path", () => {
+  /* ITEM 93: "I lost access and somebody sent me a fresh invite" means by
+     definition the invite names the code already loaded. Treating that as a
+     no-op would break the one flow most likely to need it. */
+  const got = invitePrompt({ ...ON, currentCode: "home-friends", accessDenied: true });
+  assert.equal(got && got.kind, "join", "the fresh-invite recovery path was refused as a no-op");
+});
+
+test("nothing is offered before auth has answered", () => {
+  // Deciding early would flash "sign in" at somebody who IS signed in.
+  assert.equal(invitePrompt({ ...ON, authReady: false }), null);
+  assert.equal(invitePrompt({ ...ON, authReady: false, signedIn: false }), null);
+});
+
+test("a brand-new browser is left to the first-run screen", () => {
+  // Two things offering the same join at once is item 92's mistake.
+  assert.equal(invitePrompt({ ...ON, onboarded: false }), null);
+});
+
+test("a MANGLED link is never offered as a join", () => {
+  /* ITEM 88: a link whose #fragment went missing arrives as the bare site
+     address, and cleanCode would launder it into a legal household code. That
+     silently made a household named after a URL. Nothing that is not an
+     invite may reach the offer. */
+  for (const junk of [
+    "https://stuart-belcke.github.io/grocery-run/",
+    "home-friends",
+    "home-friends~short",
+    "have a look at this",
+    "",
+    "   ",
+  ]) {
+    assert.equal(invitePrompt({ ...ON, invite: junk }), null, `${JSON.stringify(junk)} was offered as a join`);
+  }
+});
+
+test("\"Not now\" sticks, so the card does not come back every launch", () => {
+  // The pending invite is persisted, so without remembering the refusal this
+  // would reappear on every open until the link expired.
+  assert.equal(invitePrompt({ ...ON, dismissed: INV }), null);
+  // ...but a DIFFERENT invite arriving later is still offered.
+  const later = formatInvite("home-others", "zzzzzzzz9999");
+  assert.equal(invitePrompt({ ...ON, invite: later, dismissed: INV }).kind, "join");
+});
+
+test("invitePrompt never throws, whatever it is handed", () => {
+  // It runs on every render of the whole app; a throw here is a white screen.
+  for (const args of [undefined, {}, { invite: null }, { invite: 42 }, { invite: {} }]) {
+    assert.doesNotThrow(() => invitePrompt(args));
+  }
 });

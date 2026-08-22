@@ -43,6 +43,12 @@ export const MUST_CHOOSE_KEY = "grocery-run-must-choose-household-v1";
    deliberately skipped. */
 export const PENDING_INVITE_KEY = "grocery-run-pending-invite-v1";
 
+/* An invite this device was OFFERED and said "Not now" to. Per device, like
+   the home-screen dismissal: the question is about this browser, and the
+   pending invite itself is persisted, so without a record of the refusal the
+   same card would come back on every single launch until the link expired. */
+export const INVITE_DISMISSED_KEY = "grocery-run-invite-dismissed-v1";
+
 /* Item 91. "Not now" on the home-screen offer, remembered per DEVICE.
    Per device and not per account, because the question is about this phone's
    home screen, not about who is signed in — and signing out and back in must
@@ -2946,4 +2952,72 @@ export function guestBlockedFields(prev, next) {
     if (JSON.stringify((prev || {})[key]) !== JSON.stringify((next || {})[key])) out.push(key);
   }
   return out;
+}
+
+/* WHAT A DEVICE THAT ALREADY USES THE APP SHOULD DO WITH A TAPPED INVITE.
+
+   REPORTED, AND THIS IS THE WHOLE REASON IT EXISTS: a link sent to a second
+   phone opened in Safari with the account already signed in, and joined
+   nothing. No message, no trace. Pasting the same link into the join field by
+   hand worked, which is what made it look like the link was broken when it
+   was not.
+
+   WHY IT DID NOTHING. Two gates in App.jsx both turn on `onboarded`: the
+   auto-redeem effect bails on it, and the first-run screen — the only place
+   with a Join button — renders only when it is false. Auto-redeem was built
+   for a BRAND NEW browser. An established one fell between the two and there
+   was no third path. Item 92 fixed the same shape for the household INDEX ("a
+   household joined somewhere else"); this is that hole on the invite road.
+
+   WHY NOT JUST LET THE AUTO-REDEEM RUN WHEN ONBOARDED. Because it would
+   silently move an established phone to another household the instant a link
+   opened — a big, unannounced switch, which is the exact failure items 82-85
+   kept producing. An offer is reversible; a silent switch is not.
+
+   THE ORDER OF THE RULES IS THE DESIGN, so it is worth reading as a list:
+     1. no invite, or auth has not answered yet -> say nothing. Deciding
+        before `authReady` would flash a sign-in card at somebody who IS
+        signed in, the same trap the sync indicator has.
+     2. not onboarded -> say nothing, because the first-run screen already
+        owns this case and two things offering the same join at once is item
+        92's "never shown beside the join confirmation" mistake.
+     3. NOT AN INVITE -> say nothing. A mangled link whose fragment went
+        missing arrives here as a plain string, and item 88 is the record of
+        what happens when something like that gets treated as a household.
+     4. already refused THIS invite -> say nothing, or the card returns on
+        every launch until the link expires.
+     5. signed out -> offer the sign-in, not the join. An invite is accepted
+        for an ACCOUNT, not a phone.
+     6. it is the household this device is already on -> say so rather than
+        offering a pointless switch...
+     7. ...UNLESS reads are being refused, which is item 93's recovery path:
+        "I lost access and somebody sent me a fresh invite" means by
+        definition that the invite names the code already loaded, and
+        redeeming it is the fix rather than a no-op.
+   Everything else is a real offer to join.
+
+   Returns null for "show nothing", or { kind, code, role } where kind is
+   "sign-in", "already-in" or "join". */
+export function invitePrompt({
+  invite = "",
+  authReady = false,
+  signedIn = false,
+  onboarded = false,
+  currentCode = "",
+  accessDenied = false,
+  dismissed = "",
+} = {}) {
+  const raw = String(invite == null ? "" : invite).trim();
+  if (!raw || !authReady) return null;
+  if (!onboarded) return null;
+
+  const parsed = classifyJoinInput(raw);
+  if (parsed.kind !== "invite") return null;
+
+  if (dismissed && String(dismissed).trim() === raw) return null;
+
+  const seat = { code: parsed.code, role: parsed.role || "member" };
+  if (!signedIn) return { kind: "sign-in", ...seat };
+  if (parsed.code === currentCode && !accessDenied) return { kind: "already-in", ...seat };
+  return { kind: "join", ...seat };
 }
