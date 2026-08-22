@@ -287,6 +287,125 @@ Tier 4 — multi-device / integrations (highest risk, do last)
 
 18. Export to / link with a Google calendar, keyed off the household.
 
+103. [DONE] SETTINGS UX AUDIT — measured, not assessed, in item 51's shape.
+    Asked for directly: "I think we need to do a UX review of the whole
+    settings tab. Everything else I am pretty happy with."
+    Driven in a real browser at 390px and 320px against the REAL catalog (22
+    recipes, 146 ingredients), SIGNED IN, with three members, two live
+    invites, three households and a named household, every section expanded.
+    Everything below is a number the page reported about itself.
+
+    WORTH DOING BECAUSE ITEM 51 COULD NOT. That audit concluded "Settings is
+    clean on every measure" — before the Household section existed, and with
+    no way to render the signed-in half at all. Items 95 and 99's preview
+    seams are what made this pass possible.
+
+    WHAT CAME BACK CLEAN, recorded so nobody re-audits it:
+      NO horizontal page overflow at either width (scrollWidth 390 and 320).
+      NO text clipped by its own box, anywhere, at either width — 0 findings,
+      where item 51c had one. The item 47/51c/57 work held under the
+      signed-in half it was never tested against.
+      NO page errors.
+    SCALE, for sizing future work: 3,306px at 390px (3.9 screens) and 3,800px
+    at 320px (4.5) with every section open. Collapsed by default, so this
+    only reaches somebody who opens everything.
+    SECTION HEIGHTS at 390px: How it works 988, Household 976, Export &
+    recover 459, Preferences 309, Unit converter 185, Account 105. The help
+    text is the largest thing on the settings screen. Recorded as information,
+    not a fault — same as 51e.
+
+    103a. [DONE] REVOKE WAS ITEM 51a REBUILT, in a section written after 51a
+        was fixed. 69x25px, the joint-smallest control on the screen, sitting
+        against Copy at 55x25 — same size, same row, same shape, one harmless
+        and one that reached the database WITH NO CONFIRMATION AT ALL. Every
+        other destructive control in Settings asks first: Remove one dialog,
+        Leave two, Restore starter catalog one, Restore & replace one. This
+        was the only one that did not.
+        WHAT IT COST: a mis-tap killed a link already sent, and the person
+        holding it got "that invite didn't work" with no way to know why —
+        which matters more since item 50 made every link single-use, so there
+        is no second chance built into the link itself.
+        FIXED with a confirmation that NAMES WHICH LINK (the row shows six
+        characters of token and two can look identical at a glance) and says
+        the ROLE, since a guest link and a full invite are worth different
+        amounts of bother to re-send. Both buttons in the row go full size, so
+        the row stays consistent and the destructive one is no longer the
+        smallest thing on screen — which was 51a's actual complaint, not the
+        size on its own.
+        Three e2e tests; reverting the button to small-and-unconfirmed fails
+        exactly those three and nothing else.
+
+    103b. [DONE] TWO SUB-LABELS IN Preferences WERE DIFFERENT SIZES — Units at
+        12px, Week starts on at 13px, for the same kind of element in adjacent
+        rows. Both clear item 87's 12px floor, so this is consistency rather
+        than legibility. Units is now 13 to match it and the rest of the tab.
+
+    103c. NOT DONE, AND DELIBERATELY NOT FOLDED IN: 44px tap targets.
+        NOTHING in the app reaches 44px — Btn is 8px/14px padding (34px tall)
+        and `small` is 4px/10px (25px). The twelve FAQ rows are 35px. Item 51a
+        set 44px as the floor and fixed the two controls that broke it worst,
+        one at a time; the honest reading of this audit is that the floor is
+        missed everywhere by design rather than by accident.
+        THAT IS ONE DECISION, NOT THIRTY FIXES: raising the two paddings in
+        Btn touches every screen in the app and wants the layout suites
+        (fits, listrow, tabbar, weekdensity) re-run against it. Worth doing on
+        its own, with its own measurements, rather than riding along with a
+        bug fix. Recorded here so the number does not have to be re-measured.
+
+101. MAKING A HOUSEHOLD IS A FIRST-RUN-ONLY ACTION, AND THAT IS NOW ODD.
+    Asked while reading Settings: "if you can get invited to multiple, why not
+    be able to make new ones?" Fair, and the asymmetry is real rather than
+    intended — it is left over from when a device had exactly one household.
+    WHERE CREATING ONE LIVES TODAY: Onboarding.jsx's "Start my own list"
+    button, and the same button relabelled "Create a household" when you have
+    just left your last one (item 85). That is all. Settings can SWITCH
+    between households (item 90's list), RESTORE a deleted one (item 86) and
+    JOIN one by invite — but it cannot make one. So an account can accumulate
+    households only by being invited to them, which is backwards: you can be
+    put in a place by somebody else but cannot open one yourself without
+    first leaving everywhere.
+    WHY IT IS NOT A ONE-BUTTON JOB, which is the reason to write it down
+    rather than just add the button:
+      - CLAIMING IS THE DANGEROUS BIT. Item 84 stopped every fresh browser
+        minting AND claiming a household, and items 83/85 are two more
+        rounds of "the app made me a household I did not ask for". A Create
+        button re-opens exactly that surface, so it has to be a deliberate,
+        confirmed action that lands you IN the new household rather than
+        quietly seeding one.
+      - IT NEEDS A NAME AT BIRTH. A second, third and fourth household called
+        home-xxxxxxxx is unreadable in the switcher; item 90's naming exists
+        precisely so a person can tell them apart. Creating one without
+        asking for a name would make the list worse the moment it is useful.
+      - WHAT DOES THE NEW ONE START WITH? An empty catalog, or a copy of the
+        starter one? Both are defensible and they are different products —
+        "a second household for the beach house" wants the recipes; "a test
+        household" does not.
+    NOT URGENT: two people, two phones, one household. Worth doing when a
+    second real household exists to want.
+
+102. PER-DEVICE VERSUS PER-HOUSEHOLD SETTINGS, as a distinction the app makes
+    but never says out loud. Raised alongside item 101 and worth revisiting
+    together.
+    TODAY EVERYTHING UNDER "Preferences" IS THE HOUSEHOLD'S — units and week
+    start live on the catalog node, decided in item 31 for a good reason:
+    two phones disagreeing about the week start would make the plan grid mean
+    different things to the two people reading it.
+    BUT THE APP ALREADY HAS PER-DEVICE STATE, it just does not call it
+    settings: the home-screen dismissal (item 91), the seen-set of announced
+    households (item 92), the device's own household code, and the caches.
+    None of it is exposed, and none of it is labelled as belonging to this
+    phone rather than to everybody.
+    THE QUESTION TO ANSWER FIRST is which side each setting belongs on, and
+    UNITS IS THE ONE THAT IS ARGUABLE — one person reading metric while the
+    other reads standard costs nothing, because it changes how a total is
+    SHOWN and not what is stored. Week start is the opposite: it is shared by
+    nature, since it changes a grid both people look at.
+    IF IT IS BUILT, THE SPLIT HAS TO BE VISIBLE. A settings screen where some
+    rows silently change the other person's phone and others do not is worse
+    than one where they all do — the current copy ("The household's settings,
+    so changing these changes them on the other phones too") is honest only
+    while it is true of every row on the screen.
+
 90. [DONE] NAME A HOUSEHOLD. Proposed while the onboarding work was still in flight,
     and deliberately queued behind it: "once we get this working flawlessly,
     we can improve the household names by allowing the user to create a name."

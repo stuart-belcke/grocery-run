@@ -270,6 +270,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
   const [inviteMsg, setInviteMsg] = useState("");
   const [inviting, setInviting] = useState(false);
   const [askRemove, setAskRemove] = useState(null); // member pending removal
+  const [askRevoke, setAskRevoke] = useState(null); // invite pending revocation
   /* TWO CONFIRMATIONS, NOT ONE, and the step is the state: 0 closed, 1 what
      leaving does, 2 the point of no return. Everything leaving destroys is
      irreversible — the last member out deletes the household for everyone,
@@ -813,15 +814,51 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                               {i.token.slice(0, 6)}…
                               {i.role === "guest" && <span style={{ fontFamily: fontBody, color: C.gold, fontWeight: 500, marginLeft: 6 }}>guest</span>}
                             </span>
-                            <Btn small onClick={() => copyInvite(i)}>{copied === i.token ? "Copied" : "Copy"}</Btn>
-                            <Btn small kind="danger" onClick={() => revokeInvite(i.token)}>Revoke</Btn>
+                            {/* NOT `small`, and Revoke ASKS FIRST. Measured in
+                                the Settings audit (item 103) and it was item
+                                51a's pattern rebuilt: Revoke was 69x25, the
+                                joint-smallest control on the screen, sitting
+                                against Copy at 55x25 — same size, same row,
+                                one harmless and one that reached the database
+                                with no confirmation at all. Every other
+                                destructive control here asks (Remove one
+                                dialog, Leave two, Restore starter catalog
+                                one); this was the only one that did not.
+                                A mis-tap killed a link already sent, and the
+                                person holding it just got "that invite didn't
+                                work" with no way to know why — which matters
+                                more since item 50 made every link single-use.
+                                Both buttons go full size so the row stays
+                                consistent and the destructive one is no longer
+                                the smallest thing on screen. */}
+                            <Btn onClick={() => copyInvite(i)}>{copied === i.token ? "Copied" : "Copy"}</Btn>
+                            <Btn kind="danger" onClick={() => setAskRevoke(i)}>Revoke</Btn>
                           </li>
                         ))}
                       </ul>
                     </div>
                   )}
                   <p style={{ fontSize: 13, color: C.faint, margin: "10px 0 0" }}>
-                    Links expire in an hour. Removing someone is permanent — the household code alone won&apos;t let them back in.
+                    {/* WHAT WENT, AND WHY IT WAS WORTH GOING.
+                        It read "Links expire in an hour. Removing someone is
+                        permanent — the household code alone won't let them
+                        back in." Three things wrong with the second half:
+                        REMOVING IS NOT PERMANENT. Send them a new invite and
+                        they are back. The Remove dialog says exactly that
+                        ("they'd need a new invite"), so this line contradicted
+                        the app three taps away.
+                        IT ARGUED WITH A MODEL NOBODY HOLDS. "The household
+                        code alone won't let them back in" only answers a
+                        question somebody carrying the OLD shared-code model
+                        would ask; a reader who never knew that model is just
+                        told a code they were not thinking about will not work.
+                        AND IT IS ALREADY SAID IN PLACE. The Remove dialog
+                        covers it at the moment it matters — same mistake as
+                        the Preferences note, a footer pre-explaining a dialog.
+                        WHAT SURVIVES is the one fact worth having BEFORE
+                        pressing Invite, and it now covers both kinds of link:
+                        since item 50 a guest link is single-use too. */}
+                    Links work once, and expire in an hour if nobody uses them.
                   </p>
                 </div>
               )}
@@ -952,7 +989,16 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
             )}
           </div>
         )}
-        {!syncEnabled ? (
+        {/* `&& !user`, the same one-line change already shipped for the
+            Household section above and for the same reason: a local-only
+            build is ALWAYS !syncEnabled, so the signed-in half of Account —
+            who you are signed in as, and Sign out — could not render in a
+            test no matter what was seeded. In every real deployment
+            syncEnabled is a fixed build-wide constant and `user` can only be
+            non-null when it is already true, so this subtracts nothing a real
+            user ever sees; it only matters in the test bundle, where
+            USER_PREVIEW_KEY can make `user` non-null on purpose. */}
+        {!syncEnabled && !user ? (
           <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 0" }}>
             Sign-in needs the phone-to-phone sync setup above turned on first.
           </p>
@@ -970,7 +1016,13 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
               {user.displayName && user.email ? ` (${user.email})` : ""}.
             </p>
             <p style={{ fontSize: 13, color: C.faint, margin: "0 0 12px" }}>
-              Signing out keeps this phone&apos;s data and stops it syncing until you sign back in.
+              {/* NO PRONOUN, because "it" had nothing safe to point at: the
+                  line read "keeps this phone's data and stops IT syncing",
+                  where the nearest noun is the DATA — so it parsed as the data
+                  doing the syncing, which is not a thing. Two plain facts
+                  instead, in the order somebody signing out cares about them:
+                  what is kept, then what stops. */}
+              Signing out keeps everything on this phone. Nothing syncs until you sign back in.
             </p>
 
             {/* NAME THE ACTUAL REMEDY. This used to say "check the code above
@@ -1028,15 +1080,30 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
 
       <Section title="Preferences">
         <p style={{ fontSize: 13, color: C.faint, margin: "8px 0 4px" }}>
+          {/* ONE FACT, AND IT IS THE SURPRISING ONE: these are the
+              HOUSEHOLD's settings, so changing them changes the other phone
+              too (item 31 \u2014 two phones disagreeing about the week start would
+              make the plan grid mean different things).
+              WHAT WAS CUT, AND WHY, because the sentence read fine: it went
+              on "These change how things are SHOWN \u2014 nothing is rewritten, so
+              you can switch back at any time." Both halves are already said
+              BETTER one row down, at the moment they matter \u2014 the Units row
+              says "Totals converted to grams and litres", the Week row says
+              "Meals stay where they're planned". So it pre-explained at the
+              top what each control explains in place, which is items 14, 47
+              and 87's mistake, and item 94's third round is the record of
+              cutting a line that was true, clear and still unnecessary.
+              (It also shouted a word in body copy, which nothing else here
+              does.) */}
           {isGuest
-            ? "Units and week start are the household's own settings, shared by everyone in it. You can see what they are; changing them belongs to the household's accounts."
-            : "Shared by the whole household, so everyone sees the same thing. These change how things are SHOWN \u2014 nothing is rewritten, so you can switch back at any time."}
+            ? "Units and week start are the household's settings, shared by everyone in it. Only full members can change them."
+            : "The household's settings, so changing these changes them on the other phones too."}
         </p>
 
         <div style={{ ...row, borderTop: `1px dashed ${C.line}` }}>
           <div style={rowLabel}>
             Units
-            <div style={{ fontSize: 12, color: C.faint }}>
+            <div style={{ fontSize: 13, color: C.faint }}>
               {prefs.units === "as-entered"
                 ? "Shown the way recipes are written, converting only within one system."
                 : prefs.units === "metric"
@@ -1182,6 +1249,31 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         <b style={{ color: C.ink }}>{askRemove && (askRemove.email || askRemove.displayName || askRemove.uid)}</b> will
         lose access to this household&apos;s list, meals and settings. Knowing the
         household code won&apos;t get them back in — they&apos;d need a new invite.
+      </ConfirmDialog>
+
+      {/* ITEM 103. The confirmation Revoke never had. It is not as grave as
+          removing somebody — nobody loses access they already have — but it
+          is irreversible for the link itself and it acts on a person who is
+          not here: whoever is holding that link gets "that invite didn't
+          work" and no way to know why.
+          NAMES WHICH LINK, because the list shows six characters of a token
+          and two of them look identical at a glance. Says the ROLE too, since
+          a guest link and a full invite are worth different amounts of
+          bother to re-send. */}
+      <ConfirmDialog
+        open={!!askRevoke}
+        title="Revoke this link?"
+        confirmLabel="Revoke"
+        onConfirm={() => {
+          revokeInvite(askRevoke.token);
+          setAskRevoke(null);
+        }}
+        onCancel={() => setAskRevoke(null)}
+      >
+        The {askRevoke && askRevoke.role === "guest" ? "guest link" : "invite link"} starting{" "}
+        <b style={{ color: C.ink }}>{askRevoke && askRevoke.token.slice(0, 6)}</b> stops working
+        immediately. If you have already sent it, whoever has it can no longer join — send
+        them a new one instead.
       </ConfirmDialog>
 
       {/* STEP 1 — WHAT LEAVING DOES. Says which of the two cases this is:
