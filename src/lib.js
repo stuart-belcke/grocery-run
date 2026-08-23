@@ -1055,7 +1055,13 @@ function unitWordCanonical(word) {
   return EXTRA_UNIT_WORDS.has(w) ? w : null;
 }
 
-const QTY_RE = new RegExp(`^(\\d+\\s+\\d+/\\d+|\\d+/\\d+|\\d+[${VULGAR_RE}]|\\d*\\.\\d+|\\d+|[${VULGAR_RE}])(?=\\s|$)`);
+// "1 1/2" and "1½" were both covered; "1 ½" — a whole number, a space, THEN
+// the vulgar fraction glyph, which is how sites like AllRecipes render a
+// mixed number — was not, and fell back to reading the qty as bare "1" and
+// leaving "½ cups shredded Cheddar cheese" as the name. qtyToNumber already
+// handled the spaced form; QTY_RE just never captured enough of the line to
+// hand it one.
+const QTY_RE = new RegExp(`^(\\d+\\s+\\d+/\\d+|\\d+\\s+[${VULGAR_RE}]|\\d+/\\d+|\\d+[${VULGAR_RE}]|\\d*\\.\\d+|\\d+|[${VULGAR_RE}])(?=\\s|$)`);
 
 /* Everything on an ingredient line that is neither how much nor what:
    "(optional)", "to taste", "diced", "rinsed and drained", "or ground
@@ -1146,9 +1152,22 @@ export function parseIngredientLine(rawLine) {
 }
 
 // Section/metadata lines a food-blog copy/paste is full of — recognized so
-// they're never mistaken for the recipe's own title.
-const BOILERPLATE_RE = /^(cook mode|prevent your screen|author:|prep time|cook time|total time|servings?:?|serves\b|calories|ingredients?$|instructions?$|directions?$|notes?$|save$|print$|email$|nutritional information|us customary|metric)/i;
+// they're never mistaken for the recipe's own title, an ingredient, or a
+// step. "keep screen awake" and "dotdash meredith" were added after a real
+// AllRecipes paste (Dotdash Meredith runs AllRecipes and several other big
+// food sites) put its own "keep screen on" checkbox into the ingredient list
+// and a photo credit under every step into the instructions.
+const BOILERPLATE_RE = /^(cook mode|prevent your screen|keep screen awake|author:|prep time|cook time|total time|servings?:?|serves\b|calories|ingredients?$|instructions?$|directions?$|notes?$|save$|print$|email$|nutritional information|us customary|metric|dotdash meredith)/i;
 const SERVINGS_RE = /^(?:serves|servings?)\s*:?\s*(\d+(?:\.\d+)?)/i;
+// A recipe-scaler control's own label ("1X", "2X", "1/2X") — it sits right
+// next to the servings count in the source markup, so a paste that includes
+// the widget puts it right next to the ingredient list too.
+const SCALER_RE = /^(\d+\/\d+|\d+(?:\.\d+)?)x$/i;
+// "Original recipe (1X) yields 4 servings" — AllRecipes' serving-scaler
+// summary line. Matched loosely (not anchored) since it never appears alone,
+// and reused below to recover the servings count when there's no separate
+// "Servings: 4" line for SERVINGS_RE to find.
+const YIELDS_RE = /yields\s+(\d+(?:\.\d+)?)\s*servings?/i;
 const SECTION_HEADING_RE = /^(ingredients?|instructions?|directions?)\s*$/i;
 // A short, punctuation-free, ALL-CAPS line reads as a method sub-heading
 // (CROCKPOT / INSTANT POT / STOVE-TOP) rather than an instruction step.
@@ -1167,24 +1186,34 @@ export function parseRecipeText(text) {
 
   let servings = null;
   for (const l of lines) {
-    const m = l.match(SERVINGS_RE);
+    const m = l.match(SERVINGS_RE) || l.match(YIELDS_RE);
     if (m) { servings = Number(m[1]); break; }
   }
 
+  // The raw lines that turned out to BE an ingredient, kept so the
+  // instructions loop below can recognize a duplicated ingredient list
+  // (a food-blog page's "jump to recipe" widget repeats the whole card) as
+  // noise rather than as steps.
+  const rawIngredientLines = new Set();
   const ingredients = [];
   const ingStart = lines.findIndex((l) => /^ingredients?\s*$/i.test(l));
   if (ingStart !== -1) {
     for (let i = ingStart + 1; i < lines.length; i++) {
       const l = lines[i];
       if (SECTION_HEADING_RE.test(l)) break;
-      if (!l || /^(us customary|metric)/i.test(l)) continue;
+      if (!l || BOILERPLATE_RE.test(l) || SCALER_RE.test(l) || YIELDS_RE.test(l)) continue;
       const parsed = parseIngredientLine(l);
-      if (parsed) ingredients.push(parsed);
+      if (parsed) { ingredients.push(parsed); rawIngredientLines.add(l.toLowerCase()); }
     }
   } else {
     // No "Ingredients" heading found — fall back to any line that looks like
     // one (bulleted, or starting with a number) wherever it appears, rather
     // than giving up on plain pasted lists that skip the heading entirely.
+    // NOT added to rawIngredientLines: "starts with a digit" also matches a
+    // numbered instruction step ("4. Boil the water."), and skipping those
+    // out of the instructions below is exactly the bug this set exists to
+    // avoid, not cause. The duplicated-card problem it protects against only
+    // happens when there IS a real Ingredients heading to duplicate.
     for (const l of lines) {
       if (!l || !/^([▢☐☑✓•●○\-*·]|\d)/.test(l)) continue;
       const parsed = parseIngredientLine(l);
@@ -1202,6 +1231,12 @@ export function parseRecipeText(text) {
       const l = lines[i];
       if (!l) continue;
       if (/^(nutrition|notes?)\s*$/i.test(l)) break;
+      // A stray "Ingredients" heading, its scaler widget, or the ingredient
+      // list itself turning up again mid-way through — the same duplicated
+      // recipe card that can precede the real Directions in the first place
+      // (see the comment on BOILERPLATE_RE). Skipped rather than treated as
+      // the end of the recipe, because the real steps still follow it.
+      if (SECTION_HEADING_RE.test(l) || BOILERPLATE_RE.test(l) || SCALER_RE.test(l) || YIELDS_RE.test(l) || rawIngredientLines.has(l.toLowerCase())) continue;
       if (isMethodHeading(l)) {
         if (sawMethodHeading) break; // a second method's heading — stop, keep only the first
         sawMethodHeading = true;

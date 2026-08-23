@@ -287,6 +287,102 @@ Tier 4 — multi-device / integrations (highest risk, do last)
 
 18. Export to / link with a Google calendar, keyed off the household.
 
+106. IMPORT A RECIPE FROM A LINK, instead of pasting the page. Asked after
+    item 105: "other grocery apps parse recipes from links, is that
+    achievable for us?" NOTHING IS BUILT AND NOTHING IS DECIDED — this
+    records the analysis so it does not have to be redone, and names the
+    conditions under which the answer CHANGES.
+
+    THE PARSING GETS EASIER, NOT HARDER, WHICH IS THE POINT. Nearly every
+    big recipe site embeds its recipe as machine-readable data in the page
+    (a <script type="application/ld+json"> block in the schema.org Recipe
+    format). Sites publish it because Google needs it to show recipe cards
+    in search results, so keeping it accurate is in their own interest. It
+    hands over `name`, `recipeYield`, and `recipeIngredient` as an ARRAY OF
+    STRINGS — "1 ½ cups shredded Cheddar cheese" — which is exactly what
+    parseIngredientLine already eats. Every bug in item 105 was an artifact
+    of scraping RENDERED TEXT: the scaler buttons, the card printed twice,
+    the photo credits. None of that is in the structured data, because it is
+    page furniture and the furniture is not in there. parseRecipeText stays
+    as the fallback; parseIngredientLine becomes stage two rather than the
+    whole thing. And applyParsedRecipe (MealsTab.jsx) already takes a
+    { name, servings, notes, ingredients } shape, so the app-side landing
+    strip is built.
+
+    THE ONE REAL BLOCKER IS THAT A BROWSER CANNOT FETCH ANOTHER SITE'S HTML.
+    A page served from stuart-belcke.github.io asking for allrecipes.com is
+    refused by the browser — that is CORS, the rule stopping any page from
+    reading any other site on your behalf, and AllRecipes has no reason to
+    grant an exception. So the fetch must happen somewhere that is not a
+    browser. That is the entire difficulty. Four ways:
+
+      A. A CLOUDFLARE WORKER. ~30 lines: fetch, pull out the ld+json, return
+         it with permissive CORS headers. Free tier is 100,000 requests/day.
+         New vendor, new deploy step (`wrangler deploy`).
+      B. A FIREBASE CLOUD FUNCTION. No new vendor — but it needs the BLAZE
+         (pay-as-you-go) plan with a card on file, and specifically because
+         the free Spark plan BLOCKS outbound requests to non-Google hosts,
+         which is the only thing we would be using it for. Free grant inside
+         Blaze is ~2M invocations/month. Also awkward here: CLAUDE.md
+         records that the `firebase` CLI dies in this sandbox.
+      C. A PUBLIC CORS PROXY (allorigins.win and friends). Zero infra, but
+         someone else's uptime and your browsing through their logs. For a
+         tool used weekly, a silent break is worse than no feature.
+      D. AN iOS SHORTCUT. Share Sheet -> shortcut -> it fetches the page
+         itself and opens the app with the result. See below; free, and at
+         two-people scale probably the best of the four.
+
+    WHAT THE FREE TIERS ACTUALLY CEIL AT, and the answer is that they are
+    not the constraint. A recipe import is a deliberate, rare act — call it
+    5/week for a household, ~0.7/day. Cloudflare's 100k/day is therefore on
+    the order of 100,000 HOUSEHOLDS; Firebase's ~2M/month is ~67k/day, the
+    same ballpark. Neither is reachable by anything this app plausibly
+    becomes. WHAT BREAKS FIRST IS THE RECIPE SITES NOTICING: a Worker fetches
+    from a datacenter IP, every user's request comes from the same small
+    pool of them, and sites block that pattern long before Cloudflare bills
+    anybody. THE CEILING IS AN ANTI-BOT CEILING, NOT A BILLING ONE, and it
+    cannot be quoted as a number the way a free tier can. NOT VERIFIED: the
+    tier figures above are from knowledge, not checked — this sandbox's
+    network policy blocks developers.cloudflare.com (EGRESS_BLOCKED) and
+    allrecipes.com (403 on CONNECT), so neither the limits nor the claim
+    that AllRecipes serves ld+json at all could be confirmed here. CHECK
+    BOTH BEFORE BUILDING: for the second, open the recipe on a phone, View
+    Source, search for "application/ld+json".
+
+    THE iOS SHORTCUT DESERVES ITS OWN PARAGRAPH, because it is free, it
+    needs no server, and its fetch is MORE likely to succeed than the
+    Worker's. Shortcuts is built into iOS; "Get Contents of URL" runs on the
+    phone, from the phone's own IP, with a real browser user agent — so the
+    datacenter-IP blocking that caps option A does not apply, and there is
+    no CORS because CORS is a browser rule and Shortcuts is not a browser.
+    It has no scaling ceiling at all: every phone does its own work.
+    WHAT IT COSTS: iOS only, so it covers an Android phone not at all;
+    per-phone manual setup, and a shortcut is a thing that can be deleted or
+    broken by an OS update; and the app needs a receiving path to read the
+    result out of the URL (parseJoinHash already reads the hash, so there is
+    precedent). Extracting the ld+json inside Shortcuts means Match Text
+    with a regex then Get Dictionary from Input — doable, unpleasant to
+    debug.
+
+    THE DECISION IS SCALE-DEPENDENT, AND THAT IS THE THING TO REVISIT.
+    At TWO PEOPLE the Shortcut is likely right: nothing to run, nothing to
+    pay for, best fetch success rate, and it does not add a permanent new
+    maintenance surface to an app that today is a static bundle plus a
+    database. At ANY REAL NUMBER OF USERS it is clearly wrong: you cannot
+    ask strangers to install a shortcut, and it does not exist on Android.
+    REVISIT THIS ITEM WHEN ANY OF THESE BECOMES TRUE:
+      - somebody outside the two of us uses the app;
+      - an Android phone joins a household;
+      - importing gets frequent enough that per-phone setup is a real cost;
+      - or the Shortcut breaks on an iOS release and nobody wants to fix it.
+    At that point the answer is option A, and the work is the Worker plus an
+    allowlist of recipe hosts so the endpoint cannot be used as a general
+    proxy. UNTIL THEN, THE PASTE BOX IS NOT DEPRECATED BY ANY OF THIS: sites
+    block, rate-limit and change, so a link import must always degrade to
+    "Couldn't read that page. Select the whole page, copy it, and paste it
+    below instead." — naming the action, since the reader has just watched a
+    LINK fail and "paste it" would otherwise read as "paste the link again".
+
 103. [DONE] SETTINGS UX AUDIT — measured, not assessed, in item 51's shape.
     Asked for directly: "I think we need to do a UX review of the whole
     settings tab. Everything else I am pretty happy with."
@@ -340,17 +436,32 @@ Tier 4 — multi-device / integrations (highest risk, do last)
         rows. Both clear item 87's 12px floor, so this is consistency rather
         than legibility. Units is now 13 to match it and the rest of the tab.
 
-    103c. NOT DONE, AND DELIBERATELY NOT FOLDED IN: 44px tap targets.
-        NOTHING in the app reaches 44px — Btn is 8px/14px padding (34px tall)
-        and `small` is 4px/10px (25px). The twelve FAQ rows are 35px. Item 51a
-        set 44px as the floor and fixed the two controls that broke it worst,
-        one at a time; the honest reading of this audit is that the floor is
-        missed everywhere by design rather than by accident.
-        THAT IS ONE DECISION, NOT THIRTY FIXES: raising the two paddings in
-        Btn touches every screen in the app and wants the layout suites
-        (fits, listrow, tabbar, weekdensity) re-run against it. Worth doing on
-        its own, with its own measurements, rather than riding along with a
-        bug fix. Recorded here so the number does not have to be re-measured.
+    103c. [DONE] 44px tap targets — the one decision, done as one decision.
+        NOTHING in the app reached 44px — Btn was 8px/14px padding (34px tall)
+        and `small` was 4px/10px (25px). Item 51a set 44px as the floor and
+        fixed the two controls that broke it worst, one at a time; the honest
+        reading of this audit was that the floor was missed everywhere by
+        design rather than by accident.
+        FIXED BY RAISING BOTH Btn PADDINGS, and nothing else: regular is now
+        13px/14px (44px measured in a real browser, Settings tab), `small` is
+        14px/10px (44-45px, Pantry and List tabs — the extra half-pixel of
+        vertical padding over regular is because small's 13px font gives a
+        shorter line box than regular's 14px, and 13px padding alone measured
+        43px on that variant).
+        DELIBERATELY LEFT ALONE, because this item was Btn's two paddings and
+        not a sweep: Seg (the Metric/Standard and Monday/Sunday toggles, 27px),
+        the Pantry qty pillBtn (±, 24px, its own fixed style object), the
+        Ingredients "⌕ Filter" button and its popover's "Clear filters" link
+        (both raw `<button>`s, not Btn), and the List tab's "Add" button next
+        to the hand-add field, which overrides Btn's padding with its own
+        `style={{ padding: "8px 12px" }}` to stay level with the adjacent
+        16px input — changing that would need touching inputStyle too, a
+        different item.
+        VERIFIED: `npm run check` green end to end — 267/267 e2e tests,
+        including fits, listrow, listrowstore, tabbar and weekdensity, the
+        five layout suites this kind of change can break — plus lint, the
+        unit tests and the production build, all before e2e even started
+        (the check script chains with `&&`).
 
 101. MAKING A HOUSEHOLD IS A FIRST-RUN-ONLY ACTION, AND THAT IS NOW ODD.
     Asked while reading Settings: "if you can get invited to multiple, why not
@@ -1862,6 +1973,72 @@ rather than saving them for a cleanup that never gets scheduled.
     Either rule invents structure that was not there and reads worse than the
     prose does. THE FIX IS RE-PASTING a recipe from its source next time you
     cook it, one at a time, which produces proper steps for free.
+
+105. [DONE] A REAL PASTE FROM ALLRECIPES BROKE THE PARSER IN FOUR WAYS AT
+    ONCE — item 40's "did a poor job on three real recipes" happening again
+    on a fourth site. AllRecipes (like several big food sites) is run by
+    Dotdash Meredith, whose plain copy/paste renders the recipe card TWICE —
+    once for a "jump to recipe" summary, once for real — with a
+    serving-scaler widget sitting inside both.
+      1. THE SCALER'S OWN LABELS ("1/2X", "1X", "2X") AND ITS SUMMARY LINE
+         ("Original recipe (1X) yields 4 servings") READ AS INGREDIENTS,
+         because parseIngredientLine never throws — "worst case the whole
+         line becomes the name with qty 1" (see its own comment) turned four
+         non-ingredient lines into four fake ones ahead of the real eight.
+      2. THE DUPLICATE CARD'S LEFTOVERS — a second "Ingredients" heading, the
+         scaler again, "Keep Screen Awake" (its own screen-lock checkbox,
+         answering the exact question item 69 asked of this app), and the
+         whole ingredient list a second time — all read as INSTRUCTION STEPS,
+         because the instructions loop pushed every non-blank line it did not
+         recognize. So did the photo credit under every real step
+         ("Dotdash Meredith Food Studios"). 32 "steps" came out; 9 were real.
+      3. "1 ½ cups shredded Cheddar cheese" — a whole number, A SPACE, then
+         the vulgar-fraction glyph — read as qty 1, name "½ cups shredded
+         Cheddar cheese". QTY_RE covered "1 1/2" and "1½" but never the
+         spaced form, even though qtyToNumber's own mixed-number regex
+         already expected it — the number was computed right the moment it
+         got handed the right substring; it just never got handed one.
+      4. Servings CAME BACK NULL, because the only number for it lived inside
+         the "yields 4 servings" line, which SERVINGS_RE never looked at —
+         it only matches a line that STARTS with "serves"/"servings".
+    FIXED, all four in lib.js, on the exact pasted text (now a `node --test`
+    fixture — ALLRECIPES_PASTE — since a fixed bug that isn't demonstrated
+    stays fixed by luck):
+      - BOILERPLATE_RE (already the app's list of "food-blog copy/paste
+        noise," extended once before for a different site's boilerplate) got
+        two more known strings: "keep screen awake" and "dotdash meredith".
+      - Two new patterns, SCALER_RE and YIELDS_RE, catch the widget's own
+        labels and its servings-summary line specifically (not string
+        matches, since the number in them varies).
+      - THE INGREDIENTS LOOP AND THE INSTRUCTIONS LOOP BOTH NOW SKIP LINES
+        MATCHING ANY OF THE ABOVE, where before only the ingredients loop's
+        narrow `/^(us customary|metric)/` check existed and the instructions
+        loop had no noise filter at all — it only knew how to STOP (on
+        "Nutrition"/"Notes"), never how to skip past junk while continuing to
+        collect the real steps that come after it, which is exactly what
+        this paste needed.
+      - THE INSTRUCTIONS LOOP ALSO SKIPS ANY LINE THAT WAS ALREADY CONSUMED
+        AS AN INGREDIENT (a new rawIngredientLines set, built while scanning
+        the Ingredients section) — this is what catches the duplicated
+        ingredient list itself, generically, rather than by hardcoding
+        AllRecipes' eight lines. DELIBERATELY NOT POPULATED BY THE
+        NO-"Ingredients"-HEADING FALLBACK PATH: that fallback catches any
+        line starting with a digit, which also matches a numbered
+        instruction step ("4. Boil the water."), and feeding THAT into the
+        same skip set broke an existing test by eating real steps — caught
+        by running the suite, not by inspection.
+      - QTY_RE gained a `\d+\s+[vulgar fraction]` alternative alongside its
+        existing `\d+\s+\d+/\d+` one.
+      - Servings extraction now also tries YIELDS_RE when SERVINGS_RE finds
+        nothing.
+    MUTATION-TESTED: reverted lib.js, confirmed all four new tests fail
+    (12 ingredients instead of 8, the fraction bug back, servings null, 32
+    steps instead of 9), restored the fix, confirmed green. `npm run check`
+    passed end to end afterward.
+    THE RECIPE'S NAME STILL COMES BACK BLANK, and that is not a parser bug —
+    this particular paste starts at "Ingredients" and never includes the
+    page's title at all, so there is nothing for parseRecipeText to read.
+    Pasting from the actual title line down still names the recipe.
 
 44. [DONE] Edit an ingredient from the List tab. Setting an aisle or a store
     currently means leaving the list, going to Ingredients, and searching

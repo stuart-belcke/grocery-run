@@ -3099,6 +3099,136 @@ test("parseRecipeText returns empty ingredients and blank notes for text with ne
   assert.equal(result.notes, "");
 });
 
+// The exact text pasted from AllRecipes' au gratin potatoes page. AllRecipes
+// (like several big food sites) is run by Dotdash Meredith, whose recipe
+// card renders TWICE in a plain copy/paste — once for a "jump to recipe"
+// summary, once for the real card — with its serving-scaler widget
+// ("1/2X 1X 2X", "Original recipe (1X) yields 4 servings", "Keep Screen
+// Awake") sitting inside both, and a "Dotdash Meredith Food Studios" photo
+// credit after every step. None of that is the recipe.
+const ALLRECIPES_PASTE = `Ingredients
+
+
+1/2X
+
+1X
+
+2X
+
+Original recipe (1X) yields 4 servings
+4 medium russet potatoes, thinly sliced
+
+1 medium onion, sliced into rings
+
+salt and ground black pepper to taste
+
+3 tablespoons butter
+
+3 tablespoons all-purpose flour
+
+½ teaspoon salt
+
+2 cups milk
+
+1 ½ cups shredded Cheddar cheese
+
+Directions
+
+Ingredients
+
+
+Keep Screen Awake
+
+1/2X
+
+1X
+
+2X
+
+Original recipe (1X) yields 4 servings
+4 medium russet potatoes, thinly sliced
+
+1 medium onion, sliced into rings
+
+salt and ground black pepper to taste
+
+3 tablespoons butter
+
+3 tablespoons all-purpose flour
+
+½ teaspoon salt
+
+2 cups milk
+
+1 ½ cups shredded Cheddar cheese
+
+
+Ingredients
+Gather all ingredients. Preheat the oven to 400 degrees F (200 degrees C). Grease a 2-quart casserole dish with butter.
+
+Dotdash Meredith Food Studios
+Layer 1/2 of the potatoes in the bottom of the prepared casserole dish; season with salt and pepper.
+
+Dotdash Meredith Food Studios
+Layer onion slices over top, then top with with remaining potatoes. Season again with salt and pepper.
+
+Dotdash Meredith Food Studios
+Melt butter in a medium saucepan over medium heat. Whisk in flour and salt; cook, whisking constantly, until raw flour flavor has cooked off, about 1 minute.
+
+Dotdash Meredith Food Studios
+Gradually add milk, about 1/4 cup at a time, whisking well after each addition to incorporate; the gradual addition and whisking of milk will help avoid lumps in your sauce.
+
+Dotdash Meredith Food Studios
+Cook, whisking constantly, until the mixture has thickened, 3 to 5 minutes.
+
+Dotdash Meredith Food Studios
+Stir in cheese all at once; cook, stirring constantly, until melted, 30 to 60 seconds.
+
+Dotdash Meredith Food Studios
+Pour cheese sauce over the potatoes, and cover the dish with aluminum foil.
+
+Dotdash Meredith Food Studios
+Bake in the preheated oven until potatoes are tender and sauce is bubbly, about 1 ½ hours`;
+
+test("parseRecipeText drops the scaler widget and yields line from the ingredient list", () => {
+  const result = parseRecipeText(ALLRECIPES_PASTE);
+  assert.equal(result.ingredients.length, 8, JSON.stringify(result.ingredients));
+  assert.deepEqual(result.ingredients.map((i) => i.name), [
+    "Medium russet potatoes",
+    "Medium onion",
+    "Salt and ground black pepper",
+    "Butter",
+    "All-purpose flour",
+    "Salt",
+    "Milk",
+    "Shredded Cheddar cheese",
+  ]);
+});
+
+test("parseRecipeText reads a mixed number written as digit-space-vulgar-fraction", () => {
+  // "1 ½" (a space before the glyph, unlike "1½" or "1 1/2") used to leave
+  // the qty at bare 1 and "½ cups shredded Cheddar cheese" as the name.
+  const result = parseRecipeText(ALLRECIPES_PASTE);
+  assert.deepEqual(result.ingredients[7], { name: "Shredded Cheddar cheese", qty: 1.5, unit: "cup" });
+});
+
+test("parseRecipeText reads servings from a scaler's \"yields N servings\" line", () => {
+  const result = parseRecipeText(ALLRECIPES_PASTE);
+  assert.equal(result.servings, 4);
+});
+
+test("parseRecipeText drops the duplicated ingredient card and photo credits from the steps", () => {
+  const result = parseRecipeText(ALLRECIPES_PASTE);
+  const lines = result.notes.split("\n");
+  assert.equal(lines.length, 9, JSON.stringify(lines));
+  assert.match(lines[0], /^1\. Gather all ingredients/);
+  assert.match(lines[8], /^9\. Bake in the preheated oven/);
+  assert.ok(!result.notes.includes("Dotdash Meredith"), "a photo credit line became a step");
+  assert.ok(!result.notes.includes("Keep Screen Awake"), "the screen-lock checkbox became a step");
+  assert.ok(!/^\d+\.\s*(1\/2X|1X|2X)$/m.test(result.notes), "a scaler button became a step");
+  assert.ok(!result.notes.includes("yields 4 servings"), "the yields line became a step");
+});
+
 /* ---------------- the catalog export is sorted ----------------
    Two catalog PRs in a row read as ~110 changed lines that were almost
    entirely key reordering, hiding the five entries that actually changed.
