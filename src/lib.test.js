@@ -35,6 +35,8 @@ import {
   GENERIC_HOUSEHOLD_EXAMPLE,
   HOUSEHOLD_NAME_MAX,
   parseJoinHash,
+  parseImportHash,
+  importUrl,
   inviteLive,
   syncIndicator,
   writeErrorAdvice,
@@ -2636,6 +2638,101 @@ test("parseJoinHash decodes an escaped link, and survives a mangled one", () => 
   // A bad escape must not throw — the join field can reject it far more
   // helpfully than a crash on startup can.
   assert.doesNotThrow(() => parseJoinHash("#join=home-%E0%A4%A"));
+});
+
+/* ---------------- a recipe handed over in a URL (item 106) ----------------
+
+   THE TRUNCATION GUARD IS WHAT THESE ARE FOR. The transfer itself is one
+   encode and one decode and would be dull to test. What is worth testing is
+   the case nobody can measure from here: iOS cutting a 17k-character URL
+   somewhere in the middle. That produces a recipe missing its last few
+   ingredients, which parses cleanly and looks finished — so the only thing
+   standing between it and a wasted trip is `truncated` being right. */
+
+test("a recipe round-trips through a URL unchanged", () => {
+  const text = "Roast Chicken\nServes 4\n\n2 lb chicken\n1 tbsp olive oil & salt\n\n1. Roast it.";
+  const back = parseImportHash(new URL(importUrl("https://example.test/app/", text)).hash);
+  assert.equal(back.text, text);
+  assert.equal(back.truncated, false);
+});
+
+test("the recipe goes in the FRAGMENT, never the query", () => {
+  /* Same rule as the invite, for a different reason: a recipe page's URL is
+     somebody's browsing history, and the fragment never reaches the host or
+     its logs. */
+  const u = new URL(importUrl("https://example.test/app/?tab=meals#chars=1&import=old", "2 eggs"));
+  assert.equal(u.search, "", "the recipe must not be in the query string");
+  assert.match(u.hash, /^#chars=6&import=/);
+});
+
+test("`chars` comes BEFORE the recipe, so truncation cannot remove it", () => {
+  // The whole guard rests on this ordering. If the count were last, the cut
+  // that loses the recipe's tail would lose the evidence with it.
+  const url = importUrl("https://example.test/", "2 eggs\n1 cup flour");
+  assert.ok(url.indexOf("chars=") < url.indexOf("import="), url);
+});
+
+test("a URL cut in the middle is reported as truncated, not imported quietly", () => {
+  const text = "Roast Chicken\n\n2 lb chicken\n1 tbsp oil\n1 tsp salt\n2 sprigs thyme";
+  const full = importUrl("https://example.test/", text);
+  const cut = full.slice(0, full.length - 20); // iOS drops the tail
+  const back = parseImportHash(new URL(cut).hash);
+  assert.equal(back.truncated, true);
+  assert.ok(back.text.length < text.length);
+  assert.equal(back.declared, text.length);
+  // And what DID arrive is still handed over — three quarters of a recipe the
+  // reader has been warned about beats nothing at all.
+  assert.ok(back.text.startsWith("Roast Chicken"));
+});
+
+test("a cut landing mid-escape still yields the recipe, and still says truncated", () => {
+  /* decodeURIComponent rejects the WHOLE string over a dangling "%2", which
+     would throw away a whole recipe over its last character. */
+  // The ½ is LAST on purpose: it is the character the cut has to land inside.
+  // An earlier version of this test ended the text with a plain word, so the
+  // cut never touched an escape and the test passed with the repair removed.
+  const text = "Salad\n\n1 cup rocket\n1 lemon, ½";
+  const full = importUrl("https://example.test/", text);
+  assert.ok(full.endsWith("%C2%BD"), full.slice(-12));
+  const cut = full.slice(0, full.length - 1); // "%C2%B" — a broken escape
+  const back = parseImportHash(new URL(cut).hash);
+  assert.ok(back, "a broken escape must not throw the recipe away");
+  assert.equal(back.truncated, true);
+  assert.ok(back.text.startsWith("Salad"));
+});
+
+test("a whole captured page survives the round trip", () => {
+  /* The sizes that made the guard necessary, measured rather than assumed —
+     and the real pages are the only honest test of the encoder, because they
+     are what actually gets sent. */
+  const dir = new URL("../tests/fixtures/", import.meta.url);
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith("-page.txt"));
+  assert.ok(files.length >= 5, "the fixtures are what makes this measurement real");
+  for (const f of files) {
+    const text = fs.readFileSync(new URL(f, dir), "utf8");
+    const url = importUrl("https://example.test/app/", text);
+    const back = parseImportHash(new URL(url).hash);
+    assert.equal(back.text, text, `${f} did not survive the round trip`);
+    assert.equal(back.truncated, false, `${f} reported a phantom truncation`);
+    // 7–17k encoded. Recorded so a page that grows past a limit somebody
+    // later discovers shows up here as a number rather than a surprise.
+    assert.ok(url.length < 40000, `${f} built a ${url.length}-character URL`);
+  }
+});
+
+test("parseImportHash ignores a hash that carries no recipe", () => {
+  for (const h of ["", "#", "#tab=meals", "#imported=x", "#join=home-cx2ur9zg~abcdefgh1234", "nonsense"]) {
+    assert.equal(parseImportHash(h), null, `${JSON.stringify(h)} should carry no recipe`);
+  }
+});
+
+test("a recipe with no declared length is taken at face value", () => {
+  // A hand-built Shortcut that skips `chars`. Nothing can be checked, so
+  // nothing is claimed — but the recipe still imports.
+  const back = parseImportHash("#import=2%20eggs");
+  assert.equal(back.text, "2 eggs");
+  assert.equal(back.declared, null);
+  assert.equal(back.truncated, false);
 });
 
 test("a TRUNCATED link is still refused, exactly as a truncated paste is", () => {
