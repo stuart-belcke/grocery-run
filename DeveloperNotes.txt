@@ -2152,6 +2152,21 @@ rather than saving them for a cleanup that never gets scheduled.
     its text. This is the parser being made to survive that text, measured on
     five whole documents from five sites rather than reasoned about.
 
+    WHICH FIVE, BY NAME — the full list with URLs and capture date is in
+    tests/fixtures/README.md, recorded there because pages change and that is
+    how you tell "the parser regressed" from "the site was redesigned":
+        allrecipes         Creamy au Gratin Potatoes
+        babyfoode          Baked Chicken & Veggie Meatballs for Baby
+        mediterraneandish  Baked Cod with Lemon and Garlic
+        olivetomato        Greek Style Roasted Lemon and Garlic Chicken
+        averiecooks        Mediterranean Baked Crispy Chicken and Pasta
+    Two older fixtures live in src/lib.test.js rather than in that directory,
+    because they are PASTES rather than fetches — Half Baked Harvest's
+    crockpot Greek chicken meatballs (PASTED_RECIPE, the recipe the
+    first-method rule exists for) and the au gratin potatoes pasted by hand
+    (ALLRECIPES_PASTE, item 105). Keeping both halves of that second pair is
+    what shows which bugs belong to the FETCH ROUTE rather than to the recipe.
+
     WHERE IT LANDED, on the captured pages in tests/fixtures/:
         allrecipes           8 ingredients,  9 steps, serves 4
         babyfoode           10 ingredients,  5 steps, serves —
