@@ -2591,7 +2591,7 @@ export function servingsByRecipe(data) {
 }
 
 // Recipes sitting on the shopping list with no day/slot in the week plan —
-// added via the Recipes tab's "Add unplanned meal", not a picker here. Used by
+// added via the Recipes tab's "Add unplanned", not a picker here. Used by
 // the Week tab so one of these is visible without switching tabs to notice
 // it. A selection pointing at a deleted recipe is dropped rather than shown
 // as a mystery row — MealsTab's delete already clears it, but an older

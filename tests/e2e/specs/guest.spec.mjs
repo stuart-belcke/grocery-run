@@ -51,11 +51,11 @@ test("Meals: a guest cannot add or edit a recipe, but can still put one on the l
        empty slot renders "—" for a guest rather than "Choose a meal"), so
        the app was hiding the door on one tab and leaving it painted on the
        other. */
-    assert.ok(await count(member, 'button:text-is("Add to week\'s plan")'), "no Add to week's plan for a full member — the selector is wrong, not the app");
-    assert.equal(await count(guest, 'button:text-is("Add to week\'s plan")'), 0, "a guest was offered a button whose write the rules refuse");
+    assert.ok(await count(member, 'button:text-is("Add to a day")'), "no Add to a day for a full member — the selector is wrong, not the app");
+    assert.equal(await count(guest, 'button:text-is("Add to a day")'), 0, "a guest was offered a button whose write the rules refuse");
 
     // Adding a meal to the LIST is a list write, so it stays.
-    assert.ok(await count(guest, 'button:text-is("Add unplanned meal")'), "a guest lost the one Recipes action they are allowed");
+    assert.ok(await count(guest, 'button:text-is("Add unplanned")'), "a guest lost the one Recipes action they are allowed");
     assertNoPageErrors(guest, assert);
   } finally {
     await guest.done();

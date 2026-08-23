@@ -76,7 +76,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
   /* How many batches of a recipe you're looking at, keyed by recipe id.
      VIEW STATE ONLY, never persisted: it is a question ("what would three
      batches look like?"), and the answer is only worth storing once you act
-     on it — which is what Add unplanned meal does, by writing base × mult
+     on it — which is what Add unplanned does, by writing base × mult
      into the list. Steps in whole batches because that is what a recipe
      scales by; the exact-servings editor on the pill is still there for the
      amount that isn't a round multiple. */
@@ -302,7 +302,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
        list its own amount is the truth — the multiplier was the question,
        the list entry is the answer, and two numbers claiming to be the same
        thing is how they drift apart. Until then the multiplier previews
-       exactly what Add unplanned meal is about to write. */
+       exactly what Add unplanned is about to write. */
     const previewServings = servings > 0 ? servings : base * mult;
     const detailShown = detailOpen === r.id;
     // Everywhere this recipe appears in the plan, as a main or as a side —
@@ -451,7 +451,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
                  button carries the multiplier in its own label whenever it
                  isn't ×1, so a batch count set while reading and then
                  collapsed can never act on you invisibly. */
-              /* GHOST, NOT PRIMARY. It sat next to "Add to week's plan" —
+              /* GHOST, NOT PRIMARY. It sat next to "Add to a day" —
                  the same kind of action, one filled green and one outlined —
                  which read as "unplanned is the one you want". It isn't; they
                  are peers with different meanings (no day / a day). `primary`
@@ -459,7 +459,21 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
                  the only place that exists here is the Add inside the
                  week-plan dialog. */
               <Btn small onClick={() => setServings(r.id, base * mult)}>
-                {mult === 1 ? "Add unplanned meal" : `Add unplanned meal ×${mult}`}
+                {mult === 1 ? "Add unplanned" : `Add unplanned ×${mult}`}
+              </Btn>
+            )}
+            {/* THE WEEK-PLAN ADD MOVED UP HERE, off its own row. The two adds
+                are the same kind of action and were stacked one above the
+                other, costing a whole row of height on every card in a list
+                that runs to several screens.
+                BOTH LABELS SHORTENED TOGETHER, and parallel: "Add unplanned"
+                / "Add to a day" say the difference between them (no day / a
+                day) in the fewest words that still say it. Measured — the old
+                pair needed 365px of a 328px row at 390px and 258px at 320px,
+                so this could not be done by moving alone. */}
+            {!isGuest && (
+              <Btn small onClick={() => setPlanPick({ id: r.id, day: null, type: (r.mealTypes && r.mealTypes[0]) || "Dinner" })}>
+                Add to a day
               </Btn>
             )}
             <div style={{ flex: 1 }} />
@@ -468,7 +482,12 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
 
           {/* Planned meals = week-plan slots. A live summary of every slot this
               recipe fills — as a main (added here or on the Plan tab) or as a
-              side (added on the Plan tab only) — each removable. */}
+              side (added on the Plan tab only) — each removable.
+              GONE ENTIRELY when the recipe is on no days: the button that used
+              to live here moved up to the action row, so an empty row would be
+              margin and nothing else — and most cards, most of the time, are
+              on no days. */}
+          {planSlots.length > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             {planSlots.length > 0 && (
               <span style={{ fontSize: 12, color: C.faint }}>
@@ -488,24 +507,8 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
                 </button>
               </span>
             ))}
-            {/* NOT FOR A GUEST (item 87). Assigning a day writes state/plan,
-                which database.rules.json deliberately does not re-grant to
-                guests — "planning the week is the household's, not the
-                guest's". So this button could be tapped, could be filled in,
-                and the write was refused at the end of it.
-                Item 41 hid every other guest-blocked control for exactly
-                this reason and missed this one; the Plan tab itself is
-                careful — an empty slot renders "—" rather than "Choose a
-                meal" — so the app was hiding the door on one tab and leaving
-                it painted on the other. Hidden rather than disabled, because
-                a greyed-out button asks "how do I un-grey it?" and the
-                answer is not something a guest can do. */}
-            {!isGuest && (
-              <Btn small onClick={() => setPlanPick({ id: r.id, day: null, type: (r.mealTypes && r.mealTypes[0]) || "Dinner" })}>
-                Add to week's plan
-              </Btn>
-            )}
           </div>
+          )}
         </div>
       </div>
     );
