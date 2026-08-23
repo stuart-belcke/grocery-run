@@ -383,6 +383,70 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     below instead." — naming the action, since the reader has just watched a
     LINK fail and "paste it" would otherwise read as "paste the link again".
 
+107. [DONE] OPENING A PR PREVIEW DELETED THE REAL APP'S OFFLINE CACHE.
+    Reported as "I can't navigate to the preview anymore", with a screenshot
+    of the browser's privacy panel — which says nothing about the failure, so
+    the diagnosis came from reading public/sw.js rather than from the report.
+    The reported symptom cleared on its own (DuckDuckGo clears site data
+    aggressively, which is exactly the manual version of this fix). THE BUG
+    UNDER IT DID NOT, and it was worse than the preview being awkward.
+
+    CACHE STORAGE IS PER-ORIGIN. SERVICE WORKER SCOPE IS NOT. Every worker on
+    stuart-belcke.github.io shares one cache store, and this origin runs more
+    than one copy of the app: the real one at /grocery-run/, plus a full build
+    of every open PR at /grocery-run/pr-preview/pr-N/ (item 86's preview
+    deploy), each registering its own worker because main.jsx registers
+    "./sw.js" relatively. Different builds, so different cache names — and
+    activate deleted every name that was not its own:
+        keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))
+    So opening a preview wiped the real app's cache, and opening the real app
+    wiped the preview's. Every time, by construction.
+
+    WHAT IT ACTUALLY COST, which is not the preview. A preview is online by
+    definition while you are looking at it, so there the damage is a
+    re-download. The real app afterwards is the problem: cache gone, and the
+    navigate handler's fallback is the PRECACHED "./", which is no longer
+    there — so the app does not open with no signal. In a shop. That is the
+    one failure this worker exists to prevent, arriving from a direction
+    nobody was watching because previews were assumed to be a separate thing.
+
+    THE FIX IS THAT A CACHE NAME NOW CARRIES ITS WORKER'S OWN SCOPE, taken
+    from location.pathname minus the "sw.js":
+        grocery-run:/grocery-run/:a1b2c3d4
+        grocery-run:/grocery-run/pr-preview/pr-119/:e5f6a7b8
+    and a worker only deletes within its own prefix. READS ARE SCOPED TOO,
+    which matters as much: caches.match(req) with no cacheName searches EVERY
+    cache on the origin, so all three read paths now go through
+    caches.open(CACHE) instead. Nothing collides today (the two apps' asset
+    URLs differ by path) but "it happens to not collide" is not a guarantee.
+
+    THE OLD UNSCOPED CACHES (`grocery-run-<hash>`) are swept, but ONLY by the
+    worker at the site root — a preview doing it would delete the real app's
+    cache, which is the bug itself. They are inert either way now that reads
+    are scoped; the sweep is housekeeping against the hoarding this file's
+    header is already about. The guard is one line and can go once every
+    device has opened the app after this ships.
+
+    MUTATION-TESTED: restoring the one-line filter to `k !== CACHE` fails the
+    new same-origin test and NOTHING ELSE — 6 of 7 still pass, which is the
+    point, since every other test in serviceworker.spec.mjs opens ONE app and
+    checks its own cache is right. That stayed true the whole time the other
+    app's cache was being deleted next to it, which is why a suite with five
+    passing service-worker tests never saw this.
+    NOT COVERED, PLAINLY: that a worker UNDER /pr-preview/ leaves the
+    unscoped caches alone. It turns on location.pathname, fixed by where the
+    worker is served, and the harness serves the build at the root only;
+    proving it needs a second copy of dist/ mounted at a nested path.
+
+    npm run check green: 327 unit, 12 sync, 269 e2e, 0 failures. The rules
+    tests skipped locally for want of a JVM, as they always do; nothing here
+    touches database.rules.json.
+
+    SEPARATE, NOT FIXED HERE: pr-preview/ on gh-pages still holds pr-42,
+    pr-69, pr-80, pr-114 and pr-118, all long closed. Teardown-on-close may
+    not be firing. Worth a look; harmless apart from the clutter, now that a
+    stale preview's cache cannot reach the real app.
+
 103. [DONE] SETTINGS UX AUDIT — measured, not assessed, in item 51's shape.
     Asked for directly: "I think we need to do a UX review of the whole
     settings tab. Everything else I am pretty happy with."

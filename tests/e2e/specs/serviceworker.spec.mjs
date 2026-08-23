@@ -70,6 +70,13 @@ const registerSW = (page) =>
 
 const cacheNames = (page) => page.evaluate(() => window.caches.keys());
 
+/* The cache name carries the worker's own scope — see the long note in
+   public/sw.js. The test server serves the build at its root, so the scope
+   here is "/"; on the real site it is "/grocery-run/" and a PR preview's is
+   "/grocery-run/pr-preview/pr-N/". Written as a helper rather than inline so
+   the scoping is stated once. */
+const cacheFor = (build) => `grocery-run:/:${build}`;
+
 const cachedPaths = (page, name) =>
   page.evaluate(
     async (n) => (await (await window.caches.open(n)).keys()).map((r) => new URL(r.url).pathname),
@@ -82,14 +89,14 @@ test("installing stores the whole shell under a cache named for this build", asy
   try {
     await registerSW(page);
 
-    assert.deepEqual(await cacheNames(page), [`grocery-run-${build}`], "the cache is not named for this build");
+    assert.deepEqual(await cacheNames(page), [cacheFor(build)], "the cache is not named for this build and scope");
 
     /* addAll is all-or-nothing, so a short cache means the manifest named
        something that does not exist — which per the plugin's own note stops
        the worker activating at all, i.e. no offline app rather than a
        partial one. Comparing against the manifest catches the manifest
        growing without the build being able to satisfy it. */
-    const cached = await cachedPaths(page, `grocery-run-${build}`);
+    const cached = await cachedPaths(page, cacheFor(build));
     assert.equal(cached.length, precache.length, `cached ${cached.length} of ${precache.length} precache entries`);
     for (const entry of precache) {
       const path = new URL(entry, "http://x/").pathname;
@@ -116,7 +123,7 @@ test("the precache contains the script index.html actually loads", async () => {
     );
     assert.ok(scripts.length > 0, "the page loads no script at all, which cannot be right");
 
-    const cached = await cachedPaths(page, `grocery-run-${build}`);
+    const cached = await cachedPaths(page, cacheFor(build));
     for (const src of scripts) {
       assert.ok(cached.includes(src), `${src} is loaded by index.html but was never precached`);
     }
@@ -160,7 +167,7 @@ test("the cache name is computed from this build's assets, which is what fixed t
   assert.equal(build, expected, "the build id is not derived from this build's assets — a new bundle would reuse the old cache");
 });
 
-test("activating clears out every cache that is not this build's", async () => {
+test("activating clears out a previous build at this same scope", async () => {
   /* The eviction MECHANISM, which is worth holding even though it is not
      what broke — see the test above for the part that is. A worker that
      stopped evicting would leave every past build's cache on the phone,
@@ -168,17 +175,91 @@ test("activating clears out every cache that is not this build's", async () => {
   const { build } = stamped();
   const page = await openApp(BASE, {});
   try {
-    await page.evaluate(async () => {
-      const old = await window.caches.open("grocery-run-oldbuild");
+    await page.evaluate(async (stale) => {
+      const old = await window.caches.open(stale);
       await old.put("/assets/index-stale.js", new Response("// a bundle from months ago"));
-    });
-    assert.ok((await cacheNames(page)).includes("grocery-run-oldbuild"), "the stale cache was not seeded");
+    }, cacheFor("oldbuild"));
+    assert.ok((await cacheNames(page)).includes(cacheFor("oldbuild")), "the stale cache was not seeded");
 
     await registerSW(page);
 
     const names = await cacheNames(page);
-    assert.ok(!names.includes("grocery-run-oldbuild"), `a previous build's cache survived activate: ${names.join(", ")}`);
-    assert.deepEqual(names, [`grocery-run-${build}`], "activate should leave exactly this build's cache");
+    assert.ok(!names.includes(cacheFor("oldbuild")), `a previous build's cache survived activate: ${names.join(", ")}`);
+    assert.deepEqual(names, [cacheFor(build)], "activate should leave exactly this build's cache");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("activating does NOT touch another copy of the app on the same origin", async () => {
+  /* THE BUG THIS FILE MISSED, and the reason the cache name carries a scope.
+     Cache Storage is per-ORIGIN, and this origin runs more than one copy of
+     the app: the real one at /grocery-run/, plus a full build of every open
+     pull request at /grocery-run/pr-preview/pr-N/. Under the old flat name
+     they were simply two different names, so each one's activate deleted the
+     other's cache outright.
+     Nothing above catches that. Every test in this file opens ONE app and
+     asserts its own cache is right, which stayed true the whole time the
+     other app's was being deleted next to it.
+     WHAT IT COST was never the preview, which is online by definition when
+     you are looking at it — it was the REAL app afterwards: cache gone, so
+     the navigate handler's fallback to the precached "./" finds nothing and
+     the app will not open with no signal. In a shop. Which is the single
+     failure this worker exists to prevent.
+     The other app is seeded here as a cache at a DIFFERENT scope, which is
+     exactly what a preview's looks like. It must survive untouched. */
+  const { build } = stamped();
+  const OTHER = "grocery-run:/pr-preview/pr-9/:beefcafe";
+  const page = await openApp(BASE, {});
+  try {
+    await page.evaluate(async (other) => {
+      const c = await window.caches.open(other);
+      await c.put("/pr-preview/pr-9/assets/index-other.js", new Response("// the other app's bundle"));
+    }, OTHER);
+    assert.ok((await cacheNames(page)).includes(OTHER), "the other app's cache was not seeded");
+
+    await registerSW(page);
+
+    const names = await cacheNames(page);
+    assert.ok(names.includes(OTHER), `this worker deleted another copy of the app's cache: ${names.join(", ")}`);
+    assert.deepEqual([...names].sort(), [OTHER, cacheFor(build)].sort(), "activate should leave both apps' caches");
+
+    // And its CONTENTS, not just its name: a cache emptied but not deleted
+    // fails offline in exactly the same way, and would pass the check above.
+    const kept = await cachedPaths(page, OTHER);
+    assert.deepEqual(kept, ["/pr-preview/pr-9/assets/index-other.js"], "the other app's cache was emptied rather than deleted");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("the worker at the site root still sweeps up the old unscoped caches", async () => {
+  /* Caches written before scoping existed are named `grocery-run-<hash>` with
+     nothing to say which app they belong to. They are inert — every read goes
+     through this worker's own cache now — but leaving them forever is the
+     hoarding this file's header is about, so the ROOT worker clears them.
+
+     NOT COVERED, PLAINLY: the other half of that guard — that a worker under
+     /pr-preview/ leaves the unscoped caches alone, since one of them may be
+     the real app's. It depends on location.pathname, which is fixed by where
+     the worker is SERVED, and this harness serves the build at the root only;
+     proving it would need a second copy of dist/ mounted at a nested path.
+     The guard is `!isPreview` in public/sw.js and it is one line. Everything
+     the preview case actually protects is covered by the same-origin test
+     above, which does not depend on which side is which. */
+  const { build } = stamped();
+  const page = await openApp(BASE, {});
+  try {
+    await page.evaluate(async () => {
+      const old = await window.caches.open("grocery-run-a1b2c3d4");
+      await old.put("/assets/index-legacy.js", new Response("// from before the rename"));
+    });
+    await registerSW(page);
+
+    const names = await cacheNames(page);
+    assert.deepEqual(names, [cacheFor(build)], `a pre-rename cache survived at the site root: ${names.join(", ")}`);
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
