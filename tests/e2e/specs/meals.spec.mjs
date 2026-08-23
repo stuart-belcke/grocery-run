@@ -6,7 +6,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { openApp, assertNoPageErrors } from "../harness.mjs";
-import { smallCatalog, cleanCatalog, idOf } from "../fixtures.mjs";
+import { smallCatalog, cleanCatalog, idOf, stateWith } from "../fixtures.mjs";
 
 const BASE = process.env.E2E_BASE_URL;
 
@@ -463,6 +463,135 @@ test("SHOULD: pasting into a draft that already has a name and ingredients adds 
 
     assert.equal(await page.getByPlaceholder("Meal name").inputValue(), "My Custom Meal", "a typed name should survive a paste");
     assert.deepEqual(await page.getByPlaceholder("Ingredient", { exact: true }).evaluateAll((els) => els.map((e) => e.value)), ["Butter", "Rice"], "pasted ingredients should add to, not replace, a manually-started list");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* ---------------- THE WEEK-PLAN PICKER (item 111) ----------------
+
+   Adding a recipe to a day used to swap two native <select>s into the card's
+   own row. Two things were wrong with that, and only one is a matter of
+   taste.
+
+   THE TASTE HALF: item 6 already rejected exactly this pattern on the OTHER
+   side of the same interaction. WeekTab's slot picker replaced a <select>
+   that "didn't fit the app's feel or scale with the list", and the Meals tab
+   — the same choice from the other end — was still on it.
+
+   THE BUG HALF, which is why this has tests rather than a screenshot:
+   assignPlan writes d.plan[day][type] unconditionally, and the two dropdowns
+   offered EVERY day and EVERY type. So adding a meal from a card could
+   replace Monday's dinner with no warning and no undo. WeekTab never allowed
+   that — it offers "only the types still free on this day", because "an
+   option that would silently replace an existing meal is not an option" —
+   so the app was careful on one tab and wide open on the other.
+
+   ASSERTED ON WHAT WAS PERSISTED, per the harness header: a disabled-looking
+   button proves nothing about what the other phone receives. */
+
+// Opens the picker for a recipe and waits for the dialog.
+const openPlanPicker = async (page, recipe) => {
+  await cardAction(page, recipe, "Add to week's plan");
+  await page.waitForTimeout(300);
+  assert.equal(await page.locator('[role="dialog"]').count(), 1, `no picker dialog opened for ${recipe}`);
+};
+
+test("SHOULD: the week-plan picker opens as a dialog rather than rewriting the card's row", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await page.tab("Recipes");
+    await openPlanPicker(page, "Stir-fry");
+    // The recipe is named in the dialog, so it is obvious WHAT is being
+    // placed — the inline row never said.
+    assert.match(await page.locator('[role="dialog"]').innerText(), /Stir-fry/);
+    // And it is a real modal: the tab bar must lose to it, the same rule
+    // tabbar.spec.mjs pins for every other dialog in the app.
+    assert.equal(await page.locator('[role="dialog"][aria-modal="true"]').count(), 1);
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: a day that already holds this meal type cannot be picked, so nothing is silently replaced", async () => {
+  /* THE BUG. Monday dinner is Stir-fry; adding Rice side to Monday used to
+     overwrite it without asking. The row is now offered as taken, disabled,
+     and NAMED with what is in the way. */
+  const page = await openApp(BASE, {
+    catalog: smallCatalog(),
+    state: stateWith({ plan: { Mon: { Dinner: { recipeId: "r-stirfry", servings: 2 } } } }),
+  });
+  try {
+    await page.tab("Recipes");
+    await openPlanPicker(page, "Rice side");
+
+    const taken = page.getByRole("button", { name: /^Mon Dinner already has Stir-fry$/ });
+    assert.equal(await taken.count(), 1, "Monday should be shown as taken, and say what by");
+    assert.equal(await taken.isDisabled(), true, "a taken day must not be selectable");
+
+    // Clicking it must change nothing — the guarantee is about the WRITE,
+    // not about the button's styling.
+    await taken.click({ force: true }).catch(() => {});
+    await page.waitForTimeout(300);
+    await page.roundTrip();
+    assert.deepEqual(
+      (await page.readState()).plan.Mon.Dinner,
+      { recipeId: "r-stirfry", servings: 2 },
+      "Monday's dinner was replaced by a day that should not have been selectable"
+    );
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: picking a free day writes that slot and leaves the others alone", async () => {
+  const page = await openApp(BASE, {
+    catalog: smallCatalog(),
+    state: stateWith({ plan: { Mon: { Dinner: { recipeId: "r-stirfry", servings: 2 } } } }),
+  });
+  try {
+    await page.tab("Recipes");
+    await openPlanPicker(page, "Rice side");
+
+    await page.getByRole("button", { name: /^Add Rice side to Wed Dinner$/ }).click();
+    await page.waitForTimeout(200);
+    // The confirm NAMES the day it is about to write to, so a mis-tap in the
+    // list above is visible before it costs anything.
+    await page.getByRole("button", { name: /^Add to Wed$/ }).click();
+    await page.waitForTimeout(500);
+    await page.roundTrip();
+
+    const plan = (await page.readState()).plan;
+    assert.deepEqual(plan.Wed.Dinner.recipeId, "r-riceside");
+    assert.deepEqual(plan.Mon.Dinner.recipeId, "r-stirfry", "planning Wednesday disturbed Monday");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: neither Add on a card outranks the other; the green belongs to the dialog's confirm", async () => {
+  /* "Add unplanned meal" was filled green next to an outlined "Add to week's
+     plan" — the same kind of action, one of them looking like the answer.
+     They are peers with different meanings (no day / a day), so `primary`
+     goes back to meaning "the one obvious next action", which on a card with
+     two equal adds is neither of them. */
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await page.tab("Recipes");
+    const filled = (name) =>
+      page.getByRole("button", { name }).first().evaluate((b) => getComputedStyle(b).backgroundColor);
+
+    const unplanned = await filled(/^Add unplanned meal$/);
+    const toPlan = await filled(/^Add to week's plan$/);
+    assert.equal(unplanned, toPlan, `the two card actions are weighted differently: ${unplanned} vs ${toPlan}`);
+
+    await openPlanPicker(page, "Stir-fry");
+    const confirm = await page.locator('[role="dialog"]').getByRole("button", { name: /^(Add to \w+|Pick a day)$/ }).evaluate((b) => getComputedStyle(b).backgroundColor);
+    assert.notEqual(confirm, unplanned, "the dialog's confirm should carry the weight the card no longer does");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
