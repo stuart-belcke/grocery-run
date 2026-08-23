@@ -5,10 +5,10 @@ name: Build and deploy to GitHub Pages
 # merge of #73 produced NO workflow run at all, so main moved forward while
 # gh-pages kept serving the previous build. Nothing was red, because a run that
 # is never created cannot fail — which is also why the live-site check at the
-# bottom of this file can't catch it. Recovery: Actions -> this workflow ->
-# "Run workflow" on main. Re-running the PR's own check does NOT work; the
-# production steps below are gated on push/workflow_dispatch, so a
-# pull_request run only ever rebuilds the pr-preview/ copy.
+# bottom of the `deploy` job can't catch it. Recovery: Actions -> this
+# workflow -> "Run workflow" on main. Re-running the PR's own check does NOT
+# work; the `deploy` job below only runs on push/workflow_dispatch, so a
+# pull_request run never touches production.
 on:
   push:
     branches: [main]
@@ -17,29 +17,66 @@ on:
   workflow_dispatch:
 
 # Both deploy actions push to the gh-pages branch, and the preview action
-# comments the preview link on the PR, so the job needs write access to
+# comments the preview link on the PR, so the jobs below need write access to
 # contents and pull requests (not the id-token flow the old official
 # Pages deployment used).
 permissions:
   contents: write
   pull-requests: write
 
-# Never cancel: a preview teardown on a closed PR must not be interrupted, and
-# a production deploy must not be dropped.
-#
-# Production shares ONE group so pushes queue and run in order. Keying this on
-# github.ref put every push to main in the same group as well, but GitHub only
-# holds one pending run per group — so merging two PRs a few seconds apart made
-# the second supersede the first and BOTH were cancelled before dispatching a
-# job. The site then silently kept serving the previous build.
-#
-# PR runs stay keyed on the ref, so each PR still serialises against itself.
-concurrency:
-  group: pages-${{ github.event_name == 'pull_request' && github.ref || 'production' }}
-  cancel-in-progress: false
-
 jobs:
-  deploy:
+  # THE PREVIEW DEPLOYS AS SOON AS THE BUILD SUCCEEDS, in parallel with
+  # `checks` below rather than after it. A preview is for LOOKING at the
+  # change — gating it on lint, the unit tests, the rules tests and the whole
+  # e2e suite just means the slowest of those also holds up the one thing a
+  # reviewer wants first, even though none of them can fail this job.
+  preview:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    # A preview teardown on a closed PR must not be interrupted, so this
+    # never cancels. Keyed on the ref (not a shared group) so each PR only
+    # serialises against its own earlier runs.
+    concurrency:
+      group: pages-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+
+      # Nothing to install or build when we're only tearing down a closed
+      # PR's preview — pr-preview-action removes it from the event alone.
+      - uses: actions/setup-node@v5
+        if: github.event.action != 'closed'
+        with:
+          node-version: 24
+
+      - name: Install
+        if: github.event.action != 'closed'
+        run: npm install
+
+      # BUILD_SHA is the commit a human can actually look up. On a pull
+      # request the checkout is a temporary merge commit, so without this the
+      # stamp shown in Settings names something that exists only in this run.
+      - name: Build
+        if: github.event.action != 'closed'
+        env:
+          BUILD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: npm run build
+
+      # Builds a preview at <site>/pr-preview/pr-<N>/ and comments the link;
+      # when the PR closes, removes that folder. Works for same-repo PRs
+      # (where the token has write access), which this branch is.
+      - name: Deploy PR preview
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: dist
+
+  # LINT, THE UNIT TESTS, THE RULES TESTS AND THE E2E SUITE — everything that
+  # decides whether the change is CORRECT, as opposed to whether it can be
+  # looked at. Runs on its own runner so a slow suite here never delays the
+  # preview link above, and `deploy` below still refuses to ship production
+  # until every one of these has passed (see its `needs:`).
+  checks:
+    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -48,24 +85,16 @@ jobs:
         with:
           node-version: 24
 
-      # Nothing to install, test or build when we're only tearing down a closed
-      # PR's preview.
       - name: Install
-        if: github.event.action != 'closed'
         run: npm install
 
       # Catches what the build can't: a helper used without being imported
       # compiles fine and throws at runtime, on whichever code path calls it.
       # Warnings don't fail; only errors do.
       - name: Lint
-        if: github.event.action != 'closed'
         run: npm run lint
 
-      # Runs BEFORE the build so a failure stops the deploy rather than
-      # annotating one that already shipped. A suite that only runs when
-      # someone remembers to run it isn't protecting anything.
       - name: Test
-        if: github.event.action != 'closed'
         run: npm test
 
       # database.rules.json is the one file here that nothing else executes —
@@ -81,7 +110,6 @@ jobs:
       # ubuntu-latest already has a JVM. The emulator jar is cached because it
       # is ~35 MB; the fetch is skipped entirely on a hit.
       - name: Cache database emulator
-        if: github.event.action != 'closed'
         id: emu-cache
         uses: actions/cache@v4
         with:
@@ -89,11 +117,10 @@ jobs:
           key: firebase-emulators-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Fetch database emulator
-        if: github.event.action != 'closed' && steps.emu-cache.outputs.cache-hit != 'true'
+        if: steps.emu-cache.outputs.cache-hit != 'true'
         run: npm run emulator:fetch
 
       - name: Security rules tests
-        if: github.event.action != 'closed'
         run: npm run test:rules
 
       # The unit tests cannot catch the bugs that actually shipped — every one
@@ -104,7 +131,6 @@ jobs:
       # Keyed on the lockfile, so bumping playwright-core fetches a matching
       # browser instead of reusing a stale one.
       - name: Cache Chromium
-        if: github.event.action != 'closed'
         id: pw-cache
         uses: actions/cache@v4
         with:
@@ -112,29 +138,46 @@ jobs:
           key: pw-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install Chromium
-        if: github.event.action != 'closed' && steps.pw-cache.outputs.cache-hit != 'true'
+        if: steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright-core install --with-deps chromium
 
-      # MUST RUN BEFORE THE BUILD BELOW. This builds its own bundle with
-      # VITE_LOCAL_ONLY=1 — sync compiled out — so that a test can never reach
-      # the real household database. Deploying that bundle would leave an app
-      # that looks fine and silently syncs nothing. run.mjs deletes the
-      # local-only dist/ afterwards for the same reason, so the ordering here
-      # is a second guard rather than the only one.
+      # Builds its own bundle with VITE_LOCAL_ONLY=1 — sync compiled out — so
+      # a test can never reach the real household database. run.mjs deletes
+      # that local-only dist/ afterwards for the same reason, so the ordering
+      # inside it is a second guard rather than the only one.
       - name: Integration tests
-        if: github.event.action != 'closed'
         run: npm run test:e2e
 
-      # BUILD_SHA is the commit a human can actually look up. On a pull request
-      # the checkout is a temporary merge commit, so without this the stamp
-      # shown in Settings names something that exists only inside this run.
-      #
-      # Also the step that produces the REAL bundle: whatever the integration
-      # tests left behind is gone by now, and this is what gets deployed.
+  # PRODUCTION. Only runs on a push to main or a manual dispatch, and only
+  # after `checks` has passed — a push to main must never ship on red, and
+  # splitting the preview out above must not change that.
+  deploy:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: checks
+    runs-on: ubuntu-latest
+    # Everything here shares ONE group so pushes queue and run in order.
+    # Keying this on github.ref put every push to main in the same group as
+    # well, but GitHub only holds one pending run per group — so merging two
+    # PRs a few seconds apart made the second supersede the first and BOTH
+    # were cancelled before dispatching a job. The site then silently kept
+    # serving the previous build. Never cancel, for the same reason.
+    concurrency:
+      group: pages-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Install
+        run: npm install
+
+      # The step that produces the REAL bundle that gets deployed below.
       - name: Build
-        if: github.event.action != 'closed'
         env:
-          BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          BUILD_SHA: ${{ github.sha }}
         run: npm run build
 
       # ITEM 86: THE RULES SHIP FROM HERE NOW, not from a paste into the
@@ -143,9 +186,10 @@ jobs:
       # apart with nothing to notice, and it is the one drift in this repo
       # that ends with somebody's shopping list readable by a stranger.
       #
-      # AFTER the rules tests above and BEFORE the app deploy below: the file
-      # has been proved against the emulator by the time this runs, and if
-      # the upload fails the app that depends on it never ships.
+      # BEFORE the app deploy below, and only reachable at all once `checks`
+      # (which includes the rules tests) has passed: the file has been proved
+      # against the emulator by the time this runs, and if the upload fails
+      # the app that depends on it never ships.
       #
       # Needs FIREBASE_SERVICE_ACCOUNT — the whole service-account JSON, as a
       # repository secret. Without it the step is SKIPPED rather than failed,
@@ -157,7 +201,6 @@ jobs:
       # tempting shape and is not one the expression context allows.
       - name: Is there a key to deploy rules with?
         id: ruleskey
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
@@ -174,30 +217,19 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node scripts/deploy-rules.mjs
 
-      # Production: publish dist to the root of gh-pages. clean-exclude keeps
-      # the pr-preview/ folder so open PRs' previews aren't wiped on a deploy.
+      # Publish dist to the root of gh-pages. clean-exclude keeps the
+      # pr-preview/ folder so open PRs' previews aren't wiped on a deploy.
       - name: Deploy production
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           folder: dist
           clean-exclude: pr-preview/
-
-      # Pull requests: build a preview at <site>/pr-preview/pr-<N>/ and comment
-      # the link; when the PR closes, remove that folder. Works for same-repo
-      # PRs (where the token has write access), which this branch is.
-      - name: Deploy PR preview
-        if: github.event_name == 'pull_request'
-        uses: rossjrw/pr-preview-action@v1
-        with:
-          source-dir: dist
 
       # A green deploy step only proves gh-pages was written — it doesn't prove
       # the site is serving it. Poll the live catalog until its version matches
       # the one we just deployed, so a stale site is a red check here instead of
       # a phone that mysteriously won't update.
       - name: Verify the live site serves this build
-        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         run: |
           want=$(grep -o '"catalogVersion":[[:space:]]*[0-9]*' public/catalog.json | grep -o '[0-9]*$')
           url="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/catalog.json"
