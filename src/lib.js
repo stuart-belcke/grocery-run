@@ -1063,6 +1063,30 @@ function unitWordCanonical(word) {
 // hand it one.
 const QTY_RE = new RegExp(`^(\\d+\\s+\\d+/\\d+|\\d+\\s+[${VULGAR_RE}]|\\d+/\\d+|\\d+[${VULGAR_RE}]|\\d*\\.\\d+|\\d+|[${VULGAR_RE}])(?=\\s|$)`);
 
+// The same shapes again, unanchored, for building the two patterns below.
+const NUM_SRC = `\\d+\\s+\\d+/\\d+|\\d+\\s+[${VULGAR_RE}]|\\d+/\\d+|\\d+[${VULGAR_RE}]|\\d*\\.\\d+|\\d+|[${VULGAR_RE}]`;
+
+/* "2-3 cloves garlic", "1 to 2 tablespoons", "¼–½ teaspoon".
+   A RANGE USED TO LOSE BOTH NUMBER AND UNIT: QTY_RE needs whitespace after
+   the number, so "2-3" matched nothing at all and the whole line became the
+   name — "2-3 cloves garlic", qty 1, no unit. No unit is the expensive half,
+   because aggregation keys on ingredient + unit, so that garlic could never
+   add up with any other recipe's garlic.
+   THE UPPER BOUND IS TAKEN, not the lower. Buying too little means going
+   back, which is the cost this app exists to avoid; buying one clove of
+   garlic too many costs nothing. The range itself is kept as a note so the
+   cook still sees what the recipe said. */
+const RANGE_RE = new RegExp(`^(${NUM_SRC})\\s*(?:[-–—]|to\\b)\\s*(${NUM_SRC})(?=\\s|$)`, "i");
+
+/* "500g plain flour", "200ml double cream" — a number with its unit welded
+   on, which is the DEFAULT on UK, Irish, Australian and most European recipe
+   sites rather than an edge case. QTY_RE's `(?=\s|$)` is what makes it miss:
+   it deliberately refuses to read "500" out of "500g" so that "9x13 pan"
+   isn't mistaken for a quantity. So the letters are checked against the real
+   unit vocabulary instead — "500g" splits, "9x13" does not, because "x13" is
+   not a unit. */
+const ATTACHED_RE = /^(\d+(?:\.\d+)?)([a-zA-Z]+)(?=\s|$)/;
+
 /* Everything on an ingredient line that is neither how much nor what:
    "(optional)", "to taste", "diced", "rinsed and drained", "or ground
    turkey", "15 oz can". Pulled OUT of the name and the unit and kept in its
@@ -1080,6 +1104,15 @@ const QTY_RE = new RegExp(`^(\\d+\\s+\\d+/\\d+|\\d+\\s+[${VULGAR_RE}]|\\d+/\\d+|
    substitution is worth keeping, it just isn't a unit. */
 const NOTE_WORDS = /^(optional|to taste|as needed|divided|plus more|for serving|for garnish)$/i;
 
+/* How a prep clause starts. Used to tell "Onion, diced" (a note) from
+   "4 skinless, boneless chicken thighs" (one ingredient whose name happens to
+   contain a comma) — see splitIngredientNote. Participles and the adverbs
+   that modify them, which is what a prep clause is made of; deliberately not
+   a list of every possible one, because a short tail is taken on trust
+   anyway and this only has to carry the LONG ones. */
+const PREP_WORDS =
+  /^(diced|minced|chopped|sliced|beaten|peeled|crushed|grated|shredded|melted|softened|drained|rinsed|halved|quartered|cubed|trimmed|seeded|stemmed|cored|zested|juiced|torn|broken|cut|cooked|toasted|rinsed|washed|scrubbed|thinly|finely|roughly|coarsely|freshly|lightly|well|at|room|plus|preferably|ideally|about)$/i;
+
 export function splitIngredientNote(text) {
   let rest = String(text || "").trim();
   const notes = [];
@@ -1089,16 +1122,29 @@ export function splitIngredientNote(text) {
     if (t) notes.push(t);
     return " ";
   });
-  // A trailing clause after a comma: "Onion, diced", "Beans, rinsed".
-  // Only when there is EXACTLY ONE comma. Two or more means the commas are
-  // punctuating a list, and the last item is part of the name, not a note:
-  // "ground chicken, pork, or turkey" is one ingredient with three spellings,
-  // and "garlic, 2 chopped, 6 whole" splits into nonsense at the last comma.
-  // A leading "or"/"and" says the same thing on its own, so it is refused too.
+  /* A trailing clause after a comma: "Onion, diced", "Beans, rinsed".
+     Only when there is EXACTLY ONE comma. Two or more means the commas are
+     punctuating a list, and the last item is part of the name, not a note:
+     "ground chicken, pork, or turkey" is one ingredient with three spellings,
+     and "garlic, 2 chopped, 6 whole" splits into nonsense at the last comma.
+     A leading "or"/"and" says the same thing on its own, so it is refused too.
+
+     AND THE TAIL HAS TO LOOK LIKE PREP, which the word count alone could not
+     tell. "4 skinless, boneless chicken thighs" has one comma and a
+     three-word tail, so the old rule split it and produced an ingredient
+     named "Skinless" — a real entry, in the catalog, forever, matching
+     nothing. The comma there joins two adjectives; it does not introduce a
+     note. Requiring the tail to START with a prep word separates the two
+     without guessing: "diced", "thinly sliced" and "peeled and cut into
+     sticks" all lead with one, "boneless chicken thighs" does not.
+     A one- or two-word tail is still taken on trust, so a prep word nobody
+     listed ("Onion, quartered lengthways") is not lost. */
   const comma = rest.indexOf(",");
   if (comma > 0 && rest.indexOf(",", comma + 1) === -1) {
     const tail = rest.slice(comma + 1).trim();
-    if (tail && tail.split(/\s+/).length <= 4 && !/^(or|and)\b/i.test(tail)) {
+    const words = tail.split(/\s+/);
+    const prepLed = PREP_WORDS.test(words[0] || "");
+    if (tail && !/^(or|and)\b/i.test(tail) && (prepLed ? words.length <= 6 : words.length <= 2)) {
       notes.push(tail);
       rest = rest.slice(0, comma);
     }
@@ -1123,12 +1169,25 @@ export function splitIngredientNote(text) {
 export function parseIngredientLine(rawLine) {
   const stripped = String(rawLine || "").replace(/^[\s▢☐☑✓•●○\-*·]+/, "").trim();
   if (!stripped || /:$/.test(stripped)) return null; // blank, or a "For the sauce:" subheading
-  const m = stripped.match(QTY_RE);
   let qty = 1;
   let rest = stripped;
-  if (m) {
+  let rangeNote = "";
+  const range = stripped.match(RANGE_RE);
+  const attached = stripped.match(ATTACHED_RE);
+  const m = stripped.match(QTY_RE);
+  if (range) {
+    const lo = qtyToNumber(range[1]);
+    const hi = qtyToNumber(range[2]);
+    qty = Math.max(lo, hi) || 1;
+    rangeNote = range[0].trim();
+    rest = stripped.slice(range[0].length).trim();
+  } else if (m) {
     qty = qtyToNumber(m[1]) || 1;
     rest = stripped.slice(m[0].length).trim();
+  } else if (attached && unitWordCanonical(attached[2])) {
+    // The unit is consumed here, not below — it was never a separate word.
+    qty = Number(attached[1]) || 1;
+    rest = `${unitWordCanonical(attached[2])} ${stripped.slice(attached[0].length).trim()}`;
   }
   /* The note comes out BEFORE the unit is read, because a parenthetical
      sitting between the number and the unit ("2 (14 oz) cans tomatoes") would
@@ -1146,9 +1205,11 @@ export function parseIngredientLine(rawLine) {
   }
   const name = cap(rest.trim());
   if (!name) return null;
+  // The range goes FIRST, since it qualifies the number the row leads with.
+  const note = [rangeNote, split.note].filter(Boolean).join(", ");
   // Absent rather than empty: a line with no note keeps exactly the shape it
   // has always had, so nothing downstream has to learn a new field to ignore.
-  return split.note ? { name, qty, unit, note: split.note } : { name, qty, unit };
+  return note ? { name, qty, unit, note } : { name, qty, unit };
 }
 
 // Section/metadata lines a food-blog copy/paste is full of — recognized so
