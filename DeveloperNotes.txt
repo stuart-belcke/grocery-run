@@ -2103,21 +2103,46 @@ rather than saving them for a cleanup that never gets scheduled.
       exactly as before, and an amount-free list ("Salt", "Pepper") still
       imports rather than being dropped for looking unimpressive.
 
-    END TO END on the fetched page: name "Creamy au Gratin Potatoes Recipe",
-    servings 4, EIGHT correct ingredients, three steps with the photo credits
-    stripped. A whole web page in, a correct recipe out — the thing item 106
-    said would need a server.
     Mutation-tested: restoring "first heading wins" fails exactly the new test.
 
-    THE FIXTURE IS RECONSTRUCTED, NOT CAPTURED, and that is the weak spot in
-    this item. It was read off five screenshots of the Shortcut's output, so
-    the SHAPE is observed rather than imagined — but it is trimmed, and the
-    real document also carries a footer, comments and nutrition boilerplate
-    that this does not exercise. Replace it with the captured text verbatim
-    when there is a copy to hand.
-    STILL NOT BUILT: the Shortcut itself, and the app-side path to receive
-    what it sends (parseJoinHash already reads the URL hash, so there is
-    precedent). This slice is the parser being ready for it.
+    AND THEN THE FIXTURE TURNED OUT TO BE WRONG, WHICH IS THE REAL LESSON HERE
+    AND THE REASON THIS ITEM SAYS "FIRST SLICE".
+    This item first claimed END TO END on the fetched page — name, servings 4,
+    eight correct ingredients, three steps. That was measured against a
+    fixture RECONSTRUCTED from five screenshots, and when the text was
+    actually captured off the phone the same parser returned:
+        name         "INGREDIENTS   Ingredients"
+        ingredients  9, every one junk — nutrition boilerplate, footer links,
+                     "Allrecipes is part of the People Inc. publishing family"
+        steps        0
+    Not one of the eight real ingredients. 337 tests stayed green throughout,
+    because the test encoded the reconstruction rather than the page.
+    WHY THE RECONSTRUCTION WAS WRONG: it put "Ingredients" on lines of its
+    own. The real text runs it together with its neighbours —
+    "INGREDIENTS   Ingredients", "Our Favorit Ingredients", "The cheese sauce
+    sta Ingredients" — so SECTION_HEADING_RE, which needs the whole line to be
+    the word, finds ONE heading instead of six. With no later heading to stop
+    at, the scan runs to the end of the document and eats the footer.
+    SO THE SCORING FIX IS NECESSARY AND NOT SUFFICIENT: choosing the best
+    heading cannot help when the headings are not lines. Both problems are
+    real; only one is solved.
+
+    A SECOND TRAP, WORTH WRITING DOWN BECAUSE IT NEARLY CAUSED THE SAME
+    MISTAKE TWICE: the captured text used to diagnose this was itself the
+    concatenation of six TRUNCATED 400-character regex matches, so
+    "Our Favorit Ingredients" and "yields 4 ser Ingredients" are artifacts of
+    the probe's own `{0,400}` limit rather than things on the page. Fitting
+    the parser to that sample would have been the identical error one level
+    down. What IS genuine from it — because they sit mid-match, not at a
+    boundary — is that "INGREDIENTS   Ingredients" and "OCCASIONS   Occasions"
+    really are single run-together lines.
+    THE RULE THIS EARNS: a probe that reshapes what it returns cannot also be
+    the fixture. Capture the document, then measure.
+
+    STILL NOT BUILT: the heading detection this actually needs, the Shortcut
+    itself, and the app-side path to receive what it sends (parseJoinHash
+    already reads the URL hash, so there is precedent). What IS done is the
+    scoring, and the knowledge of what the route really hands over.
 
 108. [DONE] THREE PARSER BUGS FOUND BY PROBING RATHER THAN BY BEING BITTEN.
     Item 105 fixed four bugs one real paste happened to hit. This went the
