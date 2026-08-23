@@ -36,7 +36,7 @@ export const HOW_IT_WORKS = [
 export const FAQS = [
   {
     q: "How does something get onto the shopping list?",
-    a: "Three ways. Press Choose a meal on a day in {Plan} — it asks which meal of the day it is, and starts on Dinner — or press Add unplanned meal on a recipe in {Recipes}. Either one adds that recipe's ingredients, scaled to the servings you set. Or type it straight into the Add box at the top of {List}.",
+    a: "Three ways. Press Choose a meal on a day in {Plan} — it asks which meal of the day it is, and starts on Dinner — or press Add unplanned on a recipe in {Recipes}. Either one adds that recipe's ingredients, scaled to the servings you set. Or type it straight into the Add box at the top of {List}.",
     keywords: ["add", "put", "shopping", "generate", "groceries", "where do items come from", "breakfast", "lunch", "dessert", "meal type"],
   },
   {

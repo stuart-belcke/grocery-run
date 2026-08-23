@@ -644,7 +644,7 @@ test("skipList on the only planned meal leaves the list empty", () => {
 });
 
 /* ---------------- unplanned meals (Week tab) ----------------
-   "Add unplanned meal" on the Recipes tab writes straight to list.selections
+   "Add unplanned" on the Recipes tab writes straight to list.selections
    with no day/slot — the only way to see one used to be scrolling the Meals
    tab for a card showing an "Unplanned" pill. unplannedMeals is what the
    Week tab's dropdown reads instead. */

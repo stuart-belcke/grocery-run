@@ -236,7 +236,7 @@ so far (the list showing a pre-rename name).
 
 ## Found by the suites, not yet fixed
 
-- **`Add unplanned meal`, `Edit` and `Add to week's plan` have no
+- **`Add unplanned`, `Edit` and `Add to a day` have no
   recipe-specific accessible names.** Every Meals card renders the same three
   labels, so nothing but DOM position distinguishes them. A screen reader hits
   exactly the ambiguity the tests did. Everything else in the app is carefully

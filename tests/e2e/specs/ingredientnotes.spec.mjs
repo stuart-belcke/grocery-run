@@ -146,8 +146,8 @@ test("two recipes wanting the same ingredient different ways still make ONE shop
       const buttons = page.getByRole("button");
       const texts = await buttons.allTextContents();
       const card = texts.findIndex((t) => t.trim().startsWith(recipe));
-      const add = texts.findIndex((t, n) => n > card && t.trim() === "Add unplanned meal");
-      assert.notEqual(add, -1, `no "Add unplanned meal" after ${recipe}`);
+      const add = texts.findIndex((t, n) => n > card && t.trim() === "Add unplanned");
+      assert.notEqual(add, -1, `no "Add unplanned" after ${recipe}`);
       await buttons.nth(add).click();
       await page.waitForTimeout(500);
     }
