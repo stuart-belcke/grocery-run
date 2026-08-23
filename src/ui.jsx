@@ -526,7 +526,7 @@ export function Btn({ children, onClick, kind = "ghost", small, style, title, di
     borderRadius: 8,
     cursor: disabled ? "default" : "pointer",
     border: "1px solid transparent",
-    padding: small ? "4px 10px" : "8px 14px",
+    padding: small ? "14px 10px" : "13px 14px",
     fontSize: small ? 13 : 14,
     opacity: disabled ? 0.5 : 1,
   };
