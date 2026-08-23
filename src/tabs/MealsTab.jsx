@@ -988,7 +988,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
               <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "14px 16px 10px" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 700, color: C.ink }}>{r.name}</div>
-                  <div style={{ fontSize: 12, color: C.faint }}>Tap a slot to add it</div>
+                  <div style={{ fontSize: 12, color: C.faint }}>Which meal, and which day</div>
                 </div>
                 <button
                   onClick={() => setPlanPick(null)}
@@ -1000,68 +1000,53 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
                 </button>
               </div>
 
-              {/* PROTOTYPE B — THE WHOLE WEEK AT ONCE, and one tap commits.
-                  Where A asks two questions in sequence (which meal, then
-                  which day) this asks one, by showing the grid those two
-                  questions describe. It is strictly more information on
-                  screen, and the overwrite problem stops needing a rule: a
-                  slot that is taken SHOWS what is in it, so "already has
-                  something" is a thing you see rather than a thing the app
-                  has to tell you afterwards.
-                  NO CONFIRM STEP. There is nothing left to confirm once the
-                  cell is the answer, and the plan chip appears on the card
-                  behind with its own ✕ — undo is one tap and visible. */}
-              <div style={{ padding: "0 16px 4px", overflowY: "auto", flex: 1 }}>
-                <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-                  <span style={{ width: 34, flexShrink: 0 }} />
-                  {MEAL_TYPES.map((t) => (
-                    <span key={t} style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: 700, color: C.faint, textTransform: "uppercase", letterSpacing: "0.04em", minWidth: 0, overflow: "hidden" }}>
-                      {t.slice(0, 3)}
-                    </span>
-                  ))}
-                </div>
-                {DAYS.map((day) => (
-                  <div key={day} style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "stretch" }}>
-                    <span style={{ width: 34, flexShrink: 0, display: "flex", alignItems: "center", fontWeight: 700, fontSize: 13, color: C.ink }}>{day}</span>
-                    {MEAL_TYPES.map((t) => {
-                      const id = data.plan?.[day]?.[t]?.recipeId;
-                      const taken = id ? data.recipes.find((x) => x.id === id) : null;
-                      const mine = id === r.id;
-                      return (
-                        <button
-                          key={t}
-                          disabled={!!taken}
-                          onClick={() => { assignPlan(r, day, t, base); setPlanPick(null); }}
-                          aria-label={taken ? `${day} ${t} already has ${taken.name}` : `Add ${r.name} to ${day} ${t}`}
-                          title={taken ? taken.name : `${day} · ${t}`}
-                          style={{
-                            flex: 1,
-                            minWidth: 0,
-                            height: 44,
-                            borderRadius: 9,
-                            fontFamily: fontBody,
-                            fontSize: 11,
-                            padding: "0 3px",
-                            overflow: "hidden",
-                            whiteSpace: "nowrap",
-                            textOverflow: "ellipsis",
-                            cursor: taken ? "default" : "pointer",
-                            border: `1px solid ${mine ? C.green : C.line}`,
-                            background: mine ? C.greenSoft : taken ? C.paper : "#fff",
-                            color: mine ? C.green : taken ? C.faint : C.green,
-                            fontWeight: taken ? 500 : 700,
-                          }}
-                        >
-                          {taken ? taken.name : "+"}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))}
+              {/* Every type is offered here, unlike WeekTab — there the DAY is
+                  fixed so a full type is a dead end, whereas here changing the
+                  type re-opens the whole week below. */}
+              <div style={{ padding: "0 16px 10px" }}>
+                <Seg
+                  options={MEAL_TYPES.map((t) => ({ value: t, label: t }))}
+                  value={planPick.type}
+                  onChange={(t) => setPlanPick((p) => ({ ...p, type: t, day: null }))}
+                />
               </div>
 
-              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", padding: "10px 16px 14px", borderTop: `1px solid ${C.line}` }}>
+              <div style={{ padding: "0 16px", overflowY: "auto", flex: 1 }}>
+                {DAYS.map((day) => {
+                  const taken = takenBy(day);
+                  const picked = planPick.day === day;
+                  return (
+                    <button
+                      key={day}
+                      disabled={!!taken}
+                      onClick={() => setPlanPick((p) => ({ ...p, day }))}
+                      aria-pressed={picked}
+                      style={dayRow(taken ? "taken" : picked ? "picked" : "free")}
+                    >
+                      <span style={{ fontWeight: 700, width: 42, flexShrink: 0 }}>{day}</span>
+                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {taken ? taken.name : picked ? "" : ""}
+                      </span>
+                      {taken && <span style={{ fontSize: 12, flexShrink: 0 }}>taken</span>}
+                      {picked && <span aria-hidden style={{ color: C.green, fontWeight: 700, flexShrink: 0 }}>✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", padding: "12px 16px 14px", borderTop: `1px solid ${C.line}` }}>
                 <Btn onClick={() => setPlanPick(null)}>Cancel</Btn>
+                <Btn
+                  kind="primary"
+                  disabled={!planPick.day}
+                  onClick={() => {
+                    if (!planPick.day) return;
+                    assignPlan(r, planPick.day, planPick.type, base);
+                    setPlanPick(null);
+                  }}
+                >
+                  {planPick.day ? `Add to ${planPick.day}` : "Pick a day"}
+                </Btn>
               </div>
             </div>
           </div>
