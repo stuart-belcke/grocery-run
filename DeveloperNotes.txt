@@ -2038,9 +2038,10 @@ rather than saving them for a cleanup that never gets scheduled.
     prose does. THE FIX IS RE-PASTING a recipe from its source next time you
     cook it, one at a time, which produces proper steps for free.
 
-109. [DONE — FIRST SLICE] IMPORTING FROM A LINK, AND THE ONE BUG THAT ONLY
-    EXISTS ON THAT ROUTE. Item 106 said a browser cannot fetch another site's
-    HTML and so this needed a server. HALF OF THAT IS NOW DISPROVEN, tested on
+109. [MEASURED, NOTHING SHIPPED] IMPORTING FROM A LINK: WHAT THE ROUTE
+    REALLY HANDS OVER, AND A FIX THAT WAS BUILT AND THEN REVERTED.
+    Item 106 said a browser cannot fetch another site's HTML, so this needed
+    a server. HALF OF THAT IS NOW DISPROVEN, tested on
     a real phone rather than reasoned about.
 
     WHAT WAS ACTUALLY MEASURED, in seven runs of a three-action iOS Shortcut
@@ -2083,49 +2084,49 @@ rather than saving them for a cleanup that never gets scheduled.
     the JSON one:
       THE FIRST "Ingredients" HEADING IS NOT THE RIGHT ONE. parseRecipeText
       found the list with `lines.findIndex` — correct for a paste, because a
-      person starts selecting AT the recipe, and wrong for anything carrying
-      the whole document. The fetched page has SIX: the nav menu's own
-      "INGREDIENTS", the category list under it, a prose explainer, the real
-      list, the duplicated card after Directions, and one over the steps.
-      MEASURED RATHER THAN ASSUMED, and the prediction was wrong in an
-      instructive way: the nav's heading is immediately followed by ANOTHER
-      heading, so the old rule broke instantly and returned ZERO ingredients —
-      an import that silently comes back empty. Nudge that markup and the same
-      rule instead imports Chicken, Beef and Pork as the shopping list.
-      Silent-empty and confidently-wrong are one defect in two costumes, and
-      NEITHER IS REACHABLE FROM A PASTE, which is why 337 tests never saw it.
-      SCORED, NOT POSITIONED. Position is the thing that differs between a
-      paste and a fetch, so any rule resting on it breaks the moment somebody
-      selects a little more of the page. What separates a real list from a
-      menu is that its lines carry AMOUNTS — a unit, or a leading number.
-      "3 tablespoons butter" scores; "Chicken" does not. Real list 7, every
-      impostor 0. Ties keep the earliest, so a single-heading paste behaves
-      exactly as before, and an amount-free list ("Salt", "Pepper") still
-      imports rather than being dropped for looking unimpressive.
+      person starts selecting AT the recipe. A whole document has more of
+      them, so the rule looked fragile and a scored replacement was built:
+      try every heading, keep the one whose lines carry AMOUNTS.
+      IT WAS WRONG, AND MEASURABLY WORSE THAN WHAT IT REPLACED. Against the
+      real captured document:
+          first heading wins (main)   ->  8 ingredients, all eight correct
+          best-scoring heading (new)  -> 84 ingredients, every one junk
+      The last "Ingredients" heading on the page sits above the numbered
+      steps, and NOTHING FOLLOWS IT that SECTION_HEADING_RE recognises — so
+      its section runs to the end of the document and picks up the nutrition
+      table, the related-recipe cards and the footer. Scoring on "looks like
+      an amount" then hands the win to exactly that runaway section: "18%",
+      "Iron 3mg" and "10,316 home cooks made it!" all score, and there are
+      dozens of them against a real list of eight.
+      SO THE MACHINERY SOLVED A PROBLEM THIS PAGE DOES NOT HAVE AND BROKE ONE
+      THAT WORKED. Reverted. The heading count was never the bug.
 
-    Mutation-tested: restoring "first heading wins" fails exactly the new test.
+    HOW IT GOT THAT FAR IS THE PART WORTH KEEPING.
+    The scored version was built against a fixture RECONSTRUCTED from five
+    screenshots of the Shortcut's output, and on that fixture it produced a
+    perfect import — name, servings 4, eight ingredients, three steps — while
+    the old rule produced nothing. Both readings were artefacts. The
+    reconstruction put "Ingredients" on lines of its own in places the real
+    page runs it together ("INGREDIENTS   Ingredients"), and omitted the
+    footer and nutrition boilerplate that are precisely what breaks the
+    scoring. 337 tests passed throughout, and pointed the wrong way.
+    THE RULE THIS EARNS, and it is stronger than "test against real data":
+    A FIXTURE YOU BUILT FROM YOUR OWN UNDERSTANDING CANNOT TEST THAT
+    UNDERSTANDING. It can only confirm it. The green suite was not weak
+    evidence that the change was right — it was NO evidence, and it felt like
+    strong evidence, which is worse than having no test at all.
 
-    AND THEN THE FIXTURE TURNED OUT TO BE WRONG, WHICH IS THE REAL LESSON HERE
-    AND THE REASON THIS ITEM SAYS "FIRST SLICE".
-    This item first claimed END TO END on the fetched page — name, servings 4,
-    eight correct ingredients, three steps. That was measured against a
-    fixture RECONSTRUCTED from five screenshots, and when the text was
-    actually captured off the phone the same parser returned:
-        name         "INGREDIENTS   Ingredients"
-        ingredients  9, every one junk — nutrition boilerplate, footer links,
-                     "Allrecipes is part of the People Inc. publishing family"
-        steps        0
-    Not one of the eight real ingredients. 337 tests stayed green throughout,
-    because the test encoded the reconstruction rather than the page.
-    WHY THE RECONSTRUCTION WAS WRONG: it put "Ingredients" on lines of its
-    own. The real text runs it together with its neighbours —
-    "INGREDIENTS   Ingredients", "Our Favorit Ingredients", "The cheese sauce
-    sta Ingredients" — so SECTION_HEADING_RE, which needs the whole line to be
-    the word, finds ONE heading instead of six. With no later heading to stop
-    at, the scan runs to the end of the document and eats the footer.
-    SO THE SCORING FIX IS NECESSARY AND NOT SUFFICIENT: choosing the best
-    heading cannot help when the headings are not lines. Both problems are
-    real; only one is solved.
+    WHAT THE REAL DOCUMENT ACTUALLY SHOWS, now that there is one. main's
+    parser gets the INGREDIENTS RIGHT — all eight, with units — and two other
+    things wrong:
+      - THE NAME IS A CSS FRAGMENT. The page begins with an inline stylesheet
+        (".people-inc-logo-st1,...{fill:#131920}"), and the name loop takes
+        the first line that is not recognised boilerplate.
+      - THE STEPS OVERRUN, 13 where there are 9. The instructions scan stops
+        on /^(nutrition|notes?)$/i and this page says "Cook's Note", which
+        does not match — so it continues through the cook's note and on into
+        SAVE / RATE / PRINT.
+    Both reproduce on the captured text. Neither needs the reverted machinery.
 
     A SECOND TRAP, WORTH WRITING DOWN BECAUSE IT NEARLY CAUSED THE SAME
     MISTAKE TWICE: the captured text used to diagnose this was itself the
@@ -2139,10 +2140,14 @@ rather than saving them for a cleanup that never gets scheduled.
     THE RULE THIS EARNS: a probe that reshapes what it returns cannot also be
     the fixture. Capture the document, then measure.
 
-    STILL NOT BUILT: the heading detection this actually needs, the Shortcut
+    NOTHING IN THE PARSER CHANGED, in the end. What this item leaves behind
+    is knowledge, not code: that the fetch works from a phone, that it hands
+    back tag-stripped text near-identical to a paste, that main's parser
+    already reads its ingredients correctly, and exactly which two things it
+    gets wrong. Plus one captured document to build against next time.
+    STILL NOT BUILT: the name and step-overrun fixes above, the Shortcut
     itself, and the app-side path to receive what it sends (parseJoinHash
-    already reads the URL hash, so there is precedent). What IS done is the
-    scoring, and the knowledge of what the route really hands over.
+    already reads the URL hash, so there is precedent).
 
 108. [DONE] THREE PARSER BUGS FOUND BY PROBING RATHER THAN BY BEING BITTEN.
     Item 105 fixed four bugs one real paste happened to hit. This went the

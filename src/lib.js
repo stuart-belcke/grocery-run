@@ -1256,54 +1256,16 @@ export function parseRecipeText(text) {
   // (a food-blog page's "jump to recipe" widget repeats the whole card) as
   // noise rather than as steps.
   const rawIngredientLines = new Set();
-  let ingredients = [];
-  /* EVERY "Ingredients" HEADING IS TRIED, AND THE BEST ONE WINS.
-     This used to take the FIRST one (`lines.findIndex`), which is right for a
-     paste — you start selecting at the recipe — and wrong for anything that
-     carries the whole page. A fetched AllRecipes page has SIX: the nav menu's
-     own "INGREDIENTS" and the category list under it (Chicken, Beef, Pork,
-     Seafood…), a prose "Ingredients" explainer, the real list, the duplicated
-     card after Directions, and one over the numbered steps.
-     MEASURED, NOT ASSUMED, because the two failure modes look nothing alike:
-     on this page the first heading is the nav's and the very next line is
-     ANOTHER heading, so the old code broke immediately and imported NOTHING —
-     an empty recipe rather than a wrong one. Shift the menu's markup slightly
-     and the same bug instead imports Chicken, Beef and Pork as the shopping
-     list. Silent-empty and confidently-wrong are the same defect wearing
-     different clothes, and neither is discoverable from a paste.
-     SCORED, NOT POSITIONED, because position is exactly what differs between
-     a paste and a fetch — and a rule that depends on where the text was cut
-     breaks the moment somebody selects a little more of the page. What tells
-     a real ingredient list from a menu is that its lines carry AMOUNTS: a
-     unit, or a leading number. "3 tablespoons butter" scores; "Chicken" does
-     not. On this page the real list scores 7 and every impostor scores 0.
-     Ties keep the earliest, so a single-heading paste behaves exactly as it
-     did before this existed. */
-  const headings = lines.map((l, i) => (SECTION_HEADING_RE.test(l) && /^ingredients?\s*$/i.test(l) ? i : -1)).filter((i) => i !== -1);
-  let best = null;
-  for (const start of headings) {
-    const found = [];
-    const raw = [];
-    for (let i = start + 1; i < lines.length; i++) {
+  const ingredients = [];
+  const ingStart = lines.findIndex((l) => /^ingredients?\s*$/i.test(l));
+  if (ingStart !== -1) {
+    for (let i = ingStart + 1; i < lines.length; i++) {
       const l = lines[i];
       if (SECTION_HEADING_RE.test(l)) break;
       if (!l || BOILERPLATE_RE.test(l) || SCALER_RE.test(l) || YIELDS_RE.test(l)) continue;
       const parsed = parseIngredientLine(l);
-      if (parsed) { found.push(parsed); raw.push(l.toLowerCase()); }
+      if (parsed) { ingredients.push(parsed); rawIngredientLines.add(l.toLowerCase()); }
     }
-    // An amount is the signal. `qty` alone is not — it defaults to 1 — so the
-    // raw line has to actually begin with a number for that half to count.
-    const score = found.filter((p, i) => p.unit || /^[\s▢☐☑✓•●○\-*·]*(\d|[¼½¾⅓⅔⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞])/.test(raw[i])).length;
-    if (!best || score > best.score) best = { score, found, raw };
-  }
-  /* `best` is the FIRST heading when nothing scores, because the comparison
-     above only replaces on a strictly higher score. That is deliberate and is
-     the old behaviour intact: a list with no amounts at all ("Salt", "Pepper",
-     "Olive oil") is a real thing somebody might paste, and it should still be
-     read rather than dropped for failing to look impressive. */
-  if (best) {
-    ingredients = best.found;
-    for (const l of best.raw) rawIngredientLines.add(l);
   } else {
     // No "Ingredients" heading found — fall back to any line that looks like
     // one (bulleted, or starting with a number) wherever it appears, rather
