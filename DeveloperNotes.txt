@@ -293,6 +293,37 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     records the analysis so it does not have to be redone, and names the
     conditions under which the answer CHANGES.
 
+    >>> PICK THE CONVERSATION UP HERE. Items 109 and 110 tested the two
+    >>> assumptions this item rests on, and the state of play is now:
+    >>>   THE APP STILL CANNOT TAKE A URL. Nothing accepts one, and nothing
+    >>>     in the app can fetch one — that is the CORS wall below, unmoved.
+    >>>   PASTING THE PAGE'S TEXT WORKS TODAY and is the supported path. It
+    >>>     is what item 110's five sites made reliable. Worth saying out
+    >>>     loud because "you cannot paste a link" got heard once as "you
+    >>>     cannot paste", which is the opposite of true.
+    >>>   THE PHONE CAN FETCH THE PAGE — proved on a real handset (item 109).
+    >>>     Shortcuts is not a browser, so CORS does not apply, and the
+    >>>     request comes from a domestic IP rather than the datacenter one
+    >>>     that would have got a Worker blocked. That kills the argument for
+    >>>     option A/B below at this scale.
+    >>>   THE PARSER IS READY FOR WHAT THAT ROUTE HANDS OVER (item 110).
+    >>> SO WHAT IS ACTUALLY LEFT IS TWO SMALL PIECES, neither started:
+    >>>   1. the Shortcut itself — Get Contents of URL, then open the app
+    >>>      with the text. The diagnostic version built in item 109 printed
+    >>>      to Quick Look instead; that is the only difference.
+    >>>   2. the app-side receiver — read the text out of the URL and open
+    >>>      the recipe editor pre-filled. parseJoinHash already reads the
+    >>>      hash for invites, so there is a pattern to copy.
+    >>> AND ONE THING TO DECIDE FIRST: a whole recipe in a URL fragment is
+    >>> long, and neither the Shortcut's Open URL nor the app's handling of a
+    >>> very large hash has been tested. If it does not fit, the fallback is
+    >>> the clipboard — the Shortcut copies, the app offers to read it — which
+    >>> is less magical and has no length limit.
+    >>> THE FLOW EVEN WHEN BUILT IS NOT "paste a link into the app": it is
+    >>> open the recipe in Safari, Share, tap the shortcut, and the app opens
+    >>> filled in. Worth being straight about, because it is a different
+    >>> gesture from the one the question asked for.
+
     THE PARSING GETS EASIER, NOT HARDER, WHICH IS THE POINT. Nearly every
     big recipe site embeds its recipe as machine-readable data in the page
     (a <script type="application/ld+json"> block in the schema.org Recipe
@@ -446,6 +477,74 @@ Tier 4 — multi-device / integrations (highest risk, do last)
     pr-69, pr-80, pr-114 and pr-118, all long closed. Teardown-on-close may
     not be firing. Worth a look; harmless apart from the clutter, now that a
     stale preview's cache cannot reach the real app.
+
+111. [DONE] ADDING A MEAL TO A DAY IS A DIALOG NOW, AND CANNOT SILENTLY
+    REPLACE ONE. Asked for directly: "when you select add to week plan from
+    recipes, open a ui to enter the info rather than entering info below the
+    card" — so the user knows they are continuing the interaction of "add".
+    Two problems, and only one of them is a matter of taste.
+
+    THE TASTE HALF, settled by a decision the app already made: item 6
+    rejected exactly this pattern on the OTHER side of the same interaction.
+    WeekTab's slot picker replaced a native <select> that "didn't fit the
+    app's feel or scale with the list" — and the Meals tab is that same
+    choice from the other end (you have a MEAL, you want a SLOT), still on
+    the pattern that had been thrown out. Not a new opinion; the old one
+    applied consistently.
+
+    THE BUG HALF, found while reading the code for the UI question, and the
+    reason this has tests rather than a screenshot. assignPlan writes
+        d.plan[day][type] = { recipeId, servings }
+    unconditionally, and the two dropdowns offered EVERY day and EVERY meal
+    type. So adding a meal from a recipe card could REPLACE MONDAY'S DINNER
+    with no warning, no confirmation and no undo. WeekTab never allowed it —
+    it offers "only the types still free on this day", because "an option
+    that would silently replace an existing meal is not an option" — so the
+    app was careful on one tab and wide open on the other. A day already
+    holding this meal type is now shown with what is in the way, and is not
+    selectable.
+
+    THE GRID WAS BUILT AND REJECTED, and the reason generalises. Prototype B
+    laid the week out as 7 days x 4 meal types, one tap to add, and won on
+    every number: one tap instead of three, every target on item 103c's 44px
+    floor, no overflow at 320px. It lost on the only thing that mattered —
+    "the matrix is not usable for a human". 28 near-identical boxes means
+    reading your own week by counting rows and columns instead of looking at
+    it. The truncation at 320px ("Rice ...") was the visible symptom; the
+    FORM was the cause.
+    A GRID IS A GOOD WAY TO STORE A WEEK AND A BAD WAY TO ASK SOMEBODY ABOUT
+    ONE. Kept at 3cbd333 on claude/plan-picker-prototypes if it is ever worth
+    revisiting.
+
+    BOTH ADDS ON A CARD ARE GHOST NOW. "Add unplanned meal" was filled green
+    beside an outlined "Add to week's plan" — the same kind of action, one of
+    them looking like the answer. They are peers with different meanings (no
+    day / a day), so `primary` goes back to meaning "the one obvious next
+    action", which on a card offering two equal adds is neither of them. The
+    green moved to the dialog's confirm, where there IS one.
+
+    THE DAY ROWS HAVE ACCESSIBLE NAMES ("Mon Dinner already has Stir-fry"),
+    so the reason a day cannot be chosen is audible rather than only a
+    greyed-out row. meals.spec.mjs had already recorded that these card
+    buttons carry no accessible name and that a screen reader hits the same
+    ambiguity a test does. THE OLD ONES ARE STILL UNNAMED — "Add unplanned
+    meal", "Edit" and "Add to week's plan" render identically on every card
+    and can only be found by position. Worth its own pass.
+
+    FOUR e2e TESTS, asserting on PERSISTED state per the harness rule,
+    because a disabled-LOOKING button proves nothing about what the other
+    phone receives: the picker opens as a modal, a taken day cannot be picked
+    and force-clicking it leaves the plan untouched, a free day writes its
+    slot without disturbing the others, and neither card action outweighs the
+    other. Mutation-tested: making taken days selectable again fails exactly
+    the overwrite test, and putting the green back fails exactly the weight
+    test.
+
+    THE PROTOTYPE BRANCH WAS NOT MERGEABLE, and the delay was the point. It
+    was cut before two other items landed and carried the UI with NO tests at
+    all — including none for the overwrite, which is the part that was
+    actually a bug. "It just needs merging" was wrong by about an hour of
+    work. Reapplied onto current main and finished properly.
 
 103. [DONE] SETTINGS UX AUDIT — measured, not assessed, in item 51's shape.
     Asked for directly: "I think we need to do a UX review of the whole
