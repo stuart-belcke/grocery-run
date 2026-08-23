@@ -21,7 +21,7 @@ item is finished and lives over there.
 IF YOU ARE PICKING SOMETHING UP
 -------------------------------
 
-  106  import a recipe from a link      two small pieces left, both scoped
+  106  import a recipe from a link      app half done; one step, on a phone
   110  the parser                       standing task: more captured pages
    98  the test gaps                    a register; 98a is the costly one
    30  warn about an older build        small, and it has bitten once
@@ -167,43 +167,50 @@ file reached 5,886 lines with ten live items in it.
     displayed and not what it means. Week start is not arguable.
     TRIGGER: revisit alongside 101; they are the same conversation.
 
-106. IMPORT A RECIPE FROM A LINK, instead of pasting the page.
+106. IMPORT A RECIPE FROM A LINK — THE APP HALF IS BUILT; ONE STEP IS LEFT
+    AND IT CAN ONLY BE DONE ON A PHONE.
     Asked as: "other grocery apps parse recipes from links, is that
-    achievable for us?" Items 109 and 110 (completed) tested both assumptions
-    this rested on. Where it actually stands:
+    achievable for us?" Items 109 and 110 settled the two assumptions under
+    it; the receiver shipped with this entry. Where it stands:
 
-      PASTING THE PAGE'S TEXT WORKS TODAY and is the supported path — it is
-        what item 110's five real sites made reliable. Worth stating first,
-        because "you cannot paste a link" got heard once as "you cannot
-        paste", which is the opposite of true.
-      THE APP CANNOT TAKE A URL. Nothing accepts one, and nothing in the app
-        can fetch one: a browser refuses to read another site's HTML (CORS),
-        and no amount of app-side code changes that.
-      A PHONE CAN FETCH THE PAGE — proved on real hardware. Shortcuts is not
-        a browser, so CORS does not apply, and the request comes from a
-        domestic IP rather than the datacenter one that would get a server
-        blocked. That is why the Cloudflare Worker this item originally
-        proposed is not needed at this scale.
-      THE PARSER IS READY for what that route hands over (item 110).
+      PASTING THE PAGE'S TEXT WORKS TODAY and is still the supported path —
+        no length limit, and it is what item 110's five real sites made
+        reliable. Worth stating first, because "you cannot paste a link" got
+        heard once as "you cannot paste", which is the opposite of true.
+      THE APP CANNOT TAKE A URL AND NEVER WILL. A browser refuses to read
+        another site's HTML and no app-side code changes that.
+      THE APP-SIDE RECEIVER IS DONE. A URL of the form
+        `#chars=<n>&import=<encoded text>` opens the Meals tab with the
+        recipe editor already filled, through the same fillDraft the paste
+        panel uses. parseImportHash / importUrl in lib.js are the one
+        definition of the format. Seven browser tests, five mutations, all
+        caught. RecipeImportShortcut.md carries the whole thing.
+      THE SHORTCUT IS SPECIFIED BUT NOT BUILT. Seven actions, written down in
+        RecipeImportShortcut.md — Receive URLs, Get Contents of URL, Count
+        Characters, URL Encode, Text, Open URLs. UNVERIFIED: there was no iOS
+        device where it was written, and Shortcuts renames actions between
+        versions. The ORDER is the part that matters.
 
-    SO TWO SMALL PIECES ARE LEFT, neither started:
-      1. the Shortcut — Get Contents of URL, then open the app with the text.
-         The diagnostic version built for item 109 printed to Quick Look
-         instead; that is the only difference.
-      2. the app-side receiver — read the text out of the URL and open the
-         recipe editor pre-filled. parseJoinHash already reads the hash for
-         invites, so there is a pattern to copy.
+    WHAT IS ACTUALLY LEFT: build those seven actions on a phone, share one
+    recipe through it, and see what happens. That is the whole remainder.
 
-    DECIDE THIS FIRST: a whole recipe in a URL fragment is long, and neither
-    Shortcuts' Open URL nor the app's handling of a very large hash has been
-    tested. If it does not fit, the fallback is the clipboard — the Shortcut
-    copies, the app offers to read it — which is less magical and has no
-    length limit.
+    AND THE MEASUREMENT IT EXISTS TO TAKE. A page is 5-12k characters, 7-17k
+    once URL-encoded, and NOBODY HAS MEASURED what iOS does with a URL that
+    long. So the format declares the length BEFORE the text: truncation
+    removes the tail, the count survives it, and the app says "this arrived
+    cut short, 8,900 of 11,162 characters" rather than quietly importing
+    three quarters of a recipe — which parses cleanly, looks finished, and is
+    found out in the shop. THE LIMIT DID NOT NEED DECIDING IN ADVANCE, which
+    is the answer to the question this item used to open with.
+    WRITE THE NUMBER DOWN HERE when it happens. It is the only evidence
+    anybody will ever have of where the real limit is, and it decides whether
+    this survives or falls back to the clipboard (Copy to Clipboard instead
+    of Open URLs; less magical, no limit at all).
 
-    AND BE HONEST ABOUT THE GESTURE: even built, this is not "paste a link
+    BE HONEST ABOUT THE GESTURE: even finished, this is not "paste a link
     into the app". It is open the recipe in Safari, Share, tap the shortcut,
     and the app opens filled in. That is a different thing from what the
-    question asked for, and worth saying out loud before building it.
+    question asked for.
 
     REVISIT THE SERVER OPTION ONLY IF: somebody outside the two of us uses
     this, or an Android phone joins a household. The Shortcut is iOS-only and
@@ -241,6 +248,13 @@ file reached 5,886 lines with ten live items in it.
         numbered. All five fixtures bullet or number theirs.
       - PER-COMPONENT INGREDIENT GROUPS beyond the two seen so far. The
         bullet rule that separates them is the newest thing in the file.
+      - A BARE NUMBERED LIST WITH NO "INSTRUCTIONS" HEADING is read as more
+        ingredients. Found while writing item 106's tests, on a hand-typed
+        recipe rather than a captured page — all five fixtures carry the
+        heading, which is why none of them caught it. It bites a PASTE of
+        something somebody typed themselves, not a fetched page, so it is
+        smaller than it looks. tests/e2e/specs/importlink.spec.mjs says so
+        where it works around it.
       - KNOWN WRONG, RARE: "2 x 400g tins", "1 lb 2 oz", "1 tbsp + 1 tsp",
         "Juice of 1 lemon" (arguably already right — the ingredient IS a
         lemon).

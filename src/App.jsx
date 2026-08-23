@@ -46,6 +46,7 @@ import {
   ONBOARDED_KEY,
   MUST_CHOOSE_KEY,
   PENDING_INVITE_KEY,
+  PENDING_IMPORT_KEY,
   INVITE_DISMISSED_KEY,
   invitePrompt,
   INSTALL_DISMISSED_KEY,
@@ -86,6 +87,7 @@ import {
   APP_DATA_VERSION,
   normalizeCatalog,
   parseJoinHash,
+  parseImportHash,
   classifyJoinInput,
   needsUnitNotes,
   withUnitNotes,
@@ -183,6 +185,36 @@ export default function App() {
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
     }
   }, [linkInvite]);
+
+  /* A recipe carried in by a Shortcut (#import=...). Item 106.
+
+     THE SAME READ-ONCE-AND-WIPE RULE as the invite above, for a plainer
+     reason: left in the address bar, every reload would re-import the recipe
+     and you would find four copies of it.
+
+     PERSISTED FOR A DIFFERENT REASON THOUGH. The invite's localStorage copy
+     survives a sign-in navigation; this one survives the app being COLD
+     STARTED by the URL itself, which here is the normal case rather than the
+     exception — the Shortcut opens the app, so the recipe arrives before
+     there is a Meals tab mounted to take it.
+
+     AND IT SWITCHES TABS, because the app opens on the List. A recipe that
+     imported correctly onto a screen you are not looking at is
+     indistinguishable from one that did not import at all. */
+  const [pendingImport, setPendingImport] = useState(() => {
+    if (typeof window === "undefined") return null;
+    return parseImportHash(window.location.hash) || loadJSON(PENDING_IMPORT_KEY) || null;
+  });
+  useEffect(() => {
+    if (typeof window === "undefined" || !pendingImport) return;
+    saveJSON(PENDING_IMPORT_KEY, pendingImport);
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    setTab("meals");
+  }, [pendingImport]);
+  const clearImport = () => {
+    saveJSON(PENDING_IMPORT_KEY, null);
+    setPendingImport(null);
+  };
   const [syncStatus, setSyncStatus] = useState(syncEnabled ? "connecting" : "local-only");
   /* A write the server actively rejected (rules, quota, a malformed payload) —
      NOT offline, which the SDK handles by queuing and never surfaces here.
@@ -1275,7 +1307,7 @@ export default function App() {
         )}
 
         {tab === "list" && <ListTab data={data} update={update} updateCatalog={updateCatalog} isGuest={isGuest} />}
-        {tab === "meals" && <MealsTab data={data} update={update} updateCatalog={updateCatalog} isGuest={isGuest} />}
+        {tab === "meals" && <MealsTab data={data} update={update} updateCatalog={updateCatalog} isGuest={isGuest} pendingImport={pendingImport} clearImport={clearImport} />}
         {tab === "week" && <WeekTab data={data} update={update} isGuest={isGuest} />}
         {tab === "pantry" && <PantryTab data={data} update={update} updateCatalog={updateCatalog} isGuest={isGuest} />}
         {tab === "settings" && (

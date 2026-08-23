@@ -100,6 +100,15 @@ export const FAQS = [
     keywords: ["home screen", "install", "icon", "add to home screen", "app", "pwa", "shortcut", "standalone"],
   },
   {
+    /* Item 106. The honest version, because the question this answers is
+       "other apps parse a link, why can't this one" — and the answer is that
+       it can, but not by pasting a link, and the difference matters before
+       somebody spends twenty minutes building the shortcut. */
+    q: "Can I import a recipe from a link?",
+    a: "Not by pasting the link — the app is not allowed to read another site's page, and that is the browser's rule rather than a missing feature. Two ways round it. Simplest: select the recipe on the page, copy, then press Add a meal on {Recipes} and Paste a recipe to fill this in. That has no length limit and is what the parser was built against. Or, on an iPhone, build the shortcut described in RecipeImportShortcut.md in the app's code — then it is open the recipe in Safari, Share, tap the shortcut, and this app opens with the fields already filled. Either way, check the ingredients before saving: the shortcut warns you if the recipe arrived cut short, but no parser gets every page right.",
+    keywords: ["link", "url", "import", "paste", "web", "website", "scrape", "parse", "safari", "shortcut", "recipe page", "auto"],
+  },
+  {
     q: "Where is my data, and what happens when I am offline?",
     a: "On this device and, once signed in, in the household everyone shares. Offline the app keeps working and saves locally; the next time it connects, the two copies are reconciled and the newer edit wins. The dot at the top of the screen says which state it is in.",
     keywords: ["offline", "sync", "data", "cloud", "saved", "backup", "airplane"],
