@@ -3226,6 +3226,92 @@ test("a fetched page yields exactly its nine steps, un-doubled and credit-free",
   assert.ok(!/home cooks made it/i.test(joined), "a footer line was taken as a step");
 });
 
+/* THREE MORE WHOLE PAGES, from three sites that lay a recipe out differently.
+   One site is a sample size of one, and every rule below was written against
+   AllRecipes until these arrived — at which point each of them broke
+   something the AllRecipes page never touched:
+     BabyFoode        "1x2x3x" — the scaler's three buttons run together with
+                      no separator, so SCALER_RE (which matched "1X") let it
+                      through as an ingredient; and "Serving: 1meatball" in
+                      the nutrition line was read as "serves 1".
+     Mediterranean    sub-headings INSIDE the ingredient list ("Lemon Sauce",
+                      "For Coating") became ingredients; and the steps ran on
+                      into a "Video" section.
+     OliveTomato      THE WORST ONE: no Notes and no Nutrition heading at all,
+                      so the steps ran to the end of the page — 30 of them
+                      where there are 11, taking the author's biography and
+                      four reader comments as cooking instructions.
+   Kept whole, for the reason tests/fixtures/README.md gives. */
+const PAGE = (f) => readFileSync(new URL(`../tests/fixtures/${f}`, import.meta.url), "utf8");
+
+test("a page whose scaler buttons run together does not import 1x2x3x as food", () => {
+  const r = parseRecipeText(PAGE("babyfoode-page.txt"));
+  assert.equal(r.ingredients.length, 10, JSON.stringify(r.ingredients.map((i) => i.name)));
+  assert.deepEqual(r.ingredients[0], { name: "Ground chicken", qty: 1, unit: "lb", note: "or ground turkey" });
+  assert.ok(!r.ingredients.some((i) => /^\d+x/i.test(i.name)), "the scaler widget became an ingredient");
+  // "Serving: 1meatball" is a nutrition label, not a serving count. Nothing is
+  // better than one — a wrong number silently scales every amount on the list.
+  assert.equal(r.servings, null);
+  assert.equal(r.notes.split("\n").filter(Boolean).length, 5);
+});
+
+test("a run-together scaler is dropped even from a list with no bullets to sort by", () => {
+  /* WRITTEN AFTER A MUTATION TEST CAUGHT A USELESS ONE. The BabyFoode test
+     above asserts "1x2x3x" is not imported, and it passes with SCALER_RE
+     widened OR narrow — because that page's scaler line is unbulleted, so the
+     sub-heading rule drops it either way and the assertion never exercises
+     the regex it was written for.
+     Here nothing is bulleted, so the sub-heading rule cannot fire and
+     SCALER_RE is the only thing standing between "1x2x3x" and the catalog. */
+  const r = parseRecipeText(["Chicken Thing", "Ingredients", "1x2x3x", "2 cups rice", "1 lb chicken thighs"].join("\n"));
+  assert.deepEqual(r.ingredients, [
+    { name: "Rice", qty: 2, unit: "cup" },
+    { name: "Chicken thighs", qty: 1, unit: "lb" },
+  ]);
+});
+
+test("sub-headings inside an ingredient list are structure, not ingredients", () => {
+  const r = parseRecipeText(PAGE("mediterraneandish-page.txt"));
+  const names = r.ingredients.map((i) => i.name);
+  assert.equal(r.ingredients.length, 12, JSON.stringify(names));
+  for (const label of ["Lemon Sauce", "For Coating"]) {
+    assert.ok(!names.includes(label), `"${label}" is a group label and was imported as food`);
+  }
+  assert.ok(names.includes("Fresh lemon juice") && names.includes("All-purpose flour"), "a real ingredient was dropped with the labels");
+  // "SERVES – 5 PEOPLE (UP TO)" separates with an en dash rather than a colon.
+  assert.equal(r.servings, 5);
+  // The steps used to run on into the "Video" section below them.
+  assert.equal(r.notes.split("\n").filter(Boolean).length, 7);
+});
+
+test("steps stop at the end of the recipe even with no Notes or Nutrition heading", () => {
+  /* The page that made this urgent: 30 steps where there are 11, because
+     nothing after the instructions said "stop" — so the author's biography,
+     "Post navigation", the comment form and four reader comments all became
+     things to do while cooking. */
+  const r = parseRecipeText(PAGE("olivetomato-page.txt"));
+  const steps = r.notes.split("\n").filter(Boolean);
+  assert.equal(steps.length, 11, JSON.stringify(steps));
+  assert.match(steps[0], /^1\. Preheat oven at 425/);
+  assert.match(steps[10], /^11\. If chicken is done/);
+  for (const junk of ["Post navigation", "Leave a Reply", "Comments", "says:", "Rights Reserved", "Email"]) {
+    assert.ok(!r.notes.includes(junk), `"${junk}" was taken as a cooking step`);
+  }
+  assert.equal(r.ingredients.length, 9);
+  assert.equal(r.servings, 4);
+});
+
+test("no step keeps the bullet the page drew it with", () => {
+  // Cosmetic, but it is what the cook reads at the stove: every one of these
+  // pages bullets its steps, and the marker was being kept and then numbered
+  // on top of — "1. • Preheat oven to 400 degrees F".
+  for (const f of ["allrecipes-page.txt", "babyfoode-page.txt", "mediterraneandish-page.txt", "olivetomato-page.txt"]) {
+    for (const s of parseRecipeText(PAGE(f)).notes.split("\n").filter(Boolean)) {
+      assert.ok(!/^\d+\.\s*[▢☐☑✓•●○‣*·]/.test(s), `${f} kept a bullet: ${s.slice(0, 40)}`);
+    }
+  }
+});
+
 // The exact text pasted from AllRecipes' au gratin potatoes page. AllRecipes
 // (like several big food sites) is run by Dotdash Meredith, whose recipe
 // card renders TWICE in a plain copy/paste — once for a "jump to recipe"

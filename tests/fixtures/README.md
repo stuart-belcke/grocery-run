@@ -19,3 +19,22 @@ ONE HONEST CAVEAT: this was pasted into a chat and retyped into a file, so
 runs of blank lines and some tabs may not be byte-identical to what the
 Shortcut produced. The structure is faithful and every bug it was used to fix
 reproduces on it, but it is a transcription rather than a capture.
+
+FOUR PAGES, FROM FOUR SITES, AND WHY THAT MATTERS.
+Every rule in parseRecipeText was written against `allrecipes-page.txt` until
+the other three arrived — and each of them immediately broke something the
+AllRecipes page never touched:
+
+  babyfoode-page.txt          the scaler's buttons run together as "1x2x3x",
+                              and "Serving: 1meatball" in the nutrition block
+                              reads as "serves 1"
+  mediterraneandish-page.txt  sub-headings sit INSIDE the ingredient list
+                              ("Lemon Sauce", "For Coating"), and the steps
+                              run on into a "Video" section
+  olivetomato-page.txt        no Notes and no Nutrition heading AT ALL, so the
+                              steps ran to the end of the page: 30 where there
+                              are 11, including the author's biography and
+                              four reader comments
+
+One site is a sample size of one. Adding the fourth changed three rules, so
+assume the fifth will change more, and add it rather than assuming it fits.

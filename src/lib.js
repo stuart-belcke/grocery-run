@@ -1218,12 +1218,12 @@ export function parseIngredientLine(rawLine) {
 // AllRecipes paste (Dotdash Meredith runs AllRecipes and several other big
 // food sites) put its own "keep screen on" checkbox into the ingredient list
 // and a photo credit under every step into the instructions.
-const BOILERPLATE_RE = /^(cook mode|prevent your screen|keep screen awake|author:|prep time|cook time|total time|servings?:?|serves\b|calories|ingredients?$|instructions?$|directions?$|notes?$|save$|print$|email$|nutritional information|us customary|metric|dotdash meredith|skip to content|jump to recipe|jump to nutrition)/i;
-const SERVINGS_RE = /^(?:serves|servings?)\s*:?\s*(\d+(?:\.\d+)?)/i;
+const BOILERPLATE_RE = /^(cook mode|prevent your screen|keep screen awake|author:|prep time|cook time|total time|servings?:?|serves\b|calories|ingredients?$|instructions?$|directions?$|notes?$|save$|print$|email$|nutritional information|us customary|metric|dotdash meredith|skip to (main )?content|jump to recipe|jump to video|get the guides)/i;
+const SERVINGS_RE = /^(?:serves|servings?)\s*[:\u2013\u2014-]?\s*(\d+(?:\.\d+)?)(?![\w.])/i;
 // A recipe-scaler control's own label ("1X", "2X", "1/2X") — it sits right
 // next to the servings count in the source markup, so a paste that includes
 // the widget puts it right next to the ingredient list too.
-const SCALER_RE = /^(\d+\/\d+|\d+(?:\.\d+)?)x$/i;
+const SCALER_RE = /^((?:\d+\/\d+|\d+(?:\.\d+)?)x)+$/i;
 // "Original recipe (1X) yields 4 servings" — AllRecipes' serving-scaler
 // summary line. Matched loosely (not anchored) since it never appears alone,
 // and reused below to recover the servings count when there's no separate
@@ -1238,7 +1238,7 @@ const SECTION_HEADING_RE = /^(ingredients?|instructions?|directions?)\s*$/i;
    ("Recipe Notes" and "Chef's Notes" are the same shape), and the apostrophe
    has to be allowed in both its straight and curly forms, because a page
    typesets one and a keyboard produces the other. */
-const END_OF_STEPS_RE = /^(nutrition(\s+facts)?|([A-Za-z'’]+\s+)?notes?)\s*$/i;
+const END_OF_STEPS_RE = /^(nutrition(\s+facts)?|([A-Za-z'’]+\s+)?notes?|video|post navigation|leave a (reply|comment)|\d+\s+comments?\b|comments?|more comments|did you make this recipe|tried this recipe)\s*[:.]?\s*$|all rights reserved/i;
 
 /* What starts a numbered step. `[.)]` alone missed this page entirely, where
    the number is separated from its text by a TAB rather than punctuation
@@ -1259,6 +1259,11 @@ const TRAILING_CREDIT_RE = /\s{2,}(dotdash meredith[\w\s]*|photo by [\w\s]+)\s*$
 // A stylesheet or script fragment, which a fetched page opens with. Braces
 // are the giveaway; no recipe title has ever contained one.
 const CODE_LINE_RE = /\{[^}]*\}|^[.#][\w-]+[\s,{]/;
+
+// The bullet a recipe card puts in front of every real ingredient — and, on
+// the same pages, in front of every instruction step, where it used to be
+// left in place ("1. \u2022\tPreheat oven to 400 degrees F").
+const INGREDIENT_BULLET_RE = /^[\s]*[\u25a2\u2610\u2611\u2713\u2022\u25cf\u25cb\u25e6\u2023*\u00b7]/;
 // A short, punctuation-free, ALL-CAPS line reads as a method sub-heading
 // (CROCKPOT / INSTANT POT / STOVE-TOP) rather than an instruction step.
 const isMethodHeading = (l) => l.length > 0 && l === l.toUpperCase() && /^[A-Z][A-Z\s-]*$/.test(l) && l.split(/\s+/).length <= 4;
@@ -1298,10 +1303,23 @@ export function parseRecipeText(text) {
   const ingredients = [];
   const ingStart = lines.findIndex((l) => /^ingredients?\s*$/i.test(l));
   if (ingStart !== -1) {
+    const section = [];
     for (let i = ingStart + 1; i < lines.length; i++) {
       const l = lines[i];
       if (SECTION_HEADING_RE.test(l)) break;
       if (!l || BOILERPLATE_RE.test(l) || SCALER_RE.test(l) || YIELDS_RE.test(l)) continue;
+      section.push(l);
+    }
+    /* SUB-HEADINGS INSIDE THE LIST ("Lemon Sauce", "For Coating") were coming
+       back as ingredients — real catalog entries for things that are labels.
+       "For the sauce:" was already handled, by its colon; these have none.
+       WHAT SEPARATES THEM IS THE BULLET. A recipe card marks every actual
+       ingredient with one and leaves its group labels bare, so when a section
+       uses bullets AT ALL, the unbulleted lines in it are structure rather
+       than food. Only applied when bullets are present, so a plain typed list
+       — where nothing is bulleted — is untouched. */
+    const bulleted = section.filter((l) => INGREDIENT_BULLET_RE.test(l));
+    for (const l of (bulleted.length ? bulleted : section)) {
       const parsed = parseIngredientLine(l);
       if (parsed) { ingredients.push(parsed); rawIngredientLines.add(l.toLowerCase()); }
     }
@@ -1356,7 +1374,7 @@ export function parseRecipeText(text) {
     // The credit strip runs LAST, after the wrapped-line join above, so a
     // credit that arrived on the continuation line is caught too.
     notes = steps
-      .map((s) => s.replace(TRAILING_CREDIT_RE, "").trim())
+      .map((s) => s.replace(TRAILING_CREDIT_RE, "").replace(/^[\s]*[\u25a2\u2610\u2611\u2713\u2022\u25cf\u25cb\u25e6\u2023*\u00b7]+[\s]*/, "").trim())
       .filter(Boolean)
       .map((s, i) => `${i + 1}. ${s}`)
       .join("\n");
