@@ -287,6 +287,102 @@ Tier 4 — multi-device / integrations (highest risk, do last)
 
 18. Export to / link with a Google calendar, keyed off the household.
 
+106. IMPORT A RECIPE FROM A LINK, instead of pasting the page. Asked after
+    item 105: "other grocery apps parse recipes from links, is that
+    achievable for us?" NOTHING IS BUILT AND NOTHING IS DECIDED — this
+    records the analysis so it does not have to be redone, and names the
+    conditions under which the answer CHANGES.
+
+    THE PARSING GETS EASIER, NOT HARDER, WHICH IS THE POINT. Nearly every
+    big recipe site embeds its recipe as machine-readable data in the page
+    (a <script type="application/ld+json"> block in the schema.org Recipe
+    format). Sites publish it because Google needs it to show recipe cards
+    in search results, so keeping it accurate is in their own interest. It
+    hands over `name`, `recipeYield`, and `recipeIngredient` as an ARRAY OF
+    STRINGS — "1 ½ cups shredded Cheddar cheese" — which is exactly what
+    parseIngredientLine already eats. Every bug in item 105 was an artifact
+    of scraping RENDERED TEXT: the scaler buttons, the card printed twice,
+    the photo credits. None of that is in the structured data, because it is
+    page furniture and the furniture is not in there. parseRecipeText stays
+    as the fallback; parseIngredientLine becomes stage two rather than the
+    whole thing. And applyParsedRecipe (MealsTab.jsx) already takes a
+    { name, servings, notes, ingredients } shape, so the app-side landing
+    strip is built.
+
+    THE ONE REAL BLOCKER IS THAT A BROWSER CANNOT FETCH ANOTHER SITE'S HTML.
+    A page served from stuart-belcke.github.io asking for allrecipes.com is
+    refused by the browser — that is CORS, the rule stopping any page from
+    reading any other site on your behalf, and AllRecipes has no reason to
+    grant an exception. So the fetch must happen somewhere that is not a
+    browser. That is the entire difficulty. Four ways:
+
+      A. A CLOUDFLARE WORKER. ~30 lines: fetch, pull out the ld+json, return
+         it with permissive CORS headers. Free tier is 100,000 requests/day.
+         New vendor, new deploy step (`wrangler deploy`).
+      B. A FIREBASE CLOUD FUNCTION. No new vendor — but it needs the BLAZE
+         (pay-as-you-go) plan with a card on file, and specifically because
+         the free Spark plan BLOCKS outbound requests to non-Google hosts,
+         which is the only thing we would be using it for. Free grant inside
+         Blaze is ~2M invocations/month. Also awkward here: CLAUDE.md
+         records that the `firebase` CLI dies in this sandbox.
+      C. A PUBLIC CORS PROXY (allorigins.win and friends). Zero infra, but
+         someone else's uptime and your browsing through their logs. For a
+         tool used weekly, a silent break is worse than no feature.
+      D. AN iOS SHORTCUT. Share Sheet -> shortcut -> it fetches the page
+         itself and opens the app with the result. See below; free, and at
+         two-people scale probably the best of the four.
+
+    WHAT THE FREE TIERS ACTUALLY CEIL AT, and the answer is that they are
+    not the constraint. A recipe import is a deliberate, rare act — call it
+    5/week for a household, ~0.7/day. Cloudflare's 100k/day is therefore on
+    the order of 100,000 HOUSEHOLDS; Firebase's ~2M/month is ~67k/day, the
+    same ballpark. Neither is reachable by anything this app plausibly
+    becomes. WHAT BREAKS FIRST IS THE RECIPE SITES NOTICING: a Worker fetches
+    from a datacenter IP, every user's request comes from the same small
+    pool of them, and sites block that pattern long before Cloudflare bills
+    anybody. THE CEILING IS AN ANTI-BOT CEILING, NOT A BILLING ONE, and it
+    cannot be quoted as a number the way a free tier can. NOT VERIFIED: the
+    tier figures above are from knowledge, not checked — this sandbox's
+    network policy blocks developers.cloudflare.com (EGRESS_BLOCKED) and
+    allrecipes.com (403 on CONNECT), so neither the limits nor the claim
+    that AllRecipes serves ld+json at all could be confirmed here. CHECK
+    BOTH BEFORE BUILDING: for the second, open the recipe on a phone, View
+    Source, search for "application/ld+json".
+
+    THE iOS SHORTCUT DESERVES ITS OWN PARAGRAPH, because it is free, it
+    needs no server, and its fetch is MORE likely to succeed than the
+    Worker's. Shortcuts is built into iOS; "Get Contents of URL" runs on the
+    phone, from the phone's own IP, with a real browser user agent — so the
+    datacenter-IP blocking that caps option A does not apply, and there is
+    no CORS because CORS is a browser rule and Shortcuts is not a browser.
+    It has no scaling ceiling at all: every phone does its own work.
+    WHAT IT COSTS: iOS only, so it covers an Android phone not at all;
+    per-phone manual setup, and a shortcut is a thing that can be deleted or
+    broken by an OS update; and the app needs a receiving path to read the
+    result out of the URL (parseJoinHash already reads the hash, so there is
+    precedent). Extracting the ld+json inside Shortcuts means Match Text
+    with a regex then Get Dictionary from Input — doable, unpleasant to
+    debug.
+
+    THE DECISION IS SCALE-DEPENDENT, AND THAT IS THE THING TO REVISIT.
+    At TWO PEOPLE the Shortcut is likely right: nothing to run, nothing to
+    pay for, best fetch success rate, and it does not add a permanent new
+    maintenance surface to an app that today is a static bundle plus a
+    database. At ANY REAL NUMBER OF USERS it is clearly wrong: you cannot
+    ask strangers to install a shortcut, and it does not exist on Android.
+    REVISIT THIS ITEM WHEN ANY OF THESE BECOMES TRUE:
+      - somebody outside the two of us uses the app;
+      - an Android phone joins a household;
+      - importing gets frequent enough that per-phone setup is a real cost;
+      - or the Shortcut breaks on an iOS release and nobody wants to fix it.
+    At that point the answer is option A, and the work is the Worker plus an
+    allowlist of recipe hosts so the endpoint cannot be used as a general
+    proxy. UNTIL THEN, THE PASTE BOX IS NOT DEPRECATED BY ANY OF THIS: sites
+    block, rate-limit and change, so a link import must always degrade to
+    "Couldn't read that page. Select the whole page, copy it, and paste it
+    below instead." — naming the action, since the reader has just watched a
+    LINK fail and "paste it" would otherwise read as "paste the link again".
+
 103. [DONE] SETTINGS UX AUDIT — measured, not assessed, in item 51's shape.
     Asked for directly: "I think we need to do a UX review of the whole
     settings tab. Everything else I am pretty happy with."
