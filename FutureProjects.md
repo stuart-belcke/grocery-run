@@ -5,8 +5,9 @@ scaffolding. grocery-run is really two things stacked together: a generic,
 offline-first, optionally-synced app shell, and a grocery-specific domain on
 top. The shell is worth reusing; the domain gets swapped.
 
-Work on grocery-run ITSELF belongs in `DeveloperNotes.txt`, however large —
-see the note at the bottom of this file.
+Work on grocery-run ITSELF belongs in `DeveloperNotes.txt` (open) or
+`DeveloperNotes-Completed.txt` (finished), however large — see the note at the
+bottom of this file.
 
 ---
 
@@ -136,12 +137,15 @@ it has now shipped: narrow writes, the catalog moved into the database per
 household, and the override layer deleted outright.
 
 What remains — auth, re-parenting the household under an account, invites and
-roles — is now **item 37 in `DeveloperNotes.txt`**, alongside the two items it
-depends on (21, narrow listeners; 34, security rules).
+roles — became **item 37**, which has since shipped in full and now lives in
+`DeveloperNotes-Completed.txt`. Of the two items it depended on, 34 (security
+rules) is done; 21's narrow-listener half is still open in the roadmap.
 
 The boundary this file keeps from now on:
 
-- **`DeveloperNotes.txt`** — everything about grocery-run itself, at any size.
+- **`DeveloperNotes.txt`** / **`DeveloperNotes-Completed.txt`** — everything
+  about grocery-run itself, at any size. Open work in the first, finished work
+  in the second, one shared numbering across both.
 - **`FutureProjects.md`** — other apps built on the same scaffolding.
 
 Two lists for the same app meant two places to look and two places to go stale.

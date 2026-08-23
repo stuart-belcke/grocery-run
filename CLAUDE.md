@@ -6,11 +6,24 @@ wasted trip or a duplicate purchase rather than a support ticket.
 
 ## Read these first
 
-- `DeveloperNotes.txt` — the roadmap AND the record of why things are the way
-  they are. Items marked `[DONE]` carry the reasoning, not just the outcome.
-  Anything in progress says so and lists what's left.
+- `DeveloperNotes.txt` — the roadmap. What is still open, why it hasn't been
+  done, and **what would change the answer**. Ten items, ~240 lines. Read it
+  to find out what's left.
+- `DeveloperNotes-Completed.txt` — every finished item, unedited. This is the
+  record of **why things are the way they are**, and most days it's the more
+  useful of the two. **Search it before changing anything that looks odd**:
+  the strange things here are usually load-bearing and the entry explaining
+  why usually exists. Search it before redoing anything, too — several
+  entries record something tried, measured and rejected, and the reasons are
+  usually still valid. The mistakes are kept deliberately.
 - The block comments in `src/lib.js`. The non-obvious decisions are documented
   where the code is, not in commit messages.
+
+The two files share one chronological numbering, so a gap in the roadmap means
+that item is finished and lives in the completed file. When you finish
+something, move its entry across rather than leaving a `[DONE]` in the
+roadmap — that is exactly how the roadmap grew to 5,886 lines with eleven live
+items in it.
 
 ## Layout
 
