@@ -2038,6 +2038,220 @@ rather than saving them for a cleanup that never gets scheduled.
     prose does. THE FIX IS RE-PASTING a recipe from its source next time you
     cook it, one at a time, which produces proper steps for free.
 
+109. [MEASURED, NOTHING SHIPPED] IMPORTING FROM A LINK: WHAT THE ROUTE
+    REALLY HANDS OVER, AND A FIX THAT WAS BUILT AND THEN REVERTED.
+    Item 106 said a browser cannot fetch another site's HTML, so this needed
+    a server. HALF OF THAT IS NOW DISPROVEN, tested on
+    a real phone rather than reasoned about.
+
+    WHAT WAS ACTUALLY MEASURED, in seven runs of a three-action iOS Shortcut
+    (Get Contents of URL -> Match Text -> Quick Look) against the AllRecipes
+    au gratin potatoes page:
+      - THE PHONE CAN FETCH IT. No block, no 403. Shortcuts is not a browser,
+        so CORS — the whole reason item 106 wanted a server — does not apply,
+        and the request comes from a domestic IP with a real user agent rather
+        than the datacenter IP that would have got a Cloudflare Worker blocked.
+        That was item 106's option D all along; what is new is that it works.
+      - THERE IS NO schema.org JSON TO READ. Searching the fetched text for
+        `recipeIngredient` and for `ld.json` both returned nothing, while a
+        control search for a word visible on the page matched. Item 106's
+        central claim — "nearly every big recipe site embeds its recipe as
+        machine-readable data" — is therefore NOT SUPPORTED for this route.
+        CAREFUL ABOUT WHY, because the first conclusion drawn here was wrong:
+        this does not prove AllRecipes serves no JSON-LD. Get Contents of URL
+        hands back the page's TEXT, tags already stripped, so anything living
+        inside a <script> was never visible to the search. The raw HTML may
+        well contain it. What is established is only that THIS ROUTE cannot
+        see it — which is the thing that matters, and is enough.
+      - AND THE TEXT IT DOES HAND BACK IS ALREADY WHAT THE PARSER WANTS.
+        Newline-separated, bulleted, with "Ingredients" and "Directions" on
+        lines of their own, and — the happy accident — essentially the same
+        text as the manual paste of item 105. So the tag-stripping this was
+        going to need has already happened, for free, and every fix in item
+        105 (the scaler widget, the yields line, Keep Screen Awake, the
+        Dotdash photo credits, the duplicated card) applies unchanged.
+
+    SO THE ARCHITECTURE IS A LADDER, and it came from the user watching this
+    debugging session: try the most structured reading first, and when it
+    yields nothing usable, widen the search and try again — which is literally
+    what the seven runs above did by hand. THE LADDER LIVES IN lib.js, NOT IN
+    THE SHORTCUT: the Shortcut's whole job is "fetch this and hand it over",
+    so every decision stays testable with no phone, no network and no
+    Shortcuts app. It also makes the raw-HTML question above MOOT — whichever
+    of HTML or text arrives, a layer fits it.
+
+    THIS SLICE BUILT THE LAYER THE FETCH ROUTE ACTUALLY NEEDS, which was not
+    the JSON one:
+      THE FIRST "Ingredients" HEADING IS NOT THE RIGHT ONE. parseRecipeText
+      found the list with `lines.findIndex` — correct for a paste, because a
+      person starts selecting AT the recipe. A whole document has more of
+      them, so the rule looked fragile and a scored replacement was built:
+      try every heading, keep the one whose lines carry AMOUNTS.
+      IT WAS WRONG, AND MEASURABLY WORSE THAN WHAT IT REPLACED. Against the
+      real captured document:
+          first heading wins (main)   ->  8 ingredients, all eight correct
+          best-scoring heading (new)  -> 84 ingredients, every one junk
+      The last "Ingredients" heading on the page sits above the numbered
+      steps, and NOTHING FOLLOWS IT that SECTION_HEADING_RE recognises — so
+      its section runs to the end of the document and picks up the nutrition
+      table, the related-recipe cards and the footer. Scoring on "looks like
+      an amount" then hands the win to exactly that runaway section: "18%",
+      "Iron 3mg" and "10,316 home cooks made it!" all score, and there are
+      dozens of them against a real list of eight.
+      SO THE MACHINERY SOLVED A PROBLEM THIS PAGE DOES NOT HAVE AND BROKE ONE
+      THAT WORKED. Reverted. The heading count was never the bug.
+
+    HOW IT GOT THAT FAR IS THE PART WORTH KEEPING.
+    The scored version was built against a fixture RECONSTRUCTED from five
+    screenshots of the Shortcut's output, and on that fixture it produced a
+    perfect import — name, servings 4, eight ingredients, three steps — while
+    the old rule produced nothing. Both readings were artefacts. The
+    reconstruction put "Ingredients" on lines of its own in places the real
+    page runs it together ("INGREDIENTS   Ingredients"), and omitted the
+    footer and nutrition boilerplate that are precisely what breaks the
+    scoring. 337 tests passed throughout, and pointed the wrong way.
+    THE RULE THIS EARNS, and it is stronger than "test against real data":
+    A FIXTURE YOU BUILT FROM YOUR OWN UNDERSTANDING CANNOT TEST THAT
+    UNDERSTANDING. It can only confirm it. The green suite was not weak
+    evidence that the change was right — it was NO evidence, and it felt like
+    strong evidence, which is worse than having no test at all.
+
+    WHAT THE REAL DOCUMENT ACTUALLY SHOWS, now that there is one. main's
+    parser gets the INGREDIENTS RIGHT — all eight, with units — and two other
+    things wrong:
+      - THE NAME IS A CSS FRAGMENT. The page begins with an inline stylesheet
+        (".people-inc-logo-st1,...{fill:#131920}"), and the name loop takes
+        the first line that is not recognised boilerplate.
+      - THE STEPS OVERRUN, 13 where there are 9. The instructions scan stops
+        on /^(nutrition|notes?)$/i and this page says "Cook's Note", which
+        does not match — so it continues through the cook's note and on into
+        SAVE / RATE / PRINT.
+    Both reproduce on the captured text. Neither needs the reverted machinery.
+
+    A SECOND TRAP, WORTH WRITING DOWN BECAUSE IT NEARLY CAUSED THE SAME
+    MISTAKE TWICE: the captured text used to diagnose this was itself the
+    concatenation of six TRUNCATED 400-character regex matches, so
+    "Our Favorit Ingredients" and "yields 4 ser Ingredients" are artifacts of
+    the probe's own `{0,400}` limit rather than things on the page. Fitting
+    the parser to that sample would have been the identical error one level
+    down. What IS genuine from it — because they sit mid-match, not at a
+    boundary — is that "INGREDIENTS   Ingredients" and "OCCASIONS   Occasions"
+    really are single run-together lines.
+    THE RULE THIS EARNS: a probe that reshapes what it returns cannot also be
+    the fixture. Capture the document, then measure.
+
+    THE SCORED HEADING PICKER CHANGED NOTHING, in the end — it was reverted.
+    What survived that detour is knowledge: the fetch works from a phone, it
+    hands back tag-stripped text near-identical to a paste, and the parser
+    already read its ingredients correctly. Everything actually fixed came
+    afterwards, measured on five captured pages — see item 110.
+
+110. [GOOD ENOUGH, AND DELIBERATELY STOPPED THERE] THE PARSER AGAINST FIVE
+    REAL PAGES — what it now handles, and the list to pick back up from.
+    Item 109 established that a phone can fetch a recipe page and hand the app
+    its text. This is the parser being made to survive that text, measured on
+    five whole documents from five sites rather than reasoned about.
+
+    WHICH FIVE, BY NAME — the full list with URLs and capture date is in
+    tests/fixtures/README.md, recorded there because pages change and that is
+    how you tell "the parser regressed" from "the site was redesigned":
+        allrecipes         Creamy au Gratin Potatoes
+        babyfoode          Baked Chicken & Veggie Meatballs for Baby
+        mediterraneandish  Baked Cod with Lemon and Garlic
+        olivetomato        Greek Style Roasted Lemon and Garlic Chicken
+        averiecooks        Mediterranean Baked Crispy Chicken and Pasta
+    Two older fixtures live in src/lib.test.js rather than in that directory,
+    because they are PASTES rather than fetches — Half Baked Harvest's
+    crockpot Greek chicken meatballs (PASTED_RECIPE, the recipe the
+    first-method rule exists for) and the au gratin potatoes pasted by hand
+    (ALLRECIPES_PASTE, item 105). Keeping both halves of that second pair is
+    what shows which bugs belong to the FETCH ROUTE rather than to the recipe.
+
+    WHERE IT LANDED, on the captured pages in tests/fixtures/:
+        allrecipes           8 ingredients,  9 steps, serves 4
+        babyfoode           10 ingredients,  5 steps, serves —
+        mediterraneandish   12 ingredients,  7 steps, serves 5
+        olivetomato          9 ingredients, 11 steps, serves 4
+        averiecooks         22 ingredients, 20 steps, serves 4
+    Every ingredient list correct, every step list correct, four of five
+    serving counts correct. Before this work those same pages produced 84 junk
+    ingredients, 30 steps of reader comments, and a recipe that ended after
+    the spice rub.
+
+    THE RULE EVERY SITE TAUGHT, one each, which is the argument for capturing
+    pages rather than reasoning about them:
+      allrecipes         the name was the page's inline CSS; the step number
+                         is separated by a TAB; the photo credit rides on the
+                         END of a step's line; the steps ran past "Cook's
+                         Note", which /^(nutrition|notes?)$/ never matched.
+      babyfoode          the scaler's buttons run together as "1x2x3x"; and
+                         "Serving: 1meatball" in the nutrition block read as
+                         "serves 1" — a wrong count silently rescales every
+                         amount on the list, so nothing beats a guess.
+      mediterraneandish  sub-headings sit INSIDE the ingredient list ("Lemon
+                         Sauce", "For Coating"). The bullet separates them: a
+                         card marks every real ingredient and leaves group
+                         labels bare.
+      olivetomato        no Notes and no Nutrition heading AT ALL, so the
+                         steps ran to the end of the page — 30 where there are
+                         11, taking the author's biography and four reader
+                         comments as cooking instructions.
+      averiecooks        steps grouped into PHASES (DRY RUB, SEARING CHICKEN,
+                         BAKING…) hit the "keep only the first method" rule
+                         written for CROCKPOT / INSTANT POT, and the recipe
+                         ended after six steps with the chicken still raw.
+                         THE FIX IS THAT A RESTART MARKS AN ALTERNATIVE, not a
+                         heading: two ways to cook one dish are both numbered
+                         from 1, sequential phases keep counting. That needs
+                         no heading detection at all and survives a page that
+                         labels its alternatives in sentence case.
+
+    STOPPING HERE ON PURPOSE. Five sites, five rules, and the hit rate has not
+    dropped — every page so far broke something the previous ones did not. It
+    is not finished; it is USEFUL, which is a different and sufficient bar for
+    a tool two people use. Resume when there is time and appetite rather than
+    treating the list below as outstanding work.
+
+    MORE CAPTURES ARE COMING, and that is a standing task rather than a
+    someday-maybe: the intent is to hand over another batch of recipe links
+    when there is time and budget for the testing. Five sites is where this
+    stopped for cost reasons, not because the returns had fallen off — every
+    page so far broke something the previous ones did not, so the next batch
+    should be expected to as well. Capture them the way the five in
+    tests/fixtures/ were captured (Get Contents of URL -> Copy to Clipboard,
+    no Match Text in between), run each through parseRecipeText BEFORE
+    changing anything, and fix what the output actually shows.
+
+    WHAT TO PICK UP FIRST, in the order that would teach the most:
+      - THE NAME COMES BACK BLANK on all five pages. That is deliberate — a
+        blank field asks to be filled in and a wrong one gets saved (item 105)
+        — but it means typing the title every time, which is the one rough
+        edge a user actually feels. Finding a title in a whole document is
+        genuinely hard; the honest options are a heuristic worth measuring or
+        leaving it alone.
+      - A UK OR EUROPEAN SITE has never been tested. Item 108 taught the
+        parser "500g" and "200ml" against lines that were MADE UP, not
+        captured — the same untested-assumption shape that item 109 records
+        going wrong. BBC Good Food or Delicious would settle it.
+      - A PAGE WHOSE STEPS ARE PLAIN PARAGRAPHS, neither bulleted nor
+        numbered. All five fixtures bullet or number theirs, so that path is
+        exercised by nothing.
+      - PER-COMPONENT INGREDIENT GROUPS beyond the two in mediterraneandish.
+        The bullet rule is the newest and least proven thing in the file.
+      - STILL WRONG, KNOWN, RARE (item 108): "2 x 400g tins", "1 lb 2 oz",
+        "1 tbsp + 1 tsp", "Juice of 1 lemon".
+      - STILL NOT BUILT: the Shortcut itself, and the app-side path to receive
+        what it sends. parseJoinHash already reads the URL hash, so there is
+        precedent for the receiving half.
+
+    AND THE RULE THAT MATTERS MORE THAN ANY OF THEM, earned twice in one
+    session: A FIXTURE BUILT FROM YOUR OWN UNDERSTANDING CANNOT TEST THAT
+    UNDERSTANDING — it can only agree with it. Item 109 has the full account.
+    Capture the page. Do not tidy it. Mutation-test every rule, because a
+    green suite that was going to be green anyway is worse than no suite: it
+    feels like evidence. Two tests written this session passed with the fix
+    and without it, and both were caught by mutating rather than by reading.
+
 108. [DONE] THREE PARSER BUGS FOUND BY PROBING RATHER THAN BY BEING BITTEN.
     Item 105 fixed four bugs one real paste happened to hit. This went the
     other way: no new paste to work from — the sandbox cannot reach recipe

@@ -1218,28 +1218,81 @@ export function parseIngredientLine(rawLine) {
 // AllRecipes paste (Dotdash Meredith runs AllRecipes and several other big
 // food sites) put its own "keep screen on" checkbox into the ingredient list
 // and a photo credit under every step into the instructions.
-const BOILERPLATE_RE = /^(cook mode|prevent your screen|keep screen awake|author:|prep time|cook time|total time|servings?:?|serves\b|calories|ingredients?$|instructions?$|directions?$|notes?$|save$|print$|email$|nutritional information|us customary|metric|dotdash meredith)/i;
-const SERVINGS_RE = /^(?:serves|servings?)\s*:?\s*(\d+(?:\.\d+)?)/i;
+const BOILERPLATE_RE = /^(cook mode|prevent your screen|keep screen awake|author:|prep time|cook time|total time|servings?:?|serves\b|calories|ingredients?$|instructions?$|directions?$|notes?$|save$|print$|email$|nutritional information|us customary|metric|dotdash meredith|skip to (main )?content|jump to recipe|jump to video|get the guides)/i;
+const SERVINGS_RE = /^(?:serves|servings?)\s*[:\u2013\u2014-]?\s*(\d+(?:\.\d+)?)(?![\w.])/i;
 // A recipe-scaler control's own label ("1X", "2X", "1/2X") — it sits right
 // next to the servings count in the source markup, so a paste that includes
 // the widget puts it right next to the ingredient list too.
-const SCALER_RE = /^(\d+\/\d+|\d+(?:\.\d+)?)x$/i;
+const SCALER_RE = /^((?:\d+\/\d+|\d+(?:\.\d+)?)x)+$/i;
 // "Original recipe (1X) yields 4 servings" — AllRecipes' serving-scaler
 // summary line. Matched loosely (not anchored) since it never appears alone,
 // and reused below to recover the servings count when there's no separate
 // "Servings: 4" line for SERVINGS_RE to find.
 const YIELDS_RE = /yields\s+(\d+(?:\.\d+)?)\s*servings?/i;
+// "Servings:" and "4 servings" land on separate lines on some cards, so the
+// number leads its word instead of following it.
+const SERVINGS_FIRST_RE = /^(\d+(?:\.\d+)?)\s+servings?\b/i;
 const SECTION_HEADING_RE = /^(ingredients?|instructions?|directions?)\s*$/i;
+
+/* Where the steps stop. Used to say /^(nutrition|notes?)$/ and therefore ran
+   straight past "Cook's Note" — the heading this page actually uses — taking
+   the cook's note, the serving suggestion and "10,316 home cooks made it!"
+   along as steps 10 to 13. A possessive prefix is the whole difference
+   ("Recipe Notes" and "Chef's Notes" are the same shape), and the apostrophe
+   has to be allowed in both its straight and curly forms, because a page
+   typesets one and a keyboard produces the other. */
+const END_OF_STEPS_RE = /^(nutrition(\s+facts)?|([A-Za-z'’]+\s+)?notes?|video|post navigation|leave a (reply|comment)|\d+\s+comments?\b|comments?|more comments|did you make this recipe|tried this recipe)\s*[:.]?\s*$|all rights reserved/i;
+
+/* What starts a numbered step. `[.)]` alone missed this page entirely, where
+   the number is separated from its text by a TAB rather than punctuation
+   ("1\tGather all ingredients"). The whole line then fell through as ordinary
+   prose and got renumbered on top of its own number — "1. 1 Gather all…".
+   The tab is required rather than any whitespace: `^\d+\s+` would swallow
+   "2 cups milk" as step 2 of something, and an ingredient that reaches this
+   loop is exactly what the duplicated-card guard is already fighting. */
+const STEP_NUMBER_RE = /^(\d+)(?:[.)]|\t)\s*(.*)$/;
+
+/* A photo credit riding along on the END of a step, rather than sitting on a
+   line of its own: "…with butter.    Dotdash Meredith Food Studios".
+   BOILERPLATE_RE only ever tests the START of a line, so a whole-page fetch
+   carried nine of these into the recipe where a hand-made paste, which puts
+   them on their own lines, did not. */
+const TRAILING_CREDIT_RE = /\s{2,}(dotdash meredith[\w\s]*|photo by [\w\s]+)\s*$/i;
+
+// A stylesheet or script fragment, which a fetched page opens with. Braces
+// are the giveaway; no recipe title has ever contained one.
+const CODE_LINE_RE = /\{[^}]*\}|^[.#][\w-]+[\s,{]/;
+
+// The bullet a recipe card puts in front of every real ingredient — and, on
+// the same pages, in front of every instruction step, where it used to be
+// left in place ("1. \u2022\tPreheat oven to 400 degrees F").
+const INGREDIENT_BULLET_RE = /^[\s]*[\u25a2\u2610\u2611\u2713\u2022\u25cf\u25cb\u25e6\u2023*\u00b7]/;
 // A short, punctuation-free, ALL-CAPS line reads as a method sub-heading
 // (CROCKPOT / INSTANT POT / STOVE-TOP) rather than an instruction step.
-const isMethodHeading = (l) => l.length > 0 && l === l.toUpperCase() && /^[A-Z][A-Z\s-]*$/.test(l) && l.split(/\s+/).length <= 4;
+// Six words, not four: the cap was set by CROCKPOT / INSTANT POT / STOVE-TOP,
+// and a page that groups its steps into phases writes longer ones —
+// "MASHING TO MAKE THE SAUCE" is five, and came through as a cooking step
+// reading like an instruction to do nothing. Still tight enough that a real
+// step would have to be both shouted and punctuation-free to be mistaken for
+// one, which none of the five captured pages contains.
+const isMethodHeading = (l) => l.length > 0 && l === l.toUpperCase() && /^[A-Z][A-Z\s-]*$/.test(l) && l.split(/\s+/).length <= 6;
 
 export function parseRecipeText(text) {
   const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n").map((l) => l.trim());
 
+  /* A fetched page opens with its own stylesheet, so the first line that is
+     not blank and not recognised boilerplate was
+     ".people-inc-logo-st1,…{fill:#131920}" — and that became the recipe's
+     name. Code is never a name, so it is SKIPPED rather than accepted, and
+     the search carries on to the next line.
+     What it then reaches is site chrome ("SKIP TO CONTENT"), which
+     BOILERPLATE_RE stops on — leaving the name BLANK. That is the intended
+     outcome and not a shortfall: this function already prefers an empty name
+     to a guessed one (see the test about a paste starting mid-boilerplate),
+     because a blank field asks to be filled in and a wrong one gets saved. */
   let name = "";
   for (const l of lines) {
-    if (!l) continue;
+    if (!l || CODE_LINE_RE.test(l)) continue;
     if (BOILERPLATE_RE.test(l)) break;
     name = l;
     break;
@@ -1247,7 +1300,7 @@ export function parseRecipeText(text) {
 
   let servings = null;
   for (const l of lines) {
-    const m = l.match(SERVINGS_RE) || l.match(YIELDS_RE);
+    const m = l.match(SERVINGS_RE) || l.match(YIELDS_RE) || l.match(SERVINGS_FIRST_RE);
     if (m) { servings = Number(m[1]); break; }
   }
 
@@ -1259,10 +1312,23 @@ export function parseRecipeText(text) {
   const ingredients = [];
   const ingStart = lines.findIndex((l) => /^ingredients?\s*$/i.test(l));
   if (ingStart !== -1) {
+    const section = [];
     for (let i = ingStart + 1; i < lines.length; i++) {
       const l = lines[i];
       if (SECTION_HEADING_RE.test(l)) break;
       if (!l || BOILERPLATE_RE.test(l) || SCALER_RE.test(l) || YIELDS_RE.test(l)) continue;
+      section.push(l);
+    }
+    /* SUB-HEADINGS INSIDE THE LIST ("Lemon Sauce", "For Coating") were coming
+       back as ingredients — real catalog entries for things that are labels.
+       "For the sauce:" was already handled, by its colon; these have none.
+       WHAT SEPARATES THEM IS THE BULLET. A recipe card marks every actual
+       ingredient with one and leaves its group labels bare, so when a section
+       uses bullets AT ALL, the unbulleted lines in it are structure rather
+       than food. Only applied when bullets are present, so a plain typed list
+       — where nothing is bulleted — is untouched. */
+    const bulleted = section.filter((l) => INGREDIENT_BULLET_RE.test(l));
+    for (const l of (bulleted.length ? bulleted : section)) {
       const parsed = parseIngredientLine(l);
       if (parsed) { ingredients.push(parsed); rawIngredientLines.add(l.toLowerCase()); }
     }
@@ -1286,35 +1352,59 @@ export function parseRecipeText(text) {
   const insStart = lines.findIndex((l) => /^(instructions?|directions?)\s*$/i.test(l));
   if (insStart !== -1) {
     const steps = [];
-    let sawMethodHeading = false;
     let numbered = false;
+    let lastNum = 0;
     for (let i = insStart + 1; i < lines.length; i++) {
       const l = lines[i];
       if (!l) continue;
-      if (/^(nutrition|notes?)\s*$/i.test(l)) break;
+      if (END_OF_STEPS_RE.test(l)) break;
       // A stray "Ingredients" heading, its scaler widget, or the ingredient
       // list itself turning up again mid-way through — the same duplicated
       // recipe card that can precede the real Directions in the first place
       // (see the comment on BOILERPLATE_RE). Skipped rather than treated as
       // the end of the recipe, because the real steps still follow it.
       if (SECTION_HEADING_RE.test(l) || BOILERPLATE_RE.test(l) || SCALER_RE.test(l) || YIELDS_RE.test(l) || rawIngredientLines.has(l.toLowerCase())) continue;
-      if (isMethodHeading(l)) {
-        if (sawMethodHeading) break; // a second method's heading — stop, keep only the first
-        sawMethodHeading = true;
-        continue;
-      }
+      // An ALL-CAPS heading inside the steps. Always skipped, never a stop —
+      // see the numbering rule below for why it stopped being the signal.
+      if (isMethodHeading(l)) continue;
       // A numbered line STARTS a step; anything after it belongs to that step.
       // Blogs wrap a long step over several lines, and joining everything with
       // a space turned twelve steps into one wall of text you had to re-read
       // from the top each time you looked up from the pan.
-      const m = l.match(/^(\d+)[.)]\s*(.*)$/);
-      if (m) { steps.push(m[2]); numbered = true; }
-      else if (numbered && steps.length) steps[steps.length - 1] += " " + l;
+      const m = l.match(STEP_NUMBER_RE);
+      if (m) {
+        /* WHERE ONE METHOD ENDS AND ANOTHER BEGINS IS THE NUMBERING, NOT THE
+           HEADING. This used to stop at the SECOND all-caps heading, which is
+           right for the recipe that prompted it — CROCKPOT then INSTANT POT,
+           two ways to cook one dish, where you follow one OR the other — and
+           badly wrong for a recipe whose steps are grouped into PHASES you
+           follow in order. AverieCooks labels DRY RUB, SEARING CHICKEN,
+           SAUTEING VEGETABLES, BAKING, BOILING PASTA, MASHING, ASSEMBLY, and
+           the old rule stopped at the second one: six steps kept out of
+           nineteen, the recipe silently ending after the spice rub.
+           A RESTART IS WHAT ACTUALLY MARKS AN ALTERNATIVE. Two ways to cook
+           the same thing are both numbered from 1; sequential phases keep
+           counting. So the steps end where the count goes backwards, which
+           needs no heading at all and works on a page that labels its
+           alternatives in sentence case. A recipe with no numbers anywhere —
+           AverieCooks bullets its steps — never triggers it. */
+        const n = Number(m[1]);
+        if (numbered && n <= lastNum) break;
+        lastNum = n;
+        steps.push(m[2]);
+        numbered = true;
+      } else if (numbered && steps.length) steps[steps.length - 1] += " " + l;
       else steps.push(l);
     }
     // Renumbered from 1, not copied: a paste that starts at the second method
     // starts at "5.", and a paste with no numbers at all still cooks in order.
-    notes = steps.map((s) => s.trim()).filter(Boolean).map((s, i) => `${i + 1}. ${s}`).join("\n");
+    // The credit strip runs LAST, after the wrapped-line join above, so a
+    // credit that arrived on the continuation line is caught too.
+    notes = steps
+      .map((s) => s.replace(TRAILING_CREDIT_RE, "").replace(/^[\s]*[\u25a2\u2610\u2611\u2713\u2022\u25cf\u25cb\u25e6\u2023*\u00b7]+[\s]*/, "").trim())
+      .filter(Boolean)
+      .map((s, i) => `${i + 1}. ${s}`)
+      .join("\n");
   }
 
   return { name, servings, notes, ingredients };
