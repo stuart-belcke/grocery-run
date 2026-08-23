@@ -3,23 +3,169 @@ Grocery Run — Roadmap
 
 What is still open. Ten items, none of them urgent — this app does its job.
 
-FINISHED WORK LIVES IN DeveloperNotes-Completed.txt, and that file is the more
-useful of the two most days: it records WHY the app is the way it is, which is
-what you need before changing something that looks odd. Search it before
-altering anything surprising, and before redoing anything — several entries
-record something that was tried, measured and rejected.
+THE NUMBERS ARE IDs, NOT POSITIONS, AND ARE NEVER REUSED OR REASSIGNED. They
+were allocated chronologically, so a low number here means the item is OLD and
+still open, not that it matters more. They are referenced from code comments,
+commit messages and tests/fixtures/README.md, so renumbering would silently
+break every one of those. Items are listed in numeric order because that is
+what makes one findable; for what to do next, use the list below.
 
-Numbering is shared across both files and is chronological. A gap here means
-the item is finished and lives over there.
+FINISHED WORK LIVES IN DeveloperNotes-Completed.txt, and most days that is the
+more useful of the two: it records WHY the app is the way it is, which is what
+you need before changing something that looks odd. Search it before altering
+anything surprising, and before redoing anything — several entries record
+something tried, measured and rejected. A gap in the numbering here means the
+item is finished and lives over there.
 
-HOW TO READ AN ENTRY. Each says what the thing is, why it has not been done,
-and WHAT WOULD CHANGE THE ANSWER. That last part is the point: most of these
-are not waiting on effort, they are waiting on a condition. An item with no
-trigger is one nobody has thought hard enough about yet.
+
+IF YOU ARE PICKING SOMETHING UP
+-------------------------------
+
+  106  import a recipe from a link      two small pieces left, both scoped
+  110  the parser                       standing task: more captured pages
+   98  the test gaps                    a register; 98a is the costly one
+   30  warn about an older build        small, and it has bitten once
+
+Everything else — 101, 102, 21, 36, 18, 38 — is waiting on a CONDITION rather
+than on effort, and each says what that condition is. An item with no trigger
+is one nobody has thought hard enough about yet.
 
 
-NEXT, IF ANYTHING
------------------
+HOW TO READ AN ENTRY
+--------------------
+
+Each says what the thing is, why it has not been done, and WHAT WOULD CHANGE
+THE ANSWER. That last part is the point, and it is what to write when adding
+one. When you finish an item, MOVE ITS ENTRY to DeveloperNotes-Completed.txt
+rather than marking it [DONE] here — leaving them in place is exactly how this
+file reached 5,886 lines with ten live items in it.
+
+
+18. EXPORT TO / LINK WITH A GOOGLE CALENDAR, keyed off the household.
+    Never started, never argued about. Would want a reason first: the week
+    plan is already visible in the app on both phones, so what does a
+    calendar add that opening the Plan tab does not?
+
+21. THE READ HALF OF THE DATABASE SEAM.
+    The write half shipped: diffPaths computes the narrowest path set, and
+    CLAUDE.md carries the rule. The READ half did not. One onValue at
+    `state` delivers the WHOLE subtree however deep the write was, so every
+    remote change re-normalizes the entire structure and re-renders
+    everything.
+    DELIBERATELY DEFERRED: it costs nothing at this size, and narrow
+    listeners are materially harder than narrow writes — you have to
+    reassemble a consistent object from several callbacks that arrive
+    separately, which is a new class of bug in exchange for a saving nobody
+    can currently measure.
+    TRIGGER: a household big enough that a re-render is perceptible, or a
+    move off RTDB. Measure before touching it.
+    ONE THING WORTH DOING SOONER, cheaply: an ESLint no-restricted-imports
+    rule banning `firebase/*` outside sync.js, so the seam cannot regress
+    silently. It is currently a convention held by attention alone.
+
+30. WARN WHEN ANOTHER DEVICE IS RUNNING AN OLDER BUILD.
+    Two phones diverged once and the only signal either gave was "Synced",
+    which means the socket is connected and nothing about whose data won.
+    Stamp each write with the build id already shown in Settings, and let a
+    newer build say "another device is on an older version" when it sees an
+    older stamp. An old build cannot warn about itself — but the new one can
+    warn about it, which is enough.
+    PREREQUISITE, NOW DONE: the stamp names a commit that actually exists.
+    Stamping writes with an id nobody can look up would have made this worse
+    than useless.
+
+36. SPLIT lib.js WHEN IT MAKES A CHANGE HARD, not on principle.
+    3,209 lines now, and a grab-bag: units, ingredient identity,
+    aggregation, storage, write-planning, recipe parsing. Domain files
+    (units.js, ingredients.js, aggregate.js, parse.js) would be genuinely
+    better.
+    Splitting is churn with no behaviour change, and the file has not yet
+    made anything hard to do. It has roughly tripled since this item was
+    written, which is worth noticing but is not by itself the trigger.
+    TRIGGER: when a change is actually hard because of it — not when the
+    number gets uncomfortable.
+
+38. A NICER URL than stuart-belcke.github.io/grocery-run/.
+    DECIDED: not worth a purchased domain. ~$10-15/year for something purely
+    cosmetic today.
+    TRIGGER TO BUY ONE: some distribution requirement forcing it — listing
+    this somewhere that demands a real registered domain.
+    THE FREE OPTION, if the URL is ever worth improving without paying: a
+    GitHub Organization named grocery-run gets grocery-run.github.io free.
+    Not a five-minute change though — it means creating the org,
+    transferring the repo, renaming it to grocery-run.github.io (the exact
+    name is what unlocks the root URL), and re-authorising the domain in
+    Firebase Auth. Every invite link already sent would break.
+
+98. THE TEST GAPS THAT ARE LEFT — a register, not a plan.
+    Gathered here because they were scattered across seven items and you had
+    to already know where to look. Ranked by what a failure would cost.
+
+    98a. THE FOUR WRITES BEHIND A SIGNED-IN USER — leaveHousehold,
+        restoreHousehold, removeMember, createInvite. The RENDERING around
+        them is covered; the mutations themselves have never been run by
+        anything, because getDb() answers null with no database.
+        COST: highest here. Leaving deletes a household for everyone. Item
+        85's bug lived exactly here and was found by a person, not a test.
+        NEEDS: the emulator, or the by-hand walk — delete a household, run
+        the sweep dry, press Restore.
+
+    98b. sync.js's WRITE PATH — the 250ms debounce, the lastWritten retry,
+        the sequencer, auth, invites.
+        COST: silent data loss between two phones. The failure this app
+        cannot afford and the hardest to notice.
+        NEEDS: the real emulator. Stubbing Firebase to reach it tests the
+        stub. tests/rules already drives the emulator jar and is the model.
+
+    98c. THE accessDenied SEAM. The member list has two empty states and only
+        one is reachable; the other is the screen somebody opens WHEN ACCESS
+        IS BROKEN, so its broken-case text is the half that matters.
+        NEEDS: an ACCESS_DENIED-shaped preview seam. Small.
+
+    98d. THE householdName SEAM — permanently "" in a test, so every name-
+        dependent string renders its fallback.
+
+    98e. PROSE HELD TO CODE. help.js describes behaviour; nothing checks the
+        description still matches. Item 72 found three that had drifted.
+
+    NOT LISTED BECAUSE THEY ARE FINE: the pure layer (345 unit tests), the
+    rules (on the real emulator), the sweep scripts, the rendered UI (273
+    e2e). Every gap above is one of two shapes — needs a database, or needs
+    prose held to code.
+
+101. MAKING A HOUSEHOLD IS A FIRST-RUN-ONLY ACTION, AND THAT IS NOW ODD.
+    Asked while reading Settings: "if you can get invited to multiple, why
+    not be able to make new ones?" The asymmetry is real rather than
+    intended — left over from when a device had exactly one household.
+    Settings can SWITCH between households, RESTORE a deleted one and JOIN
+    one by invite, but cannot make one. So an account accumulates households
+    only by being invited, which is backwards.
+    WHY IT IS NOT A ONE-BUTTON JOB:
+      - CLAIMING IS THE DANGEROUS BIT. Items 83, 84 and 85 are three rounds
+        of "the app made me a household I did not ask for". A Create button
+        re-opens exactly that surface, so it has to be deliberate and
+        confirmed, landing you IN the new household rather than quietly
+        seeding one.
+      - IT NEEDS A NAME AT BIRTH. A second and third household called
+        home-xxxxxxxx is unreadable in the switcher.
+      - WHAT DOES IT START WITH? Empty, or a copy of the starter catalog?
+        Both are defensible and they are different products.
+    TRIGGER: a second real household existing to want. Two people, two
+    phones, one household today.
+
+102. PER-DEVICE VERSUS PER-HOUSEHOLD SETTINGS, a distinction the app makes
+    but never says out loud. Everything under Preferences is the
+    HOUSEHOLD'S — units and week start live on the catalog node, decided so
+    that two phones cannot disagree about what the plan grid means.
+    But the app already has per-device state and does not call it settings:
+    the home-screen dismissal, the seen-set of announced households, the
+    device's own household code, the caches. None is exposed or labelled as
+    belonging to this phone rather than everybody.
+    THE QUESTION TO ANSWER FIRST is which side each setting belongs on, and
+    UNITS IS THE ARGUABLE ONE — one person reading metric while the other
+    reads standard costs nothing, because it changes how a total is
+    displayed and not what it means. Week start is not arguable.
+    TRIGGER: revisit alongside 101; they are the same conversation.
 
 106. IMPORT A RECIPE FROM A LINK, instead of pasting the page.
     Asked as: "other grocery apps parse recipes from links, is that
@@ -104,133 +250,3 @@ NEXT, IF ANYTHING
     UNDERSTANDING — it can only agree with it. Capture the page, do not tidy
     it, and mutation-test every rule, because a green suite that was going to
     be green anyway is worse than no suite: it feels like evidence.
-
-98. THE TEST GAPS THAT ARE LEFT — a register, not a plan.
-    Gathered here because they were scattered across seven items and you had
-    to already know where to look. Ranked by what a failure would cost.
-
-    98a. THE FOUR WRITES BEHIND A SIGNED-IN USER — leaveHousehold,
-        restoreHousehold, removeMember, createInvite. The RENDERING around
-        them is covered; the mutations themselves have never been run by
-        anything, because getDb() answers null with no database.
-        COST: highest here. Leaving deletes a household for everyone. Item
-        85's bug lived exactly here and was found by a person, not a test.
-        NEEDS: the emulator, or the by-hand walk — delete a household, run
-        the sweep dry, press Restore.
-
-    98b. sync.js's WRITE PATH — the 250ms debounce, the lastWritten retry,
-        the sequencer, auth, invites.
-        COST: silent data loss between two phones. The failure this app
-        cannot afford and the hardest to notice.
-        NEEDS: the real emulator. Stubbing Firebase to reach it tests the
-        stub. tests/rules already drives the emulator jar and is the model.
-
-    98c. THE accessDenied SEAM. The member list has two empty states and only
-        one is reachable; the other is the screen somebody opens WHEN ACCESS
-        IS BROKEN, so its broken-case text is the half that matters.
-        NEEDS: an ACCESS_DENIED-shaped preview seam. Small.
-
-    98d. THE householdName SEAM — permanently "" in a test, so every name-
-        dependent string renders its fallback.
-
-    98e. PROSE HELD TO CODE. help.js describes behaviour; nothing checks the
-        description still matches. Item 72 found three that had drifted.
-
-    NOT LISTED BECAUSE THEY ARE FINE: the pure layer (345 unit tests), the
-    rules (on the real emulator), the sweep scripts, the rendered UI (273
-    e2e). Every gap above is one of two shapes — needs a database, or needs
-    prose held to code.
-
-30. WARN WHEN ANOTHER DEVICE IS RUNNING AN OLDER BUILD.
-    Two phones diverged once and the only signal either gave was "Synced",
-    which means the socket is connected and nothing about whose data won.
-    Stamp each write with the build id already shown in Settings, and let a
-    newer build say "another device is on an older version" when it sees an
-    older stamp. An old build cannot warn about itself — but the new one can
-    warn about it, which is enough.
-    PREREQUISITE, NOW DONE: the stamp names a commit that actually exists.
-    Stamping writes with an id nobody can look up would have made this worse
-    than useless.
-
-
-NOT URGENT — WAITING ON A CONDITION
------------------------------------
-
-101. MAKING A HOUSEHOLD IS A FIRST-RUN-ONLY ACTION, AND THAT IS NOW ODD.
-    Asked while reading Settings: "if you can get invited to multiple, why
-    not be able to make new ones?" The asymmetry is real rather than
-    intended — left over from when a device had exactly one household.
-    Settings can SWITCH between households, RESTORE a deleted one and JOIN
-    one by invite, but cannot make one. So an account accumulates households
-    only by being invited, which is backwards.
-    WHY IT IS NOT A ONE-BUTTON JOB:
-      - CLAIMING IS THE DANGEROUS BIT. Items 83, 84 and 85 are three rounds
-        of "the app made me a household I did not ask for". A Create button
-        re-opens exactly that surface, so it has to be deliberate and
-        confirmed, landing you IN the new household rather than quietly
-        seeding one.
-      - IT NEEDS A NAME AT BIRTH. A second and third household called
-        home-xxxxxxxx is unreadable in the switcher.
-      - WHAT DOES IT START WITH? Empty, or a copy of the starter catalog?
-        Both are defensible and they are different products.
-    TRIGGER: a second real household existing to want. Two people, two
-    phones, one household today.
-
-102. PER-DEVICE VERSUS PER-HOUSEHOLD SETTINGS, a distinction the app makes
-    but never says out loud. Everything under Preferences is the
-    HOUSEHOLD'S — units and week start live on the catalog node, decided so
-    that two phones cannot disagree about what the plan grid means.
-    But the app already has per-device state and does not call it settings:
-    the home-screen dismissal, the seen-set of announced households, the
-    device's own household code, the caches. None is exposed or labelled as
-    belonging to this phone rather than everybody.
-    THE QUESTION TO ANSWER FIRST is which side each setting belongs on, and
-    UNITS IS THE ARGUABLE ONE — one person reading metric while the other
-    reads standard costs nothing, because it changes how a total is
-    displayed and not what it means. Week start is not arguable.
-    TRIGGER: revisit alongside 101; they are the same conversation.
-
-21. THE READ HALF OF THE DATABASE SEAM.
-    The write half shipped: diffPaths computes the narrowest path set, and
-    CLAUDE.md carries the rule. The READ half did not. One onValue at
-    `state` delivers the WHOLE subtree however deep the write was, so every
-    remote change re-normalizes the entire structure and re-renders
-    everything.
-    DELIBERATELY DEFERRED: it costs nothing at this size, and narrow
-    listeners are materially harder than narrow writes — you have to
-    reassemble a consistent object from several callbacks that arrive
-    separately, which is a new class of bug in exchange for a saving nobody
-    can currently measure.
-    TRIGGER: a household big enough that a re-render is perceptible, or a
-    move off RTDB. Measure before touching it.
-    ONE THING WORTH DOING SOONER, cheaply: an ESLint no-restricted-imports
-    rule banning `firebase/*` outside sync.js, so the seam cannot regress
-    silently. It is currently a convention held by attention alone.
-
-36. SPLIT lib.js WHEN IT MAKES A CHANGE HARD, not on principle.
-    3,209 lines now, and a grab-bag: units, ingredient identity,
-    aggregation, storage, write-planning, recipe parsing. Domain files
-    (units.js, ingredients.js, aggregate.js, parse.js) would be genuinely
-    better.
-    Splitting is churn with no behaviour change, and the file has not yet
-    made anything hard to do. It has roughly tripled since this item was
-    written, which is worth noticing but is not by itself the trigger.
-    TRIGGER: when a change is actually hard because of it — not when the
-    number gets uncomfortable.
-
-18. EXPORT TO / LINK WITH A GOOGLE CALENDAR, keyed off the household.
-    Never started, never argued about. Would want a reason first: the week
-    plan is already visible in the app on both phones, so what does a
-    calendar add that opening the Plan tab does not?
-
-38. A NICER URL than stuart-belcke.github.io/grocery-run/.
-    DECIDED: not worth a purchased domain. ~$10-15/year for something purely
-    cosmetic today.
-    TRIGGER TO BUY ONE: some distribution requirement forcing it — listing
-    this somewhere that demands a real registered domain.
-    THE FREE OPTION, if the URL is ever worth improving without paying: a
-    GitHub Organization named grocery-run gets grocery-run.github.io free.
-    Not a five-minute change though — it means creating the org,
-    transferring the repo, renaming it to grocery-run.github.io (the exact
-    name is what unlocks the root URL), and re-authorising the domain in
-    Firebase Auth. Every invite link already sent would break.
