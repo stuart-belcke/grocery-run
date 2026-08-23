@@ -2212,6 +2212,16 @@ rather than saving them for a cleanup that never gets scheduled.
     a tool two people use. Resume when there is time and appetite rather than
     treating the list below as outstanding work.
 
+    MORE CAPTURES ARE COMING, and that is a standing task rather than a
+    someday-maybe: the intent is to hand over another batch of recipe links
+    when there is time and budget for the testing. Five sites is where this
+    stopped for cost reasons, not because the returns had fallen off — every
+    page so far broke something the previous ones did not, so the next batch
+    should be expected to as well. Capture them the way the five in
+    tests/fixtures/ were captured (Get Contents of URL -> Copy to Clipboard,
+    no Match Text in between), run each through parseRecipeText BEFORE
+    changing anything, and fix what the output actually shows.
+
     WHAT TO PICK UP FIRST, in the order that would teach the most:
       - THE NAME COMES BACK BLANK on all five pages. That is deliberate — a
         blank field asks to be filled in and a wrong one gets saved (item 105)
