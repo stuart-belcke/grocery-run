@@ -19,7 +19,7 @@ const listedNames = (page) =>
 
 /* Click a per-recipe action on the Recipes tab.
 
-   "Add unplanned meal", "Edit" and "Add to week's plan" carry NO
+   "Add unplanned", "Edit" and "Add to a day" carry NO
    recipe-specific accessible name — every card renders the same three
    labels — so they can only be identified by position relative to their
    card. Worth fixing in the app (a screen reader hits the same ambiguity);
@@ -36,7 +36,7 @@ const cardAction = async (page, recipe, action) => {
 };
 
 // Puts a meal on the list without planning a day for it.
-const addUnplanned = (page, recipe) => cardAction(page, recipe, "Add unplanned meal");
+const addUnplanned = (page, recipe) => cardAction(page, recipe, "Add unplanned");
 
 test("SHOULD: adding an unplanned meal puts its ingredients on the list", async () => {
   const page = await openApp(BASE, { catalog: smallCatalog() });
@@ -142,7 +142,7 @@ test("SHOULD: the recipe detail scales to an unplanned meal's own servings, not 
    Scaling a recipe used to require putting it on the shopping list first,
    then stepping the amount — you could not ask "what does three batches
    look like?" without committing to it. The multiplier answers that on the
-   card, and IS the preview of what Add unplanned meal will write. */
+   card, and IS the preview of what Add unplanned will write. */
 
 const openDetail = async (page, recipe) => {
   const toggles = page.getByTitle("Show ingredients and recipe");
@@ -183,7 +183,7 @@ test("SHOULD: the multiplier previews a scaled recipe WITHOUT putting anything o
   }
 });
 
-test("SHOULD: Add unplanned meal writes the multiplier, not one batch", async () => {
+test("SHOULD: Add unplanned writes the multiplier, not one batch", async () => {
   /* The reuse that makes the multiplier worth having: what you previewed is
      what you get. Asserted on PERSISTED STATE — the number the other phone
      receives — not on the rendered pill. */
@@ -197,8 +197,8 @@ test("SHOULD: Add unplanned meal writes the multiplier, not one batch", async ()
     await up.click();
     await page.waitForTimeout(300);
     // The button carries the count, so a collapsed card can't act invisibly.
-    assert.equal(await page.locator('button:text-is("Add unplanned meal ×3")').count(), 1, "the Add button should show what it will add");
-    await cardAction(page, "Stir-fry", "Add unplanned meal ×3");
+    assert.equal(await page.locator('button:text-is("Add unplanned ×3")').count(), 1, "the Add button should show what it will add");
+    await cardAction(page, "Stir-fry", "Add unplanned ×3");
     await page.roundTrip();
 
     assert.deepEqual(
@@ -493,7 +493,7 @@ test("SHOULD: pasting into a draft that already has a name and ingredients adds 
 
 // Opens the picker for a recipe and waits for the dialog.
 const openPlanPicker = async (page, recipe) => {
-  await cardAction(page, recipe, "Add to week's plan");
+  await cardAction(page, recipe, "Add to a day");
   await page.waitForTimeout(300);
   assert.equal(await page.locator('[role="dialog"]').count(), 1, `no picker dialog opened for ${recipe}`);
 };
@@ -574,7 +574,7 @@ test("SHOULD: picking a free day writes that slot and leaves the others alone", 
 });
 
 test("SHOULD: neither Add on a card outranks the other; the green belongs to the dialog's confirm", async () => {
-  /* "Add unplanned meal" was filled green next to an outlined "Add to week's
+  /* "Add unplanned" was filled green next to an outlined "Add to week's
      plan" — the same kind of action, one of them looking like the answer.
      They are peers with different meanings (no day / a day), so `primary`
      goes back to meaning "the one obvious next action", which on a card with
@@ -585,13 +585,52 @@ test("SHOULD: neither Add on a card outranks the other; the green belongs to the
     const filled = (name) =>
       page.getByRole("button", { name }).first().evaluate((b) => getComputedStyle(b).backgroundColor);
 
-    const unplanned = await filled(/^Add unplanned meal$/);
-    const toPlan = await filled(/^Add to week's plan$/);
+    const unplanned = await filled(/^Add unplanned$/);
+    const toPlan = await filled(/^Add to a day$/);
     assert.equal(unplanned, toPlan, `the two card actions are weighted differently: ${unplanned} vs ${toPlan}`);
 
     await openPlanPicker(page, "Stir-fry");
     const confirm = await page.locator('[role="dialog"]').getByRole("button", { name: /^(Add to \w+|Pick a day)$/ }).evaluate((b) => getComputedStyle(b).backgroundColor);
     assert.notEqual(confirm, unplanned, "the dialog's confirm should carry the weight the card no longer does");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: both Adds and Edit share one row on the phone this app is used on", async () => {
+  /* THE POINT OF THE SHORTER LABELS, and the only reason to shorten them.
+     The two adds used to sit on separate rows — "Add unplanned meal" beside
+     Edit, then "Add to week's plan" on a row of its own — which cost a whole
+     line of height on EVERY card, on a tab that runs to several screens
+     against the real catalog.
+     MEASURED, because the old labels could not be moved without shrinking:
+     "Add unplanned meal" (157px) + "Add to week's plan" (145px) + Edit (47px)
+     plus gaps needed 365px of a 328px row. Shortening both, in parallel, is
+     what made one row possible: 120 + 105 + 47 + 16 = 288px.
+     ASSERTED ON THE RENDERED GEOMETRY rather than the label text, because the
+     labels are the means and the row is the end — a future rename that keeps
+     the words short must still pass, and one that grows them must fail. */
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.tab("Recipes");
+    await page.waitForTimeout(400);
+
+    const rows = await page.evaluate(() => {
+      const btns = [...document.querySelectorAll("button")].filter((b) =>
+        /^(Add unplanned|Add to a day|Edit)$/.test((b.textContent || "").trim()) && b.offsetHeight > 0);
+      const first = btns.slice(0, 3);
+      return {
+        found: first.map((b) => b.textContent.trim()),
+        tops: first.map((b) => Math.round(b.getBoundingClientRect().top)),
+        right: Math.max(...first.map((b) => Math.round(b.getBoundingClientRect().right))),
+        vw: document.documentElement.clientWidth,
+      };
+    });
+    assert.deepEqual(rows.found, ["Add unplanned", "Add to a day", "Edit"], "the card's three actions are not all present");
+    assert.equal(new Set(rows.tops).size, 1, `the three actions are on ${new Set(rows.tops).size} rows, not one: ${JSON.stringify(rows.tops)}`);
+    assert.ok(rows.right <= rows.vw, `the row runs off a ${rows.vw}px screen, ending at ${rows.right}`);
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

@@ -5102,6 +5102,46 @@ Filter button + the primary action, which fits one line on a phone.
     actually a bug. "It just needs merging" was wrong by about an hour of
     work. Reapplied onto current main and finished properly.
 
+112. [DONE] BOTH ADDS AND EDIT NOW SHARE ONE ROW, SAVING A QUARTER OF EVERY
+    RECIPE CARD. "Add unplanned meal" and "Add to week plan" were the same
+    kind of action stacked one above the other, in a list that runs to
+    several screens. Measured on a 390px phone: the card went 224px → 171px,
+    a 24% saving on every card. On a 320px phone it is neutral (239px either
+    way) — narrow enough that the row wraps regardless, so nothing is lost
+    there but nothing is gained.
+
+    MOVING ALONE COULD NOT DO IT, which is why both labels changed. The old
+    pair needed 365px of a 328px row at 390px, and 258px at 320px. The new
+    labels are the shortest pair that still says the difference between them:
+    "Add unplanned" (no day) / "Add to a day" (a day). Shortened TOGETHER and
+    kept parallel on purpose — shortening one and not the other makes them
+    read as different kinds of thing when they are peers.
+
+    THE CHIPS ROW IS CONDITIONAL NOW. The week-plan button used to live on
+    that row; with it gone, a recipe on no days rendered an empty row that
+    was margin and nothing else. Most cards, most of the time, are on no
+    days.
+
+    "ADD MEAL: UNPLANNED / SCHEDULED" WAS CONSIDERED AND REJECTED, and the
+    reason is not width — all three wordings tried gave IDENTICAL card
+    heights, so it was purely a wording choice. `Unplanned` is already the
+    PILL label shown after the meal is added (MealsTab.jsx, two places). A
+    button reading `Unplanned` would use the same word for "press this" and
+    for "already done", in the two states that replace each other in the same
+    spot. A shared prefix also costs untappable width on the 320px row and
+    reads oddly for a guest, who only ever sees one of the two buttons.
+
+    THE TEST IS GEOMETRIC, not textual: it reads the offsetTop of every
+    button in the row and asserts there is exactly ONE distinct value. A test
+    that looked for the labels would have passed just as well with them
+    stacked, which is the bug it exists to catch. Mutation-tested — putting
+    the week-plan button back on its own row fails it.
+
+    src/help.js CARRIED THE OLD LABEL TOO ("Add unplanned meal"), and was
+    updated in the same commit. That is item 98e's prose-drift risk showing
+    up for real: user-facing help quoting a button name is a second place the
+    name lives.
+
 UNNUMBERED ENTRIES
 ==================
 

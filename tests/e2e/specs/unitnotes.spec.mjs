@@ -42,7 +42,7 @@ const addUnplanned = async (page, recipe) => {
   const texts = await buttons.allTextContents();
   const card = texts.findIndex((t) => t.trim().startsWith(recipe));
   assert.notEqual(card, -1, `no card for ${recipe}`);
-  const i = texts.findIndex((t, n) => n > card && t.trim() === "Add unplanned meal");
+  const i = texts.findIndex((t, n) => n > card && t.trim() === "Add unplanned");
   await buttons.nth(i).click();
   await page.waitForTimeout(500);
 };

@@ -282,7 +282,7 @@ test("SHOULD: edit mode still offers the recipe view, alongside re-pick and clea
 });
 
 /* ---------------- unplanned meals ----------------
-   "Add unplanned meal" on the Recipes tab puts a recipe on the shopping list
+   "Add unplanned" on the Recipes tab puts a recipe on the shopping list
    with no day/slot — previously visible only by scrolling the Recipes tab for
    a card showing an "Unplanned" pill. The Week tab now surfaces the same
    thing in a dropdown, since the week plan is where "what's actually

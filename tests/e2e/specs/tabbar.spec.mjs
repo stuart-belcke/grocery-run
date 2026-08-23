@@ -120,7 +120,7 @@ test("switching tabs from deep in a scroll works without going back to the top",
   try {
     await page.locator(`${NAV} button`, { hasText: "Recipes" }).first().click();
     await page.waitForTimeout(400);
-    assert.match(await page.textContent("body"), /Add unplanned meal|Add$/m, "the Recipes tab did not open");
+    assert.match(await page.textContent("body"), /Add unplanned|Add$/m, "the Recipes tab did not open");
 
     await page.locator(`${NAV} button`, { hasText: "Pantry" }).first().click();
     await page.waitForTimeout(400);
