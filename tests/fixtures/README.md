@@ -36,5 +36,16 @@ AllRecipes page never touched:
                               are 11, including the author's biography and
                               four reader comments
 
-One site is a sample size of one. Adding the fourth changed three rules, so
-assume the fifth will change more, and add it rather than assuming it fits.
+  averiecooks-page.txt        steps grouped into PHASES (DRY RUB, SEARING
+                              CHICKEN, BAKING...) tripped the "keep only the
+                              first method" rule written for CROCKPOT /
+                              INSTANT POT: six steps kept out of twenty, the
+                              recipe ending after the spice rub
+
+One site is a sample size of one. The fourth page changed three rules and the
+fifth changed three more, and the hit rate has not dropped — every page so far
+has broken something the previous ones did not. So add the next one rather
+than assuming it fits, and expect it to teach you something.
+
+See DeveloperNotes.txt item 110 for where the parser stands and what to pick
+up first.

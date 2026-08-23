@@ -1229,6 +1229,9 @@ const SCALER_RE = /^((?:\d+\/\d+|\d+(?:\.\d+)?)x)+$/i;
 // and reused below to recover the servings count when there's no separate
 // "Servings: 4" line for SERVINGS_RE to find.
 const YIELDS_RE = /yields\s+(\d+(?:\.\d+)?)\s*servings?/i;
+// "Servings:" and "4 servings" land on separate lines on some cards, so the
+// number leads its word instead of following it.
+const SERVINGS_FIRST_RE = /^(\d+(?:\.\d+)?)\s+servings?\b/i;
 const SECTION_HEADING_RE = /^(ingredients?|instructions?|directions?)\s*$/i;
 
 /* Where the steps stop. Used to say /^(nutrition|notes?)$/ and therefore ran
@@ -1266,7 +1269,13 @@ const CODE_LINE_RE = /\{[^}]*\}|^[.#][\w-]+[\s,{]/;
 const INGREDIENT_BULLET_RE = /^[\s]*[\u25a2\u2610\u2611\u2713\u2022\u25cf\u25cb\u25e6\u2023*\u00b7]/;
 // A short, punctuation-free, ALL-CAPS line reads as a method sub-heading
 // (CROCKPOT / INSTANT POT / STOVE-TOP) rather than an instruction step.
-const isMethodHeading = (l) => l.length > 0 && l === l.toUpperCase() && /^[A-Z][A-Z\s-]*$/.test(l) && l.split(/\s+/).length <= 4;
+// Six words, not four: the cap was set by CROCKPOT / INSTANT POT / STOVE-TOP,
+// and a page that groups its steps into phases writes longer ones —
+// "MASHING TO MAKE THE SAUCE" is five, and came through as a cooking step
+// reading like an instruction to do nothing. Still tight enough that a real
+// step would have to be both shouted and punctuation-free to be mistaken for
+// one, which none of the five captured pages contains.
+const isMethodHeading = (l) => l.length > 0 && l === l.toUpperCase() && /^[A-Z][A-Z\s-]*$/.test(l) && l.split(/\s+/).length <= 6;
 
 export function parseRecipeText(text) {
   const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n").map((l) => l.trim());
@@ -1291,7 +1300,7 @@ export function parseRecipeText(text) {
 
   let servings = null;
   for (const l of lines) {
-    const m = l.match(SERVINGS_RE) || l.match(YIELDS_RE);
+    const m = l.match(SERVINGS_RE) || l.match(YIELDS_RE) || l.match(SERVINGS_FIRST_RE);
     if (m) { servings = Number(m[1]); break; }
   }
 
@@ -1343,8 +1352,8 @@ export function parseRecipeText(text) {
   const insStart = lines.findIndex((l) => /^(instructions?|directions?)\s*$/i.test(l));
   if (insStart !== -1) {
     const steps = [];
-    let sawMethodHeading = false;
     let numbered = false;
+    let lastNum = 0;
     for (let i = insStart + 1; i < lines.length; i++) {
       const l = lines[i];
       if (!l) continue;
@@ -1355,18 +1364,36 @@ export function parseRecipeText(text) {
       // (see the comment on BOILERPLATE_RE). Skipped rather than treated as
       // the end of the recipe, because the real steps still follow it.
       if (SECTION_HEADING_RE.test(l) || BOILERPLATE_RE.test(l) || SCALER_RE.test(l) || YIELDS_RE.test(l) || rawIngredientLines.has(l.toLowerCase())) continue;
-      if (isMethodHeading(l)) {
-        if (sawMethodHeading) break; // a second method's heading — stop, keep only the first
-        sawMethodHeading = true;
-        continue;
-      }
+      // An ALL-CAPS heading inside the steps. Always skipped, never a stop —
+      // see the numbering rule below for why it stopped being the signal.
+      if (isMethodHeading(l)) continue;
       // A numbered line STARTS a step; anything after it belongs to that step.
       // Blogs wrap a long step over several lines, and joining everything with
       // a space turned twelve steps into one wall of text you had to re-read
       // from the top each time you looked up from the pan.
       const m = l.match(STEP_NUMBER_RE);
-      if (m) { steps.push(m[2]); numbered = true; }
-      else if (numbered && steps.length) steps[steps.length - 1] += " " + l;
+      if (m) {
+        /* WHERE ONE METHOD ENDS AND ANOTHER BEGINS IS THE NUMBERING, NOT THE
+           HEADING. This used to stop at the SECOND all-caps heading, which is
+           right for the recipe that prompted it — CROCKPOT then INSTANT POT,
+           two ways to cook one dish, where you follow one OR the other — and
+           badly wrong for a recipe whose steps are grouped into PHASES you
+           follow in order. AverieCooks labels DRY RUB, SEARING CHICKEN,
+           SAUTEING VEGETABLES, BAKING, BOILING PASTA, MASHING, ASSEMBLY, and
+           the old rule stopped at the second one: six steps kept out of
+           nineteen, the recipe silently ending after the spice rub.
+           A RESTART IS WHAT ACTUALLY MARKS AN ALTERNATIVE. Two ways to cook
+           the same thing are both numbered from 1; sequential phases keep
+           counting. So the steps end where the count goes backwards, which
+           needs no heading at all and works on a page that labels its
+           alternatives in sentence case. A recipe with no numbers anywhere —
+           AverieCooks bullets its steps — never triggers it. */
+        const n = Number(m[1]);
+        if (numbered && n <= lastNum) break;
+        lastNum = n;
+        steps.push(m[2]);
+        numbered = true;
+      } else if (numbered && steps.length) steps[steps.length - 1] += " " + l;
       else steps.push(l);
     }
     // Renumbered from 1, not copied: a paste that starts at the second method

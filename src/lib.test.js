@@ -3301,11 +3301,47 @@ test("steps stop at the end of the recipe even with no Notes or Nutrition headin
   assert.equal(r.servings, 4);
 });
 
+test("steps grouped into PHASES are all kept, not truncated at the second heading", () => {
+  /* THE FIFTH PAGE, AND IT BROKE THE RULE THE FIRST FOUR NEVER TOUCHED.
+     parseRecipeText stopped at the SECOND all-caps heading, which is right
+     for the recipe that prompted that rule — CROCKPOT then INSTANT POT, two
+     ways to cook one dish where you follow one OR the other — and badly wrong
+     here. AverieCooks groups its steps into phases you follow in order: DRY
+     RUB, SEARING CHICKEN, SAUTEING VEGETABLES, BAKING, BOILING PASTA,
+     MASHING TO MAKE THE SAUCE, ASSEMBLY. The old rule kept SIX steps out of
+     twenty — the recipe silently ending after the spice rub, with the chicken
+     still raw in the fridge.
+     A RESTART marks an alternative, not a heading: both methods are numbered
+     from 1, phases keep counting. See the note in lib.js. */
+  const r = parseRecipeText(PAGE("averiecooks-page.txt"));
+  const steps = r.notes.split("\n").filter(Boolean);
+  assert.equal(steps.length, 20, JSON.stringify(steps.map((s) => s.slice(0, 30))));
+  assert.match(steps[0], /^1\. To a small bowl/);
+  assert.match(steps[19], /^20\. Optionally \(but recommended\), garnish/);
+  // The phase labels themselves are not steps — "MASHING TO MAKE THE SAUCE"
+  // is five words and slipped past a four-word cap.
+  for (const s of steps) {
+    assert.ok(!/^\d+\.\s+[A-Z][A-Z\s-]*$/.test(s), `a phase heading became a step: ${s}`);
+  }
+  assert.equal(r.ingredients.length, 22);
+  // "Servings:" and "4 servings" are on separate lines here, so the number
+  // leads its word rather than following it.
+  assert.equal(r.servings, 4);
+});
+
+test("two ALTERNATIVE methods still keep only the first", () => {
+  // The other side of the rule above, and the reason it is numbering rather
+  // than headings: this must not regress while the phase case is fixed.
+  const r = parseRecipeText(PASTED_RECIPE);
+  assert.ok(r.notes.includes("Drizzle with olive oil and place the meatballs"), "the crockpot steps were dropped");
+  assert.ok(!r.notes.includes("Set the instant pot to sauté"), "the second method's steps came back");
+});
+
 test("no step keeps the bullet the page drew it with", () => {
   // Cosmetic, but it is what the cook reads at the stove: every one of these
   // pages bullets its steps, and the marker was being kept and then numbered
   // on top of — "1. • Preheat oven to 400 degrees F".
-  for (const f of ["allrecipes-page.txt", "babyfoode-page.txt", "mediterraneandish-page.txt", "olivetomato-page.txt"]) {
+  for (const f of ["allrecipes-page.txt", "babyfoode-page.txt", "mediterraneandish-page.txt", "olivetomato-page.txt", "averiecooks-page.txt"]) {
     for (const s of parseRecipeText(PAGE(f)).notes.split("\n").filter(Boolean)) {
       assert.ok(!/^\d+\.\s*[▢☐☑✓•●○‣*·]/.test(s), `${f} kept a bullet: ${s.slice(0, 40)}`);
     }

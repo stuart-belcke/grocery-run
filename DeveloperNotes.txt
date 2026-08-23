@@ -2140,14 +2140,92 @@ rather than saving them for a cleanup that never gets scheduled.
     THE RULE THIS EARNS: a probe that reshapes what it returns cannot also be
     the fixture. Capture the document, then measure.
 
-    NOTHING IN THE PARSER CHANGED, in the end. What this item leaves behind
-    is knowledge, not code: that the fetch works from a phone, that it hands
-    back tag-stripped text near-identical to a paste, that main's parser
-    already reads its ingredients correctly, and exactly which two things it
-    gets wrong. Plus one captured document to build against next time.
-    STILL NOT BUILT: the name and step-overrun fixes above, the Shortcut
-    itself, and the app-side path to receive what it sends (parseJoinHash
-    already reads the URL hash, so there is precedent).
+    THE SCORED HEADING PICKER CHANGED NOTHING, in the end — it was reverted.
+    What survived that detour is knowledge: the fetch works from a phone, it
+    hands back tag-stripped text near-identical to a paste, and the parser
+    already read its ingredients correctly. Everything actually fixed came
+    afterwards, measured on five captured pages — see item 110.
+
+110. [GOOD ENOUGH, AND DELIBERATELY STOPPED THERE] THE PARSER AGAINST FIVE
+    REAL PAGES — what it now handles, and the list to pick back up from.
+    Item 109 established that a phone can fetch a recipe page and hand the app
+    its text. This is the parser being made to survive that text, measured on
+    five whole documents from five sites rather than reasoned about.
+
+    WHERE IT LANDED, on the captured pages in tests/fixtures/:
+        allrecipes           8 ingredients,  9 steps, serves 4
+        babyfoode           10 ingredients,  5 steps, serves —
+        mediterraneandish   12 ingredients,  7 steps, serves 5
+        olivetomato          9 ingredients, 11 steps, serves 4
+        averiecooks         22 ingredients, 20 steps, serves 4
+    Every ingredient list correct, every step list correct, four of five
+    serving counts correct. Before this work those same pages produced 84 junk
+    ingredients, 30 steps of reader comments, and a recipe that ended after
+    the spice rub.
+
+    THE RULE EVERY SITE TAUGHT, one each, which is the argument for capturing
+    pages rather than reasoning about them:
+      allrecipes         the name was the page's inline CSS; the step number
+                         is separated by a TAB; the photo credit rides on the
+                         END of a step's line; the steps ran past "Cook's
+                         Note", which /^(nutrition|notes?)$/ never matched.
+      babyfoode          the scaler's buttons run together as "1x2x3x"; and
+                         "Serving: 1meatball" in the nutrition block read as
+                         "serves 1" — a wrong count silently rescales every
+                         amount on the list, so nothing beats a guess.
+      mediterraneandish  sub-headings sit INSIDE the ingredient list ("Lemon
+                         Sauce", "For Coating"). The bullet separates them: a
+                         card marks every real ingredient and leaves group
+                         labels bare.
+      olivetomato        no Notes and no Nutrition heading AT ALL, so the
+                         steps ran to the end of the page — 30 where there are
+                         11, taking the author's biography and four reader
+                         comments as cooking instructions.
+      averiecooks        steps grouped into PHASES (DRY RUB, SEARING CHICKEN,
+                         BAKING…) hit the "keep only the first method" rule
+                         written for CROCKPOT / INSTANT POT, and the recipe
+                         ended after six steps with the chicken still raw.
+                         THE FIX IS THAT A RESTART MARKS AN ALTERNATIVE, not a
+                         heading: two ways to cook one dish are both numbered
+                         from 1, sequential phases keep counting. That needs
+                         no heading detection at all and survives a page that
+                         labels its alternatives in sentence case.
+
+    STOPPING HERE ON PURPOSE. Five sites, five rules, and the hit rate has not
+    dropped — every page so far broke something the previous ones did not. It
+    is not finished; it is USEFUL, which is a different and sufficient bar for
+    a tool two people use. Resume when there is time and appetite rather than
+    treating the list below as outstanding work.
+
+    WHAT TO PICK UP FIRST, in the order that would teach the most:
+      - THE NAME COMES BACK BLANK on all five pages. That is deliberate — a
+        blank field asks to be filled in and a wrong one gets saved (item 105)
+        — but it means typing the title every time, which is the one rough
+        edge a user actually feels. Finding a title in a whole document is
+        genuinely hard; the honest options are a heuristic worth measuring or
+        leaving it alone.
+      - A UK OR EUROPEAN SITE has never been tested. Item 108 taught the
+        parser "500g" and "200ml" against lines that were MADE UP, not
+        captured — the same untested-assumption shape that item 109 records
+        going wrong. BBC Good Food or Delicious would settle it.
+      - A PAGE WHOSE STEPS ARE PLAIN PARAGRAPHS, neither bulleted nor
+        numbered. All five fixtures bullet or number theirs, so that path is
+        exercised by nothing.
+      - PER-COMPONENT INGREDIENT GROUPS beyond the two in mediterraneandish.
+        The bullet rule is the newest and least proven thing in the file.
+      - STILL WRONG, KNOWN, RARE (item 108): "2 x 400g tins", "1 lb 2 oz",
+        "1 tbsp + 1 tsp", "Juice of 1 lemon".
+      - STILL NOT BUILT: the Shortcut itself, and the app-side path to receive
+        what it sends. parseJoinHash already reads the URL hash, so there is
+        precedent for the receiving half.
+
+    AND THE RULE THAT MATTERS MORE THAN ANY OF THEM, earned twice in one
+    session: A FIXTURE BUILT FROM YOUR OWN UNDERSTANDING CANNOT TEST THAT
+    UNDERSTANDING — it can only agree with it. Item 109 has the full account.
+    Capture the page. Do not tidy it. Mutation-test every rule, because a
+    green suite that was going to be green anyway is worse than no suite: it
+    feels like evidence. Two tests written this session passed with the fix
+    and without it, and both were caught by mutating rather than by reading.
 
 108. [DONE] THREE PARSER BUGS FOUND BY PROBING RATHER THAN BY BEING BITTEN.
     Item 105 fixed four bugs one real paste happened to hit. This went the
