@@ -340,17 +340,32 @@ Tier 4 — multi-device / integrations (highest risk, do last)
         rows. Both clear item 87's 12px floor, so this is consistency rather
         than legibility. Units is now 13 to match it and the rest of the tab.
 
-    103c. NOT DONE, AND DELIBERATELY NOT FOLDED IN: 44px tap targets.
-        NOTHING in the app reaches 44px — Btn is 8px/14px padding (34px tall)
-        and `small` is 4px/10px (25px). The twelve FAQ rows are 35px. Item 51a
-        set 44px as the floor and fixed the two controls that broke it worst,
-        one at a time; the honest reading of this audit is that the floor is
-        missed everywhere by design rather than by accident.
-        THAT IS ONE DECISION, NOT THIRTY FIXES: raising the two paddings in
-        Btn touches every screen in the app and wants the layout suites
-        (fits, listrow, tabbar, weekdensity) re-run against it. Worth doing on
-        its own, with its own measurements, rather than riding along with a
-        bug fix. Recorded here so the number does not have to be re-measured.
+    103c. [DONE] 44px tap targets — the one decision, done as one decision.
+        NOTHING in the app reached 44px — Btn was 8px/14px padding (34px tall)
+        and `small` was 4px/10px (25px). Item 51a set 44px as the floor and
+        fixed the two controls that broke it worst, one at a time; the honest
+        reading of this audit was that the floor was missed everywhere by
+        design rather than by accident.
+        FIXED BY RAISING BOTH Btn PADDINGS, and nothing else: regular is now
+        13px/14px (44px measured in a real browser, Settings tab), `small` is
+        14px/10px (44-45px, Pantry and List tabs — the extra half-pixel of
+        vertical padding over regular is because small's 13px font gives a
+        shorter line box than regular's 14px, and 13px padding alone measured
+        43px on that variant).
+        DELIBERATELY LEFT ALONE, because this item was Btn's two paddings and
+        not a sweep: Seg (the Metric/Standard and Monday/Sunday toggles, 27px),
+        the Pantry qty pillBtn (±, 24px, its own fixed style object), the
+        Ingredients "⌕ Filter" button and its popover's "Clear filters" link
+        (both raw `<button>`s, not Btn), and the List tab's "Add" button next
+        to the hand-add field, which overrides Btn's padding with its own
+        `style={{ padding: "8px 12px" }}` to stay level with the adjacent
+        16px input — changing that would need touching inputStyle too, a
+        different item.
+        VERIFIED: `npm run check` green end to end — 267/267 e2e tests,
+        including fits, listrow, listrowstore, tabbar and weekdensity, the
+        five layout suites this kind of change can break — plus lint, the
+        unit tests and the production build, all before e2e even started
+        (the check script chains with `&&`).
 
 101. MAKING A HOUSEHOLD IS A FIRST-RUN-ONLY ACTION, AND THAT IS NOW ODD.
     Asked while reading Settings: "if you can get invited to multiple, why not
