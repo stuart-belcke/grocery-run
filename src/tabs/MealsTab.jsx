@@ -25,6 +25,16 @@ const pillCount = { minWidth: 26, textAlign: "center", fontWeight: 700, fontVari
    with the list". The Meals tab is the inverse — you have a meal, you choose
    a slot — and was still on the pattern that was rejected.
 
+   THE GRID SHAPE WAS TRIED AND REJECTED (prototype B, kept at 3cbd333). It
+   won on every number — one tap instead of three, every target at 44px, no
+   overflow at 320px — and lost on the only thing that mattered: "the matrix
+   is not usable for a human". Seven days by four meal types is 28 cells of
+   near-identical 51px boxes, and reading your own week out of it means
+   counting rows and columns rather than looking. The truncation at 320px
+   ("Rice ...") was the visible symptom; the form was the cause. Worth
+   keeping as a general lesson — a grid is a good way to STORE a week and a
+   bad way to ask somebody about one.
+
    AND IT CANNOT SILENTLY OVERWRITE ANY MORE, which is the part that is a bug
    rather than a preference. assignPlan does d.plan[day][type] = {...}
    unconditionally, and the two <select>s offered every day and every type, so
