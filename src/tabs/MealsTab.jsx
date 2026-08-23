@@ -15,7 +15,42 @@ const pillWrap = { display: "inline-flex", alignItems: "center", gap: 2, backgro
 const pillBtn = { minWidth: 26, height: 26, padding: "0 4px", borderRadius: 999, border: "none", background: "transparent", cursor: "pointer", fontSize: 14, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: fontBody };
 const pillLabel = { fontSize: 12, fontWeight: 600, color: C.faint, padding: "0 2px", whiteSpace: "nowrap" };
 const pillCount = { minWidth: 26, textAlign: "center", fontWeight: 700, fontVariantNumeric: "tabular-nums", fontSize: 14 };
-const planSelect = { fontSize: 13, padding: "6px 8px", borderRadius: 6, border: `1px solid ${C.line}`, background: "#fff", fontFamily: fontBody };
+
+/* PROTOTYPE A — the week-plan picker, as a dialog rather than two <select>s
+   swapped into the card's own row.
+
+   MIRRORS WeekTab's picker (item 6/63) DELIBERATELY. That one fixed the same
+   interaction from the other end — you have a slot, you choose a meal — and
+   the note on it says the native <select> "didn't fit the app's feel or scale
+   with the list". The Meals tab is the inverse — you have a meal, you choose
+   a slot — and was still on the pattern that was rejected.
+
+   AND IT CANNOT SILENTLY OVERWRITE ANY MORE, which is the part that is a bug
+   rather than a preference. assignPlan does d.plan[day][type] = {...}
+   unconditionally, and the two <select>s offered every day and every type, so
+   adding from a card could replace Monday's dinner with no warning. WeekTab
+   never allowed that — it offers "only the types still free on this day",
+   because "an option that would silently replace an existing meal is not an
+   option". A day already holding this meal type is shown with what is on it
+   and is not selectable. */
+const dayRow = (state) => ({
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  width: "100%",
+  textAlign: "left",
+  // 13px, not 11: 14px type gives a 17px line box, so this is what puts the
+  // row on item 103c's 44px floor rather than 4px under it. Measured.
+  padding: "13px 12px",
+  borderRadius: 10,
+  fontFamily: fontBody,
+  fontSize: 14,
+  marginBottom: 6,
+  cursor: state === "taken" ? "default" : "pointer",
+  border: `1px solid ${state === "picked" ? C.green : C.line}`,
+  background: state === "picked" ? C.greenSoft : state === "taken" ? C.paper : "#fff",
+  color: state === "taken" ? C.faint : C.ink,
+});
 
 export function MealsTab({ data, update, updateCatalog, isGuest }) {
   const [draft, setDraft] = useState(null);
@@ -260,7 +295,6 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
        exactly what Add unplanned meal is about to write. */
     const previewServings = servings > 0 ? servings : base * mult;
     const detailShown = detailOpen === r.id;
-    const picking = planPick?.id === r.id;
     // Everywhere this recipe appears in the plan, as a main or as a side —
     // sides are read-only here (a name + which day/meal), since adding one is
     // a Week-tab action that needs the rest of that slot's dishes in view.
@@ -407,7 +441,14 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
                  button carries the multiplier in its own label whenever it
                  isn't ×1, so a batch count set while reading and then
                  collapsed can never act on you invisibly. */
-              <Btn small kind="primary" onClick={() => setServings(r.id, base * mult)}>
+              /* GHOST, NOT PRIMARY. It sat next to "Add to week's plan" —
+                 the same kind of action, one filled green and one outlined —
+                 which read as "unplanned is the one you want". It isn't; they
+                 are peers with different meanings (no day / a day). `primary`
+                 now means what it should, "the one obvious next action", and
+                 the only place that exists here is the Add inside the
+                 week-plan dialog. */
+              <Btn small onClick={() => setServings(r.id, base * mult)}>
                 {mult === 1 ? "Add unplanned meal" : `Add unplanned meal ×${mult}`}
               </Btn>
             )}
@@ -437,39 +478,22 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
                 </button>
               </span>
             ))}
-            {picking ? (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                <select value={planPick.day} onChange={(e) => setPlanPick({ ...planPick, day: e.target.value })} aria-label="Day" style={planSelect}>
-                  {DAYS.map((d) => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
-                <select value={planPick.type} onChange={(e) => setPlanPick({ ...planPick, type: e.target.value })} aria-label="Meal" style={planSelect}>
-                  {MEAL_TYPES.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-                <Btn small kind="primary" onClick={() => { assignPlan(r, planPick.day, planPick.type, base); setPlanPick(null); }}>Add</Btn>
-                <Btn small onClick={() => setPlanPick(null)}>Cancel</Btn>
-              </span>
-            ) : (
-              /* NOT FOR A GUEST (item 87). Assigning a day writes state/plan,
-                 which database.rules.json deliberately does not re-grant to
-                 guests — "planning the week is the household's, not the
-                 guest's". So this button could be tapped, could be filled in,
-                 and the write was refused at the end of it.
-                 Item 41 hid every other guest-blocked control for exactly
-                 this reason and missed this one; the Plan tab itself is
-                 careful — an empty slot renders "—" rather than "Choose a
-                 meal" — so the app was hiding the door on one tab and leaving
-                 it painted on the other. Hidden rather than disabled, because
-                 a greyed-out button asks "how do I un-grey it?" and the
-                 answer is not something a guest can do. */
-              !isGuest && (
-                <Btn small onClick={() => setPlanPick({ id: r.id, day: DAYS[0], type: (r.mealTypes && r.mealTypes[0]) || "Dinner" })}>
-                  Add to week's plan
-                </Btn>
-              )
+            {/* NOT FOR A GUEST (item 87). Assigning a day writes state/plan,
+                which database.rules.json deliberately does not re-grant to
+                guests — "planning the week is the household's, not the
+                guest's". So this button could be tapped, could be filled in,
+                and the write was refused at the end of it.
+                Item 41 hid every other guest-blocked control for exactly
+                this reason and missed this one; the Plan tab itself is
+                careful — an empty slot renders "—" rather than "Choose a
+                meal" — so the app was hiding the door on one tab and leaving
+                it painted on the other. Hidden rather than disabled, because
+                a greyed-out button asks "how do I un-grey it?" and the
+                answer is not something a guest can do. */}
+            {!isGuest && (
+              <Btn small onClick={() => setPlanPick({ id: r.id, day: null, type: (r.mealTypes && r.mealTypes[0]) || "Dinner" })}>
+                Add to week's plan
+              </Btn>
             )}
           </div>
         </div>
@@ -934,6 +958,100 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
           </>
         )}
       </ConfirmDialog>
+
+      {planPick && (() => {
+        const r = data.recipes.find((x) => x.id === planPick.id);
+        if (!r) return null;
+        const base = r.servings || 4;
+        // What is already in this meal type, day by day. A day whose slot is
+        // filled is shown with the meal that is in it and cannot be chosen —
+        // the same rule WeekTab applies to meal TYPES, for the same reason.
+        const takenBy = (day) => {
+          const id = data.plan?.[day]?.[planPick.type]?.recipeId;
+          return id ? data.recipes.find((x) => x.id === id) : null;
+        };
+        return (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Add ${r.name} to the week`}
+            onClick={() => setPlanPick(null)}
+            // Top-anchored, like WeekTab's picker: the panel's height changes
+            // as the meal type changes which days are free, and centring makes
+            // it drift under your thumb while you read it.
+            style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(20,24,16,0.44)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "8vh 16px 16px", overflowY: "auto" }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{ background: C.card, borderRadius: 14, width: "100%", maxWidth: 460, maxHeight: "82vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 12px 40px rgba(0,0,0,0.28)" }}
+            >
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "14px 16px 10px" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 700, color: C.ink }}>{r.name}</div>
+                  <div style={{ fontSize: 12, color: C.faint }}>Which meal, and which day</div>
+                </div>
+                <button
+                  onClick={() => setPlanPick(null)}
+                  aria-label="Close"
+                  title="Close"
+                  style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 20, lineHeight: 1, width: 44, height: 44, display: "inline-flex", alignItems: "flex-start", justifyContent: "flex-end", padding: 0 }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Every type is offered here, unlike WeekTab — there the DAY is
+                  fixed so a full type is a dead end, whereas here changing the
+                  type re-opens the whole week below. */}
+              <div style={{ padding: "0 16px 10px" }}>
+                <Seg
+                  options={MEAL_TYPES.map((t) => ({ value: t, label: t }))}
+                  value={planPick.type}
+                  onChange={(t) => setPlanPick((p) => ({ ...p, type: t, day: null }))}
+                />
+              </div>
+
+              <div style={{ padding: "0 16px", overflowY: "auto", flex: 1 }}>
+                {DAYS.map((day) => {
+                  const taken = takenBy(day);
+                  const picked = planPick.day === day;
+                  return (
+                    <button
+                      key={day}
+                      disabled={!!taken}
+                      onClick={() => setPlanPick((p) => ({ ...p, day }))}
+                      aria-pressed={picked}
+                      style={dayRow(taken ? "taken" : picked ? "picked" : "free")}
+                    >
+                      <span style={{ fontWeight: 700, width: 42, flexShrink: 0 }}>{day}</span>
+                      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {taken ? taken.name : picked ? "" : ""}
+                      </span>
+                      {taken && <span style={{ fontSize: 12, flexShrink: 0 }}>taken</span>}
+                      {picked && <span aria-hidden style={{ color: C.green, fontWeight: 700, flexShrink: 0 }}>✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", padding: "12px 16px 14px", borderTop: `1px solid ${C.line}` }}>
+                <Btn onClick={() => setPlanPick(null)}>Cancel</Btn>
+                <Btn
+                  kind="primary"
+                  disabled={!planPick.day}
+                  onClick={() => {
+                    if (!planPick.day) return;
+                    assignPlan(r, planPick.day, planPick.type, base);
+                    setPlanPick(null);
+                  }}
+                >
+                  {planPick.day ? `Add to ${planPick.day}` : "Pick a day"}
+                </Btn>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <BackToTop />
     </div>
