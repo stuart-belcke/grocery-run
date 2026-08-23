@@ -2977,6 +2977,61 @@ test("parseIngredientLine returns null for blank lines and subheadings", () => {
   assert.equal(parseIngredientLine("For the sauce:"), null);
 });
 
+test("parseIngredientLine reads a unit welded onto its number", () => {
+  /* "500g flour" is the DEFAULT on UK, Irish, Australian and most European
+     recipe sites, not an edge case — and it used to lose everything: qty 1,
+     no unit, the whole line as the name. No unit is the expensive half,
+     because aggregation keys on ingredient + unit, so that flour could never
+     add up with another recipe's flour. */
+  assert.deepEqual(parseIngredientLine("500g plain flour"), { name: "Plain flour", qty: 500, unit: "g" });
+  assert.deepEqual(parseIngredientLine("200ml double cream"), { name: "Double cream", qty: 200, unit: "ml" });
+  assert.deepEqual(parseIngredientLine("2kg potatoes"), { name: "Potatoes", qty: 2, unit: "kg" });
+});
+
+test("parseIngredientLine does not split a number off something that isn't a unit", () => {
+  /* The other side of the rule above, and the reason it checks the letters
+     against the real unit vocabulary rather than just splitting on the
+     boundary: a tin size or a pan size is not a quantity. QTY_RE's
+     `(?=\s|$)` existed to prevent exactly this, so relaxing it had to keep
+     the guarantee. */
+  assert.deepEqual(parseIngredientLine("9x13 pan"), { name: "9x13 pan", qty: 1, unit: "" });
+});
+
+test("parseIngredientLine takes the TOP of a range, and keeps the range as a note", () => {
+  /* A range used to lose both number and unit — QTY_RE needs whitespace
+     after the number, so "2-3" matched nothing and "2-3 cloves garlic"
+     became a nameless blob with no unit.
+     The upper bound, deliberately: buying too little means going back, which
+     is the cost this app exists to avoid, and one clove of garlic too many
+     costs nothing. Hyphen, en dash and the word "to" all appear in the wild. */
+  assert.deepEqual(parseIngredientLine("2-3 cloves garlic, minced"), { name: "Garlic", qty: 3, unit: "cloves", note: "2-3, minced" });
+  assert.deepEqual(parseIngredientLine("1 to 2 tablespoons olive oil"), { name: "Olive oil", qty: 2, unit: "tbsp", note: "1 to 2" });
+  assert.deepEqual(parseIngredientLine("¼–½ teaspoon chilli flakes"), { name: "Chilli flakes", qty: 0.5, unit: "tsp", note: "¼–½" });
+});
+
+test("parseIngredientLine does not turn an adjective pair into an ingredient called Skinless", () => {
+  /* THE ONE THAT POLLUTED THE CATALOG. "4 skinless, boneless chicken thighs"
+     has exactly one comma and a three-word tail, so the old length-only rule
+     split it and produced an ingredient named "Skinless" — a real entry that
+     matches nothing and never merges with the chicken thighs it came from.
+     The comma there joins two adjectives; it does not introduce a note.
+     Requiring a long tail to START with a prep word tells them apart, and
+     the pairs below are the two directions of that: one splits, one doesn't. */
+  assert.deepEqual(parseIngredientLine("4 skinless, boneless chicken thighs"), {
+    name: "Skinless, boneless chicken thighs",
+    qty: 4,
+    unit: "",
+  });
+  assert.deepEqual(parseIngredientLine("3 medium carrots, peeled and cut into sticks"), {
+    name: "Medium carrots",
+    qty: 3,
+    unit: "",
+    note: "peeled and cut into sticks",
+  });
+  // Short tails are still taken on trust, so a prep word nobody listed survives.
+  assert.deepEqual(parseIngredientLine("1 onion, quartered lengthways"), { name: "Onion", qty: 1, unit: "", note: "quartered lengthways" });
+});
+
 // The exact text pasted from Half Baked Harvest's site for the Greek chicken
 // meatball recipe — WP Recipe Maker's layout, with three method sections
 // (CROCKPOT / INSTANT POT / STOVE-TOP) under one Instructions heading. Only

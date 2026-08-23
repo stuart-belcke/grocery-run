@@ -2038,6 +2038,82 @@ rather than saving them for a cleanup that never gets scheduled.
     prose does. THE FIX IS RE-PASTING a recipe from its source next time you
     cook it, one at a time, which produces proper steps for free.
 
+108. [DONE] THREE PARSER BUGS FOUND BY PROBING RATHER THAN BY BEING BITTEN.
+    Item 105 fixed four bugs one real paste happened to hit. This went the
+    other way: no new paste to work from — the sandbox cannot reach recipe
+    sites — so sixteen ingredient lines in shapes recipe sites actually emit
+    were run through parseIngredientLine and the output read. Cheap, and it
+    found three things worth fixing and several that were already right.
+
+    108a. A UNIT WELDED ONTO ITS NUMBER ("500g plain flour", "200ml double
+        cream") LOST EVERYTHING: qty 1, no unit, the whole line as the name.
+        This is not an edge case — it is the DEFAULT on UK, Irish, Australian
+        and most European sites, so the parser was effectively blind to a
+        whole continent's worth of recipes.
+        NO UNIT IS THE EXPENSIVE HALF. Aggregation keys on ingredient + unit
+        (item 13), so "500g plain flour" could never add up with another
+        recipe's flour: two rows, two entries in the catalog, and you buy
+        twice. The missing qty is merely visible; the missing unit is what
+        costs a duplicate purchase.
+        THE CAUSE WAS A DELIBERATE GUARD. QTY_RE ends in `(?=\s|$)` so that
+        "9x13 pan" is not read as thirteen of something. Relaxing it had to
+        keep that, so the letters are checked against the real unit
+        vocabulary instead of splitting on the boundary: "500g" splits
+        because "g" is a unit, "9x13" does not because "x13" is not. Both
+        directions are tested — the second is the one that would rot.
+
+    108b. A RANGE LOST BOTH NUMBER AND UNIT, same root cause: QTY_RE wants
+        whitespace after the number, so "2-3" matched nothing at all and
+        "2-3 cloves garlic" became a nameless blob, qty 1, no unit — so
+        again, garlic that cannot add up with any other garlic.
+        THE UPPER BOUND IS TAKEN, and that is a judgement rather than an
+        obvious default. Buying too little means going back to the shop,
+        which is the cost this whole app exists to avoid; one clove of garlic
+        too many costs nothing. The asymmetry is the whole argument.
+        The range is kept as a note ("2-3"), so the cook still sees what the
+        recipe said rather than a number the app decided on alone.
+        Hyphen, en dash and the word "to" all occur in the wild; all three
+        are handled.
+
+    108c. AN ADJECTIVE PAIR BECAME AN INGREDIENT CALLED "Skinless", and this
+        is the one that actually damaged data rather than just losing it.
+        "4 skinless, boneless chicken thighs" has exactly one comma and a
+        three-word tail, so splitIngredientNote's length-only rule split it:
+        name "Skinless", note "boneless chicken thighs". A real catalog
+        entry, matching nothing, merging with nothing, forever — which is
+        precisely the catalog-forking item 40 was written about.
+        THE COMMA THERE JOINS TWO ADJECTIVES; it does not introduce a note,
+        and no word count can tell those apart — "Onion, diced" and
+        "skinless, boneless chicken thighs" are the same shape. What
+        separates them is that a prep clause STARTS with a prep word. So a
+        long tail must now be prep-led ("diced", "thinly sliced", "peeled and
+        cut into sticks" all are; "boneless chicken thighs" is not), while a
+        one- or two-word tail is still taken on trust so that a prep word
+        nobody listed ("quartered lengthways") is not lost.
+        A BONUS FROM THE SAME RULE: "3 medium carrots, peeled and cut into
+        sticks" now splits properly. The old four-word cap refused it, so the
+        prep stayed welded into the name — item 40's original complaint
+        ("4 carrots cut into sticks" became `4 stick Carrots`) had left this
+        half unfinished.
+
+    MUTATION-TESTED ONE AT A TIME, which is what makes this worth trusting:
+    disabling each fix separately fails EXACTLY the test that pins it and
+    nothing else — no overlap, no test accidentally covering someone else's
+    fix. 335 unit tests, 0 failures with all three in place.
+
+    WHAT CAME BACK ALREADY CORRECT, recorded so nobody re-probes it: decimals
+    ("1.5 lb"), mixed numbers both spaced and welded, parenthetical
+    conversions ("¾ cup (180ml) milk"), multi-comma lists (still refused, per
+    item 39), "to taste" and the bare-note path, and bulleted lines.
+    STILL WRONG, DELIBERATELY NOT FIXED — all rarer, and each wants its own
+    decision rather than being guessed at now:
+      "2 x 400g tins chopped tomatoes" -> name starts "X 400g" (UK multipack)
+      "1 lb 2 oz potatoes"             -> the 2 oz is stranded in the name
+      "1 tbsp + 1 tsp sugar"           -> the + clause is stranded likewise
+      "Juice of 1 lemon"               -> whole line as the name, qty 1
+    The last is arguably right: the ingredient IS a lemon, and "juice of" is
+    prep. Worth a decision, not a patch.
+
 105. [DONE] A REAL PASTE FROM ALLRECIPES BROKE THE PARSER IN FOUR WAYS AT
     ONCE — item 40's "did a poor job on three real recipes" happening again
     on a fourth site. AllRecipes (like several big food sites) is run by
