@@ -3154,6 +3154,78 @@ test("parseRecipeText returns empty ingredients and blank notes for text with ne
   assert.equal(result.notes, "");
 });
 
+/* ---------------- A WHOLE FETCHED PAGE, not a paste ----------------
+
+   tests/fixtures/allrecipes-page.txt is what an iOS Shortcut's "Get Contents
+   of URL" actually returns for the au gratin potatoes recipe: the entire
+   document as text, nav and footer and nutrition table included.
+
+   READ FROM A FILE, AND KEPT WHOLE, ON PURPOSE. The first attempt at this
+   used a fixture reconstructed from screenshots of that output. It was
+   tidier than the real thing, a change built against it passed 337 tests,
+   and on the real document that change was WORSE than doing nothing — 84
+   junk ingredients where the untouched parser found the correct 8. What the
+   reconstruction had trimmed was exactly what broke it. See the fixture's
+   README, and item 109. */
+const FETCHED_PAGE = readFileSync(new URL("../tests/fixtures/allrecipes-page.txt", import.meta.url), "utf8");
+
+test("a whole fetched page still yields the eight real ingredients", () => {
+  /* The thing that already worked before any of this, pinned so it cannot be
+     broken by a future attempt to be clever about picking the section —
+     which is precisely how it WAS broken once. */
+  const result = parseRecipeText(FETCHED_PAGE);
+  assert.deepEqual(result.ingredients.map((i) => i.name), [
+    "Medium russet potatoes",
+    "Medium onion",
+    "Salt and ground black pepper",
+    "Butter",
+    "All-purpose flour",
+    "Salt",
+    "Milk",
+    "Shredded Cheddar cheese",
+  ]);
+  assert.equal(result.servings, 4);
+  // Nothing from the navigation, the nutrition table or the footer.
+  const names = result.ingredients.map((i) => i.name).join(" | ");
+  for (const junk of ["Chicken", "Beef", "Iron", "Sodium", "Allrecipes", "Save"]) {
+    assert.ok(!names.includes(junk), `${junk} was imported as an ingredient`);
+  }
+});
+
+test("a fetched page's name comes back blank rather than as the page's stylesheet", () => {
+  /* The document opens with an inline stylesheet, so the first line that was
+     neither blank nor known boilerplate was
+     ".people-inc-logo-st1,…{fill:#131920}" — and that became the recipe name.
+     Blank is the right answer here, not a shortfall: an empty field asks to
+     be filled in, a wrong one gets saved. */
+  const result = parseRecipeText(FETCHED_PAGE);
+  assert.equal(result.name, "");
+  assert.ok(!/fill:#|\{|\}/.test(result.name), "a stylesheet fragment became the recipe name");
+});
+
+test("a fetched page yields exactly its nine steps, un-doubled and credit-free", () => {
+  /* Three separate bugs met on this one page, all invisible to a paste:
+       - the number is separated by a TAB, so the step regex missed it and the
+         line was renumbered on top of its own number: "1. 1 Gather all…"
+       - the photo credit rides on the END of each step's line rather than
+         sitting on its own, so BOILERPLATE_RE (which only tests line starts)
+         carried nine of them into the recipe
+       - the scan ran past "Cook's Note", which /^(nutrition|notes?)$/ does
+         not match, taking the cook's note and "10,316 home cooks made it!"
+         as steps 10 to 13 */
+  const steps = parseRecipeText(FETCHED_PAGE).notes.split("\n").filter(Boolean);
+  assert.equal(steps.length, 9, JSON.stringify(steps));
+  assert.match(steps[0], /^1\. Gather all ingredients\./);
+  assert.match(steps[8], /^9\. Bake in the preheated oven/);
+  for (const [i, s] of steps.entries()) {
+    assert.ok(!/Dotdash Meredith/i.test(s), `step ${i + 1} kept its photo credit: ${s}`);
+    assert.ok(!new RegExp(`^${i + 1}\\.\\s*\\d`).test(s), `step ${i + 1} was numbered twice: ${s}`);
+  }
+  const joined = steps.join("\n");
+  assert.ok(!/Cook.s Note/i.test(joined), "the cook's note was taken as a step");
+  assert.ok(!/home cooks made it/i.test(joined), "a footer line was taken as a step");
+});
+
 // The exact text pasted from AllRecipes' au gratin potatoes page. AllRecipes
 // (like several big food sites) is run by Dotdash Meredith, whose recipe
 // card renders TWICE in a plain copy/paste — once for a "jump to recipe"

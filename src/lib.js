@@ -1218,7 +1218,7 @@ export function parseIngredientLine(rawLine) {
 // AllRecipes paste (Dotdash Meredith runs AllRecipes and several other big
 // food sites) put its own "keep screen on" checkbox into the ingredient list
 // and a photo credit under every step into the instructions.
-const BOILERPLATE_RE = /^(cook mode|prevent your screen|keep screen awake|author:|prep time|cook time|total time|servings?:?|serves\b|calories|ingredients?$|instructions?$|directions?$|notes?$|save$|print$|email$|nutritional information|us customary|metric|dotdash meredith)/i;
+const BOILERPLATE_RE = /^(cook mode|prevent your screen|keep screen awake|author:|prep time|cook time|total time|servings?:?|serves\b|calories|ingredients?$|instructions?$|directions?$|notes?$|save$|print$|email$|nutritional information|us customary|metric|dotdash meredith|skip to content|jump to recipe|jump to nutrition)/i;
 const SERVINGS_RE = /^(?:serves|servings?)\s*:?\s*(\d+(?:\.\d+)?)/i;
 // A recipe-scaler control's own label ("1X", "2X", "1/2X") — it sits right
 // next to the servings count in the source markup, so a paste that includes
@@ -1230,6 +1230,35 @@ const SCALER_RE = /^(\d+\/\d+|\d+(?:\.\d+)?)x$/i;
 // "Servings: 4" line for SERVINGS_RE to find.
 const YIELDS_RE = /yields\s+(\d+(?:\.\d+)?)\s*servings?/i;
 const SECTION_HEADING_RE = /^(ingredients?|instructions?|directions?)\s*$/i;
+
+/* Where the steps stop. Used to say /^(nutrition|notes?)$/ and therefore ran
+   straight past "Cook's Note" — the heading this page actually uses — taking
+   the cook's note, the serving suggestion and "10,316 home cooks made it!"
+   along as steps 10 to 13. A possessive prefix is the whole difference
+   ("Recipe Notes" and "Chef's Notes" are the same shape), and the apostrophe
+   has to be allowed in both its straight and curly forms, because a page
+   typesets one and a keyboard produces the other. */
+const END_OF_STEPS_RE = /^(nutrition(\s+facts)?|([A-Za-z'’]+\s+)?notes?)\s*$/i;
+
+/* What starts a numbered step. `[.)]` alone missed this page entirely, where
+   the number is separated from its text by a TAB rather than punctuation
+   ("1\tGather all ingredients"). The whole line then fell through as ordinary
+   prose and got renumbered on top of its own number — "1. 1 Gather all…".
+   The tab is required rather than any whitespace: `^\d+\s+` would swallow
+   "2 cups milk" as step 2 of something, and an ingredient that reaches this
+   loop is exactly what the duplicated-card guard is already fighting. */
+const STEP_NUMBER_RE = /^(\d+)(?:[.)]|\t)\s*(.*)$/;
+
+/* A photo credit riding along on the END of a step, rather than sitting on a
+   line of its own: "…with butter.    Dotdash Meredith Food Studios".
+   BOILERPLATE_RE only ever tests the START of a line, so a whole-page fetch
+   carried nine of these into the recipe where a hand-made paste, which puts
+   them on their own lines, did not. */
+const TRAILING_CREDIT_RE = /\s{2,}(dotdash meredith[\w\s]*|photo by [\w\s]+)\s*$/i;
+
+// A stylesheet or script fragment, which a fetched page opens with. Braces
+// are the giveaway; no recipe title has ever contained one.
+const CODE_LINE_RE = /\{[^}]*\}|^[.#][\w-]+[\s,{]/;
 // A short, punctuation-free, ALL-CAPS line reads as a method sub-heading
 // (CROCKPOT / INSTANT POT / STOVE-TOP) rather than an instruction step.
 const isMethodHeading = (l) => l.length > 0 && l === l.toUpperCase() && /^[A-Z][A-Z\s-]*$/.test(l) && l.split(/\s+/).length <= 4;
@@ -1237,9 +1266,19 @@ const isMethodHeading = (l) => l.length > 0 && l === l.toUpperCase() && /^[A-Z][
 export function parseRecipeText(text) {
   const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n").map((l) => l.trim());
 
+  /* A fetched page opens with its own stylesheet, so the first line that is
+     not blank and not recognised boilerplate was
+     ".people-inc-logo-st1,…{fill:#131920}" — and that became the recipe's
+     name. Code is never a name, so it is SKIPPED rather than accepted, and
+     the search carries on to the next line.
+     What it then reaches is site chrome ("SKIP TO CONTENT"), which
+     BOILERPLATE_RE stops on — leaving the name BLANK. That is the intended
+     outcome and not a shortfall: this function already prefers an empty name
+     to a guessed one (see the test about a paste starting mid-boilerplate),
+     because a blank field asks to be filled in and a wrong one gets saved. */
   let name = "";
   for (const l of lines) {
-    if (!l) continue;
+    if (!l || CODE_LINE_RE.test(l)) continue;
     if (BOILERPLATE_RE.test(l)) break;
     name = l;
     break;
@@ -1291,7 +1330,7 @@ export function parseRecipeText(text) {
     for (let i = insStart + 1; i < lines.length; i++) {
       const l = lines[i];
       if (!l) continue;
-      if (/^(nutrition|notes?)\s*$/i.test(l)) break;
+      if (END_OF_STEPS_RE.test(l)) break;
       // A stray "Ingredients" heading, its scaler widget, or the ingredient
       // list itself turning up again mid-way through — the same duplicated
       // recipe card that can precede the real Directions in the first place
@@ -1307,14 +1346,20 @@ export function parseRecipeText(text) {
       // Blogs wrap a long step over several lines, and joining everything with
       // a space turned twelve steps into one wall of text you had to re-read
       // from the top each time you looked up from the pan.
-      const m = l.match(/^(\d+)[.)]\s*(.*)$/);
+      const m = l.match(STEP_NUMBER_RE);
       if (m) { steps.push(m[2]); numbered = true; }
       else if (numbered && steps.length) steps[steps.length - 1] += " " + l;
       else steps.push(l);
     }
     // Renumbered from 1, not copied: a paste that starts at the second method
     // starts at "5.", and a paste with no numbers at all still cooks in order.
-    notes = steps.map((s) => s.trim()).filter(Boolean).map((s, i) => `${i + 1}. ${s}`).join("\n");
+    // The credit strip runs LAST, after the wrapped-line join above, so a
+    // credit that arrived on the continuation line is caught too.
+    notes = steps
+      .map((s) => s.replace(TRAILING_CREDIT_RE, "").trim())
+      .filter(Boolean)
+      .map((s, i) => `${i + 1}. ${s}`)
+      .join("\n");
   }
 
   return { name, servings, notes, ingredients };
