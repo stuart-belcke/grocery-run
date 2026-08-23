@@ -1878,6 +1878,72 @@ rather than saving them for a cleanup that never gets scheduled.
     prose does. THE FIX IS RE-PASTING a recipe from its source next time you
     cook it, one at a time, which produces proper steps for free.
 
+105. [DONE] A REAL PASTE FROM ALLRECIPES BROKE THE PARSER IN FOUR WAYS AT
+    ONCE — item 40's "did a poor job on three real recipes" happening again
+    on a fourth site. AllRecipes (like several big food sites) is run by
+    Dotdash Meredith, whose plain copy/paste renders the recipe card TWICE —
+    once for a "jump to recipe" summary, once for real — with a
+    serving-scaler widget sitting inside both.
+      1. THE SCALER'S OWN LABELS ("1/2X", "1X", "2X") AND ITS SUMMARY LINE
+         ("Original recipe (1X) yields 4 servings") READ AS INGREDIENTS,
+         because parseIngredientLine never throws — "worst case the whole
+         line becomes the name with qty 1" (see its own comment) turned four
+         non-ingredient lines into four fake ones ahead of the real eight.
+      2. THE DUPLICATE CARD'S LEFTOVERS — a second "Ingredients" heading, the
+         scaler again, "Keep Screen Awake" (its own screen-lock checkbox,
+         answering the exact question item 69 asked of this app), and the
+         whole ingredient list a second time — all read as INSTRUCTION STEPS,
+         because the instructions loop pushed every non-blank line it did not
+         recognize. So did the photo credit under every real step
+         ("Dotdash Meredith Food Studios"). 32 "steps" came out; 9 were real.
+      3. "1 ½ cups shredded Cheddar cheese" — a whole number, A SPACE, then
+         the vulgar-fraction glyph — read as qty 1, name "½ cups shredded
+         Cheddar cheese". QTY_RE covered "1 1/2" and "1½" but never the
+         spaced form, even though qtyToNumber's own mixed-number regex
+         already expected it — the number was computed right the moment it
+         got handed the right substring; it just never got handed one.
+      4. Servings CAME BACK NULL, because the only number for it lived inside
+         the "yields 4 servings" line, which SERVINGS_RE never looked at —
+         it only matches a line that STARTS with "serves"/"servings".
+    FIXED, all four in lib.js, on the exact pasted text (now a `node --test`
+    fixture — ALLRECIPES_PASTE — since a fixed bug that isn't demonstrated
+    stays fixed by luck):
+      - BOILERPLATE_RE (already the app's list of "food-blog copy/paste
+        noise," extended once before for a different site's boilerplate) got
+        two more known strings: "keep screen awake" and "dotdash meredith".
+      - Two new patterns, SCALER_RE and YIELDS_RE, catch the widget's own
+        labels and its servings-summary line specifically (not string
+        matches, since the number in them varies).
+      - THE INGREDIENTS LOOP AND THE INSTRUCTIONS LOOP BOTH NOW SKIP LINES
+        MATCHING ANY OF THE ABOVE, where before only the ingredients loop's
+        narrow `/^(us customary|metric)/` check existed and the instructions
+        loop had no noise filter at all — it only knew how to STOP (on
+        "Nutrition"/"Notes"), never how to skip past junk while continuing to
+        collect the real steps that come after it, which is exactly what
+        this paste needed.
+      - THE INSTRUCTIONS LOOP ALSO SKIPS ANY LINE THAT WAS ALREADY CONSUMED
+        AS AN INGREDIENT (a new rawIngredientLines set, built while scanning
+        the Ingredients section) — this is what catches the duplicated
+        ingredient list itself, generically, rather than by hardcoding
+        AllRecipes' eight lines. DELIBERATELY NOT POPULATED BY THE
+        NO-"Ingredients"-HEADING FALLBACK PATH: that fallback catches any
+        line starting with a digit, which also matches a numbered
+        instruction step ("4. Boil the water."), and feeding THAT into the
+        same skip set broke an existing test by eating real steps — caught
+        by running the suite, not by inspection.
+      - QTY_RE gained a `\d+\s+[vulgar fraction]` alternative alongside its
+        existing `\d+\s+\d+/\d+` one.
+      - Servings extraction now also tries YIELDS_RE when SERVINGS_RE finds
+        nothing.
+    MUTATION-TESTED: reverted lib.js, confirmed all four new tests fail
+    (12 ingredients instead of 8, the fraction bug back, servings null, 32
+    steps instead of 9), restored the fix, confirmed green. `npm run check`
+    passed end to end afterward.
+    THE RECIPE'S NAME STILL COMES BACK BLANK, and that is not a parser bug —
+    this particular paste starts at "Ingredients" and never includes the
+    page's title at all, so there is nothing for parseRecipeText to read.
+    Pasting from the actual title line down still names the recipe.
+
 44. [DONE] Edit an ingredient from the List tab. Setting an aisle or a store
     currently means leaving the list, going to Ingredients, and searching
     for the item you were just looking at. The List row already expands;
