@@ -162,6 +162,10 @@ through untouched is not a reason.
 
 ## Communication
 
+**Be direct, succinct, brief.** Answer the question asked, in as few sentences
+as it takes. Skip preamble, hedging, and restating the question back. If the
+direct answer is one line, give one line.
+
 **Lead with the answer.** First sentence says what happened or what to do. Put
 reasoning after it, and only as much as changes a decision. Don't build up to a
 conclusion.
