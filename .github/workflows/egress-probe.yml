@@ -1,0 +1,46 @@
+# THROWAWAY PROBE (item 106). Delete this file once it has run.
+#
+# One question: can a DATACENTER IP fetch the recipe pages, or do the sites
+# refuse it? Item 109 measured that a PHONE can — Shortcuts fetches from a
+# domestic IP — and predicted a server would get blocked. That prediction was
+# never tested, and it is the only thing standing between item 106 and a
+# "paste a link" that works on any device.
+#
+# A GitHub runner is not a Cloudflare Worker: different IPs, different
+# reputation. So a PASS here is suggestive, not proof. A FAIL is stronger --
+# if two unrelated datacenters are both refused, the route is dead.
+#
+# Runs on push to this branch only. Never on main, never on a PR.
+name: egress probe
+on:
+  push:
+    branches: [claude/egress-probe]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Can a datacenter IP fetch these pages?
+        run: |
+          UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'
+          printf '%-30s %-6s %10s  %-8s %-8s\n' HOST STATUS BYTES 'ld+json' 'recipeIngredient'
+          printf '%.0s-' {1..80}; echo
+          for u in \
+            "https://www.allrecipes.com/recipe/15925/creamy-au-gratin-potatoes/" \
+            "https://babyfoode.com/blog/mini-chicken-carrot-meatballs-for-baby/" \
+            "https://www.themediterraneandish.com/baked-cod-recipe-lemon-garlic/" \
+            "https://www.olivetomato.com/greek-style-roasted-lemon-and-garlic-chicken-with-potatoes-and-carrots/" \
+            "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/" ; do
+            host=$(echo "$u" | awk -F/ '{print $3}')
+            code=$(curl -sS -o /tmp/p.html -w '%{http_code}' -A "$UA" \
+                   -H 'accept: text/html,application/xhtml+xml' \
+                   --max-time 45 -L "$u" || echo ERR)
+            bytes=$(wc -c < /tmp/p.html 2>/dev/null || echo 0)
+            # The second question, and the more interesting one: item 109 could
+            # not see JSON-LD because Shortcuts strips tags. Raw HTML would
+            # still carry it -- and that would beat parsing text outright.
+            ld=no; ing=no
+            grep -qi 'application/ld+json' /tmp/p.html 2>/dev/null && ld=YES
+            grep -q '"recipeIngredient"' /tmp/p.html 2>/dev/null && ing=YES
+            printf '%-30s %-6s %10s  %-8s %-8s\n' "$host" "$code" "$bytes" "$ld" "$ing"
+          done
