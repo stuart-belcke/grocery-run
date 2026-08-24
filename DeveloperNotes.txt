@@ -310,6 +310,25 @@ file reached 5,886 lines with ten live items in it.
         something somebody typed themselves, not a fetched page, so it is
         smaller than it looks. tests/e2e/specs/importlink.spec.mjs says so
         where it works around it.
+      - DONE, AND THE LESSON IS WORTH MORE THAN THE FIX: "salt and ground
+        black pepper" was ONE ingredient, and on the AllRecipes page that
+        card ALSO lists "1/2 teaspoon salt" — so salt reached the list under
+        two names that cannot be added up.
+        THE FIRST ATTEMPT WAS A REGEX IN THE PARSER: split on "and" when the
+        line says "to taste". It was wrong twice over, and item 40 had
+        already settled both halves. It INVENTED A SIGNAL THAT EXISTED —
+        existingIngredientSuggestions already returns Salt AND Black pepper
+        for that row, two different known ingredients matching one row, and
+        the catalog tells it apart from "4 cloves garlic peeled and cut in
+        half" (only "Garlic" resolves) with no marker word needed. And it
+        DECIDED INSTEAD OF ASKING, which is the exact failure item 40 exists
+        to record.
+        NOW: splitSuggestion() in lib.js proposes on the separator and lets
+        the catalog confirm both halves, and the caller renders a chip beside
+        the "Already have:" one. Accepting returns the CATALOG's names, so it
+        unmerges the row and canonicalizes both at once.
+        BEFORE REACHING FOR A HEURISTIC HERE, CHECK WHETHER THE CATALOG
+        ALREADY KNOWS. It usually does, and the evidence beats the hint.
       - KNOWN WRONG, RARE: "2 x 400g tins", "1 lb 2 oz", "1 tbsp + 1 tsp",
         "Juice of 1 lemon" (arguably already right — the ingredient IS a
         lemon).
