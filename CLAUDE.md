@@ -164,7 +164,8 @@ through untouched is not a reason.
 
 **Be direct, succinct, brief.** Answer the question asked, in as few sentences
 as it takes. Skip preamble, hedging, and restating the question back. If the
-direct answer is one line, give one line.
+direct answer is one line, give one line. Cut anything that isn't actionable
+or doesn't add clarity — status color and process narration included.
 
 **Lead with the answer.** First sentence says what happened or what to do. Put
 reasoning after it, and only as much as changes a decision. Don't build up to a
