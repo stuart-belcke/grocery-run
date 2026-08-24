@@ -17,16 +17,12 @@ All five captured 2026-08-23.
   allrecipes-page.txt
     Creamy au Gratin Potatoes — AllRecipes (Dotdash Meredith)
     https://www.allrecipes.com/recipe/15925/creamy-au-gratin-potatoes/
-    Expect: 9 ingredients, 9 steps, serves 4.
-    (9, not 8, since splitSeasoningLine: "salt and ground black pepper to
-    taste" is two rows. This page lists salt TWICE, so before the split it
-    arrived under two names the shopping list could not add together.)
+    Expect: 8 ingredients, 9 steps, serves 4.
 
   babyfoode-page.txt
     Baked Chicken & Veggie Meatballs for Baby (and Kids, Too!) — Baby Foode
     https://babyfoode.com/blog/mini-chicken-carrot-meatballs-for-baby/
-    Expect: 11 ingredients, 5 steps, servings null (see below).
-    (11, not 10, since splitSeasoningLine: "salt and pepper, to taste".)
+    Expect: 10 ingredients, 5 steps, servings null (see below).
 
   mediterraneandish-page.txt
     Baked Cod Recipe with Lemon and Garlic — The Mediterranean Dish
@@ -37,10 +33,7 @@ All five captured 2026-08-23.
     Greek Style Roasted Lemon and Garlic Chicken with Potatoes and Carrots
     — Olive Tomato
     https://www.olivetomato.com/greek-style-roasted-lemon-and-garlic-chicken-with-potatoes-and-carrots/
-    Expect: 10 ingredients, 11 steps, serves 4.
-    (10, not 9, since splitSeasoningLine: "Salt/Pepper". This page also
-    carries the line that must NOT split — "4 cloves of garlic peeled and
-    cut in half", where the "and" joins a preparation note.)
+    Expect: 9 ingredients, 11 steps, serves 4.
 
   averiecooks-page.txt
     Mediterranean Baked Crispy Chicken and Pasta — Averie Cooks

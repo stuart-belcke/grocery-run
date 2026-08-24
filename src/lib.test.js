@@ -94,7 +94,6 @@ import {
   FALLBACK_CATALOG,
   normalizeCatalog,
   parseIngredientLine,
-  splitSeasoningLine,
   splitIngredientNote,
   splitUnitNote,
   withUnitNotes,
@@ -105,6 +104,7 @@ import {
   KEYBOARD_MIN_INSET,
   searchHelp,
   existingIngredientSuggestions,
+  splitSuggestion,
   parseRecipeText,
   unplannedMeals,
 } from "./lib.js";
@@ -2281,6 +2281,70 @@ const knownFixture = () =>
 
 const suggest = (name) => existingIngredientSuggestions(knownFixture(), name).map((k) => k.name);
 
+/* ---------------- unmerging "salt and ground black pepper" ----------------
+
+   That line arrives as ONE ingredient, and on the AllRecipes au gratin page
+   it is worse than untidy: the same card ALSO lists "1/2 teaspoon salt", so
+   salt reaches the shopping list under two names that cannot be added up.
+
+   A REGEX WAS WRITTEN FOR THIS FIRST — split on "and" when the line says "to
+   taste" — and it was the wrong instinct twice. It invented a signal the
+   catalog already carried, and it DECIDED rather than asked, which is exactly
+   what item 40 was written about. The tests below are the ones that matter:
+   the separator only proposes, and both halves have to name something real. */
+
+const splitOf = (name) => (splitSuggestion(knownFixture(), name) || []).map((k) => k.name);
+
+test("a row naming two known ingredients is offered as two", () => {
+  assert.deepEqual(splitOf("Salt and olive oil"), ["Salt", "Olive oil"]);
+  // The halves come back as the CATALOG's names, not as written, so accepting
+  // unmerges the row and canonicalizes both at once.
+  assert.deepEqual(splitOf("Kosher salt and fresh cilantro"), ["Salt", "Cilantro"]);
+  // A slash is a separator too — no ingredient name contains one.
+  assert.deepEqual(splitOf("Salt/Garlic"), ["Salt", "Garlic"]);
+});
+
+test("BOTH HALVES MUST NAME SOMETHING REAL, which is what saves the garlic", () => {
+  /* THE TRAP, from the fixtures rather than invented: in "4 cloves of garlic
+     peeled and cut in half" the "and" joins a PREPARATION NOTE. Splitting it
+     would make "Garlic peeled" and "Cut in half" — two catalog entries for
+     one clove. Nobody has an ingredient called "cut in half", so no offer is
+     made, and no marker word was needed to work that out. */
+  assert.deepEqual(splitOf("Garlic peeled and cut in half"), []);
+  assert.deepEqual(splitOf("Rinsed and drained crushed tomatoes"), []);
+  assert.deepEqual(splitOf("Salt and something nobody has"), []);
+});
+
+test("the most GENERIC match wins, not the longest", () => {
+  /* A real bug caught before it shipped: ranking longest-first answered a
+     bare "pepper" with "Red bell pepper". The shortest name still containing
+     the word is what a bare word means. */
+  const known = ["Salt", "Black pepper", "Red bell pepper", "Serrano chile pepper"].map((name) => ({ key: norm(name), name }));
+  assert.deepEqual((splitSuggestion(known, "Salt and pepper") || []).map((k) => k.name), ["Salt", "Black pepper"]);
+  assert.deepEqual((splitSuggestion(known, "Salt and ground black pepper") || []).map((k) => k.name), ["Salt", "Black pepper"]);
+});
+
+test("nothing is offered when there is no merge to undo", () => {
+  // Noise is the failure mode. A chip on every row is a chip nobody reads.
+  assert.equal(splitSuggestion(knownFixture(), "Garlic"), null);         // exact catalog name
+  assert.equal(splitSuggestion(knownFixture(), "Crushed tomatoes"), null);
+  assert.equal(splitSuggestion(knownFixture(), ""), null);
+  assert.equal(splitSuggestion(knownFixture(), "Salt and pepper and garlic"), null); // three ways, not two
+  // Both halves resolving to the SAME thing is one ingredient said twice.
+  assert.equal(splitSuggestion(knownFixture(), "Olive oil and olive oil"), null);
+});
+
+test("splitSuggestion only OFFERS — item 40's rule, asserted", () => {
+  /* The old importer forked the catalog nine ways by deciding instead of
+     asking. This returns catalog entries and changes nothing; the caller
+     renders a chip. Pinned because "just apply it when we are confident" is
+     the tempting change, and confidence is exactly what was wrong last time. */
+  const known = knownFixture();
+  const before = JSON.stringify(known);
+  splitSuggestion(known, "Salt and olive oil");
+  assert.equal(JSON.stringify(known), before, "splitSuggestion mutated the catalog");
+});
+
 test("existingIngredientSuggestions finds the existing name INSIDE a longer pasted one", () => {
   // The direction ingredientMatches cannot see, and the one that caused the
   // damage: the known name is a substring of what was pasted, not vice versa.
@@ -3170,83 +3234,15 @@ test("parseRecipeText returns empty ingredients and blank notes for text with ne
    README, and item 109. */
 const FETCHED_PAGE = readFileSync(new URL("../tests/fixtures/allrecipes-page.txt", import.meta.url), "utf8");
 
-/* ---------------- splitting a seasoning line (item 110) ----------------
-
-   "salt and ground black pepper to taste" was ONE ingredient. Three of the
-   five captured pages carry a line like it, and on AllRecipes it was worse
-   than untidy: that page ALSO lists "½ teaspoon salt", so salt arrived under
-   two names and the shopping list could not add the two rows together.
-
-   THE TESTS THAT MATTER HERE ARE THE ONES THAT MUST NOT SPLIT. A rule that
-   splits on "and" is easy and wrong — the fixtures contain "4 cloves garlic
-   peeled and cut in half", where the "and" joins a preparation note. */
-
-test("a seasoning line becomes the two things you actually buy", () => {
-  assert.deepEqual(splitSeasoningLine("salt and ground black pepper to taste"), [
-    "salt to taste",
-    "ground black pepper to taste",
-  ]);
-  // "to taste" is true of BOTH halves, so both keep it.
-  assert.deepEqual(splitSeasoningLine("salt and pepper, to taste"), ["salt to taste", "pepper to taste"]);
-});
-
-test("a slash needs no marker, because no ingredient name contains one", () => {
-  assert.deepEqual(splitSeasoningLine("Salt/Pepper"), ["Salt", "Pepper"]);
-  assert.deepEqual(splitSeasoningLine("▢ Salt / Pepper"), ["Salt", "Pepper"]);
-  // But a slash carrying an amount is a measurement, not two ingredients.
-  assert.equal(splitSeasoningLine("2 cups milk/cream"), null);
-});
-
-test("NEITHER HALF MAY CARRY AN AMOUNT", () => {
-  /* THE TRAP, and it is in the fixtures rather than invented: the "and" in
-     the garlic line joins a preparation note. Splitting would produce
-     "Garlic peeled" and "Cut in half" — two catalog entries for one clove.
-     WHAT ACTUALLY STOPS IT is not a check for a leading quantity — that was
-     written first and deleted as unreachable — but the rule that neither
-     half may contain a digit. A line that leads with an amount always puts
-     that amount into one of the halves. */
-  assert.equal(splitSeasoningLine("4 cloves of garlic peeled and cut in half"), null);
-  assert.equal(splitSeasoningLine("1 box macaroni and cheese"), null);
-  assert.equal(splitSeasoningLine("2 cups rinsed and drained black beans"), null);
-  assert.equal(splitSeasoningLine("½ teaspoon salt and pepper to taste"), null);
-});
-
-test("an ordinary ingredient line is left entirely alone", () => {
-  for (const l of [
-    "Sweet and sour sauce",          // no amount, but no "to taste" and no slash
-    "macaroni and cheese",
-    "salt",
-    "",
-    "For the sauce:",
-    "chicken legs with thigh attached",
-  ]) {
-    assert.equal(splitSeasoningLine(l), null, `${JSON.stringify(l)} should not split`);
-  }
-});
-
-test("splitting is what stops salt forking into two names on one page", () => {
-  /* The reason this exists at all, asserted on the real page rather than
-     described. Before the split, AllRecipes produced BOTH "Salt" and "Salt
-     and ground black pepper" — two rows the list cannot add up, which is the
-     forked-ingredient bug the notes keep warning about. */
-  const names = parseRecipeText(PAGE("allrecipes-page.txt")).ingredients.map((i) => i.name);
-  assert.ok(!names.some((n) => /\band\b/i.test(n)), JSON.stringify(names));
-  assert.equal(names.filter((n) => n === "Salt").length, 2, "both salt lines should now be plain Salt");
-});
-
-test("a whole fetched page still yields the nine real ingredients", () => {
+test("a whole fetched page still yields the eight real ingredients", () => {
   /* The thing that already worked before any of this, pinned so it cannot be
      broken by a future attempt to be clever about picking the section —
-     which is precisely how it WAS broken once.
-     NINE SINCE splitSeasoningLine: the seasoning line is two rows. The count
-     moved, but the point of this test did not — it is still "the section
-     picker found the real card and not the nutrition table". */
+     which is precisely how it WAS broken once. */
   const result = parseRecipeText(FETCHED_PAGE);
   assert.deepEqual(result.ingredients.map((i) => i.name), [
     "Medium russet potatoes",
     "Medium onion",
-    "Salt",
-    "Ground black pepper",
+    "Salt and ground black pepper",
     "Butter",
     "All-purpose flour",
     "Salt",
@@ -3315,9 +3311,7 @@ const PAGE = (f) => readFileSync(new URL(`../tests/fixtures/${f}`, import.meta.u
 
 test("a page whose scaler buttons run together does not import 1x2x3x as food", () => {
   const r = parseRecipeText(PAGE("babyfoode-page.txt"));
-  // ELEVEN, NOT TEN, since splitSeasoningLine landed: the card's last line is
-  // "salt and pepper, to taste", which is two things to buy and was one row.
-  assert.equal(r.ingredients.length, 11, JSON.stringify(r.ingredients.map((i) => i.name)));
+  assert.equal(r.ingredients.length, 10, JSON.stringify(r.ingredients.map((i) => i.name)));
   assert.deepEqual(r.ingredients[0], { name: "Ground chicken", qty: 1, unit: "lb", note: "or ground turkey" });
   assert.ok(!r.ingredients.some((i) => /^\d+x/i.test(i.name)), "the scaler widget became an ingredient");
   // "Serving: 1meatball" is a nutrition label, not a serving count. Nothing is
@@ -3368,10 +3362,7 @@ test("steps stop at the end of the recipe even with no Notes or Nutrition headin
   for (const junk of ["Post navigation", "Leave a Reply", "Comments", "says:", "Rights Reserved", "Email"]) {
     assert.ok(!r.notes.includes(junk), `"${junk}" was taken as a cooking step`);
   }
-  // TEN, NOT NINE, since splitSeasoningLine landed: this card's "Salt/Pepper"
-  // is two things to buy. A slash between two bare words is not part of any
-  // real ingredient name, so it needs no "to taste" to be safe to split.
-  assert.equal(r.ingredients.length, 10);
+  assert.equal(r.ingredients.length, 9);
   assert.equal(r.servings, 4);
 });
 
@@ -3515,15 +3506,11 @@ Bake in the preheated oven until potatoes are tender and sauce is bubbly, about 
 
 test("parseRecipeText drops the scaler widget and yields line from the ingredient list", () => {
   const result = parseRecipeText(ALLRECIPES_PASTE);
-  assert.equal(result.ingredients.length, 9, JSON.stringify(result.ingredients));
+  assert.equal(result.ingredients.length, 8, JSON.stringify(result.ingredients));
   assert.deepEqual(result.ingredients.map((i) => i.name), [
     "Medium russet potatoes",
     "Medium onion",
-    // Two rows since splitSeasoningLine landed. Worth seeing next to the
-    // "Salt" three lines down: this page lists salt TWICE, so before the
-    // split the shopping list carried it under two names that cannot add up.
-    "Salt",
-    "Ground black pepper",
+    "Salt and ground black pepper",
     "Butter",
     "All-purpose flour",
     "Salt",
@@ -3536,8 +3523,7 @@ test("parseRecipeText reads a mixed number written as digit-space-vulgar-fractio
   // "1 ½" (a space before the glyph, unlike "1½" or "1 1/2") used to leave
   // the qty at bare 1 and "½ cups shredded Cheddar cheese" as the name.
   const result = parseRecipeText(ALLRECIPES_PASTE);
-  // Index 8, not 7 — the seasoning line above it is two rows now.
-  assert.deepEqual(result.ingredients[8], { name: "Shredded Cheddar cheese", qty: 1.5, unit: "cup" });
+  assert.deepEqual(result.ingredients[7], { name: "Shredded Cheddar cheese", qty: 1.5, unit: "cup" });
 });
 
 test("parseRecipeText reads servings from a scaler's \"yields N servings\" line", () => {
