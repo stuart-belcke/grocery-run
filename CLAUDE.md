@@ -160,7 +160,17 @@ Bumping `APP_DATA_VERSION` locks other devices out until they update. Spend it
 only when an older build would genuinely get things wrong — a field it can carry
 through untouched is not a reason.
 
+**A reported bug ends in a PR, not a description.** When something is wrong,
+fix it, test it, and open the pull request — don't stop at explaining what is
+broken and wait to be asked. Branch from `main` per the rule above, so a fix
+is never stacked on whatever else is in flight.
+
 ## Communication
+
+**Be direct, succinct, brief.** Answer the question asked, in as few sentences
+as it takes. Skip preamble, hedging, and restating the question back. If the
+direct answer is one line, give one line. Cut anything that isn't actionable
+or doesn't add clarity — status color and process narration included.
 
 **Lead with the answer.** First sentence says what happened or what to do. Put
 reasoning after it, and only as much as changes a decision. Don't build up to a

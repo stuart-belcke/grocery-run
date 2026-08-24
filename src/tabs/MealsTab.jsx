@@ -62,7 +62,7 @@ const dayRow = (state) => ({
   color: state === "taken" ? C.faint : C.ink,
 });
 
-export function MealsTab({ data, update, updateCatalog, isGuest }) {
+export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, clearImport }) {
   const [draft, setDraft] = useState(null);
   const [mealView, setMealView] = useState("az");
   const [easyOnly, setEasyOnly] = useState(false);
@@ -83,6 +83,11 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
   const [mults, setMults] = useState({});
   const [pasteOpen, setPasteOpen] = useState(false); // paste-a-recipe panel shown in the draft editor
   const [pasteText, setPasteText] = useState("");
+  /* What a Shortcut handed over and how much of it survived the trip, or
+     null. Held separately from the draft because it outlives one: it is the
+     answer to "why does this recipe stop after nine ingredients", and that
+     question gets asked while looking at the filled-in editor. */
+  const [importWarning, setImportWarning] = useState(null);
 
 
   const setServings = (id, servings) =>
@@ -136,8 +141,9 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
     setPasteText("");
   };
 
+  const blankDraft = () => ({ id: null, name: "", mealTypes: [], easy: false, side: false, servings: "4", notes: "", ingredients: [{ name: "", qty: "1", unit: "", note: "" }] });
   const startNew = () => {
-    setDraft({ id: null, name: "", mealTypes: [], easy: false, side: false, servings: "4", notes: "", ingredients: [{ name: "", qty: "1", unit: "", note: "" }] });
+    setDraft(blankDraft());
     closePaste();
   };
   const startEdit = (r) => {
@@ -154,27 +160,59 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
     closePaste();
   };
 
+  /* ONE definition of "fill a draft from recipe text", because there are now
+     two ways in: the paste panel below, and a Shortcut handing the app a whole
+     page (item 106). They must agree — a recipe that imports differently from
+     the way the same text pastes is two parsers to keep in step. */
+  const fillDraft = (d, text) => {
+    const parsed = parseRecipeText(text);
+    const isBlankIngredientRow = (i) => !i.name.trim() && i.qty === "1" && !i.unit.trim() && !(i.note || "").trim();
+    const parsedIngredients = parsed.ingredients.map((i) => ({ name: i.name, qty: String(i.qty), unit: i.unit, note: i.note || "" }));
+    const startsBlank = d.ingredients.length === 1 && isBlankIngredientRow(d.ingredients[0]);
+    return {
+      ...d,
+      name: d.name.trim() ? d.name : parsed.name || d.name,
+      servings: d.servings === "4" && parsed.servings ? String(parsed.servings) : d.servings,
+      notes: !parsed.notes ? d.notes : d.notes.trim() ? `${d.notes}\n\n${parsed.notes}` : parsed.notes,
+      ingredients: !parsedIngredients.length ? d.ingredients : startsBlank ? parsedIngredients : [...d.ingredients, ...parsedIngredients],
+    };
+  };
+
   // Fills the open draft from pasted recipe text — never overwrites something
   // already typed, so pasting mid-edit only adds to it rather than clobbering
   // a manual correction. The blank starting ingredient row (name "" / qty "1"
   // / unit "") is the one exception: it's what every new draft starts with,
   // so a paste replaces it outright instead of leaving it as a stray blank row.
   const applyParsedRecipe = () => {
-    const parsed = parseRecipeText(pasteText);
-    const isBlankIngredientRow = (i) => !i.name.trim() && i.qty === "1" && !i.unit.trim() && !(i.note || "").trim();
-    setDraft((d) => {
-      const parsedIngredients = parsed.ingredients.map((i) => ({ name: i.name, qty: String(i.qty), unit: i.unit, note: i.note || "" }));
-      const startsBlank = d.ingredients.length === 1 && isBlankIngredientRow(d.ingredients[0]);
-      return {
-        ...d,
-        name: d.name.trim() ? d.name : parsed.name || d.name,
-        servings: d.servings === "4" && parsed.servings ? String(parsed.servings) : d.servings,
-        notes: !parsed.notes ? d.notes : d.notes.trim() ? `${d.notes}\n\n${parsed.notes}` : parsed.notes,
-        ingredients: !parsedIngredients.length ? d.ingredients : startsBlank ? parsedIngredients : [...d.ingredients, ...parsedIngredients],
-      };
-    });
+    setDraft((d) => fillDraft(d, pasteText));
     closePaste();
   };
+
+  /* A recipe handed over by a Shortcut opens the editor already filled in
+     (item 106). It goes through fillDraft, the same path the paste panel
+     uses, so the two cannot disagree about what the text means.
+
+     CONSUMED ONCE AND IMMEDIATELY, before anything can go wrong with it —
+     clearImport wipes the stored copy, so a reload does not import a second
+     one. A recipe in an unsaved draft is recoverable by pasting again; four
+     copies of the same recipe are somebody's evening.
+
+     NOT FOR A GUEST. A guest cannot save a recipe, so filling the editor
+     would be an invitation to type into something that discards it. The
+     recipe is dropped and said so, rather than left pending to reappear
+     without explanation the next time they open the tab. */
+  useEffect(() => {
+    if (!pendingImport) return;
+    clearImport();
+    if (isGuest) {
+      setImportWarning({ guest: true });
+      return;
+    }
+    setDraft(fillDraft(blankDraft(), pendingImport.text));
+    closePaste();
+    setImportWarning(pendingImport.truncated ? { declared: pendingImport.declared, got: pendingImport.text.length } : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingImport]);
 
   const toggleDraftType = (t) =>
     setDraft({ ...draft, mealTypes: draft.mealTypes.includes(t) ? draft.mealTypes.filter((x) => x !== t) : [...draft.mealTypes, t] });
@@ -635,6 +673,38 @@ export function MealsTab({ data, update, updateCatalog, isGuest }) {
       <p style={{ margin: "0 0 12px", fontSize: 13, color: C.ink }}>
         Choose meals — the shopping list totals every ingredient automatically.
       </p>
+
+      {/* WHAT ARRIVED, WHEN NOT ALL OF IT DID (item 106). Sits above the
+          editor rather than inside it, because the guest case has no editor
+          to sit in — and because the question it answers ("why does this stop
+          after nine ingredients?") is asked while looking at the fields.
+          NOT A DIALOG. A recipe that came through cut is still most of a
+          recipe and the right move is usually to fix the tail by hand, which
+          means reading this WHILE editing rather than dismissing it first.
+          The numbers are in it on purpose: this is the only report anybody
+          will ever get of what iOS does to a long URL, and "some of it was
+          missing" would waste that. */}
+      {importWarning && (
+        <div role="status" style={{ background: C.card, border: `1px solid ${C.tomato}`, borderRadius: 12, padding: 12, marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <span aria-hidden="true" style={{ fontSize: 16, lineHeight: "20px" }}>⚠️</span>
+          <div style={{ flex: 1, fontSize: 13, color: C.ink, lineHeight: 1.45 }}>
+            {importWarning.guest ? (
+              <>A recipe was sent to this phone, but a guest can’t add recipes — so it wasn’t opened. Ask whoever runs the household to import it, or to make you a member.</>
+            ) : (
+              <>
+                <strong>This recipe arrived cut short.</strong> {importWarning.got.toLocaleString()} of {Number(importWarning.declared).toLocaleString()} characters came through, so the end of it is missing — check the last ingredients and the method before saving. Copying the page and pasting it below has no length limit.
+              </>
+            )}
+          </div>
+          <button
+            onClick={() => setImportWarning(null)}
+            aria-label="Dismiss the import warning"
+            style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 16, lineHeight: "20px", padding: "0 2px", fontFamily: "inherit" }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {draft && (
         <div style={{ background: C.card, border: `1px solid ${C.green}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>

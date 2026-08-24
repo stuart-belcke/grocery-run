@@ -100,6 +100,20 @@ export const FAQS = [
     keywords: ["home screen", "install", "icon", "add to home screen", "app", "pwa", "shortcut", "standalone"],
   },
   {
+    /* Item 106. The honest version, because the question this answers is
+       "other apps parse a link, why can't this one" — and the answer is that
+       it can, but not by pasting a link, and the difference matters before
+       somebody spends twenty minutes building the shortcut. */
+    q: "Can I import a recipe from a link?",
+    /* THE STEPS ARE SPELLED OUT HERE rather than pointed at. An earlier
+       version sent the reader to a file in the source code, which is no help
+       at all to somebody holding a phone — and this is the one answer in the
+       list whose whole job is to be followed rather than understood. Long is
+       the right trade for that. */
+    a: "Not by pasting the link — the app is not allowed to read another site's page, and that is the browser's rule rather than something missing here. The simple way round it: select the recipe on the page, copy, then press Add a meal on {Recipes} and Paste a recipe to fill this in. No length limit, and it is what the importer was built against. On an iPhone you can skip the copying, using a shortcut you build once in Apple's Shortcuts app. Make a new shortcut, open its details and turn on Show in Share Sheet with the type set to URLs, then add these actions in this order: Get Contents of URL, using Shortcut Input; Count, set to Characters, of what that returned; URL Encode, of that same result; a Text action reading the address this app opens at, then #chars= followed by the Count, then &import= followed by the URL Encoded text; and last, Open URLs. After that it is open a recipe in Safari, tap Share, tap your shortcut, and this app opens with the fields filled in. Either way, check the ingredients before saving — a recipe that arrived cut short will say so, but no importer gets every page right.",
+    keywords: ["link", "url", "import", "paste", "web", "website", "scrape", "parse", "safari", "shortcut", "recipe page", "auto"],
+  },
+  {
     q: "Where is my data, and what happens when I am offline?",
     a: "On this device and, once signed in, in the household everyone shares. Offline the app keeps working and saves locally; the next time it connects, the two copies are reconciled and the newer edit wins. The dot at the top of the screen says which state it is in.",
     keywords: ["offline", "sync", "data", "cloud", "saved", "backup", "airplane"],
