@@ -1,16 +1,15 @@
-# THROWAWAY PROBE (item 106). Delete this file once it has run.
+# THROWAWAY PROBE (item 106), run 2. Delete this file once it has run.
 #
-# One question: can a DATACENTER IP fetch the recipe pages, or do the sites
-# refuse it? Item 109 measured that a PHONE can — Shortcuts fetches from a
-# domestic IP — and predicted a server would get blocked. That prediction was
-# never tested, and it is the only thing standing between item 106 and a
-# "paste a link" that works on any device.
+# Run 1 answered the IP question: 4 of 5 sites serve a datacenter IP fine;
+# AllRecipes returns 402. It also grepped `recipeIngredient` out of the raw
+# HTML and found it on all four.
 #
-# A GitHub runner is not a Cloudflare Worker: different IPs, different
-# reputation. So a PASS here is suggestive, not proof. A FAIL is stronger --
-# if two unrelated datacenters are both refused, the route is dead.
-#
-# Runs on push to this branch only. Never on main, never on a PR.
+# BUT A GREP IS NOT THE DATA. Item 109's lesson is exactly this: a reading
+# that agrees with what you hoped is not evidence until you look at the
+# thing itself. So this run EXTRACTS the JSON-LD and prints the actual
+# ingredient list, the name and the servings. If those come out clean, the
+# server route hands over STRUCTURED data and the text parser is not needed
+# for these sites at all.
 name: egress probe
 on:
   push:
@@ -20,27 +19,54 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Can a datacenter IP fetch these pages?
+      - name: What does AllRecipes actually say when it refuses?
         run: |
           UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'
-          printf '%-30s %-6s %10s  %-8s %-8s\n' HOST STATUS BYTES 'ld+json' 'recipeIngredient'
-          printf '%.0s-' {1..80}; echo
+          echo "--- headers ---"
+          curl -sSI -A "$UA" --max-time 45 -L "https://www.allrecipes.com/recipe/15925/creamy-au-gratin-potatoes/" | head -20
+          echo "--- body (612 bytes in run 1) ---"
+          curl -sS -A "$UA" --max-time 45 -L "https://www.allrecipes.com/recipe/15925/creamy-au-gratin-potatoes/" | head -c 700
+          echo
+
+      - name: Is the JSON-LD real, usable recipe data?
+        run: |
+          UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'
           for u in \
-            "https://www.allrecipes.com/recipe/15925/creamy-au-gratin-potatoes/" \
             "https://babyfoode.com/blog/mini-chicken-carrot-meatballs-for-baby/" \
             "https://www.themediterraneandish.com/baked-cod-recipe-lemon-garlic/" \
             "https://www.olivetomato.com/greek-style-roasted-lemon-and-garlic-chicken-with-potatoes-and-carrots/" \
             "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/" ; do
             host=$(echo "$u" | awk -F/ '{print $3}')
-            code=$(curl -sS -o /tmp/p.html -w '%{http_code}' -A "$UA" \
-                   -H 'accept: text/html,application/xhtml+xml' \
-                   --max-time 45 -L "$u" || echo ERR)
-            bytes=$(wc -c < /tmp/p.html 2>/dev/null || echo 0)
-            # The second question, and the more interesting one: item 109 could
-            # not see JSON-LD because Shortcuts strips tags. Raw HTML would
-            # still carry it -- and that would beat parsing text outright.
-            ld=no; ing=no
-            grep -qi 'application/ld+json' /tmp/p.html 2>/dev/null && ld=YES
-            grep -q '"recipeIngredient"' /tmp/p.html 2>/dev/null && ing=YES
-            printf '%-30s %-6s %10s  %-8s %-8s\n' "$host" "$code" "$bytes" "$ld" "$ing"
+            echo "=============================================================="
+            echo "$host"
+            echo "=============================================================="
+            curl -sS -o /tmp/p.html -A "$UA" -H 'accept: text/html,application/xhtml+xml' --max-time 45 -L "$u"
+            # Pull every ld+json block, walk whatever nesting it uses (@graph,
+            # bare array, single object) and print the Recipe node's fields.
+            node -e '
+              const fs = require("fs");
+              const html = fs.readFileSync("/tmp/p.html", "utf8");
+              const blocks = [...html.matchAll(/<script[^>]*application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)].map(m => m[1]);
+              const found = [];
+              const walk = (n) => {
+                if (!n || typeof n !== "object") return;
+                if (Array.isArray(n)) return n.forEach(walk);
+                const t = n["@type"];
+                const isRecipe = t === "Recipe" || (Array.isArray(t) && t.includes("Recipe"));
+                if (isRecipe) found.push(n);
+                Object.values(n).forEach(walk);
+              };
+              for (const b of blocks) { try { walk(JSON.parse(b)); } catch (e) { console.log("  (a block did not parse: " + e.message.slice(0,60) + ")"); } }
+              console.log("  ld+json blocks: " + blocks.length + ",  Recipe nodes: " + found.length);
+              const r = found[0];
+              if (!r) { console.log("  NO Recipe NODE — the grep was misleading"); process.exit(0); }
+              console.log("  name:      " + JSON.stringify(r.name));
+              console.log("  yield:     " + JSON.stringify(r.recipeYield));
+              const ing = r.recipeIngredient || r.ingredients || [];
+              console.log("  ingredients (" + ing.length + "):");
+              ing.forEach(i => console.log("      " + i));
+              const steps = r.recipeInstructions;
+              const n = Array.isArray(steps) ? steps.length : (steps ? 1 : 0);
+              console.log("  instruction entries: " + n);
+            '
           done
