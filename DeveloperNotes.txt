@@ -271,6 +271,30 @@ file reached 5,886 lines with ten live items in it.
     It is a DIRECTION now, not a contingency. What is missing is only the
     infrastructure decision, which is the owner's to make.
 
+    TWO THINGS ASKED ABOUT THE GESTURE ITSELF, both worth knowing before any
+    of the below:
+
+      COPYING A PAGE WITHOUT SHORTCUTS AT ALL: Safari's READER MODE. The Aa
+      button in the address bar -> Show Reader strips the page to the article,
+      then Select All / Copy. Far more reliable than dragging a selection
+      down a whole page, and it removes the navigation, ads and comment
+      section the parser currently has to fight — the junk that four of the
+      five fixtures exist to test. UNVERIFIED, and there is a real doubt:
+      Reader sometimes drops BOXED content, and the recipe card is usually a
+      box. One capture would settle it. If Reader keeps the card, this is the
+      easiest route for anybody and needs no setup whatsoever.
+
+      INSTALLING THE SHORTCUT IN ONE TAP: yes, via an iCloud link. Shortcuts
+      has Share -> Copy iCloud Link, which gives an icloud.com/shortcuts/...
+      URL; tapping it offers Add Shortcut. But the link can only be generated
+      FROM a phone that already has the shortcut, so the first build is
+      manual no matter what — and the app's address is baked into it, so a
+      shared link points at whichever deployment it was built against.
+      WHAT THE APP COULD THEN DO: carry that link (or its QR code) in the
+      help, so the second phone installs in one tap instead of retyping seven
+      actions. Cheap, and it only needs the link to exist. Blocked on a human
+      with a phone, not on any code here.
+
     RUN THE CHEAP EXPERIMENT FIRST, because it might remove the server
     entirely. Item 109 established that Get Contents of URL hands Shortcuts
     the page's text with TAGS ALREADY STRIPPED, which is why the JSON-LD was
