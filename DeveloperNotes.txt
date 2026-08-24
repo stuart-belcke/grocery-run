@@ -21,7 +21,8 @@ item is finished and lives over there.
 IF YOU ARE PICKING SOMETHING UP
 -------------------------------
 
-  106  import a recipe from a link      app half done; one step, on a phone
+  106  import a recipe from a link      A PRIORITY now. One phone test decides
+                                       whether it needs a server at all
   110  the parser                       standing task: more captured pages
    98  the test gaps                    a register; 98a is the costly one
    30  warn about an older build        small, and it has bitten once
@@ -263,12 +264,72 @@ file reached 5,886 lines with ten live items in it.
     proof. Deploy a throwaway Worker against these same five before building
     anything on it.
 
-    REVISIT THE SERVER OPTION ONLY IF: somebody outside the two of us uses
-    this, or an Android phone joins a household. The Shortcut is iOS-only and
-    needs per-phone setup, which is fine for two people and wrong for any
-    real number of them. The answer then is a Cloudflare Worker (~30 lines,
-    free at 100k requests/day) plus an allowlist of recipe hosts so the
-    endpoint cannot be used as a general proxy.
+    THE SERVER OPTION IS NOW WANTED, NOT MERELY PERMITTED. This used to say
+    "revisit only if somebody outside the two of us uses this, or an Android
+    phone joins a household". That trigger is retired: adding recipes easily
+    and reliably is a stated priority, and URL parsing is where it ends up.
+    It is a DIRECTION now, not a contingency. What is missing is only the
+    infrastructure decision, which is the owner's to make.
+
+    TWO THINGS ASKED ABOUT THE GESTURE ITSELF, both worth knowing before any
+    of the below:
+
+      COPYING A PAGE WITHOUT SHORTCUTS AT ALL: Safari's READER MODE. The Aa
+      button in the address bar -> Show Reader strips the page to the article,
+      then Select All / Copy. Far more reliable than dragging a selection
+      down a whole page, and it removes the navigation, ads and comment
+      section the parser currently has to fight — the junk that four of the
+      five fixtures exist to test. UNVERIFIED, and there is a real doubt:
+      Reader sometimes drops BOXED content, and the recipe card is usually a
+      box. One capture would settle it. If Reader keeps the card, this is the
+      easiest route for anybody and needs no setup whatsoever.
+
+      INSTALLING THE SHORTCUT IN ONE TAP: yes, via an iCloud link. Shortcuts
+      has Share -> Copy iCloud Link, which gives an icloud.com/shortcuts/...
+      URL; tapping it offers Add Shortcut. But the link can only be generated
+      FROM a phone that already has the shortcut, so the first build is
+      manual no matter what — and the app's address is baked into it, so a
+      shared link points at whichever deployment it was built against.
+      WHAT THE APP COULD THEN DO: carry that link (or its QR code) in the
+      help, so the second phone installs in one tap instead of retyping seven
+      actions. Cheap, and it only needs the link to exist. Blocked on a human
+      with a phone, not on any code here.
+
+    RUN THE CHEAP EXPERIMENT FIRST, because it might remove the server
+    entirely. Item 109 established that Get Contents of URL hands Shortcuts
+    the page's text with TAGS ALREADY STRIPPED, which is why the JSON-LD was
+    invisible. It did NOT establish that Shortcuts cannot be made to hand
+    over raw HTML — nobody has tried. If some arrangement of that action
+    yields the markup, then the structured data measured above is reachable
+    with NO SERVER AT ALL, on the route that already works from a domestic
+    IP, and every problem below dissolves. Ten minutes on a phone. Do this
+    before spending anything on hosting.
+
+    IF THAT FAILS, THE SERVER PATH, in order:
+      1. A throwaway Cloudflare Worker against the same five URLs, to check
+         that Cloudflare's own IPs are served — the GitHub runner is not
+         proof. If AllRecipes still 402s there, that is expected and fine:
+         it is a licensing block, not bot detection, and pasting the page
+         stays the answer for that one site.
+      2. THEN a real Worker: ~30 lines, free at 100k requests/day, plus an
+         ALLOWLIST OF RECIPE HOSTS so the endpoint cannot be used as a
+         general proxy. That allowlist is not optional — an open fetcher on
+         a public URL is somebody else's problem to abuse.
+      3. Read the JSON-LD first and fall back to parseRecipeText on the
+         page text. That is item 109's ladder, and it is the right shape:
+         try the most structured reading, widen when it yields nothing.
+      4. Feed both into the SAME fillDraft the paste panel and the URL
+         receiver already use, so there is one definition of what a recipe
+         means and three ways of arriving at it.
+
+    WHAT IT WOULD ACTUALLY BUY, beyond the gesture: the NAME, which comes
+    back blank on all five pages today and is the one rough edge felt every
+    single time (item 110). Plus servings on the pages the text parser
+    cannot get them from, and an ingredient list that needs no heuristic
+    hunt for where it starts. That is a bigger win than "paste a link"
+    sounds like.
+
+    AND IT WOULD WORK ON ANDROID, which the Shortcut never will.
 
 110. THE PARSER: STOPPED AT GOOD ENOUGH, and the list to resume from.
     Five real pages from five sites parse correctly — every ingredient list,
@@ -286,16 +347,28 @@ file reached 5,886 lines with ten live items in it.
     actually shows.
 
     WHAT TO PICK UP FIRST, in the order that would teach the most:
-      - THE NAME COMES BACK BLANK on all five pages. Deliberate — a blank
-        field asks to be filled in and a wrong one gets saved — but it means
-        typing the title every time, which is the one rough edge a user
-        actually feels. Finding a title in a whole document is genuinely
-        hard; the honest options are a heuristic worth measuring, or leaving
-        it alone.
-        AND THE SERVER ROUTE JUST HANDS IT OVER. Item 106's 2026-08-24
-        measurement pulled `name` straight out of the JSON-LD on all four
-        sites that serve a datacenter IP. So the honest options are now
-        three, not two — heuristic, leave it, or don't solve it here at all.
+      - DONE — THE NAME NOW COMES BACK ON ALL FIVE. It was blank on every
+        page, which meant typing the title by hand on every import: the one
+        rough edge felt every single time. Blank was deliberate (a blank
+        field asks to be filled in, a wrong one gets saved), so replacing it
+        had to be right far more often than wrong.
+        NOT A GUESS AT WHAT A TITLE LOOKS LIKE — that is what item 109
+        records building, measuring and reverting. A STRUCTURAL fact instead:
+        every recipe site puts a "Home > Category > Category" trail directly
+        above the page heading, and the heading is the recipe. Two trail
+        styles cover all five, and AllRecipes uses neither arrow — a bulleted
+        all-caps trail spaced out with runs of spaces.
+        titleAfterBreadcrumb() in lib.js. Falls back to blank and never to a
+        guess, so it can only improve on the old answer. A paste has no
+        breadcrumb — a person starts selecting at the recipe — so pastes are
+        untouched.
+        AverieCooks shouts its heading, so an all-caps line is sentence-cased
+        through cap(), the same path every ingredient name takes.
+        Five mutations, all caught. The one worth keeping: dropping the
+        breadcrumb requirement so the first line wins again fails four tests,
+        including the stylesheet one that started all of this.
+        STILL OPEN UNDERNEATH IT: a site with no breadcrumb at all has never
+        been seen, and would come back blank as before.
       - A UK OR EUROPEAN SITE has never been tested. The parser was taught
         "500g" and "200ml" against MADE-UP lines, never a captured page —
         the same untested-assumption shape that item 109 records going wrong.
@@ -310,6 +383,25 @@ file reached 5,886 lines with ten live items in it.
         something somebody typed themselves, not a fetched page, so it is
         smaller than it looks. tests/e2e/specs/importlink.spec.mjs says so
         where it works around it.
+      - DONE, AND THE LESSON IS WORTH MORE THAN THE FIX: "salt and ground
+        black pepper" was ONE ingredient, and on the AllRecipes page that
+        card ALSO lists "1/2 teaspoon salt" — so salt reached the list under
+        two names that cannot be added up.
+        THE FIRST ATTEMPT WAS A REGEX IN THE PARSER: split on "and" when the
+        line says "to taste". It was wrong twice over, and item 40 had
+        already settled both halves. It INVENTED A SIGNAL THAT EXISTED —
+        existingIngredientSuggestions already returns Salt AND Black pepper
+        for that row, two different known ingredients matching one row, and
+        the catalog tells it apart from "4 cloves garlic peeled and cut in
+        half" (only "Garlic" resolves) with no marker word needed. And it
+        DECIDED INSTEAD OF ASKING, which is the exact failure item 40 exists
+        to record.
+        NOW: splitSuggestion() in lib.js proposes on the separator and lets
+        the catalog confirm both halves, and the caller renders a chip beside
+        the "Already have:" one. Accepting returns the CATALOG's names, so it
+        unmerges the row and canonicalizes both at once.
+        BEFORE REACHING FOR A HEURISTIC HERE, CHECK WHETHER THE CATALOG
+        ALREADY KNOWS. It usually does, and the evidence beats the hint.
       - KNOWN WRONG, RARE: "2 x 400g tins", "1 lb 2 oz", "1 tbsp + 1 tsp",
         "Juice of 1 lemon" (arguably already right — the ingredient IS a
         lemon).

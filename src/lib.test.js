@@ -108,6 +108,7 @@ import {
   existingIngredientSuggestions,
   splitSuggestion,
   parseRecipeText,
+  titleAfterBreadcrumb,
   unplannedMeals,
 } from "./lib.js";
 
@@ -3354,15 +3355,74 @@ test("a whole fetched page still yields the eight real ingredients", () => {
   }
 });
 
-test("a fetched page's name comes back blank rather than as the page's stylesheet", () => {
-  /* The document opens with an inline stylesheet, so the first line that was
+test("a fetched page's name is the recipe's, not the page's stylesheet", () => {
+  /* THIS TEST USED TO ASSERT BLANK, and the expectation moved on purpose.
+     The document opens with an inline stylesheet, so the first line that was
      neither blank nor known boilerplate was
      ".people-inc-logo-st1,…{fill:#131920}" — and that became the recipe name.
-     Blank is the right answer here, not a shortfall: an empty field asks to
-     be filled in, a wrong one gets saved. */
+     Blank was the right answer while nothing better existed: an empty field
+     asks to be filled in, a wrong one gets saved.
+     titleAfterBreadcrumb now finds the real heading, so blank is no longer
+     the best available answer. WHAT THE TEST WAS ACTUALLY PROTECTING has not
+     changed and is still asserted below: never a stylesheet fragment. */
   const result = parseRecipeText(FETCHED_PAGE);
-  assert.equal(result.name, "");
+  assert.equal(result.name, "Creamy au Gratin Potatoes");
   assert.ok(!/fill:#|\{|\}/.test(result.name), "a stylesheet fragment became the recipe name");
+});
+
+/* ---------------- the title, from the breadcrumb above it ----------------
+
+   The name came back blank on all five captured pages — the one rough edge
+   felt on every single import. The fix is structural rather than a guess at
+   what a title looks like: every recipe site puts a "Home > Category" trail
+   immediately above the page heading, and the heading is the recipe.
+   Guessing is what item 109 records building, measuring and reverting. */
+
+test("the title is the line after the breadcrumb, in both trail styles", () => {
+  assert.equal(titleAfterBreadcrumb(["Home » Recipes", "Greek Roast Chicken", "By Elena"]), "Greek Roast Chicken");
+  assert.equal(titleAfterBreadcrumb(["HOME › RECIPE INDEX › CHICKEN", "Feta Pasta Bake"]), "Feta Pasta Bake");
+  // AllRecipes has no arrow at all — a bulleted all-caps trail spaced out.
+  assert.equal(titleAfterBreadcrumb(["\t•\tRECIPES  SIDE DISH  POTATO", "Creamy au Gratin Potatoes"]), "Creamy au Gratin Potatoes");
+});
+
+test("a SHOUTED heading is sentence-cased, not taken as written", () => {
+  // "MEDITERRANEAN BAKED CRISPY CHICKEN AND PASTA" is a real name shouted,
+  // not a wrong one. cap() is what every ingredient name already goes through.
+  assert.equal(titleAfterBreadcrumb(["HOME › ENTREES › CHICKEN", "MEDITERRANEAN BAKED CRISPY CHICKEN"]), "Mediterranean baked crispy chicken");
+  // A normally-cased heading is left exactly alone.
+  assert.equal(titleAfterBreadcrumb(["Home » Fish", "Baked Cod Recipe with Lemon and Garlic"]), "Baked Cod Recipe with Lemon and Garlic");
+});
+
+test("NO BREADCRUMB MEANS BLANK, never a guess", () => {
+  /* The guard that makes this safe to ship: it can only improve on blank,
+     never replace it with something wrong. A paste has no breadcrumb — a
+     person starts selecting at the recipe — so pastes are untouched. */
+  assert.equal(titleAfterBreadcrumb(["Weeknight Rice Bowl", "2 cups rice"]), "");
+  assert.equal(titleAfterBreadcrumb([]), "");
+  assert.equal(titleAfterBreadcrumb(["Just some prose about the recipe."]), "");
+});
+
+test("boilerplate and code after a breadcrumb are refused, not returned", () => {
+  // A trail followed by site chrome is a page with no recipe heading.
+  assert.equal(titleAfterBreadcrumb(["Home » Recipes", "Jump to Recipe"]), "");
+  assert.equal(titleAfterBreadcrumb(["Home » Recipes", ".logo-st1{fill:#131920}"]), "");
+  // A paragraph is not a title.
+  assert.equal(titleAfterBreadcrumb(["Home » Recipes", "x".repeat(200)]), "");
+});
+
+test("every captured page gives up its real title", () => {
+  /* The measurement that matters, on the five real pages rather than on
+     lines written to suit the rule. Before this, all five were blank. */
+  const want = {
+    "allrecipes-page.txt": "Creamy au Gratin Potatoes",
+    "babyfoode-page.txt": "Baked Chicken & Veggie Meatballs for Baby (and Kids, Too!)",
+    "mediterraneandish-page.txt": "Baked Cod Recipe with Lemon and Garlic",
+    "olivetomato-page.txt": "Greek Style Roasted Lemon and Garlic Chicken with Potatoes and Carrots",
+    "averiecooks-page.txt": "Mediterranean baked crispy chicken and pasta",
+  };
+  for (const [f, title] of Object.entries(want)) {
+    assert.equal(parseRecipeText(PAGE(f)).name, title, f);
+  }
 });
 
 test("a fetched page yields exactly its nine steps, un-doubled and credit-free", () => {
