@@ -105,7 +105,12 @@ export const FAQS = [
        it can, but not by pasting a link, and the difference matters before
        somebody spends twenty minutes building the shortcut. */
     q: "Can I import a recipe from a link?",
-    a: "Not by pasting the link — the app is not allowed to read another site's page, and that is the browser's rule rather than a missing feature. Two ways round it. Simplest: select the recipe on the page, copy, then press Add a meal on {Recipes} and Paste a recipe to fill this in. That has no length limit and is what the parser was built against. Or, on an iPhone, build the shortcut described in RecipeImportShortcut.md in the app's code — then it is open the recipe in Safari, Share, tap the shortcut, and this app opens with the fields already filled. Either way, check the ingredients before saving: the shortcut warns you if the recipe arrived cut short, but no parser gets every page right.",
+    /* THE STEPS ARE SPELLED OUT HERE rather than pointed at. An earlier
+       version sent the reader to a file in the source code, which is no help
+       at all to somebody holding a phone — and this is the one answer in the
+       list whose whole job is to be followed rather than understood. Long is
+       the right trade for that. */
+    a: "Not by pasting the link — the app is not allowed to read another site's page, and that is the browser's rule rather than something missing here. The simple way round it: select the recipe on the page, copy, then press Add a meal on {Recipes} and Paste a recipe to fill this in. No length limit, and it is what the importer was built against. On an iPhone you can skip the copying, using a shortcut you build once in Apple's Shortcuts app. Make a new shortcut, open its details and turn on Show in Share Sheet with the type set to URLs, then add these actions in this order: Get Contents of URL, using Shortcut Input; Count, set to Characters, of what that returned; URL Encode, of that same result; a Text action reading the address this app opens at, then #chars= followed by the Count, then &import= followed by the URL Encoded text; and last, Open URLs. After that it is open a recipe in Safari, tap Share, tap your shortcut, and this app opens with the fields filled in. Either way, check the ingredients before saving — a recipe that arrived cut short will say so, but no importer gets every page right.",
     keywords: ["link", "url", "import", "paste", "web", "website", "scrape", "parse", "safari", "shortcut", "recipe page", "auto"],
   },
   {
