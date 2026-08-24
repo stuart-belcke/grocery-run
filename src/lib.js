@@ -43,6 +43,19 @@ export const MUST_CHOOSE_KEY = "grocery-run-must-choose-household-v1";
    deliberately skipped. */
 export const PENDING_INVITE_KEY = "grocery-run-pending-invite-v1";
 
+/* A recipe handed over by a Shortcut, held until the Meals tab can open it.
+
+   Persisted for a DIFFERENT reason than the pending invite. That one survives
+   a sign-in navigation; this one survives the app being cold-started by the
+   URL itself, which is the normal case here — the Shortcut opens the app, so
+   the recipe arrives before there is a Meals tab mounted to receive it, and
+   on a phone with no signal the whole first render can be slow. Cleared the
+   moment the draft editor has it.
+
+   The unread recipe is the only thing in here worth anything, and it is a
+   public web page's text. Nothing sensitive, unlike the invite beside it. */
+export const PENDING_IMPORT_KEY = "grocery-run-pending-import-v1";
+
 /* An invite this device was OFFERED and said "Not now" to. Per device, like
    the home-screen dismissal: the question is about this browser, and the
    pending invite itself is persisted, so without a record of the refusal the
@@ -2137,6 +2150,93 @@ export function parseJoinHash(hash) {
     // join field will reject it just as clearly as this could.
   }
   return raw.trim();
+}
+
+/* ---------------- a recipe handed over in a URL (item 106) ----------------
+
+   THE APP STILL CANNOT FETCH A PAGE. A browser refuses to read another site's
+   HTML and no app-side code changes that (item 109 measured this). What CAN
+   fetch it is an iOS Shortcut, which is not a browser, so this is the seam
+   between the two: the Shortcut gets the page's text and opens the app with
+   it, and everything from there is the parser that item 110 made reliable.
+
+   THE FRAGMENT, for the same two reasons the invite uses one: everything
+   after `#` never reaches a server or its logs — and a recipe page's text is
+   somebody's browsing history — and it costs nothing at the hosting end,
+   because the app is served statically with `base: "./"`.
+
+   `chars` COMES FIRST, AND THAT ORDERING IS THE WHOLE POINT. A page is 5–12k
+   characters, 7–17k once URL-encoded, and NOBODY HAS MEASURED WHAT iOS DOES
+   WITH A URL THAT LONG — not Shortcuts' Open URL, not the app's own handling.
+   The failure it would have is the bad kind: a URL cut in the middle hands
+   over a recipe missing its last few ingredients, which parses cleanly and
+   looks finished. That is the same shape as the export that silently dropped
+   an entry. So the Shortcut declares the length BEFORE the text: truncation
+   removes the tail, so the count survives whatever it cuts, and the app can
+   say "this arrived cut short" instead of quietly importing three quarters of
+   a recipe.
+   Which means this does not need the limit decided in advance. It reports the
+   limit the first time real use finds it. */
+export const IMPORT_PARAM = "import";
+
+/* A recipe's text pulled out of a URL somebody's Shortcut opened, or null.
+
+   Returns { text, declared, truncated } rather than a bare string — unlike
+   parseJoinHash, which hands its string to the same field a person types
+   into, there is no second validator downstream here. `truncated` is a fact
+   about the transfer that only this function is in a position to notice.
+
+   A DECODE THAT THROWS IS EVIDENCE, NOT AN ERROR. A URL cut mid-escape leaves
+   a dangling "%2", and decodeURIComponent rejects the whole string for it —
+   which would throw away a recipe over its last character. Trimming back to
+   the last complete escape salvages it and proves truncation at the same
+   time. */
+export function parseImportHash(hash) {
+  const s = String(hash || "");
+  const m = new RegExp(`(?:^|[#&])${IMPORT_PARAM}=([^&]*)`).exec(s);
+  if (!m) return null;
+  const cm = /(?:^|[#&])chars=(\d+)(?:&|$)/.exec(s);
+  const declared = cm ? Number(cm[1]) : null;
+
+  let raw = m[1];
+  let cut = false;
+  let text = null;
+  /* Back off to the last COMPLETE escape, not one character at a time. A cut
+     inside "%C2%BD" (the ½ that half these pages are full of) is up to eleven
+     characters from a boundary, so trimming singly gives up while the recipe
+     is still there — which is how the first version of this failed. Jumping
+     to the last `%` reaches it in one step in the normal case.
+     Bounded because the input is a URL a phone opened rather than anything
+     this app wrote: 16 attempts is far more than a real truncation needs, and
+     stops a pathological hash from costing a startup. */
+  for (let i = 0; i < 16 && text === null && raw.length; i++) {
+    try {
+      text = decodeURIComponent(raw);
+    } catch {
+      cut = true;
+      const at = raw.lastIndexOf("%");
+      raw = at >= 0 && raw.length - at <= 12 ? raw.slice(0, at) : raw.slice(0, -1);
+    }
+  }
+  if (text === null) return null; // not a truncation; nothing usable in there
+
+  return {
+    text,
+    declared,
+    truncated: cut || (declared !== null && text.length !== declared),
+  };
+}
+
+/* The URL an importing Shortcut has to build. Exported because it is the
+   ONE definition of the format — the Shortcut is assembled by hand in an app
+   on a phone and cannot import anything from here, so the doc that tells
+   somebody how to build it and the parser that reads it would otherwise be
+   two independent guesses at the same format. The round-trip test through
+   both is what keeps the instructions honest. */
+export function importUrl(href, text) {
+  const t = String(text || "");
+  const base = String(href || "").split("#")[0].split("?")[0];
+  return `${base}#chars=${t.length}&${IMPORT_PARAM}=${encodeURIComponent(t)}`;
 }
 
 /* ---------------- help text ----------------
