@@ -141,7 +141,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
     setPasteText("");
   };
 
-  const blankDraft = () => ({ id: null, name: "", mealTypes: [], easy: false, side: false, servings: "4", notes: "", ingredients: [{ name: "", qty: "1", unit: "", note: "" }] });
+  const blankDraft = () => ({ id: null, name: "", mealTypes: [], easy: false, side: false, servings: "4", source: "", notes: "", ingredients: [{ name: "", qty: "1", unit: "", note: "" }] });
   const startNew = () => {
     setDraft(blankDraft());
     closePaste();
@@ -154,6 +154,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
       easy: !!r.easy,
       side: !!r.side,
       servings: String(r.servings || 4),
+      source: r.source || "",
       notes: r.notes || "",
       ingredients: r.ingredients.map((i) => ({ ...i, qty: String(i.qty), note: i.note || "" })),
     });
@@ -226,6 +227,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
       easy: !!draft.easy,
       side: !!draft.side,
       servings: Math.max(1, Number(draft.servings) || 4),
+      source: draft.source.trim(),
       notes: draft.notes.trim(),
       ingredients: draft.ingredients
         .filter((i) => i.name.trim())
@@ -754,6 +756,18 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
             value={draft.name}
             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
             style={{ ...inputStyle, width: "100%", boxSizing: "border-box", fontSize: 16, fontWeight: 500, marginBottom: 10 }}
+          />
+          {/* ITS OWN FIELD, not a line inside Notes — so a link pasted here
+              renders as a tappable Source section on the card instead of
+              running off the edge of it (see RecipeDetail). type="url" gets
+              the right mobile keyboard; nothing here requires a URL, since a
+              typed citation is a legal source too. */}
+          <input
+            type="url"
+            placeholder="Source / link (optional)"
+            value={draft.source}
+            onChange={(e) => setDraft({ ...draft, source: e.target.value })}
+            style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 10 }}
           />
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
             <span style={{ fontSize: 12, color: C.faint }}>Meal type:</span>

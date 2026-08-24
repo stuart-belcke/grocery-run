@@ -636,3 +636,72 @@ test("SHOULD: both Adds and Edit share one row on the phone this app is used on"
     await page.done();
   }
 });
+
+/* ---------------- a recipe's source link ---------------- */
+
+test("SHOULD: a long link in a recipe's notes wraps instead of pushing the card off screen", async () => {
+  // Before the fix, whiteSpace: pre-wrap alone didn't break a single
+  // unbroken run of characters — exactly what a pasted URL is — so it
+  // widened the card past the edge of the screen instead of wrapping.
+  const catalog = smallCatalog();
+  catalog.recipes["r-stirfry"].notes =
+    "https://www.example.com/recipes/a-really-quite-long-slug-that-keeps-going-and-going-past-a-phone-screen-width-for-sure";
+  const page = await openApp(BASE, { catalog });
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.tab("Recipes");
+    await openDetail(page, "Stir-fry");
+
+    const m = await page.evaluate(() => ({
+      vw: document.documentElement.clientWidth,
+      pageWidth: document.body.scrollWidth,
+    }));
+    assert.equal(m.pageWidth, m.vw, `a long URL in Notes pushed the page to ${m.pageWidth}px on a ${m.vw}px screen`);
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: a recipe's source is its own field, saved and shown as a link rather than buried in Notes", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await page.tab("Recipes");
+    await cardAction(page, "Stir-fry", "Edit");
+    await page.waitForTimeout(300);
+
+    await page.getByPlaceholder("Source / link (optional)").fill("https://example.com/stir-fry");
+    await page.getByRole("button", { name: /^Save meal$/ }).click();
+    await page.waitForTimeout(500);
+    await page.roundTrip();
+
+    const cat = await page.readCatalog();
+    assert.equal(cat.recipes["r-stirfry"].source, "https://example.com/stir-fry", "the source should be its own field on the recipe, not folded into notes");
+    assert.equal(cat.recipes["r-stirfry"].notes, "", "saving a source must not write it into notes");
+
+    await page.tab("Recipes");
+    await openDetail(page, "Stir-fry");
+    const link = page.getByRole("link", { name: "https://example.com/stir-fry" });
+    assert.equal(await link.count(), 1, "the source should render as a tappable link on the card");
+    assert.equal(await link.getAttribute("href"), "https://example.com/stir-fry");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: a source that isn't a URL is shown as plain text, not turned into a dead link", async () => {
+  const catalog = smallCatalog();
+  catalog.recipes["r-stirfry"].source = "Grandma's recipe card box";
+  const page = await openApp(BASE, { catalog });
+  try {
+    await page.tab("Recipes");
+    await openDetail(page, "Stir-fry");
+
+    assert.equal(await page.getByRole("link", { name: "Grandma's recipe card box" }).count(), 0, "a non-URL source should not be linkified");
+    assert.ok((await page.textContent("body")).includes("Grandma's recipe card box"), "the source text should still be shown");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});

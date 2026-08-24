@@ -188,6 +188,35 @@ export function RecipeDetail({ recipe, servings, mult, onMult }) {
       ) : (
         <div style={{ fontSize: 15, color: C.faint }}>No ingredients listed.</div>
       )}
+      {/* A SOURCE LINK IS ITS OWN FIELD (not a line buried in Notes) so it
+          renders as something you can tap, and so it survives scaleRecipeText
+          — which rewrites numbers in Notes for the batch multiplier and would
+          otherwise be free to mangle a URL that happens to contain digits.
+          ONLY LINKIFIED WHEN IT STARTS http(s)://, the same "don't guess"
+          rule parseRecipeText uses for the title: a plain citation someone
+          typed ("Grandma's card box") is shown as text rather than turned
+          into a dead link by guessing a scheme for it. */}
+      {recipe.source && (
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${C.line}` }}>
+          <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 4 }}>
+            Source
+          </div>
+          {/^https?:\/\//i.test(recipe.source.trim()) ? (
+            <a
+              href={recipe.source.trim()}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: 14, color: C.green, overflowWrap: "anywhere", wordBreak: "break-word", display: "block" }}
+            >
+              {recipe.source.trim()}
+            </a>
+          ) : (
+            <div style={{ fontSize: 14, color: C.ink, overflowWrap: "anywhere", wordBreak: "break-word" }}>
+              {recipe.source.trim()}
+            </div>
+          )}
+        </div>
+      )}
       {recipe.notes && (
         <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${C.line}` }}>
           <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 4 }}>
@@ -206,7 +235,13 @@ export function RecipeDetail({ recipe, servings, mult, onMult }) {
           {/* THIS recipe's ingredient names are the vocabulary for scaling
               counts that carry no unit ("6 whole garlic cloves"). An oven is
               not an ingredient, which is exactly what keeps it safe. */}
-          <div style={{ fontSize: 15, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+          {/* overflowWrap: break-word IS THE FIX FOR A LINK IN NOTES.
+              pre-wrap alone still won't break a single unbroken run of
+              characters — exactly what a pasted URL is — so it pushed the
+              card wider than the screen instead of wrapping. break-word only
+              gives way once a normal wrap point can't be found, so ordinary
+              prose is untouched. */}
+          <div style={{ fontSize: 15, lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "break-word", wordBreak: "break-word" }}>
             {scaleRecipeText(recipe.notes, scale, ingredients.map((i) => i.name))}
           </div>
         </div>
