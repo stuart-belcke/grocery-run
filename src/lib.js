@@ -1166,6 +1166,57 @@ export function splitIngredientNote(text) {
 // blank / heading-only line. Never throws on text it doesn't understand —
 // worst case the whole line becomes the name with qty 1, which is still a
 // safe, editable starting point rather than a dropped ingredient.
+/* "salt and ground black pepper to taste" is TWO ingredients, and was coming
+   back as one (item 110).
+
+   IT IS NOT A COSMETIC MERGE. The AllRecipes au gratin page also lists
+   "½ teaspoon salt" further down, so salt arrived under two different names —
+   "Salt" and "Salt and ground black pepper" — which is the forked-ingredient
+   bug the shopping list cannot add up. And the merged row carried qty 1 with
+   no unit, so the list showed "1 Salt and ground black pepper".
+
+   THE DANGER IS SPLITTING THE WRONG LINE, and the fixtures contain the exact
+   trap: "4 cloves garlic peeled and cut in half". The "and" there joins a
+   PREPARATION NOTE, not a second ingredient, and splitting it would produce
+   "Garlic peeled" and "Cut in half". So this refuses to guess:
+
+     - "and" ONLY WITH "to taste". That phrase appears on seasoning lines and
+       essentially nowhere else, so it is the marker rather than the "and" —
+       which is what leaves "macaroni and cheese" and "sweet and sour sauce"
+       alone. Both halves keep it, because it is true of both.
+     - A SLASH NEEDS NO MARKER. "Salt/Pepper" — a slash between two bare words
+       is not part of any real ingredient name.
+     - AND NEITHER HALF MAY CONTAIN A DIGIT. This is the one that stops
+       "½ teaspoon salt and pepper to taste" from becoming "½ teaspoon salt"
+       and "pepper". An explicit no-leading-amount check was written here
+       first and then deleted: a mutation test showed nothing failed without
+       it, because a line that leads with an amount ALWAYS puts that amount in
+       one of the halves, where this catches it. Two guards for one job, one
+       of them unreachable, is worse than one that is known to work.
+
+   Measured on the five captured pages: splits exactly the three lines that
+   are wrong (allrecipes, babyfoode, olivetomato) and leaves all 61 other
+   ingredients untouched. Returns null when it does not apply, so the caller
+   keeps its existing single-line path. */
+const TO_TASTE_RE = /,?\s*\bto taste\b\.?$/i;
+const PLAIN_WORDS = /^[A-Za-z][A-Za-z'’\s-]*$/;
+
+export function splitSeasoningLine(rawLine) {
+  const stripped = String(rawLine || "").replace(/^[\s▢☐☑✓•●○\-*·]+/, "").trim();
+  if (!stripped || /:$/.test(stripped)) return null;
+
+  const slash = stripped.split("/");
+  if (slash.length === 2 && slash.every((p) => PLAIN_WORDS.test(p.trim()) && p.trim())) {
+    return slash.map((p) => p.trim());
+  }
+
+  if (!TO_TASTE_RE.test(stripped)) return null;
+  const body = stripped.replace(TO_TASTE_RE, "").trim();
+  const parts = body.split(/\s+and\s+/i);
+  if (parts.length !== 2 || !parts.every((p) => PLAIN_WORDS.test(p.trim()) && p.trim())) return null;
+  return parts.map((p) => `${p.trim()} to taste`);
+}
+
 export function parseIngredientLine(rawLine) {
   const stripped = String(rawLine || "").replace(/^[\s▢☐☑✓•●○\-*·]+/, "").trim();
   if (!stripped || /:$/.test(stripped)) return null; // blank, or a "For the sauce:" subheading
@@ -1329,8 +1380,10 @@ export function parseRecipeText(text) {
        — where nothing is bulleted — is untouched. */
     const bulleted = section.filter((l) => INGREDIENT_BULLET_RE.test(l));
     for (const l of (bulleted.length ? bulleted : section)) {
-      const parsed = parseIngredientLine(l);
-      if (parsed) { ingredients.push(parsed); rawIngredientLines.add(l.toLowerCase()); }
+      for (const part of splitSeasoningLine(l) || [l]) {
+        const parsed = parseIngredientLine(part);
+        if (parsed) { ingredients.push(parsed); rawIngredientLines.add(l.toLowerCase()); }
+      }
     }
   } else {
     // No "Ingredients" heading found — fall back to any line that looks like
@@ -1343,8 +1396,10 @@ export function parseRecipeText(text) {
     // happens when there IS a real Ingredients heading to duplicate.
     for (const l of lines) {
       if (!l || !/^([▢☐☑✓•●○\-*·]|\d)/.test(l)) continue;
-      const parsed = parseIngredientLine(l);
-      if (parsed) ingredients.push(parsed);
+      for (const part of splitSeasoningLine(l) || [l]) {
+        const parsed = parseIngredientLine(part);
+        if (parsed) ingredients.push(parsed);
+      }
     }
   }
 
