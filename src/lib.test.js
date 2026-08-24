@@ -106,6 +106,7 @@ import {
   KEYBOARD_MIN_INSET,
   searchHelp,
   existingIngredientSuggestions,
+  splitSuggestion,
   parseRecipeText,
   unplannedMeals,
 } from "./lib.js";
@@ -2281,6 +2282,70 @@ const knownFixture = () =>
   ["Olive oil", "Salt", "Cilantro", "Yellow onion", "Chicken breast", "Garlic", "Crushed tomatoes"].map((name) => ({ key: norm(name), name }));
 
 const suggest = (name) => existingIngredientSuggestions(knownFixture(), name).map((k) => k.name);
+
+/* ---------------- unmerging "salt and ground black pepper" ----------------
+
+   That line arrives as ONE ingredient, and on the AllRecipes au gratin page
+   it is worse than untidy: the same card ALSO lists "1/2 teaspoon salt", so
+   salt reaches the shopping list under two names that cannot be added up.
+
+   A REGEX WAS WRITTEN FOR THIS FIRST — split on "and" when the line says "to
+   taste" — and it was the wrong instinct twice. It invented a signal the
+   catalog already carried, and it DECIDED rather than asked, which is exactly
+   what item 40 was written about. The tests below are the ones that matter:
+   the separator only proposes, and both halves have to name something real. */
+
+const splitOf = (name) => (splitSuggestion(knownFixture(), name) || []).map((k) => k.name);
+
+test("a row naming two known ingredients is offered as two", () => {
+  assert.deepEqual(splitOf("Salt and olive oil"), ["Salt", "Olive oil"]);
+  // The halves come back as the CATALOG's names, not as written, so accepting
+  // unmerges the row and canonicalizes both at once.
+  assert.deepEqual(splitOf("Kosher salt and fresh cilantro"), ["Salt", "Cilantro"]);
+  // A slash is a separator too — no ingredient name contains one.
+  assert.deepEqual(splitOf("Salt/Garlic"), ["Salt", "Garlic"]);
+});
+
+test("BOTH HALVES MUST NAME SOMETHING REAL, which is what saves the garlic", () => {
+  /* THE TRAP, from the fixtures rather than invented: in "4 cloves of garlic
+     peeled and cut in half" the "and" joins a PREPARATION NOTE. Splitting it
+     would make "Garlic peeled" and "Cut in half" — two catalog entries for
+     one clove. Nobody has an ingredient called "cut in half", so no offer is
+     made, and no marker word was needed to work that out. */
+  assert.deepEqual(splitOf("Garlic peeled and cut in half"), []);
+  assert.deepEqual(splitOf("Rinsed and drained crushed tomatoes"), []);
+  assert.deepEqual(splitOf("Salt and something nobody has"), []);
+});
+
+test("the most GENERIC match wins, not the longest", () => {
+  /* A real bug caught before it shipped: ranking longest-first answered a
+     bare "pepper" with "Red bell pepper". The shortest name still containing
+     the word is what a bare word means. */
+  const known = ["Salt", "Black pepper", "Red bell pepper", "Serrano chile pepper"].map((name) => ({ key: norm(name), name }));
+  assert.deepEqual((splitSuggestion(known, "Salt and pepper") || []).map((k) => k.name), ["Salt", "Black pepper"]);
+  assert.deepEqual((splitSuggestion(known, "Salt and ground black pepper") || []).map((k) => k.name), ["Salt", "Black pepper"]);
+});
+
+test("nothing is offered when there is no merge to undo", () => {
+  // Noise is the failure mode. A chip on every row is a chip nobody reads.
+  assert.equal(splitSuggestion(knownFixture(), "Garlic"), null);         // exact catalog name
+  assert.equal(splitSuggestion(knownFixture(), "Crushed tomatoes"), null);
+  assert.equal(splitSuggestion(knownFixture(), ""), null);
+  assert.equal(splitSuggestion(knownFixture(), "Salt and pepper and garlic"), null); // three ways, not two
+  // Both halves resolving to the SAME thing is one ingredient said twice.
+  assert.equal(splitSuggestion(knownFixture(), "Olive oil and olive oil"), null);
+});
+
+test("splitSuggestion only OFFERS — item 40's rule, asserted", () => {
+  /* The old importer forked the catalog nine ways by deciding instead of
+     asking. This returns catalog entries and changes nothing; the caller
+     renders a chip. Pinned because "just apply it when we are confident" is
+     the tempting change, and confidence is exactly what was wrong last time. */
+  const known = knownFixture();
+  const before = JSON.stringify(known);
+  splitSuggestion(known, "Salt and olive oil");
+  assert.equal(JSON.stringify(known), before, "splitSuggestion mutated the catalog");
+});
 
 test("existingIngredientSuggestions finds the existing name INSIDE a longer pasted one", () => {
   // The direction ingredientMatches cannot see, and the one that caused the

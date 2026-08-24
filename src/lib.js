@@ -2479,6 +2479,80 @@ const hasRun = (hay, needle) =>
   needle.length > 0 &&
   hay.some((_, i) => i + needle.length <= hay.length && needle.every((w, j) => hay[i + j] === w));
 
+/* "Salt and ground black pepper" is TWO things to buy, and arrives as one row.
+
+   THE CATALOG ALREADY KNOWS, which is the whole point (item 40). A regex was
+   written first — split on "and" when the line says "to taste" — and it was
+   the wrong instinct twice over. It invented a signal that already existed,
+   and it DECIDED instead of asking, which is precisely the failure item 40
+   records: the old importer forked the catalog nine ways by deciding, and a
+   wrong guess accepted silently is how a catalog acquires three cilantros.
+
+   SO THE SEPARATOR ONLY PROPOSES; THE CATALOG CONFIRMS. Split on "and" or a
+   slash, then require BOTH halves to name something already known. That is
+   what tells "Salt and ground black pepper" (Salt + Black pepper, both real)
+   apart from "4 cloves garlic peeled and cut in half" — "cut in half" is not
+   an ingredient anybody has, so no offer is made, and the preparation note
+   the "and" actually belongs to is left alone. No "to taste" marker needed;
+   the evidence is better than the hint.
+
+   RETURNS THE MATCHED CATALOG NAMES, not the halves as written, so accepting
+   the offer lands on the identity the shopping list already groups by —
+   "ground black pepper" becomes "Black pepper" rather than a twelfth spelling
+   of it. Both jobs at once: unmerge the row and canonicalize both halves.
+
+   AND IT IS ONLY AN OFFER. The caller renders a chip. Nothing here changes a
+   recipe on its own. */
+export function splitSuggestion(known, name) {
+  const list = known || [];
+  const raw = String(name || "").trim();
+  if (!raw) return null;
+  // An exact catalog name is never a merged row, whatever words are in it.
+  if (list.some((k) => norm(k.name) === norm(raw))) return null;
+
+  const halves = raw.split(/\s+and\s+|\s*\/\s*/i);
+  if (halves.length !== 2) return null;
+
+  const resolve = (half) => {
+    const h = half.trim();
+    if (!h) return null;
+    const exact = list.find((k) => norm(k.name) === norm(h));
+    if (exact) return exact;
+    // Same whole-word containment existingIngredientSuggestions uses, so the
+    // two answers can never disagree about what "already have this" means.
+    const hw = wordsOf(h);
+    if (!hw.length) return null;
+    const hits = [];
+    for (const k of list) {
+      const kw = wordsOf(k.name);
+      if (!kw.length) continue;
+      // Same two tiers existingIngredientSuggestions scores by. The strong one
+      // is the KNOWN name sitting inside what we have ("Black pepper" inside
+      // "ground black pepper") — that is a near-certain identification. The
+      // weak one is the reverse ("pepper" inside "Red bell pepper"), where a
+      // short word matches half the produce aisle.
+      if (hasRun(hw, kw)) hits.push({ k, tier: 0, len: kw.length });
+      else if (hasRun(kw, hw)) hits.push({ k, tier: 1, len: kw.length });
+    }
+    if (!hits.length) return null;
+    /* SHORTEST WINS INSIDE A TIER, and getting this backwards was a real bug:
+       ranking longest-first answered "salt and pepper" with "Red bell pepper".
+       The shortest name that still contains the word is the most generic one,
+       which is what a bare "pepper" means — "Black pepper", not a specific
+       chile somebody happened to have in a recipe. */
+    hits.sort((a, b) => a.tier - b.tier || a.len - b.len || a.k.name.localeCompare(b.k.name));
+    return hits[0].k;
+  };
+
+  const a = resolve(halves[0]);
+  const b = resolve(halves[1]);
+  if (!a || !b) return null;
+  // Both halves resolving to the SAME ingredient is not a merged row —
+  // "black pepper and pepper" is one thing said twice.
+  if (norm(a.name) === norm(b.name)) return null;
+  return [a, b];
+}
+
 export function existingIngredientSuggestions(known, name, limit = 3) {
   const q = norm(name);
   if (!q) return [];

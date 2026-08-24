@@ -6,7 +6,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop, SuggestInput, SearchField } from "../ui";
-import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, ingredientNames, normalizeCfg, ingredientMatches, existingIngredientSuggestions, unitMatches, ensureIngredientId, asArray, planSlotsFor, parseRecipeText } from "../lib";
+import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, ingredientNames, normalizeCfg, ingredientMatches, existingIngredientSuggestions, splitSuggestion, unitMatches, ensureIngredientId, asArray, planSlotsFor, parseRecipeText } from "../lib";
 import { RecipeDetail } from "../RecipeDetail";
 
 // Rounded "pill" grouping a remove / count / add cluster so the controls read
@@ -318,6 +318,19 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
   // under the row, never applied: the importer forking the catalog nine ways
   // is what this is for, and it did that by deciding rather than asking.
   const ingDuplicates = (name) => existingIngredientSuggestions(knownItems, name);
+  /* "Salt and ground black pepper" is two things to buy in one row. Offered,
+     never applied — see splitSuggestion in lib.js and item 40. */
+  const ingSplit = (name) => splitSuggestion(knownItems, name);
+  /* Replaces the row with two, keeping the amount and the note on BOTH: "salt
+     and pepper to taste" is a teaspoon of neither, and "to taste" is true of
+     each half. The qty is copied rather than halved for the same reason —
+     halving "1" into two 0.5s would invent a precision the line never had. */
+  const applySplit = (i, pair) => {
+    const list = [...draft.ingredients];
+    const row = list[i];
+    list.splice(i, 1, { ...row, name: pair[0].name }, { ...row, name: pair[1].name });
+    setDraft({ ...draft, ingredients: list });
+  };
 
   const setIngName = (i, name) => {
     const list = [...draft.ingredients];
@@ -820,6 +833,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
             const matches = sugOpen ? ingMatches(ing.name) : [];
             const showList = sugOpen && matches.length > 0;
             const dupes = ingDuplicates(ing.name);
+            const splitPair = ingSplit(ing.name);
             const pick = (k) => { setIngName(i, k.name); setIngSug(null); };
             return (
             <div key={i} style={{ marginBottom: 8 }}>
@@ -950,6 +964,19 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
               }}
               style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginTop: 4, fontSize: 13 }}
             />
+            {splitPair && (
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 4, fontSize: 12, color: C.faint }}>
+                <span>Two ingredients?</span>
+                <button
+                  type="button"
+                  onClick={() => applySplit(i, splitPair)}
+                  aria-label={`Split into ${splitPair[0].name} and ${splitPair[1].name}`}
+                  style={{ padding: "2px 8px", borderRadius: 999, border: `1px solid ${C.line}`, background: C.paper, color: C.ink, cursor: "pointer", fontFamily: fontBody, fontSize: 12 }}
+                >
+                  split into “{splitPair[0].name}” + “{splitPair[1].name}”
+                </button>
+              </div>
+            )}
             {dupes.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 4, fontSize: 12, color: C.faint }}>
                 <span>Already have:</span>
