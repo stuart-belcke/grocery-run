@@ -17,28 +17,33 @@ All five captured 2026-08-23.
   allrecipes-page.txt
     Creamy au Gratin Potatoes — AllRecipes (Dotdash Meredith)
     https://www.allrecipes.com/recipe/15925/creamy-au-gratin-potatoes/
-    Expect: 8 ingredients, 9 steps, serves 4.
+    Expect: 8 ingredients, 9 steps, serves 4, name "Creamy au Gratin Potatoes".
 
   babyfoode-page.txt
     Baked Chicken & Veggie Meatballs for Baby (and Kids, Too!) — Baby Foode
     https://babyfoode.com/blog/mini-chicken-carrot-meatballs-for-baby/
-    Expect: 10 ingredients, 5 steps, servings null (see below).
+    Expect: 10 ingredients, 5 steps, servings null (see below), name
+    "Baked Chicken & Veggie Meatballs for Baby (and Kids, Too!)".
 
   mediterraneandish-page.txt
     Baked Cod Recipe with Lemon and Garlic — The Mediterranean Dish
     https://www.themediterraneandish.com/baked-cod-recipe-lemon-garlic/
-    Expect: 12 ingredients, 7 steps, serves 5.
+    Expect: 12 ingredients, 7 steps, serves 5, name "Baked Cod Recipe with
+    Lemon and Garlic".
 
   olivetomato-page.txt
     Greek Style Roasted Lemon and Garlic Chicken with Potatoes and Carrots
     — Olive Tomato
     https://www.olivetomato.com/greek-style-roasted-lemon-and-garlic-chicken-with-potatoes-and-carrots/
-    Expect: 9 ingredients, 11 steps, serves 4.
+    Expect: 9 ingredients, 11 steps, serves 4, name "Greek Style Roasted
+    Lemon and Garlic Chicken with Potatoes and Carrots".
 
   averiecooks-page.txt
     Mediterranean Baked Crispy Chicken and Pasta — Averie Cooks
     https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/
-    Expect: 22 ingredients, 20 steps, serves 4.
+    Expect: 22 ingredients, 20 steps, serves 4, name "Mediterranean baked
+    crispy chicken and pasta" (the page SHOUTS its heading; an all-caps line
+    is sentence-cased).
 
 TWO OLDER FIXTURES LIVE IN src/lib.test.js, not here, because they are PASTES
 rather than fetches — the text a person selected on the page, which never

@@ -1290,6 +1290,65 @@ const INGREDIENT_BULLET_RE = /^[\s]*[\u25a2\u2610\u2611\u2713\u2022\u25cf\u25cb\
 // one, which none of the five captured pages contains.
 const isMethodHeading = (l) => l.length > 0 && l === l.toUpperCase() && /^[A-Z][A-Z\s-]*$/.test(l) && l.split(/\s+/).length <= 6;
 
+/* THE RECIPE'S TITLE, from the line after the page's breadcrumb trail.
+
+   The name came back BLANK on all five captured pages, and that was the one
+   rough edge felt every single time — it meant typing the title by hand on
+   every import. Blank was deliberate rather than lazy (a blank field asks to
+   be filled in, a wrong one gets saved), so anything replacing it has to be
+   right far more often than it is wrong.
+
+   THE BREADCRUMB IS WHAT MAKES THAT POSSIBLE, and it is not a guess about
+   what a title looks like — that approach is what item 109 records building,
+   measuring, and reverting. It is a STRUCTURAL fact: every recipe site puts
+   a "Home > Category > Category" trail immediately above the page's heading,
+   and the heading is the recipe. All five captured pages do it, in two
+   styles:
+     Home » Mediterranean Recipes            (olivetomato, babyfoode)
+     HOME › RECIPE INDEX › ENTREES › CHICKEN (averiecooks, mediterraneandish)
+     •  RECIPES  SIDE DISH  POTATO  ...      (allrecipes — no arrow at all,
+                                              a bulleted all-caps trail with
+                                              runs of spaces between segments)
+
+   THE FIRST TRAIL WINS. A page has more of them further down — related-recipe
+   cards, the footer — and the one above the heading is the first.
+
+   FALLS BACK TO BLANK, never to a guess. No breadcrumb means the old
+   behaviour, which ends in an empty field on a page this does not recognise.
+   That is the intended outcome: this can only improve on blank, never
+   replace it with something wrong. */
+const CRUMB_ARROW_RE = /[»›]/;
+// AllRecipes: a tab-bulleted, all-caps trail whose segments are separated by
+// runs of spaces rather than by any arrow character.
+const CRUMB_CAPS_RE = /^[\s•\t]*[A-Z][A-Z\s&'’-]*\s{2,}[A-Z][A-Z\s&'’-]*$/;
+/* A title is one line of prose. These reject what sits in the same place on a
+   page that has no recipe heading — a sentence, a nav item, a stray URL. */
+const TITLE_MAX = 120;
+
+export function titleAfterBreadcrumb(lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (!l) continue;
+    const isCrumb = (CRUMB_ARROW_RE.test(l) && l.split(CRUMB_ARROW_RE).length >= 2) || CRUMB_CAPS_RE.test(l);
+    if (!isCrumb) continue;
+    // The heading is the next line with anything on it.
+    for (let j = i + 1; j < lines.length && j <= i + 3; j++) {
+      const t = (lines[j] || "").replace(/^[\s•\t]+/, "").trim();
+      if (!t) continue;
+      if (CODE_LINE_RE.test(t) || BOILERPLATE_RE.test(t)) return "";
+      if (t.length > TITLE_MAX) return "";
+      // Still a trail — some pages print two. Keep looking from there.
+      if (CRUMB_ARROW_RE.test(t)) break;
+      /* ALL CAPS GETS SENTENCE-CASED. AverieCooks' heading is
+         "MEDITERRANEAN BAKED CRISPY CHICKEN AND PASTA", which is a shouted
+         version of a real name rather than a wrong one. cap() is what every
+         ingredient name already goes through, so this matches the rest. */
+      return t === t.toUpperCase() && /[A-Z]/.test(t) ? cap(t.toLowerCase()) : t;
+    }
+  }
+  return "";
+}
+
 export function parseRecipeText(text) {
   const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n").map((l) => l.trim());
 
@@ -1303,12 +1362,14 @@ export function parseRecipeText(text) {
      outcome and not a shortfall: this function already prefers an empty name
      to a guessed one (see the test about a paste starting mid-boilerplate),
      because a blank field asks to be filled in and a wrong one gets saved. */
-  let name = "";
-  for (const l of lines) {
-    if (!l || CODE_LINE_RE.test(l)) continue;
-    if (BOILERPLATE_RE.test(l)) break;
-    name = l;
-    break;
+  let name = titleAfterBreadcrumb(lines);
+  if (!name) {
+    for (const l of lines) {
+      if (!l || CODE_LINE_RE.test(l)) continue;
+      if (BOILERPLATE_RE.test(l)) break;
+      name = l;
+      break;
+    }
   }
 
   let servings = null;

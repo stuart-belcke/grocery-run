@@ -323,16 +323,28 @@ file reached 5,886 lines with ten live items in it.
     actually shows.
 
     WHAT TO PICK UP FIRST, in the order that would teach the most:
-      - THE NAME COMES BACK BLANK on all five pages. Deliberate — a blank
-        field asks to be filled in and a wrong one gets saved — but it means
-        typing the title every time, which is the one rough edge a user
-        actually feels. Finding a title in a whole document is genuinely
-        hard; the honest options are a heuristic worth measuring, or leaving
-        it alone.
-        AND THE SERVER ROUTE JUST HANDS IT OVER. Item 106's 2026-08-24
-        measurement pulled `name` straight out of the JSON-LD on all four
-        sites that serve a datacenter IP. So the honest options are now
-        three, not two — heuristic, leave it, or don't solve it here at all.
+      - DONE — THE NAME NOW COMES BACK ON ALL FIVE. It was blank on every
+        page, which meant typing the title by hand on every import: the one
+        rough edge felt every single time. Blank was deliberate (a blank
+        field asks to be filled in, a wrong one gets saved), so replacing it
+        had to be right far more often than wrong.
+        NOT A GUESS AT WHAT A TITLE LOOKS LIKE — that is what item 109
+        records building, measuring and reverting. A STRUCTURAL fact instead:
+        every recipe site puts a "Home > Category > Category" trail directly
+        above the page heading, and the heading is the recipe. Two trail
+        styles cover all five, and AllRecipes uses neither arrow — a bulleted
+        all-caps trail spaced out with runs of spaces.
+        titleAfterBreadcrumb() in lib.js. Falls back to blank and never to a
+        guess, so it can only improve on the old answer. A paste has no
+        breadcrumb — a person starts selecting at the recipe — so pastes are
+        untouched.
+        AverieCooks shouts its heading, so an all-caps line is sentence-cased
+        through cap(), the same path every ingredient name takes.
+        Five mutations, all caught. The one worth keeping: dropping the
+        breadcrumb requirement so the first line wins again fails four tests,
+        including the stylesheet one that started all of this.
+        STILL OPEN UNDERNEATH IT: a site with no breadcrumb at all has never
+        been seen, and would come back blank as before.
       - A UK OR EUROPEAN SITE has never been tested. The parser was taught
         "500g" and "200ml" against MADE-UP lines, never a captured page —
         the same untested-assumption shape that item 109 records going wrong.
