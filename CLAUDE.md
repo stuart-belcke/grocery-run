@@ -167,11 +167,10 @@ as it takes. Skip preamble, hedging, and restating the question back. If the
 direct answer is one line, give one line. Cut anything that isn't actionable
 or doesn't add clarity — status color and process narration included.
 
-**No internal shorthand in replies to the user.** Words this codebase or this
-tool's own process uses as a term of art — "turn," "gate," "green," "head,"
-"wired up" — mean nothing to someone who doesn't share that context. Say the
-underlying thing instead: not "applied to my last two turns" but "in my last
-two replies"; not "the gate is green" but "the tests pass."
+**"Turn" is the one word that doesn't land.** "Green," "head," "wired up," and
+similar CI/git terms are fine. But "turn," meaning one reply in this
+conversation, is not something the user shares — say "reply" or "message"
+instead.
 
 **Lead with the answer.** First sentence says what happened or what to do. Put
 reasoning after it, and only as much as changes a decision. Don't build up to a
