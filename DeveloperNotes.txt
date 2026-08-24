@@ -212,6 +212,57 @@ file reached 5,886 lines with ten live items in it.
     and the app opens filled in. That is a different thing from what the
     question asked for.
 
+    THE SERVER OPTION WAS MEASURED ON 2026-08-24, and BOTH of the things it
+    was rejected for turned out to be wrong. Five fixture URLs fetched from a
+    GitHub Actions runner (Azure datacenter IP) — the same class of address a
+    Worker uses, which is what item 109 predicted would be blocked:
+
+      HOST                          STATUS   BYTES   Recipe JSON-LD
+      www.allrecipes.com            402        612   —
+      babyfoode.com                 200     679929   yes
+      www.themediterraneandish.com  200     634950   yes
+      www.olivetomato.com           200     473252   yes
+      www.averiecooks.com           200     783278   yes
+
+      FOUR OF FIVE SERVE A DATACENTER IP FINE. The prediction held for one
+      site only.
+      ALLRECIPES IS A POLICY BLOCK, NOT BOT DETECTION, and that distinction
+      decides whether it is worth fighting. The 402 body is a People Inc.
+      notice pointing at contentlicensing@people.inc. They are selling this
+      access. No user agent, header or proxy is the answer; it will not be
+      worked around, and pasting the page stays the route for that site.
+      THE JSON-LD IS THERE, AND IT IS REAL. Item 109 could not see it —
+      Shortcuts hands back tag-stripped text, so anything in a <script> was
+      invisible — and left the raw-HTML question open. It is answered: each
+      of the four carries exactly ONE ld+json block with exactly ONE Recipe
+      node. Not grepped, PARSED: name, recipeYield, recipeIngredient and
+      recipeInstructions all printed out in full.
+      THE COUNTS MATCH THE FIXTURES EXACTLY — 10, 12, 9, 22 ingredients
+      against tests/fixtures/README.md's 10, 12, 9, 22.
+      AND THE NAME COMES BACK, which is item 110's first open problem and the
+      one rough edge a user actually feels. So does a yield for babyfoode,
+      where the text parser gets nothing.
+
+    THREE TRAPS IN THAT DATA, found by printing it rather than assuming:
+      - `name` arrives HTML-ESCAPED ("Chicken &amp; Veggie"). Unescape it.
+      - `recipeYield` IS AN ARRAY and IS NOT SERVINGS. babyfoode's is
+        ["24","24 1\" meatballs"] — twenty-four meatballs, not twenty-four
+        servings. Reading it as servings would scale a whole shopping list
+        wrong, quietly. This is the one that would cost a trip.
+      - THE LINES STILL NEED THE EXISTING PARSER. "1 lb ground chicken ((or
+        ground turkey))", "1/2 cup carrot,  (finely shredded )" — doubled
+        brackets, stray double spaces. So JSON-LD replaces the HEURISTIC HUNT
+        for where the ingredient list starts and ends, which is exactly what
+        item 109's scored-heading experiment failed at. It does NOT replace
+        parseIngredientLine. Nothing already built is wasted.
+
+    WHAT THIS DOES NOT CHANGE: a browser still cannot fetch a page, so this
+    needs a server either way. The Shortcut stays the only route with no
+    infrastructure at all. And a GitHub runner is NOT a Cloudflare Worker —
+    different IPs, different reputation — so four passes are SUGGESTIVE, not
+    proof. Deploy a throwaway Worker against these same five before building
+    anything on it.
+
     REVISIT THE SERVER OPTION ONLY IF: somebody outside the two of us uses
     this, or an Android phone joins a household. The Shortcut is iOS-only and
     needs per-phone setup, which is fine for two people and wrong for any
@@ -241,6 +292,10 @@ file reached 5,886 lines with ten live items in it.
         actually feels. Finding a title in a whole document is genuinely
         hard; the honest options are a heuristic worth measuring, or leaving
         it alone.
+        AND THE SERVER ROUTE JUST HANDS IT OVER. Item 106's 2026-08-24
+        measurement pulled `name` straight out of the JSON-LD on all four
+        sites that serve a datacenter IP. So the honest options are now
+        three, not two — heuristic, leave it, or don't solve it here at all.
       - A UK OR EUROPEAN SITE has never been tested. The parser was taught
         "500g" and "200ml" against MADE-UP lines, never a captured page —
         the same untested-assumption shape that item 109 records going wrong.
