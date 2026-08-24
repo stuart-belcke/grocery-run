@@ -21,7 +21,8 @@ item is finished and lives over there.
 IF YOU ARE PICKING SOMETHING UP
 -------------------------------
 
-  106  import a recipe from a link      app half done; one step, on a phone
+  106  import a recipe from a link      A PRIORITY now. One phone test decides
+                                       whether it needs a server at all
   110  the parser                       standing task: more captured pages
    98  the test gaps                    a register; 98a is the costly one
    30  warn about an older build        small, and it has bitten once
@@ -263,12 +264,48 @@ file reached 5,886 lines with ten live items in it.
     proof. Deploy a throwaway Worker against these same five before building
     anything on it.
 
-    REVISIT THE SERVER OPTION ONLY IF: somebody outside the two of us uses
-    this, or an Android phone joins a household. The Shortcut is iOS-only and
-    needs per-phone setup, which is fine for two people and wrong for any
-    real number of them. The answer then is a Cloudflare Worker (~30 lines,
-    free at 100k requests/day) plus an allowlist of recipe hosts so the
-    endpoint cannot be used as a general proxy.
+    THE SERVER OPTION IS NOW WANTED, NOT MERELY PERMITTED. This used to say
+    "revisit only if somebody outside the two of us uses this, or an Android
+    phone joins a household". That trigger is retired: adding recipes easily
+    and reliably is a stated priority, and URL parsing is where it ends up.
+    It is a DIRECTION now, not a contingency. What is missing is only the
+    infrastructure decision, which is the owner's to make.
+
+    RUN THE CHEAP EXPERIMENT FIRST, because it might remove the server
+    entirely. Item 109 established that Get Contents of URL hands Shortcuts
+    the page's text with TAGS ALREADY STRIPPED, which is why the JSON-LD was
+    invisible. It did NOT establish that Shortcuts cannot be made to hand
+    over raw HTML — nobody has tried. If some arrangement of that action
+    yields the markup, then the structured data measured above is reachable
+    with NO SERVER AT ALL, on the route that already works from a domestic
+    IP, and every problem below dissolves. Ten minutes on a phone. Do this
+    before spending anything on hosting.
+
+    IF THAT FAILS, THE SERVER PATH, in order:
+      1. A throwaway Cloudflare Worker against the same five URLs, to check
+         that Cloudflare's own IPs are served — the GitHub runner is not
+         proof. If AllRecipes still 402s there, that is expected and fine:
+         it is a licensing block, not bot detection, and pasting the page
+         stays the answer for that one site.
+      2. THEN a real Worker: ~30 lines, free at 100k requests/day, plus an
+         ALLOWLIST OF RECIPE HOSTS so the endpoint cannot be used as a
+         general proxy. That allowlist is not optional — an open fetcher on
+         a public URL is somebody else's problem to abuse.
+      3. Read the JSON-LD first and fall back to parseRecipeText on the
+         page text. That is item 109's ladder, and it is the right shape:
+         try the most structured reading, widen when it yields nothing.
+      4. Feed both into the SAME fillDraft the paste panel and the URL
+         receiver already use, so there is one definition of what a recipe
+         means and three ways of arriving at it.
+
+    WHAT IT WOULD ACTUALLY BUY, beyond the gesture: the NAME, which comes
+    back blank on all five pages today and is the one rough edge felt every
+    single time (item 110). Plus servings on the pages the text parser
+    cannot get them from, and an ingredient list that needs no heuristic
+    hunt for where it starts. That is a bigger win than "paste a link"
+    sounds like.
+
+    AND IT WOULD WORK ON ANDROID, which the Shortcut never will.
 
 110. THE PARSER: STOPPED AT GOOD ENOUGH, and the list to resume from.
     Five real pages from five sites parse correctly — every ingredient list,
