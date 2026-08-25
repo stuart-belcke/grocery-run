@@ -62,6 +62,22 @@ const dayRow = (state) => ({
   color: state === "taken" ? C.faint : C.ink,
 });
 
+/* Which cards are expanded, and which one you were last reading — remembered
+   OUTSIDE React state so it survives this tab unmounting. App.jsx swaps tabs
+   by conditional rendering ({tab === "meals" && <MealsTab/>}), so MealsTab is
+   torn down and rebuilt from nothing every time you leave and come back,
+   taking every useState with it. That is invisible for most of this tab's
+   state — a search query or an open dialog is fine to lose — but "I was
+   reading a recipe while cooking and tapped Plan by accident" is exactly the
+   case where losing it costs a re-scroll with wet hands.
+   A MODULE VARIABLE, not localStorage: there is only ever one MealsTab
+   mounted at a time, so nothing needs a key, and this should NOT survive a
+   real reload — a scroll position from days ago waiting for you is worse
+   than starting at the top, but "you tapped another tab a second ago" should
+   restore instantly. */
+let openDetailsMemory = {};
+let cookingRecipeId = null;
+
 export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, clearImport }) {
   const [draft, setDraft] = useState(null);
   const [mealView, setMealView] = useState("az");
@@ -77,8 +93,31 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
      the page settled with B's own heading scrolled above the fold, so
      tapping a recipe looked like it "expanded upward" and ate its own
      title. Letting any number of cards stay open removes the fight: tapping
-     a card only ever changes that card's own height, never another one's. */
-  const [openDetails, setOpenDetails] = useState({});
+     a card only ever changes that card's own height, never another one's.
+     Seeded from openDetailsMemory (see above) so a return to this tab starts
+     with the same cards open it had when you left, rather than every one
+     collapsed. */
+  const [openDetails, setOpenDetailsState] = useState(openDetailsMemory);
+  const setOpenDetails = (updater) => {
+    setOpenDetailsState((cur) => {
+      const next = typeof updater === "function" ? updater(cur) : updater;
+      openDetailsMemory = next;
+      return next;
+    });
+  };
+  /* Puts the card you were reading back where it was, the moment this tab
+     mounts — which, since App.jsx tears the tab down on every switch, is
+     exactly the moment you come back to it. Runs once per mount rather than
+     watching openDetails: re-scrolling on every card you open or close
+     while you're already here would fight your own scrolling. cookingRecipeId
+     may point at a card you've since closed (openDetailsMemory says so) or
+     one you never opened this session at all (null) — either way there is
+     nothing to scroll back to. */
+  useEffect(() => {
+    if (!cookingRecipeId || !openDetailsMemory[cookingRecipeId]) return;
+    document.querySelector(`[data-recipe-card="${cookingRecipeId}"]`)?.scrollIntoView({ block: "start" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [planPick, setPlanPick] = useState(null); // { id, day, type } while choosing a week-plan slot
   const [editServings, setEditServings] = useState(null); // { id, value } while typing an exact batch count
   const [confirmDelete, setConfirmDelete] = useState(null); // recipe pending deletion
@@ -377,6 +416,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
     return (
       <div
         key={r.id}
+        data-recipe-card={r.id}
         style={{
           position: "relative",
           background: C.card,
@@ -410,7 +450,13 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
               the app's h1. */}
           <CardHeading style={{ margin: 0, font: "inherit", fontWeight: "inherit" }}>
           <button
-            onClick={() => setOpenDetails((cur) => ({ ...cur, [r.id]: !detailShown }))}
+            onClick={() => {
+              const opening = !detailShown;
+              setOpenDetails((cur) => ({ ...cur, [r.id]: opening }));
+              // Only remembered on OPEN, not on close — closing the card you
+              // were reading isn't "come back to this", it's "I'm done".
+              if (opening) cookingRecipeId = r.id;
+            }}
             aria-expanded={detailShown}
             title="Show ingredients and recipe"
             style={{ display: "block", width: "100%", background: "transparent", border: "none", padding: 0, cursor: "pointer", textAlign: "left", fontFamily: fontBody }}

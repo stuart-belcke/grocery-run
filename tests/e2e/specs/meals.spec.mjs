@@ -180,6 +180,50 @@ test("SHOULD: opening a second recipe's detail doesn't close the first", async (
   }
 });
 
+test("SHOULD: a recipe you were reading stays open and back in view after switching tabs and back", async () => {
+  /* The "cooking a meal" case: you're reading a recipe off a card scrolled
+     partway down the list, tap another tab by accident (or on purpose, to
+     check the plan), and come back. App.jsx tears MealsTab down on every
+     tab switch, so without a fix the card had silently re-collapsed and
+     you'd be back at the top of an alphabetical list, re-scrolling with wet
+     hands. Uses the real catalog (cleanCatalog) rather than smallCatalog's
+     two recipes — this only means anything with enough cards that one is
+     off-screen at the top of the tab. */
+  const page = await openApp(BASE, { catalog: cleanCatalog() });
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.tab("Recipes");
+
+    const count = await page.getByTitle("Show ingredients and recipe").count();
+    assert.ok(count > 5, "fixture check: need enough recipes for one to be off-screen");
+    const targetIdx = count - 1; // last in the list — off-screen at the top
+    // A stable handle to look the same card up again after the tab remounts
+    // — the toggle's OWN text changes ("Ingredients & recipe ▾" ->
+    // "Hide details ▲") the moment it opens, so matching on text captured
+    // before the click would stop matching after it. The recipe id on the
+    // card's wrapper div doesn't change either way.
+    const targetId = await page.evaluate((idx) => document.querySelectorAll("[data-recipe-card]")[idx].getAttribute("data-recipe-card"), targetIdx);
+    const targetToggle = () => page.locator(`[data-recipe-card="${targetId}"]`).getByTitle("Show ingredients and recipe");
+
+    const before = await targetToggle().boundingBox();
+    assert.ok(before.y > 844, "fixture check: the target card should start below the fold");
+
+    await targetToggle().click();
+    await page.waitForTimeout(300);
+    assert.equal(await targetToggle().getAttribute("aria-expanded"), "true", "the target recipe should be open");
+
+    await page.tab("Plan");
+    await page.tab("Recipes");
+
+    assert.equal(await targetToggle().getAttribute("aria-expanded"), "true", "the target recipe should still be open after switching tabs and back");
+    const after = await targetToggle().boundingBox();
+    assert.ok(after.y >= -1 && after.y < 844, `the target recipe should be scrolled back into view, not left at the top of the list; got y=${after.y}`);
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
 test("SHOULD: the multiplier previews a scaled recipe WITHOUT putting anything on the list", async () => {
   // Stir-fry serves 2 and wants 1 lb chicken. At x3 the card should show
   // 6 sv and 3 lb — while the shopping list stays untouched, because
