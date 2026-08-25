@@ -185,3 +185,137 @@ test("adding a brand-new item keeps the catalog id-keyed", async () => {
     await page.done();
   }
 });
+
+/* ---------------- coming back to a tab is not starting over ----------------
+
+   Reported as a principle rather than a bug: "when you're navigating tabs you
+   don't intend to start from a clean slate each time." App.jsx swaps tabs by
+   conditional rendering, so every tab was destroyed and rebuilt on each
+   switch, losing its search, its filters and its scroll.
+
+   PANTRY IS THE TAB THIS IS WORST ON — 126 ingredients, 10195px at 390x844,
+   so re-finding your place costs the most here. */
+
+test("the Pantry keeps its scroll position across a tab switch", async () => {
+  /* The scroll survived on its own whenever the tab you visited was TALLER,
+     which is why this looked fine for a long time. Going somewhere shorter
+     made the browser clamp the scroll to that tab's maximum, and the clamp
+     did not come back: List is one screen tall, so it clamped this to 0. */
+  const page = await openApp(BASE, { catalog: cleanCatalog() });
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.tab("Pantry");
+    await page.evaluate(() => window.scrollTo(0, 3000));
+    await page.waitForTimeout(300);
+    const before = await page.evaluate(() => Math.round(window.scrollY));
+    assert.ok(before > 2000, `fixture check: should be well down the pantry, got ${before}`);
+
+    await page.tab("List");
+    const away = await page.evaluate(() => Math.round(window.scrollY));
+    assert.ok(away < before, `fixture check: List should be short enough to clamp the scroll, got ${away}`);
+
+    await page.tab("Pantry");
+    const after = await page.evaluate(() => Math.round(window.scrollY));
+    assert.ok(
+      Math.abs(after - before) <= 2,
+      `should come back to where you were (${before}), not to the scroll List clamped it to (${away}); got ${after}`
+    );
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("a tab switch does not drift the scroll, however many times you do it", async () => {
+  /* THE DRIFT WAS 10px A ROUND TRIP, AND IT COMPOUNDED — 3010, 3020, 3030,
+     3040, 3050, 3060 over five. StickyBar grew by 10px at the moment it
+     stuck (0/10 padding at rest, 10/10 stuck), which makes the document 10px
+     taller and the browser's scroll anchoring nudges the page down to
+     compensate. Harmless while nothing restored a scroll position; a
+     compounding error once something did. Five round trips, because one
+     would pass at 10px of drift and this is about it accumulating. */
+  const page = await openApp(BASE, { catalog: cleanCatalog() });
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.tab("Pantry");
+    await page.evaluate(() => window.scrollTo(0, 3000));
+    await page.waitForTimeout(300);
+    const start = await page.evaluate(() => Math.round(window.scrollY));
+
+    for (let i = 0; i < 5; i++) {
+      await page.tab("List");
+      await page.tab("Pantry");
+    }
+    const end = await page.evaluate(() => Math.round(window.scrollY));
+    assert.ok(
+      Math.abs(end - start) <= 2,
+      `five round trips should land where one does (${start}); got ${end}, a drift of ${end - start}px`
+    );
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("the Pantry keeps its search and filters across a tab switch", async () => {
+  const page = await openApp(BASE, { catalog: cleanCatalog() });
+  try {
+    await page.tab("Pantry");
+    await page.searchIngredients("onion");
+    const rowsWhileSearching = await page.locator("[aria-label^='Edit store and aisles for ']").count();
+    assert.ok(rowsWhileSearching > 0, "fixture check: the search should match something");
+
+    await page.tab("Plan");
+    await page.tab("Pantry");
+
+    assert.equal(
+      await page.getByLabel("Search ingredients").inputValue(),
+      "onion",
+      "the search you had typed should still be there"
+    );
+    assert.equal(
+      await page.locator("[aria-label^='Edit store and aisles for ']").count(),
+      rowsWhileSearching,
+      "and the list should still be the filtered one, not all 126 back again"
+    );
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("each tab keeps its OWN place, rather than all five sharing one", async () => {
+  /* The other half of the same bug, and the reason it is per tab rather than
+     one saved number: five tabs shared the document's single scroll offset,
+     so opening a fresh tab could drop you halfway down it. */
+  const page = await openApp(BASE, { catalog: cleanCatalog() });
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.tab("Pantry");
+    await page.evaluate(() => window.scrollTo(0, 3000));
+    await page.waitForTimeout(300);
+    const pantry = await page.evaluate(() => Math.round(window.scrollY));
+
+    await page.tab("Recipes");
+    const recipesOnArrival = await page.evaluate(() => Math.round(window.scrollY));
+    assert.equal(recipesOnArrival, 0, `arriving on a tab you have not scrolled should start at the top, not at the Pantry's ${pantry}`);
+
+    await page.evaluate(() => window.scrollTo(0, 1500));
+    await page.waitForTimeout(300);
+    const recipes = await page.evaluate(() => Math.round(window.scrollY));
+
+    await page.tab("Pantry");
+    assert.ok(
+      Math.abs((await page.evaluate(() => Math.round(window.scrollY))) - pantry) <= 2,
+      `the Pantry should still be at its own ${pantry}`
+    );
+    await page.tab("Recipes");
+    assert.ok(
+      Math.abs((await page.evaluate(() => Math.round(window.scrollY))) - recipes) <= 2,
+      `and Recipes at its own ${recipes}`
+    );
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});

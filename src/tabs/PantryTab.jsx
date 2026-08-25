@@ -6,7 +6,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
-import { Btn, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop, SearchField, SuggestInput } from "../ui";
+import { Btn, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop, SearchField, SuggestInput, useSticky } from "../ui";
 import { UNASSIGNED, norm, cap, r2, aisleKey, aisleFor, normalizeCfg, ingredientNames, unitMatches, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient, ensureIngredientId, ingredientIdByName, mergeIngredients, setIngredientCfg, planIngredientRename } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Recipes tab's "unplanned" pill so
@@ -24,12 +24,12 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
   const [newStore, setNewStore] = useState("");
   const [newItem, setNewItem] = useState("");
   const [editItem, setEditItem] = useState(null); // { key, name } while renaming an ingredient
-  const [openItem, setOpenItem] = useState(null); // key of the row expanded for store/aisle editing
-  const [query, setQuery] = useState("");
-  const [storeFilter, setStoreFilter] = useState(""); // "" = all stores
-  const [staplesOnly, setStaplesOnly] = useState(false); // narrow to home staples
+  const [openItem, setOpenItem] = useSticky("pantry.openItem", null); // key of the row expanded for store/aisle editing
+  const [query, setQuery] = useSticky("pantry.query", "");
+  const [storeFilter, setStoreFilter] = useSticky("pantry.storeFilter", ""); // "" = all stores
+  const [staplesOnly, setStaplesOnly] = useSticky("pantry.staplesOnly", false); // narrow to home staples
   const [filterOpen, setFilterOpen] = useState(false); // filter popover open
-  const [showAisles, setShowAisles] = useState(false); // reveal aisles for non-default stores
+  const [showAisles, setShowAisles] = useSticky("pantry.showAisles", false); // reveal aisles for non-default stores
   const [askRename, setAskRename] = useState(null);       // rename touching recipes: how to apply it
   const [confirmStore, setConfirmStore] = useState(null); // store pending removal
   const [confirmItem, setConfirmItem] = useState(null);   // { key, name } pending removal

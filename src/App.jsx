@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import {
   syncEnabled,
   loadDeviceCode,
@@ -141,6 +141,38 @@ export default function App() {
   // only — pushing it could overwrite a real one with a fresh copy of the file.
   const [catalogReady, setCatalogReady] = useState(false);
   const [tab, setTab] = useState("list");
+  /* EVERY TAB KEEPS ITS OWN SCROLL POSITION.
+
+     The whole app is one document, so window.scrollY does survive a tab
+     switch on its own — which is why this looked like it already worked.
+     What destroys it is the tab you go to being SHORTER: the browser clamps
+     the scroll to that tab's own maximum and the clamp does not come back.
+     Measured at 390x844 — Recipes 5311px, Plan 983px, List 844px, Pantry
+     10195px. Scrolled to 2010 on Recipes and back via Pantry keeps it; via
+     Plan leaves you at 139; via List at 0. So it worked exactly when the
+     other tab happened to be the taller one, which is not a rule anybody
+     can hold in their head.
+
+     CAPTURED IN THE HANDLER, not in an effect. By the time an effect for the
+     new tab runs, the swap has happened and the browser has already clamped
+     the number we wanted — the old tab's position is gone before anything
+     can read it. Reading it synchronously on the way out is exact.
+
+     RESTORED IN A LAYOUT EFFECT so the scroll is corrected before the browser
+     paints; a passive effect shows one frame at the wrong offset.
+
+     A TAB YOU HAVE NOT VISITED STARTS AT THE TOP rather than inheriting
+     whatever the last tab was scrolled to, which is its own small bug: five
+     tabs used to share one number, so opening a fresh one could drop you
+     halfway down it. */
+  const scrollByTab = useRef({});
+  const goTab = (id) => {
+    scrollByTab.current[tab] = window.scrollY;
+    setTab(id);
+  };
+  useLayoutEffect(() => {
+    window.scrollTo(0, scrollByTab.current[tab] || 0);
+  }, [tab]);
   /* The tab bar goes away while the keyboard is up. `position: fixed` is fixed
      to the LAYOUT viewport, and iOS Safari does not shrink that for the
      keyboard — it shrinks the visual viewport and scrolls the layout one — so
@@ -209,7 +241,8 @@ export default function App() {
     if (typeof window === "undefined" || !pendingImport) return;
     saveJSON(PENDING_IMPORT_KEY, pendingImport);
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
-    setTab("meals");
+    goTab("meals");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingImport]);
   const clearImport = () => {
     saveJSON(PENDING_IMPORT_KEY, null);
@@ -1468,7 +1501,7 @@ export default function App() {
           {TABS.map((t) => (
             <button
               key={t.id}
-              onClick={() => setTab(t.id)}
+              onClick={() => goTab(t.id)}
               aria-current={tab === t.id ? "page" : undefined}
               style={{
                 // Equal shares of whatever width there is, and minWidth 0 so

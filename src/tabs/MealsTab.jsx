@@ -5,7 +5,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
-import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop, SuggestInput, SearchField } from "../ui";
+import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop, SuggestInput, SearchField, useSticky } from "../ui";
 import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, ingredientNames, normalizeCfg, ingredientMatches, existingIngredientSuggestions, splitSuggestion, unitMatches, ensureIngredientId, asArray, planSlotsFor, parseRecipeText } from "../lib";
 import { RecipeDetail } from "../RecipeDetail";
 
@@ -64,10 +64,30 @@ const dayRow = (state) => ({
 
 export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, clearImport }) {
   const [draft, setDraft] = useState(null);
-  const [mealView, setMealView] = useState("az");
-  const [easyOnly, setEasyOnly] = useState(false);
-  const [query, setQuery] = useState("");
-  const [detailOpen, setDetailOpen] = useState(null);
+  /* WHAT YOU WERE LOOKING AT survives a tab switch; what you were in the
+     middle of DOING does not. See useSticky in ui.jsx for why the two are
+     separated — `draft` above is deliberately NOT sticky, because a
+     half-written recipe reappearing under you on a tab you have just walked
+     back onto is a surprise rather than a convenience.
+     Scroll is not handled here any more: App.jsx keeps a position per tab,
+     so every tab gets this rather than only this one. It is only correct
+     because of the four lines below — restoring a scroll offset onto a list
+     that had silently reset its own search would land somewhere arbitrary. */
+  const [mealView, setMealView] = useSticky("meals.view", "az");
+  const [easyOnly, setEasyOnly] = useSticky("meals.easyOnly", false);
+  const [query, setQuery] = useSticky("meals.query", "");
+  /* Keyed by recipe id, like `mults` below — NOT a single id.
+     A single "which one is open" value meant opening card B silently closed
+     whatever card A was already open, anywhere in the list. If A was above
+     the current scroll position, collapsing it removed a chunk of height
+     above everything below it — including B — at the exact moment B's own
+     detail was expanding. The two size changes fought over the same tap,
+     and which one the browser compensated for was inconsistent: sometimes
+     the page settled with B's own heading scrolled above the fold, so
+     tapping a recipe looked like it "expanded upward" and ate its own
+     title. Letting any number of cards stay open removes the fight: tapping
+     a card only ever changes that card's own height, never another one's. */
+  const [openDetails, setOpenDetails] = useSticky("meals.openDetails", {});
   const [planPick, setPlanPick] = useState(null); // { id, day, type } while choosing a week-plan slot
   const [editServings, setEditServings] = useState(null); // { id, value } while typing an exact batch count
   const [confirmDelete, setConfirmDelete] = useState(null); // recipe pending deletion
@@ -79,8 +99,12 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
      on it — which is what Add unplanned does, by writing base × mult
      into the list. Steps in whole batches because that is what a recipe
      scales by; the exact-servings editor on the pill is still there for the
-     amount that isn't a round multiple. */
-  const [mults, setMults] = useState({});
+     amount that isn't a round multiple.
+     STICKY, like the open card it belongs to: reading a recipe at x2, going
+     to check the plan and coming back to x1 would quietly change the amounts
+     under someone who is cooking from them. Still never PERSISTED — surviving
+     a tab switch and surviving a reload are different questions. */
+  const [mults, setMults] = useSticky("meals.mults", {});
   const [pasteOpen, setPasteOpen] = useState(false); // paste-a-recipe panel shown in the draft editor
   const [pasteText, setPasteText] = useState("");
   /* What a Shortcut handed over and how much of it survived the trip, or
@@ -141,7 +165,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
     setPasteText("");
   };
 
-  const blankDraft = () => ({ id: null, name: "", mealTypes: [], easy: false, side: false, servings: "4", notes: "", ingredients: [{ name: "", qty: "1", unit: "", note: "" }] });
+  const blankDraft = () => ({ id: null, name: "", mealTypes: [], easy: false, side: false, servings: "4", source: "", notes: "", ingredients: [{ name: "", qty: "1", unit: "", note: "" }] });
   const startNew = () => {
     setDraft(blankDraft());
     closePaste();
@@ -154,6 +178,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
       easy: !!r.easy,
       side: !!r.side,
       servings: String(r.servings || 4),
+      source: r.source || "",
       notes: r.notes || "",
       ingredients: r.ingredients.map((i) => ({ ...i, qty: String(i.qty), note: i.note || "" })),
     });
@@ -226,6 +251,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
       easy: !!draft.easy,
       side: !!draft.side,
       servings: Math.max(1, Number(draft.servings) || 4),
+      source: draft.source.trim(),
       notes: draft.notes.trim(),
       ingredients: draft.ingredients
         .filter((i) => i.name.trim())
@@ -355,7 +381,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
        thing is how they drift apart. Until then the multiplier previews
        exactly what Add unplanned is about to write. */
     const previewServings = servings > 0 ? servings : base * mult;
-    const detailShown = detailOpen === r.id;
+    const detailShown = !!openDetails[r.id];
     // Everywhere this recipe appears in the plan, as a main or as a side —
     // sides are read-only here (a name + which day/meal), since adding one is
     // a Week-tab action that needs the rest of that slot's dishes in view.
@@ -364,6 +390,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
     return (
       <div
         key={r.id}
+        data-recipe-card={r.id}
         style={{
           position: "relative",
           background: C.card,
@@ -397,7 +424,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
               the app's h1. */}
           <CardHeading style={{ margin: 0, font: "inherit", fontWeight: "inherit" }}>
           <button
-            onClick={() => setDetailOpen(detailShown ? null : r.id)}
+            onClick={() => setOpenDetails((cur) => ({ ...cur, [r.id]: !detailShown }))}
             aria-expanded={detailShown}
             title="Show ingredients and recipe"
             style={{ display: "block", width: "100%", background: "transparent", border: "none", padding: 0, cursor: "pointer", textAlign: "left", fontFamily: fontBody }}
@@ -754,6 +781,18 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
             value={draft.name}
             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
             style={{ ...inputStyle, width: "100%", boxSizing: "border-box", fontSize: 16, fontWeight: 500, marginBottom: 10 }}
+          />
+          {/* ITS OWN FIELD, not a line inside Notes — so a link pasted here
+              renders as a tappable Source section on the card instead of
+              running off the edge of it (see RecipeDetail). type="url" gets
+              the right mobile keyboard; nothing here requires a URL, since a
+              typed citation is a legal source too. */}
+          <input
+            type="url"
+            placeholder="Source / link (optional)"
+            value={draft.source}
+            onChange={(e) => setDraft({ ...draft, source: e.target.value })}
+            style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 10 }}
           />
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
             <span style={{ fontSize: 12, color: C.faint }}>Meal type:</span>

@@ -153,6 +153,141 @@ const openDetail = async (page, recipe) => {
   await page.waitForTimeout(300);
 };
 
+test("SHOULD: opening a second recipe's detail doesn't close the first", async () => {
+  /* Regression for a real bug: the open/closed state used to be a single
+     recipe id, so opening card B silently closed whatever card A was
+     already open elsewhere in the list. If A sat above B, collapsing it
+     removed height above B at the exact moment B's own detail was
+     expanding, so B's own heading could end up scrolled above the fold —
+     tapping a recipe looked like it "expanded upward" and ate its own
+     title. Asserted on aria-expanded, which is what the earlier bug
+     actually flipped back to false. */
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await page.tab("Recipes");
+    await openDetail(page, "Stir-fry");
+    await openDetail(page, "Rice side");
+
+    const toggles = page.getByTitle("Show ingredients and recipe");
+    const texts = await toggles.allTextContents();
+    const stirfry = texts.findIndex((t) => t.includes("Stir-fry"));
+    const rice = texts.findIndex((t) => t.includes("Rice side"));
+    assert.equal(await toggles.nth(stirfry).getAttribute("aria-expanded"), "true", "opening Rice side should not have closed Stir-fry");
+    assert.equal(await toggles.nth(rice).getAttribute("aria-expanded"), "true", "Rice side itself should be open");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: a recipe you were reading comes back open, at the same place in it", async () => {
+  /* The "cooking a meal" case: you're partway down a recipe — step four, not
+     its title — tap another tab (by accident, or to check the plan), and come
+     back. App.jsx tears MealsTab down on every tab switch, so the card used to
+     re-collapse and drop you at the top of an alphabetical list.
+
+     ASSERTS THE OFFSET INTO THE CARD, not merely that it is on screen. The
+     first version of this fix scrolled the card's TOP to the top of the
+     screen, which passes any "is it visible" check while still throwing away
+     four hundred pixels of where you actually were — reported from real use
+     as "it jumps to the top of the open recipe regardless of where I was".
+     The card's viewport-relative top IS that offset: -400 means 400px in.
+
+     THE SEARCH BOX IS USED ON PURPOSE: it is the thing most likely to move
+     everything else. The filter has to come back with you for the position
+     to mean anything — a restored scroll offset onto a list that had
+     silently reset its own search would land somewhere arbitrary — so this
+     asserts the search survived too, in the same breath as the offset. */
+  const page = await openApp(BASE, { catalog: cleanCatalog() });
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.tab("Recipes");
+    await page.getByLabel("Search meals or ingredients").fill("Crockpot Greek");
+    await page.waitForTimeout(400);
+
+    const toggle = page.getByTitle("Show ingredients and recipe").first();
+    await toggle.click();
+    await page.waitForTimeout(300);
+    const targetId = await page.evaluate(() => document.querySelector("[data-recipe-card]").getAttribute("data-recipe-card"));
+    const card = () => page.locator(`[data-recipe-card="${targetId}"]`);
+
+    // Read down into the method — far enough that snapping to the card's top
+    // is unmistakably the wrong answer.
+    const READING_AT = 400;
+    await page.evaluate(([id, into]) => {
+      window.scrollTo(0, 0);
+      const el = document.querySelector(`[data-recipe-card="${id}"]`);
+      window.scrollBy(0, el.getBoundingClientRect().top + into);
+    }, [targetId, READING_AT]);
+    await page.waitForTimeout(300);
+
+    const before = await card().boundingBox();
+    assert.ok(Math.abs(before.y + READING_AT) <= 2, `fixture check: should be ${READING_AT}px into the card; got y=${before.y}`);
+
+    await page.tab("Plan");
+    await page.tab("Recipes");
+
+    assert.equal(
+      await card().getByTitle("Show ingredients and recipe").getAttribute("aria-expanded"),
+      "true",
+      "the recipe should still be open after switching tabs and back"
+    );
+    assert.equal(
+      await page.getByLabel("Search meals or ingredients").inputValue(),
+      "Crockpot Greek",
+      "the search you had typed should come back with you, or the list underneath is a different one"
+    );
+    const after = await card().boundingBox();
+    assert.ok(
+      Math.abs(after.y - before.y) <= 2,
+      `should come back to the same place in the recipe (y=${before.y}), not to its top; got y=${after.y}`
+    );
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: keep your place in the recipe list across a tab switch, with nothing opened", async () => {
+  /* The ordinary half of the same report: scrolled partway down the list,
+     no card expanded, tap another tab and come back.
+
+     THIS ONE LOOKS LIKE IT ALREADY WORKS, AND MOSTLY DOES — the whole app is
+     one document, so window.scrollY survives a tab switch on its own. What
+     breaks it is the DESTINATION TAB BEING SHORTER: the browser clamps the
+     scroll to that tab's own maximum and the clamp does not come back.
+     Measured at 390x844 — Recipes is 5311px and Plan is 983px, so scrolled to
+     2010 and back via Plan left you at 139; via List (844px, no scroll at
+     all) it left you at 0. Going via Pantry (10195px) kept it, which is
+     exactly why this looked fine until it didn't.
+
+     PLAN IS THE TAB IT GOES VIA, deliberately: a taller one cannot fail. */
+  const page = await openApp(BASE, { catalog: cleanCatalog() });
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.tab("Recipes");
+    await page.evaluate(() => window.scrollTo(0, 2000));
+    await page.waitForTimeout(300);
+
+    const before = await page.evaluate(() => Math.round(window.scrollY));
+    assert.ok(before > 1500, `fixture check: should be scrolled well down the list, got ${before}`);
+
+    await page.tab("Plan");
+    const away = await page.evaluate(() => Math.round(window.scrollY));
+    assert.ok(away < before, `fixture check: Plan should be short enough to clamp the scroll, got ${away}`);
+
+    await page.tab("Recipes");
+    const after = await page.evaluate(() => Math.round(window.scrollY));
+    assert.ok(
+      Math.abs(after - before) <= 2,
+      `should come back to the same place in the list (${before}), not the scroll Plan clamped it to (${away}); got ${after}`
+    );
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
 test("SHOULD: the multiplier previews a scaled recipe WITHOUT putting anything on the list", async () => {
   // Stir-fry serves 2 and wants 1 lb chicken. At x3 the card should show
   // 6 sv and 3 lb — while the shopping list stays untouched, because
@@ -631,6 +766,75 @@ test("SHOULD: both Adds and Edit share one row on the phone this app is used on"
     assert.deepEqual(rows.found, ["Add unplanned", "Add to a day", "Edit"], "the card's three actions are not all present");
     assert.equal(new Set(rows.tops).size, 1, `the three actions are on ${new Set(rows.tops).size} rows, not one: ${JSON.stringify(rows.tops)}`);
     assert.ok(rows.right <= rows.vw, `the row runs off a ${rows.vw}px screen, ending at ${rows.right}`);
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* ---------------- a recipe's source link ---------------- */
+
+test("SHOULD: a long link in a recipe's notes wraps instead of pushing the card off screen", async () => {
+  // Before the fix, whiteSpace: pre-wrap alone didn't break a single
+  // unbroken run of characters — exactly what a pasted URL is — so it
+  // widened the card past the edge of the screen instead of wrapping.
+  const catalog = smallCatalog();
+  catalog.recipes["r-stirfry"].notes =
+    "https://www.example.com/recipes/a-really-quite-long-slug-that-keeps-going-and-going-past-a-phone-screen-width-for-sure";
+  const page = await openApp(BASE, { catalog });
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.tab("Recipes");
+    await openDetail(page, "Stir-fry");
+
+    const m = await page.evaluate(() => ({
+      vw: document.documentElement.clientWidth,
+      pageWidth: document.body.scrollWidth,
+    }));
+    assert.equal(m.pageWidth, m.vw, `a long URL in Notes pushed the page to ${m.pageWidth}px on a ${m.vw}px screen`);
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: a recipe's source is its own field, saved and shown as a link rather than buried in Notes", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await page.tab("Recipes");
+    await cardAction(page, "Stir-fry", "Edit");
+    await page.waitForTimeout(300);
+
+    await page.getByPlaceholder("Source / link (optional)").fill("https://example.com/stir-fry");
+    await page.getByRole("button", { name: /^Save meal$/ }).click();
+    await page.waitForTimeout(500);
+    await page.roundTrip();
+
+    const cat = await page.readCatalog();
+    assert.equal(cat.recipes["r-stirfry"].source, "https://example.com/stir-fry", "the source should be its own field on the recipe, not folded into notes");
+    assert.equal(cat.recipes["r-stirfry"].notes, "", "saving a source must not write it into notes");
+
+    await page.tab("Recipes");
+    await openDetail(page, "Stir-fry");
+    const link = page.getByRole("link", { name: "https://example.com/stir-fry" });
+    assert.equal(await link.count(), 1, "the source should render as a tappable link on the card");
+    assert.equal(await link.getAttribute("href"), "https://example.com/stir-fry");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: a source that isn't a URL is shown as plain text, not turned into a dead link", async () => {
+  const catalog = smallCatalog();
+  catalog.recipes["r-stirfry"].source = "Grandma's recipe card box";
+  const page = await openApp(BASE, { catalog });
+  try {
+    await page.tab("Recipes");
+    await openDetail(page, "Stir-fry");
+
+    assert.equal(await page.getByRole("link", { name: "Grandma's recipe card box" }).count(), 0, "a non-URL source should not be linkified");
+    assert.ok((await page.textContent("body")).includes("Grandma's recipe card box"), "the source text should still be shown");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
