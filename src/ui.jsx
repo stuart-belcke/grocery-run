@@ -7,6 +7,49 @@ import { useEffect, useRef, useState } from "react";
 import { C, fontBody, fontDisplay, inputStyle, BOTTOM_NAV_H } from "./theme";
 import { parseTabMarkup, keyboardIsOpen } from "./lib";
 
+/* ------------------------------------------------------------------ *
+ *  useSticky — useState that survives its tab being unmounted.
+ *
+ *  WHY IT HAS TO EXIST. App.jsx swaps tabs by conditional rendering
+ *  ({tab === "meals" && <MealsTab/>}), so every tab is destroyed and
+ *  rebuilt from nothing on every switch, taking all of its useState with
+ *  it. Switching tabs is not the same gesture as starting over, and the
+ *  app was treating it as one: a search you had typed, the sort you had
+ *  picked, the row you had expanded, the recipe you were halfway through
+ *  reading — all silently gone because you checked the plan.
+ *
+ *  WHAT BELONGS IN IT: what you were LOOKING AT — searches, filters,
+ *  sorts, which disclosure is open, which recipe is expanded.
+ *  WHAT DOES NOT: what you were in the middle of DOING — a half-typed
+ *  recipe draft, an open confirmation dialog, a picker. Those are a
+ *  question the app has asked you and should ask again from scratch, and
+ *  a dialog restored on top of a tab you have just arrived at is a
+ *  jump-scare rather than a convenience.
+ *
+ *  A MODULE-LEVEL Map, NOT localStorage, and the distinction is the point:
+ *  this is meant to survive a tab switch and NOT a reload. A search box
+ *  still holding last Tuesday's word when you open the app in a shop is
+ *  worse than an empty one; the same word still there because you glanced
+ *  at the plan ten seconds ago is what you expect.
+ *
+ *  Keys are global, so they are namespaced by tab ("meals.query").
+ * ------------------------------------------------------------------ */
+const stickyMemory = new Map();
+
+export function useSticky(key, initial) {
+  const [value, setValue] = useState(() => (stickyMemory.has(key) ? stickyMemory.get(key) : initial));
+  // Written on the way through rather than in an effect: an effect would
+  // miss the last change before an unmount, which is exactly the change
+  // that matters here.
+  const set = (next) =>
+    setValue((cur) => {
+      const v = typeof next === "function" ? next(cur) : next;
+      stickyMemory.set(key, v);
+      return v;
+    });
+  return [value, set];
+}
+
 /* Pins a tab's controls to the top of the viewport once you scroll past them.
    Fine at thirty recipes, the difference between usable and not at three
    hundred: without it, searching again means scrolling all the way back up.
@@ -42,7 +85,22 @@ export function StickyBar({ children, style }) {
           // Cancels the page's 14px side padding so the background reaches the
           // screen edges — otherwise rows show through the gap as they pass.
           margin: "0 -14px",
-          padding: stuck ? "10px 14px" : "0 14px 10px",
+          /* THE SAME 10px OF VERTICAL PADDING IN BOTH STATES, moved rather
+             than added. It used to be 0/10 at rest and 10/10 stuck, so the
+             bar GREW BY 10px at the moment it stuck — which makes the
+             document 10px taller mid-scroll, and the browser's scroll
+             anchoring then nudges the page down by 10 to compensate.
+             Invisible on its own, and not on its own any more: App.jsx now
+             restores a scroll position per tab, and a document that grows
+             10px after every restore drifts 10px per tab switch and
+             COMPOUNDS — measured at 3010, 3020, 3030, 3040, 3050, 3060 over
+             five round trips. Constant height means there is nothing to
+             compensate for.
+             The at-rest look is the one that had to be preserved (a short
+             list should look untouched), so the stuck state is what gives:
+             5px above and below the controls rather than 10 above and 10
+             below. */
+          padding: stuck ? "5px 14px" : "0 14px 10px",
           borderBottom: `1px solid ${stuck ? C.line : "transparent"}`,
           boxShadow: stuck ? "0 6px 12px -8px rgba(20,24,16,0.35)" : "none",
           transition: "padding 120ms ease, box-shadow 120ms ease",

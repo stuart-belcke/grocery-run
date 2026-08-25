@@ -30,7 +30,7 @@ items in it.
 | File | Holds | Rule |
 |---|---|---|
 | `src/theme.js` | colors, fonts, `inputStyle` | values only |
-| `src/ui.jsx` | shared components (`Btn`, `Seg`, `Section`, `StickyBar`, dialogs) | no app data |
+| `src/ui.jsx` | shared components (`Btn`, `Seg`, `Section`, `StickyBar`, dialogs) and the `useSticky` hook | no app data |
 | `src/lib.js` | pure logic | **no React, no DOM, no Firebase** — this is why it's testable |
 | `src/sync.js` | the database seam | the ONLY file allowed to import Firebase |
 | `src/tabs/*.jsx` | features | assembled from the above |
@@ -118,6 +118,21 @@ And prove the suite fails: check out the broken version of the file, run it,
 confirm red. A suite that stays green either way is worse than none.
 
 ## Conventions that came from real bugs
+
+**A tab switch is not a fresh start.** App.jsx renders one tab at a time
+(`{tab === "meals" && <MealsTab/>}`), so every tab is destroyed and rebuilt on
+each switch and plain `useState` is gone. What you were LOOKING AT — searches,
+filters, sorts, open disclosures — belongs in `useSticky` (`ui.jsx`) so it
+comes back; what you were in the middle of DOING — drafts, dialogs, pickers —
+stays `useState` and should ask again. App.jsx keeps a scroll position per tab
+on top of that, and the two are load-bearing for each other: a restored scroll
+offset onto a list that silently reset its own search lands nowhere useful.
+
+**Nothing may change height when it sticks.** `StickyBar` used to grow 10px at
+the moment it stuck, which makes the document taller mid-scroll and the
+browser's scroll anchoring nudges the page to compensate. That was invisible
+until something restored a scroll position, and then it drifted 10px per tab
+switch and compounded. Keep the padding total equal in both states.
 
 **Branch from `main`. Never stack branches.** The repo squash-merges, so a
 branch cut from another branch carries commits whose content reaches `main`

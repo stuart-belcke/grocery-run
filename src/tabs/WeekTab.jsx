@@ -6,7 +6,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
-import { Stripe, Btn, ConfirmDialog, SearchField, Seg } from "../ui";
+import { Stripe, Btn, ConfirmDialog, SearchField, Seg, useSticky } from "../ui";
 import { MEAL_TYPES, norm, planStageOf, plannedMealCount, daysInOrder, asArray, unplannedMeals, r2 } from "../lib";
 import { RecipeDetail } from "../RecipeDetail";
 
@@ -30,14 +30,14 @@ export function WeekTab({ data, update, isGuest }) {
   // Side-picking is multi-select — commitSidePicks writes them all at once on
   // "Add N sides" — unlike the main, where a tap assigns and closes immediately.
   const [sidePicks, setSidePicks] = useState([]);
-  const [editing, setEditing] = useState(false); // whole-plan edit mode: reveals per-slot change + clear
+  const [editing, setEditing] = useSticky("week.editing", false); // whole-plan edit mode: reveals per-slot change + clear
   const [confirmClear, setConfirmClear] = useState(false);
-  const [unplannedOpen, setUnplannedOpen] = useState(false); // "Unplanned meals" disclosure
+  const [unplannedOpen, setUnplannedOpen] = useSticky("week.unplannedOpen", false); // "Unplanned meals" disclosure
   // Which slot's recipe is expanded inline — "day|type" for a main,
   // "day|type|<sideIndex>" for a side. Item: tapping a planned meal used to
   // do nothing (read-only stage) or reopen the picker (edit mode); neither
   // gets you to the recipe without leaving the tab and searching Meals again.
-  const [recipeOpen, setRecipeOpen] = useState(null);
+  const [recipeOpen, setRecipeOpen] = useSticky("week.recipeOpen", null);
   const recipeKey = (day, type, sideIndex) => (sideIndex == null ? `${day}|${type}` : `${day}|${type}|${sideIndex}`);
   const toggleRecipe = (day, type, sideIndex) =>
     setRecipeOpen((cur) => (cur === recipeKey(day, type, sideIndex) ? null : recipeKey(day, type, sideIndex)));

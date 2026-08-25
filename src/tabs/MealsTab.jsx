@@ -3,9 +3,9 @@
     of them to the shopping list.  */
 /* ------------------------------------------------------------------ */
 
-import { useState, useMemo, useEffect, useLayoutEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
-import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop, SuggestInput, SearchField } from "../ui";
+import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop, SuggestInput, SearchField, useSticky } from "../ui";
 import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, ingredientNames, normalizeCfg, ingredientMatches, existingIngredientSuggestions, splitSuggestion, unitMatches, ensureIngredientId, asArray, planSlotsFor, parseRecipeText } from "../lib";
 import { RecipeDetail } from "../RecipeDetail";
 
@@ -62,56 +62,20 @@ const dayRow = (state) => ({
   color: state === "taken" ? C.faint : C.ink,
 });
 
-/* Which cards are expanded, and which one you were last reading — remembered
-   OUTSIDE React state so it survives this tab unmounting. App.jsx swaps tabs
-   by conditional rendering ({tab === "meals" && <MealsTab/>}), so MealsTab is
-   torn down and rebuilt from nothing every time you leave and come back,
-   taking every useState with it. That is invisible for most of this tab's
-   state — a search query or an open dialog is fine to lose — but "I was
-   reading a recipe while cooking and tapped Plan by accident" is exactly the
-   case where losing it costs a re-scroll with wet hands.
-   A MODULE VARIABLE, not localStorage: there is only ever one MealsTab
-   mounted at a time, so nothing needs a key, and this should NOT survive a
-   real reload — a scroll position from days ago waiting for you is worse
-   than starting at the top, but "you tapped another tab a second ago" should
-   restore instantly. */
-let openDetailsMemory = {};
-
-/* WHERE YOU WERE, as "this card, this far into it" — the id of whichever card
-   was at the top of the screen, and how far down it you had scrolled. 0 means
-   its top edge was level with the top of the screen, 300 means 300px further
-   down it (reading step four rather than the ingredients), negative means the
-   card started below the fold.
-
-   ANCHORED TO A CARD, not stored as a raw window.scrollY, for two measured
-   reasons:
-
-   - LEAVING FOR A SHORTER TAB DESTROYS THE PAGE SCROLL. The whole app is one
-     document, so window.scrollY does survive a tab switch by itself — which
-     is why this often appeared to work already. But the browser clamps it to
-     the destination tab's own maximum, and the clamp does not come back:
-     Recipes is 5311px, Plan is 983px, so scrolled to 2010 and back via Plan
-     left you at 139, and via List (844px, no scroll at all) at 0. Measured at
-     390x844. A rect is read against the here and now, so it does not care
-     what the scroll got clamped to in between.
-   - THE LIST UNDERNEATH IS NOT THE SAME ON THE WAY BACK. `query` is useState
-     and resets on unmount, so a search that showed one card gives 22 on
-     return. The same place in the same recipe is a different page offset;
-     it is the same offset into a card that can still be found by id.
-
-   NOT JUST THE CARD YOU HAD OPEN. That was the first shape of this and it
-   left the ordinary case — scrolled halfway down the list, nothing expanded,
-   tap Plan by accident — with no anchor at all and the clamp above unfixed.
-   Whichever card is at the top of the screen is an anchor either way, and
-   when one IS open and being read, that card is the one at the top. */
-let anchorRecipeId = null;
-let anchorOffset = 0;
-
 export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, clearImport }) {
   const [draft, setDraft] = useState(null);
-  const [mealView, setMealView] = useState("az");
-  const [easyOnly, setEasyOnly] = useState(false);
-  const [query, setQuery] = useState("");
+  /* WHAT YOU WERE LOOKING AT survives a tab switch; what you were in the
+     middle of DOING does not. See useSticky in ui.jsx for why the two are
+     separated — `draft` above is deliberately NOT sticky, because a
+     half-written recipe reappearing under you on a tab you have just walked
+     back onto is a surprise rather than a convenience.
+     Scroll is not handled here any more: App.jsx keeps a position per tab,
+     so every tab gets this rather than only this one. It is only correct
+     because of the four lines below — restoring a scroll offset onto a list
+     that had silently reset its own search would land somewhere arbitrary. */
+  const [mealView, setMealView] = useSticky("meals.view", "az");
+  const [easyOnly, setEasyOnly] = useSticky("meals.easyOnly", false);
+  const [query, setQuery] = useSticky("meals.query", "");
   /* Keyed by recipe id, like `mults` below — NOT a single id.
      A single "which one is open" value meant opening card B silently closed
      whatever card A was already open, anywhere in the list. If A was above
@@ -122,58 +86,8 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
      the page settled with B's own heading scrolled above the fold, so
      tapping a recipe looked like it "expanded upward" and ate its own
      title. Letting any number of cards stay open removes the fight: tapping
-     a card only ever changes that card's own height, never another one's.
-     Seeded from openDetailsMemory (see above) so a return to this tab starts
-     with the same cards open it had when you left, rather than every one
-     collapsed. */
-  const [openDetails, setOpenDetailsState] = useState(openDetailsMemory);
-  const setOpenDetails = (updater) => {
-    setOpenDetailsState((cur) => {
-      const next = typeof updater === "function" ? updater(cur) : updater;
-      openDetailsMemory = next;
-      return next;
-    });
-  };
-  /* Puts you back where you were — the same place in the same card — on
-     mount, and records where that was on unmount. Since App.jsx tears this
-     tab down on every switch, those two moments are exactly "you came back"
-     and "you left".
-
-     useLayoutEffect, AND THAT IS THE WHOLE REASON THIS WORKS. Measured, not
-     reasoned: with useEffect the cleanup runs AFTER React has detached the
-     subtree, so querySelector finds nothing, the offset is silently never
-     written, and every return snapped to the top — the bug this was written
-     to fix, still there and invisible. The layout-effect cleanup runs while
-     the node is still connected (probed: isConnected true, a real rect), so
-     it can still measure. Restoring in the layout phase is a second, smaller
-     win: the scroll is corrected before the browser paints, so there is no
-     visible jump from the wrong position to the right one. If a React
-     upgrade ever changes that ordering, the drift assertions in
-     meals.spec.mjs are what fail.
-
-     ONCE PER MOUNT, not on every openDetails change: re-scrolling each time
-     you open or close a card while you are already on this tab would fight
-     your own scrolling.
-
-     The anchor may name a card that has since been deleted, or nothing at
-     all on the first visit of a session — either of which leaves the scroll
-     alone rather than guessing at it. */
-  useLayoutEffect(() => {
-    if (anchorRecipeId) {
-      const el = document.querySelector(`[data-recipe-card="${anchorRecipeId}"]`);
-      if (el) window.scrollBy(0, el.getBoundingClientRect().top + anchorOffset);
-    }
-    return () => {
-      // The topmost card still on screen, which is the one your eye is on —
-      // and when a card is open and being read, that is the open one.
-      const cards = [...document.querySelectorAll("[data-recipe-card]")];
-      const anchor = cards.find((el) => el.getBoundingClientRect().bottom > 0) || cards[0];
-      if (!anchor) return; // no recipes yet: nothing to anchor to
-      anchorRecipeId = anchor.getAttribute("data-recipe-card");
-      anchorOffset = -anchor.getBoundingClientRect().top;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+     a card only ever changes that card's own height, never another one's. */
+  const [openDetails, setOpenDetails] = useSticky("meals.openDetails", {});
   const [planPick, setPlanPick] = useState(null); // { id, day, type } while choosing a week-plan slot
   const [editServings, setEditServings] = useState(null); // { id, value } while typing an exact batch count
   const [confirmDelete, setConfirmDelete] = useState(null); // recipe pending deletion
@@ -185,8 +99,12 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
      on it — which is what Add unplanned does, by writing base × mult
      into the list. Steps in whole batches because that is what a recipe
      scales by; the exact-servings editor on the pill is still there for the
-     amount that isn't a round multiple. */
-  const [mults, setMults] = useState({});
+     amount that isn't a round multiple.
+     STICKY, like the open card it belongs to: reading a recipe at x2, going
+     to check the plan and coming back to x1 would quietly change the amounts
+     under someone who is cooking from them. Still never PERSISTED — surviving
+     a tab switch and surviving a reload are different questions. */
+  const [mults, setMults] = useSticky("meals.mults", {});
   const [pasteOpen, setPasteOpen] = useState(false); // paste-a-recipe panel shown in the draft editor
   const [pasteText, setPasteText] = useState("");
   /* What a Shortcut handed over and how much of it survived the trip, or

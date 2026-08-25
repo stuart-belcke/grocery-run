@@ -193,11 +193,11 @@ test("SHOULD: a recipe you were reading comes back open, at the same place in it
      as "it jumps to the top of the open recipe regardless of where I was".
      The card's viewport-relative top IS that offset: -400 means 400px in.
 
-     THE SEARCH BOX IS USED ON PURPOSE, because `query` is useState and resets
-     on unmount: the list underneath is 22 cards on the way back and one on
-     the way out, so the card's position in the DOCUMENT is nowhere near what
-     it was. Restoring a raw window.scrollY would land somewhere arbitrary;
-     anchoring to the card itself lands in the same place in the recipe. */
+     THE SEARCH BOX IS USED ON PURPOSE: it is the thing most likely to move
+     everything else. The filter has to come back with you for the position
+     to mean anything — a restored scroll offset onto a list that had
+     silently reset its own search would land somewhere arbitrary — so this
+     asserts the search survived too, in the same breath as the offset. */
   const page = await openApp(BASE, { catalog: cleanCatalog() });
   try {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -231,6 +231,11 @@ test("SHOULD: a recipe you were reading comes back open, at the same place in it
       await card().getByTitle("Show ingredients and recipe").getAttribute("aria-expanded"),
       "true",
       "the recipe should still be open after switching tabs and back"
+    );
+    assert.equal(
+      await page.getByLabel("Search meals or ingredients").inputValue(),
+      "Crockpot Greek",
+      "the search you had typed should come back with you, or the list underneath is a different one"
     );
     const after = await card().boundingBox();
     assert.ok(

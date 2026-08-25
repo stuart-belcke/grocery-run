@@ -5,26 +5,26 @@
 
 import { useState, useMemo, useRef } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
-import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop, SuggestInput } from "../ui";
+import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop, SuggestInput, useSticky } from "../ui";
 import { UNASSIGNED, keyForName, aisleKey, unitKeyFor, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg } from "../lib";
 
 export function ListTab({ data, update, updateCatalog, isGuest }) {
-  const [view, setView] = useState("store");
-  const [storeSort, setStoreSort] = useState("az");
+  const [view, setView] = useSticky("list.view", "store");
+  const [storeSort, setStoreSort] = useSticky("list.storeSort", "az");
   const [extra, setExtra] = useState({ name: "", qty: "1", unit: "" });
   // The amount controls only exist while you're actually entering an item.
   // Focus anywhere in the add block expands them onto a second line, so the
   // name field — the one you type into — keeps the full width of the first.
   const [addFocused, setAddFocused] = useState(false);
   const nameRef = useRef(null);
-  const [inspectKey, setInspectKey] = useState(null);
+  const [inspectKey, setInspectKey] = useSticky("list.inspectKey", null);
   const [editExtra, setEditExtra] = useState(null); // { key, name, qty, unit } while editing a hand-added entry
   const [showSug, setShowSug] = useState(false); // add-item name field: is the suggestion list open
   const [sugIdx, setSugIdx] = useState(-1); // keyboard-highlighted suggestion, -1 = none
   const [confirmDone, setConfirmDone] = useState(false); // "Done shopping" confirmation
   const [askSave, setAskSave] = useState(null); // name of a new item, pending remember-or-not
   const [confirmRemove, setConfirmRemove] = useState(null); // hand-added item pending removal
-  const [showBought, setShowBought] = useState(false); // "already bought" review panel
+  const [showBought, setShowBought] = useSticky("list.showBought", false); // "already bought" review panel
   const [askStore, setAskStore] = useState(null); // { key, name, store } pending "this trip or always?"
 
   const items = useMemo(() => aggregateItems(data), [data]);
