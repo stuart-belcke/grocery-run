@@ -3,7 +3,7 @@
     of them to the shopping list.  */
 /* ------------------------------------------------------------------ */
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useLayoutEffect } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop, SuggestInput, SearchField } from "../ui";
 import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, ingredientNames, normalizeCfg, ingredientMatches, existingIngredientSuggestions, splitSuggestion, unitMatches, ensureIngredientId, asArray, planSlotsFor, parseRecipeText } from "../lib";
@@ -77,6 +77,18 @@ const dayRow = (state) => ({
    restore instantly. */
 let openDetailsMemory = {};
 let cookingRecipeId = null;
+/* WHERE IN THAT CARD YOU WERE, in pixels: 0 means its top edge was level with
+   the top of the screen, 300 means you were 300px further down it (reading
+   step four rather than the ingredients), and a negative number means the
+   card sat below the fold. Snapping to the card's top instead — which is what
+   scrollIntoView did — is only right in the one case where you had just
+   opened it, and wrong every time after that.
+   MEASURED AGAINST THE CARD, not stored as a raw window.scrollY, because the
+   page above it does not survive the round trip unchanged: a search query is
+   useState and resets on unmount, so the list you come back to can be longer
+   than the one you left. An offset into a card you can still find by id is
+   the same place in the recipe either way; a raw page offset would not be. */
+let cookingOffset = 0;
 
 export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, clearImport }) {
   const [draft, setDraft] = useState(null);
@@ -105,17 +117,47 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
       return next;
     });
   };
-  /* Puts the card you were reading back where it was, the moment this tab
-     mounts — which, since App.jsx tears the tab down on every switch, is
-     exactly the moment you come back to it. Runs once per mount rather than
-     watching openDetails: re-scrolling on every card you open or close
-     while you're already here would fight your own scrolling. cookingRecipeId
-     may point at a card you've since closed (openDetailsMemory says so) or
-     one you never opened this session at all (null) — either way there is
-     nothing to scroll back to. */
-  useEffect(() => {
-    if (!cookingRecipeId || !openDetailsMemory[cookingRecipeId]) return;
-    document.querySelector(`[data-recipe-card="${cookingRecipeId}"]`)?.scrollIntoView({ block: "start" });
+  /* Puts the card you were reading back where it was — the SAME PLACE IN IT,
+     not its top — on mount, and records where that was on unmount. Since
+     App.jsx tears this tab down on every switch, those two moments are
+     exactly "you came back" and "you left".
+
+     useLayoutEffect, AND THAT IS THE WHOLE REASON THIS WORKS. Measured, not
+     reasoned: with useEffect the cleanup runs AFTER React has detached the
+     subtree, so querySelector finds nothing, the offset is never written,
+     and every return snapped to the card's top — which is the bug this was
+     written to fix, silently still there. The layout-effect cleanup runs
+     while the node is still connected (probed: isConnected true, a real
+     rect), so it can still measure. Restoring in the layout phase is a
+     second, smaller win: the scroll is corrected before the browser paints,
+     so there is no visible jump from the wrong position to the right one.
+     If a React upgrade ever changes that ordering, the drift assertion in
+     meals.spec.mjs is what fails.
+
+     scrollBy AGAINST THE CARD'S OWN RECT, rather than scrollTo an absolute
+     position: leaving for a shorter tab (Plan) makes the browser clamp the
+     page scroll, so window.scrollY on the way back in is not what it was on
+     the way out — 664 out, 2380 back, for the same place in the same recipe.
+     A rect is measured against the here and now, so it does not care what
+     the scroll got clamped to in between.
+
+     ONCE PER MOUNT, not on every openDetails change: re-scrolling each time
+     you open or close a card while you are already on this tab would fight
+     your own scrolling.
+
+     cookingRecipeId may point at a card you have since closed
+     (openDetailsMemory says so), one that has since been deleted, or nothing
+     at all — each of which leaves the scroll alone rather than guessing. */
+  useLayoutEffect(() => {
+    const cardEl = () => (cookingRecipeId ? document.querySelector(`[data-recipe-card="${cookingRecipeId}"]`) : null);
+    if (cookingRecipeId && openDetailsMemory[cookingRecipeId]) {
+      const el = cardEl();
+      if (el) window.scrollBy(0, el.getBoundingClientRect().top + cookingOffset);
+    }
+    return () => {
+      const el = cardEl();
+      if (el) cookingOffset = -el.getBoundingClientRect().top;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [planPick, setPlanPick] = useState(null); // { id, day, type } while choosing a week-plan slot

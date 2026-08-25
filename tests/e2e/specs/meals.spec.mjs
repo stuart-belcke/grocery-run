@@ -180,44 +180,63 @@ test("SHOULD: opening a second recipe's detail doesn't close the first", async (
   }
 });
 
-test("SHOULD: a recipe you were reading stays open and back in view after switching tabs and back", async () => {
-  /* The "cooking a meal" case: you're reading a recipe off a card scrolled
-     partway down the list, tap another tab by accident (or on purpose, to
-     check the plan), and come back. App.jsx tears MealsTab down on every
-     tab switch, so without a fix the card had silently re-collapsed and
-     you'd be back at the top of an alphabetical list, re-scrolling with wet
-     hands. Uses the real catalog (cleanCatalog) rather than smallCatalog's
-     two recipes — this only means anything with enough cards that one is
-     off-screen at the top of the tab. */
+test("SHOULD: a recipe you were reading comes back open, at the same place in it", async () => {
+  /* The "cooking a meal" case: you're partway down a recipe — step four, not
+     its title — tap another tab (by accident, or to check the plan), and come
+     back. App.jsx tears MealsTab down on every tab switch, so the card used to
+     re-collapse and drop you at the top of an alphabetical list.
+
+     ASSERTS THE OFFSET INTO THE CARD, not merely that it is on screen. The
+     first version of this fix scrolled the card's TOP to the top of the
+     screen, which passes any "is it visible" check while still throwing away
+     four hundred pixels of where you actually were — reported from real use
+     as "it jumps to the top of the open recipe regardless of where I was".
+     The card's viewport-relative top IS that offset: -400 means 400px in.
+
+     THE SEARCH BOX IS USED ON PURPOSE, because `query` is useState and resets
+     on unmount: the list underneath is 22 cards on the way back and one on
+     the way out, so the card's position in the DOCUMENT is nowhere near what
+     it was. Restoring a raw window.scrollY would land somewhere arbitrary;
+     anchoring to the card itself lands in the same place in the recipe. */
   const page = await openApp(BASE, { catalog: cleanCatalog() });
   try {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.tab("Recipes");
+    await page.getByLabel("Search meals or ingredients").fill("Crockpot Greek");
+    await page.waitForTimeout(400);
 
-    const count = await page.getByTitle("Show ingredients and recipe").count();
-    assert.ok(count > 5, "fixture check: need enough recipes for one to be off-screen");
-    const targetIdx = count - 1; // last in the list — off-screen at the top
-    // A stable handle to look the same card up again after the tab remounts
-    // — the toggle's OWN text changes ("Ingredients & recipe ▾" ->
-    // "Hide details ▲") the moment it opens, so matching on text captured
-    // before the click would stop matching after it. The recipe id on the
-    // card's wrapper div doesn't change either way.
-    const targetId = await page.evaluate((idx) => document.querySelectorAll("[data-recipe-card]")[idx].getAttribute("data-recipe-card"), targetIdx);
-    const targetToggle = () => page.locator(`[data-recipe-card="${targetId}"]`).getByTitle("Show ingredients and recipe");
-
-    const before = await targetToggle().boundingBox();
-    assert.ok(before.y > 844, "fixture check: the target card should start below the fold");
-
-    await targetToggle().click();
+    const toggle = page.getByTitle("Show ingredients and recipe").first();
+    await toggle.click();
     await page.waitForTimeout(300);
-    assert.equal(await targetToggle().getAttribute("aria-expanded"), "true", "the target recipe should be open");
+    const targetId = await page.evaluate(() => document.querySelector("[data-recipe-card]").getAttribute("data-recipe-card"));
+    const card = () => page.locator(`[data-recipe-card="${targetId}"]`);
+
+    // Read down into the method — far enough that snapping to the card's top
+    // is unmistakably the wrong answer.
+    const READING_AT = 400;
+    await page.evaluate(([id, into]) => {
+      window.scrollTo(0, 0);
+      const el = document.querySelector(`[data-recipe-card="${id}"]`);
+      window.scrollBy(0, el.getBoundingClientRect().top + into);
+    }, [targetId, READING_AT]);
+    await page.waitForTimeout(300);
+
+    const before = await card().boundingBox();
+    assert.ok(Math.abs(before.y + READING_AT) <= 2, `fixture check: should be ${READING_AT}px into the card; got y=${before.y}`);
 
     await page.tab("Plan");
     await page.tab("Recipes");
 
-    assert.equal(await targetToggle().getAttribute("aria-expanded"), "true", "the target recipe should still be open after switching tabs and back");
-    const after = await targetToggle().boundingBox();
-    assert.ok(after.y >= -1 && after.y < 844, `the target recipe should be scrolled back into view, not left at the top of the list; got y=${after.y}`);
+    assert.equal(
+      await card().getByTitle("Show ingredients and recipe").getAttribute("aria-expanded"),
+      "true",
+      "the recipe should still be open after switching tabs and back"
+    );
+    const after = await card().boundingBox();
+    assert.ok(
+      Math.abs(after.y - before.y) <= 2,
+      `should come back to the same place in the recipe (y=${before.y}), not to its top; got y=${after.y}`
+    );
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
