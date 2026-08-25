@@ -153,6 +153,33 @@ const openDetail = async (page, recipe) => {
   await page.waitForTimeout(300);
 };
 
+test("SHOULD: opening a second recipe's detail doesn't close the first", async () => {
+  /* Regression for a real bug: the open/closed state used to be a single
+     recipe id, so opening card B silently closed whatever card A was
+     already open elsewhere in the list. If A sat above B, collapsing it
+     removed height above B at the exact moment B's own detail was
+     expanding, so B's own heading could end up scrolled above the fold —
+     tapping a recipe looked like it "expanded upward" and ate its own
+     title. Asserted on aria-expanded, which is what the earlier bug
+     actually flipped back to false. */
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await page.tab("Recipes");
+    await openDetail(page, "Stir-fry");
+    await openDetail(page, "Rice side");
+
+    const toggles = page.getByTitle("Show ingredients and recipe");
+    const texts = await toggles.allTextContents();
+    const stirfry = texts.findIndex((t) => t.includes("Stir-fry"));
+    const rice = texts.findIndex((t) => t.includes("Rice side"));
+    assert.equal(await toggles.nth(stirfry).getAttribute("aria-expanded"), "true", "opening Rice side should not have closed Stir-fry");
+    assert.equal(await toggles.nth(rice).getAttribute("aria-expanded"), "true", "Rice side itself should be open");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
 test("SHOULD: the multiplier previews a scaled recipe WITHOUT putting anything on the list", async () => {
   // Stir-fry serves 2 and wants 1 lb chicken. At x3 the card should show
   // 6 sv and 3 lb — while the shopping list stays untouched, because

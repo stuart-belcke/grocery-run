@@ -67,7 +67,18 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
   const [mealView, setMealView] = useState("az");
   const [easyOnly, setEasyOnly] = useState(false);
   const [query, setQuery] = useState("");
-  const [detailOpen, setDetailOpen] = useState(null);
+  /* Keyed by recipe id, like `mults` below — NOT a single id.
+     A single "which one is open" value meant opening card B silently closed
+     whatever card A was already open, anywhere in the list. If A was above
+     the current scroll position, collapsing it removed a chunk of height
+     above everything below it — including B — at the exact moment B's own
+     detail was expanding. The two size changes fought over the same tap,
+     and which one the browser compensated for was inconsistent: sometimes
+     the page settled with B's own heading scrolled above the fold, so
+     tapping a recipe looked like it "expanded upward" and ate its own
+     title. Letting any number of cards stay open removes the fight: tapping
+     a card only ever changes that card's own height, never another one's. */
+  const [openDetails, setOpenDetails] = useState({});
   const [planPick, setPlanPick] = useState(null); // { id, day, type } while choosing a week-plan slot
   const [editServings, setEditServings] = useState(null); // { id, value } while typing an exact batch count
   const [confirmDelete, setConfirmDelete] = useState(null); // recipe pending deletion
@@ -357,7 +368,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
        thing is how they drift apart. Until then the multiplier previews
        exactly what Add unplanned is about to write. */
     const previewServings = servings > 0 ? servings : base * mult;
-    const detailShown = detailOpen === r.id;
+    const detailShown = !!openDetails[r.id];
     // Everywhere this recipe appears in the plan, as a main or as a side —
     // sides are read-only here (a name + which day/meal), since adding one is
     // a Week-tab action that needs the rest of that slot's dishes in view.
@@ -399,7 +410,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
               the app's h1. */}
           <CardHeading style={{ margin: 0, font: "inherit", fontWeight: "inherit" }}>
           <button
-            onClick={() => setDetailOpen(detailShown ? null : r.id)}
+            onClick={() => setOpenDetails((cur) => ({ ...cur, [r.id]: !detailShown }))}
             aria-expanded={detailShown}
             title="Show ingredients and recipe"
             style={{ display: "block", width: "100%", background: "transparent", border: "none", padding: 0, cursor: "pointer", textAlign: "left", fontFamily: fontBody }}
