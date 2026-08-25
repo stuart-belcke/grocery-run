@@ -76,19 +76,36 @@ const dayRow = (state) => ({
    than starting at the top, but "you tapped another tab a second ago" should
    restore instantly. */
 let openDetailsMemory = {};
-let cookingRecipeId = null;
-/* WHERE IN THAT CARD YOU WERE, in pixels: 0 means its top edge was level with
-   the top of the screen, 300 means you were 300px further down it (reading
-   step four rather than the ingredients), and a negative number means the
-   card sat below the fold. Snapping to the card's top instead — which is what
-   scrollIntoView did — is only right in the one case where you had just
-   opened it, and wrong every time after that.
-   MEASURED AGAINST THE CARD, not stored as a raw window.scrollY, because the
-   page above it does not survive the round trip unchanged: a search query is
-   useState and resets on unmount, so the list you come back to can be longer
-   than the one you left. An offset into a card you can still find by id is
-   the same place in the recipe either way; a raw page offset would not be. */
-let cookingOffset = 0;
+
+/* WHERE YOU WERE, as "this card, this far into it" — the id of whichever card
+   was at the top of the screen, and how far down it you had scrolled. 0 means
+   its top edge was level with the top of the screen, 300 means 300px further
+   down it (reading step four rather than the ingredients), negative means the
+   card started below the fold.
+
+   ANCHORED TO A CARD, not stored as a raw window.scrollY, for two measured
+   reasons:
+
+   - LEAVING FOR A SHORTER TAB DESTROYS THE PAGE SCROLL. The whole app is one
+     document, so window.scrollY does survive a tab switch by itself — which
+     is why this often appeared to work already. But the browser clamps it to
+     the destination tab's own maximum, and the clamp does not come back:
+     Recipes is 5311px, Plan is 983px, so scrolled to 2010 and back via Plan
+     left you at 139, and via List (844px, no scroll at all) at 0. Measured at
+     390x844. A rect is read against the here and now, so it does not care
+     what the scroll got clamped to in between.
+   - THE LIST UNDERNEATH IS NOT THE SAME ON THE WAY BACK. `query` is useState
+     and resets on unmount, so a search that showed one card gives 22 on
+     return. The same place in the same recipe is a different page offset;
+     it is the same offset into a card that can still be found by id.
+
+   NOT JUST THE CARD YOU HAD OPEN. That was the first shape of this and it
+   left the ordinary case — scrolled halfway down the list, nothing expanded,
+   tap Plan by accident — with no anchor at all and the clamp above unfixed.
+   Whichever card is at the top of the screen is an anchor either way, and
+   when one IS open and being read, that card is the one at the top. */
+let anchorRecipeId = null;
+let anchorOffset = 0;
 
 export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, clearImport }) {
   const [draft, setDraft] = useState(null);
@@ -117,46 +134,43 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
       return next;
     });
   };
-  /* Puts the card you were reading back where it was — the SAME PLACE IN IT,
-     not its top — on mount, and records where that was on unmount. Since
-     App.jsx tears this tab down on every switch, those two moments are
-     exactly "you came back" and "you left".
+  /* Puts you back where you were — the same place in the same card — on
+     mount, and records where that was on unmount. Since App.jsx tears this
+     tab down on every switch, those two moments are exactly "you came back"
+     and "you left".
 
      useLayoutEffect, AND THAT IS THE WHOLE REASON THIS WORKS. Measured, not
      reasoned: with useEffect the cleanup runs AFTER React has detached the
-     subtree, so querySelector finds nothing, the offset is never written,
-     and every return snapped to the card's top — which is the bug this was
-     written to fix, silently still there. The layout-effect cleanup runs
-     while the node is still connected (probed: isConnected true, a real
-     rect), so it can still measure. Restoring in the layout phase is a
-     second, smaller win: the scroll is corrected before the browser paints,
-     so there is no visible jump from the wrong position to the right one.
-     If a React upgrade ever changes that ordering, the drift assertion in
-     meals.spec.mjs is what fails.
-
-     scrollBy AGAINST THE CARD'S OWN RECT, rather than scrollTo an absolute
-     position: leaving for a shorter tab (Plan) makes the browser clamp the
-     page scroll, so window.scrollY on the way back in is not what it was on
-     the way out — 664 out, 2380 back, for the same place in the same recipe.
-     A rect is measured against the here and now, so it does not care what
-     the scroll got clamped to in between.
+     subtree, so querySelector finds nothing, the offset is silently never
+     written, and every return snapped to the top — the bug this was written
+     to fix, still there and invisible. The layout-effect cleanup runs while
+     the node is still connected (probed: isConnected true, a real rect), so
+     it can still measure. Restoring in the layout phase is a second, smaller
+     win: the scroll is corrected before the browser paints, so there is no
+     visible jump from the wrong position to the right one. If a React
+     upgrade ever changes that ordering, the drift assertions in
+     meals.spec.mjs are what fail.
 
      ONCE PER MOUNT, not on every openDetails change: re-scrolling each time
      you open or close a card while you are already on this tab would fight
      your own scrolling.
 
-     cookingRecipeId may point at a card you have since closed
-     (openDetailsMemory says so), one that has since been deleted, or nothing
-     at all — each of which leaves the scroll alone rather than guessing. */
+     The anchor may name a card that has since been deleted, or nothing at
+     all on the first visit of a session — either of which leaves the scroll
+     alone rather than guessing at it. */
   useLayoutEffect(() => {
-    const cardEl = () => (cookingRecipeId ? document.querySelector(`[data-recipe-card="${cookingRecipeId}"]`) : null);
-    if (cookingRecipeId && openDetailsMemory[cookingRecipeId]) {
-      const el = cardEl();
-      if (el) window.scrollBy(0, el.getBoundingClientRect().top + cookingOffset);
+    if (anchorRecipeId) {
+      const el = document.querySelector(`[data-recipe-card="${anchorRecipeId}"]`);
+      if (el) window.scrollBy(0, el.getBoundingClientRect().top + anchorOffset);
     }
     return () => {
-      const el = cardEl();
-      if (el) cookingOffset = -el.getBoundingClientRect().top;
+      // The topmost card still on screen, which is the one your eye is on —
+      // and when a card is open and being read, that is the open one.
+      const cards = [...document.querySelectorAll("[data-recipe-card]")];
+      const anchor = cards.find((el) => el.getBoundingClientRect().bottom > 0) || cards[0];
+      if (!anchor) return; // no recipes yet: nothing to anchor to
+      anchorRecipeId = anchor.getAttribute("data-recipe-card");
+      anchorOffset = -anchor.getBoundingClientRect().top;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -492,13 +506,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
               the app's h1. */}
           <CardHeading style={{ margin: 0, font: "inherit", fontWeight: "inherit" }}>
           <button
-            onClick={() => {
-              const opening = !detailShown;
-              setOpenDetails((cur) => ({ ...cur, [r.id]: opening }));
-              // Only remembered on OPEN, not on close — closing the card you
-              // were reading isn't "come back to this", it's "I'm done".
-              if (opening) cookingRecipeId = r.id;
-            }}
+            onClick={() => setOpenDetails((cur) => ({ ...cur, [r.id]: !detailShown }))}
             aria-expanded={detailShown}
             title="Show ingredients and recipe"
             style={{ display: "block", width: "100%", background: "transparent", border: "none", padding: 0, cursor: "pointer", textAlign: "left", fontFamily: fontBody }}

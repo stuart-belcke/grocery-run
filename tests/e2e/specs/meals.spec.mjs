@@ -243,6 +243,46 @@ test("SHOULD: a recipe you were reading comes back open, at the same place in it
   }
 });
 
+test("SHOULD: keep your place in the recipe list across a tab switch, with nothing opened", async () => {
+  /* The ordinary half of the same report: scrolled partway down the list,
+     no card expanded, tap another tab and come back.
+
+     THIS ONE LOOKS LIKE IT ALREADY WORKS, AND MOSTLY DOES — the whole app is
+     one document, so window.scrollY survives a tab switch on its own. What
+     breaks it is the DESTINATION TAB BEING SHORTER: the browser clamps the
+     scroll to that tab's own maximum and the clamp does not come back.
+     Measured at 390x844 — Recipes is 5311px and Plan is 983px, so scrolled to
+     2010 and back via Plan left you at 139; via List (844px, no scroll at
+     all) it left you at 0. Going via Pantry (10195px) kept it, which is
+     exactly why this looked fine until it didn't.
+
+     PLAN IS THE TAB IT GOES VIA, deliberately: a taller one cannot fail. */
+  const page = await openApp(BASE, { catalog: cleanCatalog() });
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.tab("Recipes");
+    await page.evaluate(() => window.scrollTo(0, 2000));
+    await page.waitForTimeout(300);
+
+    const before = await page.evaluate(() => Math.round(window.scrollY));
+    assert.ok(before > 1500, `fixture check: should be scrolled well down the list, got ${before}`);
+
+    await page.tab("Plan");
+    const away = await page.evaluate(() => Math.round(window.scrollY));
+    assert.ok(away < before, `fixture check: Plan should be short enough to clamp the scroll, got ${away}`);
+
+    await page.tab("Recipes");
+    const after = await page.evaluate(() => Math.round(window.scrollY));
+    assert.ok(
+      Math.abs(after - before) <= 2,
+      `should come back to the same place in the list (${before}), not the scroll Plan clamped it to (${away}); got ${after}`
+    );
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
 test("SHOULD: the multiplier previews a scaled recipe WITHOUT putting anything on the list", async () => {
   // Stir-fry serves 2 and wants 1 lb chicken. At x3 the card should show
   // 6 sv and 3 lb — while the shopping list stays untouched, because
