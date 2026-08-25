@@ -26,6 +26,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { openApp, assertNoPageErrors } from "../harness.mjs";
 import { cleanCatalog, idOf } from "../fixtures.mjs";
+import { safeKey } from "../../../src/lib.js";
 
 const BASE = process.env.E2E_BASE_URL;
 
@@ -205,7 +206,14 @@ test("an aisle at a store whose name the database can't key is still saved and s
     for (const k of Object.keys(entry.aisles || {})) {
       assert.doesNotMatch(k, REFUSED, `the catalog is keyed "${k}", which the database refuses — the whole catalog stops saving`);
     }
-    assert.equal(Object.values(entry.aisles)[0], 9, `the aisle should have been stored, got ${JSON.stringify(entry.aisles)}`);
+    /* LOOKED UP BY ITS OWN KEY, not taken positionally. This read
+       Object.values(...)[0] and so quietly assumed Bananas has exactly one
+       aisle — true only while the shipped catalog happened to give it none.
+       An export that set a Bananas aisle at Aldi failed this with
+       {"Aldi":1,"H E B":9}, which is the RIGHT answer: 9 is stored, under the
+       storable form of "H.E.B.". The catalog is data and is allowed to
+       change; what this test is about is the KEY, so it asks for that key. */
+    assert.equal(entry.aisles[safeKey("H.E.B.")], 9, `the aisle should have been stored under the storable form of "H.E.B.", got ${JSON.stringify(entry.aisles)}`);
     assert.equal(entry.store, "H.E.B.", "the store's name is displayed, so it must survive exactly as typed");
     // And it reads back at the display name, which is all any caller has.
     await page.tab("Pantry");
