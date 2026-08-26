@@ -38,7 +38,7 @@ import {
   setHouseholdName,
 } from "./sync";
 import { C, fontDisplay, fontBody, syncTone, BOTTOM_NAV_H, BOTTOM_NAV_Z } from "./theme";
-import { Stripe, Btn, ChoiceDialog, InstallOffer, NoticeCard, useKeyboardOpen } from "./ui";
+import { Stripe, Btn, ChoiceDialog, AlertDialog, InstallOffer, NoticeCard, useKeyboardOpen } from "./ui";
 import {
   LOCAL_KEY,
   TABS,
@@ -84,6 +84,7 @@ import {
   remapIngredientKeys,
   normalizeIngredient,
   isBuildTooOld,
+  peerOnOlderBuild,
   APP_DATA_VERSION,
   normalizeCatalog,
   parseJoinHash,
@@ -351,6 +352,16 @@ export default function App() {
   // until the next time I switch apps".
   const [liveBuild, setLiveBuild] = useState(null);
   const [dismissedBuild, setDismissedBuild] = useState(null);
+  /* Item 30. The build id another device last wrote to the catalog with, when
+     it is OLDER than this device's own — nothing to do about it here (this
+     phone is already current), so it's advisory rather than a gate, and shown
+     once rather than every time the older device writes again. Same
+     per-value-dismissal shape as liveBuild/dismissedBuild just above, and for
+     the same reason: "Later" has to mean "not for THIS build", not "not until
+     I next switch apps" — otherwise the SAME stale phone re-triggers it on
+     every visit until it updates. */
+  const [peerOlderBuild, setPeerOlderBuild] = useState(null);
+  const [dismissedPeerBuild, setDismissedPeerBuild] = useState(null);
   // The gate's modal is shown once and then dismissible; its banner stays.
   // Without that, dismissing would leave editing mysteriously dead.
   const [gateSeen, setGateSeen] = useState(false);
@@ -434,7 +445,7 @@ export default function App() {
     // Stamped on every edit, and only on an edit. This is what tells the
     // listener below that an offline change is real work rather than a stale
     // cache — a seed nobody has touched keeps updatedAt 0 and always loses.
-    const next = { ...fn(structuredClone(base)), updatedAt: Date.now(), appDataVersion: APP_DATA_VERSION };
+    const next = { ...fn(structuredClone(base)), updatedAt: Date.now(), appDataVersion: APP_DATA_VERSION, buildId: __BUILD__ };
     setHCatalog(next);
     hCatalogRef.current = next;
     saveCatalogCache(code, next);
@@ -684,6 +695,11 @@ export default function App() {
       const gated = isBuildTooOld(remote && remote.appDataVersion, APP_DATA_VERSION);
       setTooOld(gated);
       tooOldRef.current = gated;
+      // Advisory sibling of the gate above, on every snapshot regardless of
+      // adopt-or-push, same as the gate: which build wrote this is true
+      // whether or not we're about to act on the content.
+      const remoteBuildId = remote && remote.buildId;
+      setPeerOlderBuild(peerOnOlderBuild(remoteBuildId, __BUILD__) ? remoteBuildId : null);
       const { use } = pickState(hCatalogRef.current, remote);
       if (use === "remote") {
         const adopted = normalizeCatalog(remote);
@@ -1573,6 +1589,20 @@ export default function App() {
         A newer version of Grocery Run is ready. Reloading takes a moment and
         keeps your list, week plan and meals exactly as they are.
       </ChoiceDialog>
+
+      {/* Item 30. AlertDialog, not ChoiceDialog: unlike the update offer above,
+          there's nothing to DO from this phone — it's already the newer one.
+          This is what replaces "the only signal either gave was Synced" with
+          something that actually says whose data is behind. */}
+      <AlertDialog
+        open={!!peerOlderBuild && peerOlderBuild !== dismissedPeerBuild}
+        title="Another device needs an update"
+        okLabel="Got it"
+        onClose={() => setDismissedPeerBuild(peerOlderBuild)}
+      >
+        A device sharing this household is running an older version of
+        Grocery Run. Ask them to fully close and reopen the app.
+      </AlertDialog>
 
       <ChoiceDialog
         open={tooOld && !gateSeen}

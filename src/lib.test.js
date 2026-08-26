@@ -91,6 +91,7 @@ import {
   normalizePrefs,
   DAYS,
   isBuildTooOld,
+  peerOnOlderBuild,
   APP_DATA_VERSION,
   pickState,
   FALLBACK_CATALOG,
@@ -1201,6 +1202,38 @@ test("a catalog written before this was recorded reads as 0, and doesn't gate", 
   const older = normalizeCatalog({ recipes: {} });
   assert.equal(older.appDataVersion, 0);
   assert.equal(isBuildTooOld(older.appDataVersion, APP_DATA_VERSION), false);
+});
+
+/* ---------------- item 30: the peer-build nudge ----------------
+   Advisory, not a gate — so the two failure modes worth guarding against are
+   both false positives: nagging about a build that isn't actually behind. */
+
+test("peerOnOlderBuild fires only when the stamp is strictly earlier", () => {
+  assert.equal(peerOnOlderBuild("2026-08-01 00:00 UTC · aaa", "2026-08-02 00:00 UTC · bbb"), true);
+  assert.equal(peerOnOlderBuild("2026-08-02 00:00 UTC · bbb", "2026-08-02 00:00 UTC · bbb"), false); // same build
+  assert.equal(peerOnOlderBuild("2026-08-03 00:00 UTC · ccc", "2026-08-02 00:00 UTC · bbb"), false); // peer is AHEAD
+});
+
+test("peerOnOlderBuild never fires on an unknown stamp", () => {
+  for (const junk of [undefined, null, "", "   "]) {
+    assert.equal(peerOnOlderBuild(junk, "2026-08-02 00:00 UTC · bbb"), false, `${JSON.stringify(junk)} must not nag`);
+  }
+  // A build with no id of its own can't conclude anything either.
+  assert.equal(peerOnOlderBuild("2026-08-01 00:00 UTC · aaa", undefined), false);
+});
+
+test("normalizeCatalog defaults a missing buildId to empty, which peerOnOlderBuild reads as unknown", () => {
+  const cat = normalizeCatalog({ recipes: {} });
+  assert.equal(cat.buildId, "");
+  assert.equal(peerOnOlderBuild(cat.buildId, "2026-08-02 00:00 UTC · bbb"), false);
+});
+
+test("the fixed-width timestamp sorts correctly across a month/year rollover", () => {
+  // The one case where naive digit comparison could go wrong if the width
+  // weren't fixed — 2026-09 must still sort after 2026-08, and 2027-01 after
+  // 2026-12.
+  assert.equal(peerOnOlderBuild("2026-08-31 23:59 UTC · aaa", "2026-09-01 00:00 UTC · bbb"), true);
+  assert.equal(peerOnOlderBuild("2026-12-31 23:59 UTC · aaa", "2027-01-01 00:00 UTC · bbb"), true);
 });
 
 

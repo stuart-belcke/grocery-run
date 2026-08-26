@@ -436,6 +436,54 @@ at the end, with the entries that were never given numbers.
     popover had to be checked with elementFromPoint, not by eye. The bar also
     cancels the page's 14px side padding, or rows show through at the edges.
 
+30. [DONE] WARN WHEN ANOTHER DEVICE IS RUNNING AN OLDER BUILD.
+    Two phones diverged once and the only signal either gave was "Synced",
+    which means the socket is connected and nothing about whose data won.
+    Every catalog write now carries `buildId: __BUILD__` alongside the
+    existing `appDataVersion` stamp, and a NEWER build that reads an older
+    stamp shows a one-time "Another device needs an update" notice.
+
+    A DELIBERATE SIBLING OF THE EXISTING GATE, not a replacement for it.
+    isBuildTooOld/APP_DATA_VERSION already blocks a WRITE when the shared
+    catalog's shape has moved past what this build understands — that one
+    has to be strict, because getting it wrong corrupts data. This one is
+    advisory: it fires on ANY build difference, even a change that carries
+    through fine, because the point isn't correctness, it's "somebody should
+    know to update". peerOnOlderBuild (lib.js) is the pure comparison,
+    checked right next to isBuildTooOld in the catalog listener so the two
+    reasons a snapshot might matter are decided in one place rather than two
+    that can drift.
+
+    THE STRING COMPARE IS THE WHOLE TRICK. __BUILD__ is a fixed-width
+    "YYYY-MM-DD HH:MM UTC · <commit>", so lexicographic order on it IS
+    chronological order — no date parsing, no timezone to get wrong. Verified
+    across a month and a year rollover (2026-08-31 < 2026-09-01, 2026-12-31 <
+    2027-01-01) rather than assumed.
+
+    CONSERVATIVE THE SAME WAY isBuildTooOld IS, for a different reason: that
+    one defaults an ambiguous read to "you may write" because refusing wrongly
+    locks someone out of their shopping list. This one has no unsafe
+    direction to fall into — the worst a wrong guess costs is nagging someone
+    needlessly — but it stays conservative anyway: a missing or empty stamp
+    reads as UNKNOWN, not as old, and two devices on the same build are never
+    "behind" each other.
+
+    AlertDialog, not ChoiceDialog, and that is a real distinction rather than
+    a smaller version of the "Update available" dialog just above it in
+    App.jsx: this phone is already the newer one, so there is nothing to DO
+    here — only something to tell the person holding the older phone.
+    Dismissal is per build id, the same shape liveBuild/dismissedBuild
+    already uses just above it, and for the same reason: "Got it" has to mean
+    "not for THIS stamp", or the same stale phone re-triggers the notice on
+    every visit until it actually updates.
+
+    UNTESTABLE AT THE E2E LAYER, like its sibling gate: both depend on a live
+    Firebase listener, and the local-only build the e2e harness runs compiles
+    sync out entirely. Covered by unit tests on the pure comparison and on
+    normalizeCatalog's default, and checked once by hand — a build with
+    peerOlderBuild forced open, screenshotted at 320 and 390px, to confirm
+    the dialog text fits and nothing overflows before trusting it.
+
 31. [DONE] Preferences: units (as-entered / metric / standard) and week start,
     in a Settings tab where every section is now tap-to-open.
     HOUSEHOLD, NOT DEVICE — they live on the catalog node. Two phones

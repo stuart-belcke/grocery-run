@@ -1,7 +1,7 @@
 Grocery Run — Roadmap
 =====================
 
-What is still open. Ten items, none of them urgent — this app does its job.
+What is still open. Nine items, none of them urgent — this app does its job.
 
 THE NUMBERS ARE IDs, NOT POSITIONS, AND ARE NEVER REUSED OR REASSIGNED. They
 were allocated chronologically, so a low number here means the item is OLD and
@@ -25,7 +25,6 @@ IF YOU ARE PICKING SOMETHING UP
                                        whether it needs a server at all
   110  the parser                       standing task: more captured pages
    98  the test gaps                    a register; 98a is the costly one
-   30  warn about an older build        small, and it has bitten once
 
 Everything else — 101, 102, 21, 36, 18, 38 — is waiting on a CONDITION rather
 than on effort, and each says what that condition is. An item with no trigger
@@ -63,17 +62,6 @@ file reached 5,886 lines with ten live items in it.
     ONE THING WORTH DOING SOONER, cheaply: an ESLint no-restricted-imports
     rule banning `firebase/*` outside sync.js, so the seam cannot regress
     silently. It is currently a convention held by attention alone.
-
-30. WARN WHEN ANOTHER DEVICE IS RUNNING AN OLDER BUILD.
-    Two phones diverged once and the only signal either gave was "Synced",
-    which means the socket is connected and nothing about whose data won.
-    Stamp each write with the build id already shown in Settings, and let a
-    newer build say "another device is on an older version" when it sees an
-    older stamp. An old build cannot warn about itself — but the new one can
-    warn about it, which is enough.
-    PREREQUISITE, NOW DONE: the stamp names a commit that actually exists.
-    Stamping writes with an id nobody can look up would have made this worse
-    than useless.
 
 36. SPLIT lib.js WHEN IT MAKES A CHANGE HARD, not on principle.
     3,209 lines now, and a grab-bag: units, ingredient identity,
