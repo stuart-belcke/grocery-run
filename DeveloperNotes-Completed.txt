@@ -436,53 +436,63 @@ at the end, with the entries that were never given numbers.
     popover had to be checked with elementFromPoint, not by eye. The bar also
     cancels the page's 14px side padding, or rows show through at the edges.
 
-30. [DONE] WARN WHEN ANOTHER DEVICE IS RUNNING AN OLDER BUILD.
-    Two phones diverged once and the only signal either gave was "Synced",
-    which means the socket is connected and nothing about whose data won.
-    Every catalog write now carries `buildId: __BUILD__` alongside the
-    existing `appDataVersion` stamp, and a NEWER build that reads an older
-    stamp shows a one-time "Another device needs an update" notice.
+30. [DONE, RESHAPED — THE ITEM AS WRITTEN WAS THE WRONG FIX.]
+    WHICH BUILD LAST WROTE THE HOUSEHOLD, shown in Settings.
 
-    A DELIBERATE SIBLING OF THE EXISTING GATE, not a replacement for it.
-    isBuildTooOld/APP_DATA_VERSION already blocks a WRITE when the shared
-    catalog's shape has moved past what this build understands — that one
-    has to be strict, because getting it wrong corrupts data. This one is
-    advisory: it fires on ANY build difference, even a change that carries
-    through fine, because the point isn't correctness, it's "somebody should
-    know to update". peerOnOlderBuild (lib.js) is the pure comparison,
-    checked right next to isBuildTooOld in the catalog listener so the two
-    reasons a snapshot might matter are decided in one place rather than two
-    that can drift.
+    THE ORIGINAL ENTRY SAID: "let a newer build say 'another device is on an
+    older version' when it sees an older stamp. An old build cannot warn
+    about itself — but the new one can warn about it, which is enough."
+    THE SECOND SENTENCE IS FALSE, and had been since before this was
+    attempted. App.jsx fetches catalog.json on launch, on returning to the
+    app (visibilitychange) and on reconnect, compares the site's appBuild
+    against __BUILD__, and shows "Update available — Reload now / Later".
+    An old build warns about itself, on every one of those moments, with the
+    fix one tap away.
 
-    THE STRING COMPARE IS THE WHOLE TRICK. __BUILD__ is a fixed-width
-    "YYYY-MM-DD HH:MM UTC · <commit>", so lexicographic order on it IS
-    chronological order — no date parsing, no timezone to get wrong. Verified
-    across a month and a year rollover (2026-08-31 < 2026-09-01, 2026-12-31 <
-    2027-01-01) rather than assumed.
+    SO THE FIRST IMPLEMENTATION WAS BUILT AND THEN REJECTED, and the reason
+    is worth more than the code was. It added an AlertDialog on the NEWER
+    phone: "Another device needs an update — ask them to fully close and
+    reopen the app." Wrong three times over:
+      - REDUNDANT. The stale phone is already being told, directly, by a
+        mechanism that has a Reload button on it.
+      - UNACTIONABLE. Nobody can update someone else's phone. It turned an
+        automatic mechanism into an errand handed to a person, who then has
+        to relay it to a second person.
+      - AND IT DESCRIBED THE WRONG REMEDY ANYWAY: the app updates itself.
+        "Ask them to reopen the app" is not how the new build arrives.
+    Reported in review as "a second phone telling the user to tell the person
+    to update their phone…", which is the whole objection in one line.
 
-    CONSERVATIVE THE SAME WAY isBuildTooOld IS, for a different reason: that
-    one defaults an ambiguous read to "you may write" because refusing wrongly
-    locks someone out of their shopping list. This one has no unsafe
-    direction to fall into — the worst a wrong guess costs is nagging someone
-    needlessly — but it stays conservative anyway: a missing or empty stamp
-    reads as UNKNOWN, not as old, and two devices on the same build are never
-    "behind" each other.
+    WHAT WAS ACTUALLY MISSING was never a prompt. Re-read the complaint the
+    item opens with: two phones diverged and "the only signal either gave was
+    Synced, which means the socket is connected and nothing about whose data
+    won." That is a DIAGNOSTIC gap — a question you ask after something
+    already looks wrong — and a modal is the wrong shape for an answer to it.
 
-    AlertDialog, not ChoiceDialog, and that is a real distinction rather than
-    a smaller version of the "Update available" dialog just above it in
-    App.jsx: this phone is already the newer one, so there is nothing to DO
-    here — only something to tell the person holding the older phone.
-    Dismissal is per build id, the same shape liveBuild/dismissedBuild
-    already uses just above it, and for the same reason: "Got it" has to mean
-    "not for THIS stamp", or the same stale phone re-triggers the notice on
-    every visit until it actually updates.
+    WHAT SHIPPED: every catalog write carries `buildId: __BUILD__` beside the
+    existing `appDataVersion` stamp, and Settings renders it under the "Build
+    <id>" line it already had, as "Household last saved by <id>". Two facts
+    side by side: the build this device runs, and the build that last wrote
+    the shared data. Hidden when they match, which is nearly always — a line
+    that is normally noise stops being read.
 
-    UNTESTABLE AT THE E2E LAYER, like its sibling gate: both depend on a live
-    Firebase listener, and the local-only build the e2e harness runs compiles
-    sync out entirely. Covered by unit tests on the pure comparison and on
-    normalizeCatalog's default, and checked once by hand — a build with
-    peerOlderBuild forced open, screenshotted at 320 and 390px, to confirm
-    the dialog text fits and nothing overflows before trusting it.
+    A RECORD, NOT A RULE. Nothing branches on buildId. The comparison
+    function the first attempt needed (peerOnOlderBuild, with its
+    "lexicographic order on a fixed-width timestamp IS chronological order"
+    argument and four tests defending it) is GONE, and that is a saving
+    rather than a loss: the stamp leads with its own timestamp, so a person
+    reading two of them can see which is older without the app asserting it.
+    No ordering rule to be wrong about.
+
+    THE ONE THING STILL WORTH A TEST is that normalizeCatalog gives an absent
+    buildId an empty string rather than undefined, because the value gets
+    rendered. A household written before the stamp existed is UNKNOWN, not
+    old, and there is nothing to infer from it.
+
+    appDataVersion is untouched and remains the only build fact that changes
+    what the app DOES — see isBuildTooOld. Keeping the hard gate and this
+    soft record clearly separate is the point; conflating them is how an
+    advisory line acquires the power to lock somebody out of a shopping list.
 
 31. [DONE] Preferences: units (as-entered / metric / standard) and week start,
     in a Settings tab where every section is now tap-to-open.

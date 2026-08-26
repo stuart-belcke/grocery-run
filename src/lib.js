@@ -2404,30 +2404,6 @@ export function isBuildTooOld(remoteAppDataVersion, mine) {
   return r > m;
 }
 
-// Item 30. Did the catalog we just read come from an OLDER build than mine —
-// worth a gentle one-time nudge, never a gate?
-//
-// __BUILD__ (vite.config.js) is "<built-at> · <commit>", where built-at is a
-// fixed-width "YYYY-MM-DD HH:MM UTC" string. That fixed width is what makes a
-// plain string compare correct: lexicographic order on it IS chronological
-// order, so there is no date to parse out and no timezone to get wrong.
-//
-// Conservative like isBuildTooOld above, and for the same reason — the two
-// failure modes here are both a false positive, not a false negative:
-//   - empty answers "no". A catalog written before this stamp existed is not
-//     "older", it is UNKNOWN, and guessing wrong nags somebody for no reason
-//     — this is advisory, so there is no safer default to fall back on the
-//     way isBuildTooOld falls back to "you may write".
-//   - equal answers "no". Only a build that has actually shipped since
-//     counts as behind; two devices on the same build are never "behind"
-//     each other.
-export function peerOnOlderBuild(remoteBuildId, mine) {
-  const r = String(remoteBuildId || "").trim();
-  const m = String(mine || "").trim();
-  if (!r || !m) return false;
-  return r < m;
-}
-
 // The starting catalog for a household that doesn't have one yet, built from
 // the shipped catalog.json.
 export function seedCatalog(catalogJson) {
@@ -2475,11 +2451,15 @@ export function normalizeCatalog(raw) {
     // Which generation of the app last wrote this. Absent means "before this
     // was recorded", which is older than anything that carries it.
     appDataVersion: Number(d.appDataVersion) || 0,
-    // Item 30: which BUILD last wrote this, for the soft nudge peerOnOlderBuild
-    // makes — separate from appDataVersion above, which is the hard gate on
-    // SHAPE. Absent means "" rather than a real value, and peerOnOlderBuild
-    // treats "" as unknown rather than as old, on purpose: this is advisory,
-    // so there is no reason to guess.
+    /* Item 30: which BUILD last wrote this household — a RECORD, not a rule.
+       Nothing branches on it; Settings shows it beside this device's own
+       build so that "whose data won" has an answer, which is the question
+       two diverged phones could not answer when the only signal either gave
+       was "Synced".
+       Deliberately not compared with appDataVersion above, which is the hard
+       gate on SHAPE and the only build fact that changes what the app does.
+       Absent means "" — a household written before this was stamped, which
+       is unknown rather than old, and there is nothing to infer from it. */
     buildId: typeof d.buildId === "string" ? d.buildId : "",
     prefs: normalizePrefs(d.prefs),
     // Absent means 0, i.e. "older than anything that carries a real stamp".
