@@ -1203,7 +1203,6 @@ test("a catalog written before this was recorded reads as 0, and doesn't gate", 
   assert.equal(isBuildTooOld(older.appDataVersion, APP_DATA_VERSION), false);
 });
 
-
 /* ---------------- preferences ---------------- */
 
 test("the week start ROTATES the days, never renumbers them", () => {

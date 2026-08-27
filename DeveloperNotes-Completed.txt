@@ -436,6 +436,88 @@ at the end, with the entries that were never given numbers.
     popover had to be checked with elementFromPoint, not by eye. The bar also
     cancels the page's 14px side padding, or rows show through at the edges.
 
+30. [DONE — BY REMOVING A BUTTON, AFTER TWO WRONG ANSWERS.]
+    KEEPING BOTH PHONES ON THE SAME BUILD.
+
+    THE REPORT: two phones diverged, and the only signal either gave was
+    "Synced" — which says the socket is connected and nothing whatever about
+    whose data won.
+
+    THE ITEM AS WRITTEN ASKED FOR A WARNING, and justified it like this:
+    "An old build cannot warn about itself — but the new one can warn about
+    it, which is enough." THE SECOND CLAUSE IS FALSE, and had been for a long
+    time before anybody tried to build on it. App.jsx already fetched
+    catalog.json on launch, on returning to the app and on reconnect,
+    compared the site's appBuild against __BUILD__, and offered "Update
+    available — Reload now / Later". Every device already warned about
+    itself, with the fix one tap away.
+
+    ATTEMPT 1, BUILT AND REJECTED: a dialog on the NEWER phone — "Another
+    device needs an update, ask them to fully close and reopen the app."
+    Wrong three ways. REDUNDANT: the stale phone was already being told,
+    directly, by something with a Reload button on it. UNACTIONABLE: nobody
+    can update someone else's phone, so it converted an automatic mechanism
+    into an errand relayed between two people. And it NAMED THE WRONG
+    REMEDY: the app updates itself; reopening it is not how the new build
+    arrives. Reviewed as "a second phone telling the user to tell the person
+    to update their phone…", which is the whole objection in a sentence.
+
+    ATTEMPT 2, BUILT AND REJECTED: a passive "Household last saved by
+    <build>" line under the existing Build line in Settings. Better — no
+    interruption, no errand — and still not worth it. It answers WHICH
+    BUILD, where the question was WHICH DEVICE. It is hidden exactly when
+    both phones are current, which is the normal case and the one where a
+    sync divergence can still happen. And it is not in an export, so it
+    never reaches the debugging session it exists for.
+
+    WHAT ACTUALLY CLOSED IT: neither warning nor reporting. A device only
+    stays on an old build because somebody was OFFERED THE CHANCE TO KEEP IT
+    THERE, and that offer was the "Later" button on the update dialog. That
+    dialog is gone. A newer build on the site is now taken automatically, on
+    launch and on every return to the app.
+
+    THE GENERAL LESSON, and it is the reason this entry is long: WHEN A
+    MECHANISM ALREADY HANDLES SOMETHING AUTOMATICALLY, ADDING A NOTIFICATION
+    ABOUT IT IS A STEP BACKWARDS. Take away the escape hatch instead. Both
+    rejected attempts were elaborations on telling somebody; the fix was one
+    deletion.
+
+    WHAT MAKES UPDATING-WITHOUT-ASKING SAFE IS THE GUARD, not the reload
+    being harmless — a reload destroys everything in useState.
+    useUnsavedWork (ui.jsx) lets a tab declare work that must outrank being
+    current: the recipe editor, which can hold a whole pasted page, and a
+    pasted backup in Settings. Searches and filters are deliberately NOT
+    declared — they are sticky but expendable, and losing one costs a scroll
+    rather than an evening. DECLARED BY THE TAB, not sniffed from the DOM by
+    App.jsx: "is any input non-empty" would guess, and would guess wrong in
+    the common direction now that the search boxes are sticky, blocking
+    updates forever on a left-over search.
+
+    DECLINING IS NOT REFUSING FOREVER. The check re-runs on every return to
+    the app, which is also when a draft is most likely to be finished or
+    abandoned. Without that it would decline once and never retry, because
+    liveBuild does not change again — mutation-tested, and it fails the third
+    spec.
+
+    ONCE PER BUILD, THROUGH sessionStorage, and that guard is not decoration:
+    if the service worker has not yet swapped the cached bundle, the reload
+    lands on the same build, the site still looks newer, and it fires again —
+    an unbreakable reload loop on a phone in a shop. sessionStorage is what
+    survives a reload and not a genuine close. A sessionStorage that THROWS
+    means don't reload, because a failure to remember must not become a loop.
+
+    THREE BROWSER SPECS (autoupdate.spec.mjs), driven by intercepting
+    catalog.json to advertise a build this bundle is not — which is exactly
+    what a real deploy looks like from the phone's side. Two mutations, both
+    caught: dropping the unsaved-work guard fails the draft specs, and
+    dropping the retry-on-return fails the one about taking it afterwards.
+
+    THE HARD GATE IS UNTOUCHED. isBuildTooOld / APP_DATA_VERSION still stops
+    a WRITE when the shared catalog's shape has moved past what this build
+    understands, and still shows its own dialog explaining why editing is
+    paused. That one has to be strict and dismissible-with-a-banner; this one
+    is neither. Keeping them separate is the point.
+
 31. [DONE] Preferences: units (as-entered / metric / standard) and week start,
     in a Settings tab where every section is now tap-to-open.
     HOUSEHOLD, NOT DEVICE — they live on the catalog node. Two phones

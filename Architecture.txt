@@ -1,0 +1,198 @@
+Grocery Run — Infrastructure and Tool Choices
+=============================================
+
+Every external thing this app depends on, recorded for BOTH PHASES.
+
+  PHASE 1 is everything that fits inside a free tier. That is a design
+  constraint, not a temporary embarrassment — it rules out whole categories of
+  complexity and keeps the moving parts countable.
+
+  PHASE 2 is what happens when it stops fitting: enough households that a free
+  tier's limits start to bind. PHASE 2 IS DOCUMENTED, NOT BUILT. Building for a
+  scale that has not arrived is how a two-file app acquires a message queue.
+
+WHY WRITE PHASE 2 DOWN AT ALL, THEN? Because the reasoning is only cheap while
+it is fresh. The person who picked RTDB knew exactly why, and in a year nobody
+will. An entry written now costs ten minutes; the same conclusion re-derived
+under pressure, when the free tier has already run out, costs a weekend and
+usually gets a worse answer.
+
+WHAT MAKES ANY OF THIS POSSIBLE IS THE SEAMS. src/sync.js is the only file
+allowed to import Firebase, and that rule was never about tidiness — it is what
+lets the entire backend be replaced without the app noticing. Every entry below
+names its seam. If a choice has no seam, that is the finding, and it goes in
+the entry.
+
+HOW TO ADD ONE
+--------------
+
+  DECISION   what was chosen
+  PHASE 1    why it wins at zero cost
+  CEILING    the specific limit that ends phase 1, and the number if known
+  PHASE 2    what replaces it, and roughly what that costs
+  TRIGGER    the measurement that says move — not a feeling
+  SEAM       what has to change at the swap, and what does not
+
+A NOTE ON THE NUMBERS BELOW. Provider quotas change, and several here were
+written from memory rather than read off a pricing page. Every one marked
+[VERIFY] must be checked against the provider's current published limits before
+anybody makes a decision on it. A decision record with confidently wrong
+numbers in it is worse than no record — treat the REASONING as the durable part
+and the figures as a starting point.
+
+
+1. HOSTING — GitHub Pages
+--------------------------
+DECISION  Static hosting on GitHub Pages, deployed from CI on every push to
+          main (see .github/workflows/deploy.yml).
+PHASE 1   The app is a static bundle. There is no server to run, nothing to
+          patch, and the deploy is the same workflow that runs the tests, so a
+          red suite cannot ship. Custom domains and HTTPS are included.
+CEILING   [VERIFY] Soft limits around 1GB of site content and ~100GB of
+          bandwidth a month, and it is explicitly not intended for commercial
+          use. Bandwidth is the one that would bind first, and the bundle is
+          ~350KB — so this is a very long way off.
+PHASE 2   Cloudflare Pages or Netlify. Both have generous free tiers of their
+          own, so this may never become a paid line item; the likelier reason
+          to move is wanting redirects, headers, or an edge function next to
+          the app rather than hitting a quota.
+TRIGGER   A bandwidth warning from GitHub, or needing server-side behaviour at
+          the same origin (see entry 4).
+SEAM      Thin by construction — the output is a directory of static files. A
+          move is a different deploy workflow and a DNS change, no app code.
+
+
+2. DATABASE — Firebase Realtime Database, not Firestore
+--------------------------------------------------------
+DECISION  RTDB, at households/{code}/{state,catalog,members,invites}.
+PHASE 1   The app's whole data model is one small JSON tree per household, read
+          live by two phones at once. That is precisely RTDB's shape. Its
+          pricing is by STORED BYTES AND BANDWIDTH, and this app's data is
+          measured in kilobytes — a household's entire state and catalog is
+          smaller than one photo.
+          FIRESTORE WAS THE OTHER OPTION AND LOSES HERE ON ITS PRICING MODEL,
+          not its features: it bills per DOCUMENT READ. This app subscribes to
+          a whole household and re-reads the subtree on every change (see
+          roadmap item 21 — the read half of the seam is deliberately wide).
+          Under a per-read model that pattern is the expensive one; under
+          per-byte it is free. Firestore's advantages — richer queries,
+          better multi-region — are things this app does not do.
+CEILING   [VERIFY] The Spark (free) plan is roughly 1GB stored, 10GB/month
+          egress, and — THE ONE THAT ACTUALLY BINDS — about 100 SIMULTANEOUS
+          CONNECTIONS. Storage and egress are not the constraint at kilobytes
+          per household. Connections are: two phones per household means the
+          ceiling is somewhere near fifty households with both devices live at
+          once, far sooner than any byte limit.
+PHASE 2   Blaze (pay-as-you-go) on the same database is the cheap first step
+          and requires NO code change at all — it lifts the connection cap and
+          bills for what is used, which at this data size is pennies. Only if
+          the access pattern itself changed would Firestore or Postgres
+          (Supabase/Neon) be worth the migration.
+TRIGGER   Connection-limit errors, or households in the dozens. Measure
+          concurrent connections in the Firebase console before assuming.
+SEAM      src/sync.js, and it is the strongest one here — the ONLY file allowed
+          to import Firebase, enforced by convention and called out in
+          CLAUDE.md. lib.js is pure and has no idea a database exists.
+          NOT YET ENFORCED BY A LINT RULE, and roadmap item 21 says so: "an
+          ESLint no-restricted-imports rule banning firebase/* outside sync.js,
+          so the seam cannot regress silently. It is currently a convention
+          held by attention alone." That is the single cheapest thing on this
+          page and it protects everything else in this entry.
+
+
+3. AUTHENTICATION — Firebase Auth
+----------------------------------
+DECISION  Firebase Auth: Google sign-in, email link, and ANONYMOUS for guests.
+PHASE 1   Free at this scale, and already present as part of Firebase, so it
+          adds no new vendor. The anonymous path is what makes a guest link
+          work without an account at all — you are handed a link and you shop.
+CEILING   [VERIFY] Effectively unlimited for the sign-in methods used here;
+          phone/SMS auth is the billed one and this app does not use it.
+PHASE 2   Same service, Blaze plan, alongside entry 2. No realistic reason to
+          move; if one arrived it would be a policy question (self-hosting
+          identity) rather than a cost one.
+TRIGGER   None foreseeable. Revisit only alongside entry 2.
+SEAM      src/sync.js again. The app deals in a `user` object and a role, never
+          in a Firebase credential.
+
+
+4. RECIPE IMPORT FROM A LINK — UNDECIDED, AND THE LIVE ONE
+-----------------------------------------------------------
+DECISION  Not made. This is roadmap item 106, and it is the clearest example
+          on this page of a phase-1/phase-2 fork.
+PHASE 1   NO SERVER, because a browser may not read another site's HTML and no
+          app-side code changes that. The shipped answer is an iOS Shortcut
+          that fetches the page on the PHONE and hands the text to the app
+          through a URL. It costs nothing to run and there is no infrastructure
+          to own. Its cost is the gesture: open the recipe, Share, tap the
+          shortcut — not "paste a link into the app".
+CEILING   UNMEASURED, AND THAT IS THE OPEN QUESTION. A page is 5-12k characters,
+          7-17k once URL-encoded, and nobody has measured what iOS does with a
+          URL that long. The format declares its length before the text so
+          truncation is DETECTED rather than silently importing three quarters
+          of a recipe. Item 106 says to write the number down when it is known.
+PHASE 2   A tiny fetch-and-extract service — a Cloudflare Worker was the
+          candidate — which would make it a real "paste a link" on any device.
+          [VERIFY] Workers' free tier is around 100k requests/day, which is
+          enormous next to a household adding a few recipes a week, so this
+          might never cost anything either. THE REASON IT IS NOT PHASE 1 IS
+          NOT COST, IT IS OWNERSHIP: a server is a thing that can break, be
+          abused, or need patching, and the Shortcut is a thing that cannot.
+          A probe (branch claude/egress-probe) found 4 of 5 recipe sites serve
+          a datacenter IP happily and AllRecipes returns 402, plus JSON-LD in
+          the HTML of all four — meaning the server route would hand over
+          STRUCTURED data rather than text to parse. That result needs
+          confirming and writing into item 106.
+TRIGGER   The phone measurement above. If a real page's URL survives, the
+          Shortcut stands and phase 2 never happens; if iOS truncates, the
+          fallback is Copy-to-Clipboard first (less magical, no limit) and only
+          then a Worker.
+SEAM      parseImportHash / importUrl in lib.js are the one definition of the
+          format, and parseRecipeText already turns text into a draft
+          regardless of where the text came from. A Worker would feed the same
+          function, so the app side is already agnostic.
+
+
+5. CI, SCHEDULED JOBS AND SECRETS — GitHub Actions
+---------------------------------------------------
+DECISION  GitHub Actions runs the test gate, deploys the site, uploads
+          database.rules.json (scripts/deploy-rules.mjs), and runs the weekly
+          household reclamation sweep (scripts/reclaim-households.mjs).
+PHASE 1   Free for public repositories, and it is already where the code lives.
+          The sweep is a cron workflow rather than a Cloud Function, which
+          means no second runtime to own and no cold starts to reason about.
+CEILING   [VERIFY] Unlimited minutes on public repos; private repos have a
+          monthly minute allowance. The e2e suite is ~3.5 minutes a run, so a
+          move to private would start to matter.
+PHASE 2   Cloud Functions / Cloud Scheduler for the sweep if it ever needs to
+          run more often than a cron job comfortably manages, or a paid
+          minutes plan if the repo goes private.
+TRIGGER   The repo going private, or the sweep needing sub-daily granularity.
+SEAM      Both scripts are plain node with no Actions-specific API, so they run
+          anywhere with a service-account key. Covered by
+          tests/rules/sweep.test.mjs, which drives them as real child processes
+          — so a runner change is testable before it ships.
+
+
+6. THE CLIENT — a PWA, not a native app
+----------------------------------------
+DECISION  React + Vite, installed to the home screen through a service worker.
+PHASE 1   No app store, no review, no yearly developer fee, no separate builds
+          per platform. A push to main is on both phones within minutes, which
+          is what makes the automatic-update behaviour in item 30 possible at
+          all.
+CEILING   Not a quota — a capability limit. Anything needing background
+          execution, real push notifications on iOS, or deep OS integration is
+          where a PWA stops. None of those are wanted today; the closest is the
+          Shortcut in entry 4, which exists precisely because the web cannot
+          reach across origins.
+PHASE 2   A wrapper (Capacitor) only if a genuinely native capability becomes
+          necessary. This would be the most expensive move on this page — an
+          Apple developer account, review cycles, and losing the
+          push-to-deploy loop.
+TRIGGER   A required feature the web platform cannot do. Not "it would feel
+          more native".
+SEAM      Weakest one here, and worth being honest about: a wrapper keeps the
+          React app but changes deployment, updates and storage assumptions all
+          at once. Nothing about the current code prevents it; nothing helps
+          either.

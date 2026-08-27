@@ -5,7 +5,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
-import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop, SuggestInput, SearchField, useSticky } from "../ui";
+import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop, SuggestInput, SearchField, useSticky, useUnsavedWork } from "../ui";
 import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, ingredientNames, normalizeCfg, ingredientMatches, existingIngredientSuggestions, splitSuggestion, unitMatches, ensureIngredientId, asArray, planSlotsFor, parseRecipeText } from "../lib";
 import { RecipeDetail } from "../RecipeDetail";
 
@@ -64,6 +64,11 @@ const dayRow = (state) => ({
 
 export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, clearImport }) {
   const [draft, setDraft] = useState(null);
+  /* An open recipe editor is the one thing on this tab an automatic update
+     must not throw away — it can hold a whole pasted recipe. The searches
+     and filters below are sticky but expendable; losing those to a reload
+     costs a scroll, not an evening. See useUnsavedWork in ui.jsx. */
+  useUnsavedWork("meals.draft", !!draft);
   /* WHAT YOU WERE LOOKING AT survives a tab switch; what you were in the
      middle of DOING does not. See useSticky in ui.jsx for why the two are
      separated — `draft` above is deliberately NOT sticky, because a

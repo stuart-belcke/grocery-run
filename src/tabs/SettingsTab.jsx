@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { C, fontBody, inputStyle, syncTone } from "../theme";
-import { Btn, ConfirmDialog, AlertDialog, Section, Seg, HelpText } from "../ui";
+import { Btn, ConfirmDialog, AlertDialog, Section, Seg, HelpText, useUnsavedWork } from "../ui";
 import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, remapStateIngredientIds, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, inviteLive, newInviteToken, searchHelp, writeErrorAdvice, householdLabel, hasHouseholdName, cleanHouseholdName, exampleHouseholdName, HOUSEHOLD_NAME_MAX } from "../lib";
 import { syncEnabled } from "../sync";
 import { HOW_IT_WORKS, FAQS } from "../help";
@@ -131,6 +131,9 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
 
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
+  // A pasted backup is a whole household's data and nothing else holds a
+  // copy of it yet — an automatic update waits for it. See ui.jsx.
+  useUnsavedWork("settings.import", !!importText.trim());
   const [msg, setMsg] = useState("");
   // Pre-filled when the app was opened from a tapped invite link on a device
   // that is already past the first-run screen. Same field, same validation.

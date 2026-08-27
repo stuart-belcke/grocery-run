@@ -50,6 +50,47 @@ export function useSticky(key, initial) {
   return [value, set];
 }
 
+/* ------------------------------------------------------------------ *
+ *  useUnsavedWork — "do not reload out from under me".
+ *
+ *  App.jsx updates the app by reloading it the moment it notices the site
+ *  is serving a newer build (item 30). That is the right default — a device
+ *  left on an old build is how two phones end up disagreeing — but a reload
+ *  destroys anything held in useState, and SOME of that is real work: a
+ *  half-typed recipe, a pasted backup. Losing a search box is nothing;
+ *  losing twenty minutes of typing is not forgivable.
+ *
+ *  DECLARED BY THE TAB THAT OWNS THE WORK, rather than sniffed from the DOM
+ *  by App.jsx. A DOM check ("is any input non-empty?") would have to guess,
+ *  and it would guess wrong in the common direction: the search boxes are
+ *  sticky now, so a left-over search would block updating forever. The tab
+ *  knows the difference between a draft and a filter; nothing else does.
+ *
+ *  A plain module-level Set, read synchronously — the reload decision cannot
+ *  wait for a re-render, and this is never rendered.
+ * ------------------------------------------------------------------ */
+const unsavedWork = new Set();
+
+export function useUnsavedWork(key, active) {
+  useEffect(() => {
+    if (!active) {
+      unsavedWork.delete(key);
+      return;
+    }
+    unsavedWork.add(key);
+    // Cleanup covers the unmount case too: a tab switched away from is not
+    // holding anything, because its state is already gone.
+    return () => unsavedWork.delete(key);
+  }, [key, active]);
+}
+
+/* True while anything anywhere would be destroyed by a reload. Also treats
+   an open dialog as work in progress: it is a question the app has asked,
+   and having it vanish mid-answer is its own small betrayal. */
+export const hasUnsavedWork = () =>
+  unsavedWork.size > 0 ||
+  (typeof document !== "undefined" && !!document.querySelector('[role="dialog"]'));
+
 /* Pins a tab's controls to the top of the viewport once you scroll past them.
    Fine at thirty recipes, the difference between usable and not at three
    hundred: without it, searching again means scrolling all the way back up.
