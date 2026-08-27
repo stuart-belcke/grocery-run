@@ -2451,16 +2451,6 @@ export function normalizeCatalog(raw) {
     // Which generation of the app last wrote this. Absent means "before this
     // was recorded", which is older than anything that carries it.
     appDataVersion: Number(d.appDataVersion) || 0,
-    /* Item 30: which BUILD last wrote this household — a RECORD, not a rule.
-       Nothing branches on it; Settings shows it beside this device's own
-       build so that "whose data won" has an answer, which is the question
-       two diverged phones could not answer when the only signal either gave
-       was "Synced".
-       Deliberately not compared with appDataVersion above, which is the hard
-       gate on SHAPE and the only build fact that changes what the app does.
-       Absent means "" — a household written before this was stamped, which
-       is unknown rather than old, and there is nothing to infer from it. */
-    buildId: typeof d.buildId === "string" ? d.buildId : "",
     prefs: normalizePrefs(d.prefs),
     // Absent means 0, i.e. "older than anything that carries a real stamp".
     // pickState compares this against the local copy to decide adopt vs push.

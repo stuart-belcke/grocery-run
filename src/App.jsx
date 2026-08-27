@@ -38,7 +38,7 @@ import {
   setHouseholdName,
 } from "./sync";
 import { C, fontDisplay, fontBody, syncTone, BOTTOM_NAV_H, BOTTOM_NAV_Z } from "./theme";
-import { Stripe, Btn, ChoiceDialog, InstallOffer, NoticeCard, useKeyboardOpen } from "./ui";
+import { Stripe, Btn, ChoiceDialog, InstallOffer, NoticeCard, useKeyboardOpen, hasUnsavedWork } from "./ui";
 import {
   LOCAL_KEY,
   TABS,
@@ -350,7 +350,6 @@ export default function App() {
   // remembered PER BUILD: "Later" should mean "not for this one", not "not
   // until the next time I switch apps".
   const [liveBuild, setLiveBuild] = useState(null);
-  const [dismissedBuild, setDismissedBuild] = useState(null);
   // The gate's modal is shown once and then dismissible; its banner stays.
   // Without that, dismissing would leave editing mysteriously dead.
   const [gateSeen, setGateSeen] = useState(false);
@@ -434,9 +433,7 @@ export default function App() {
     // Stamped on every edit, and only on an edit. This is what tells the
     // listener below that an offline change is real work rather than a stale
     // cache — a seed nobody has touched keeps updatedAt 0 and always loses.
-    // buildId rides along for item 30: which build last wrote this household,
-    // shown in Settings. A record, not a rule — nothing branches on it.
-    const next = { ...fn(structuredClone(base)), updatedAt: Date.now(), appDataVersion: APP_DATA_VERSION, buildId: __BUILD__ };
+    const next = { ...fn(structuredClone(base)), updatedAt: Date.now(), appDataVersion: APP_DATA_VERSION };
     setHCatalog(next);
     hCatalogRef.current = next;
     saveCatalogCache(code, next);
@@ -600,6 +597,56 @@ export default function App() {
       window.removeEventListener("online", check);
     };
   }, []);
+
+  /* ITEM 30: THE APP UPDATES ITSELF. There is no "Later".
+
+     The problem this closes is two phones disagreeing, and the earlier
+     attempts at it both tried to REPORT the disagreement — a notice on the
+     newer phone, then a build stamp in Settings. Both were rejected: see
+     item 30's entry. A device only stays on an old build because somebody
+     was offered the chance to keep it there, and the dialog that used to
+     sit here offered exactly that. Removing the escape hatch removes the
+     condition, rather than announcing it.
+
+     WHAT MAKES THAT SAFE IS THE GUARD, not the reload being harmless. A
+     reload destroys everything in useState, and some of that is real work
+     — see useUnsavedWork in ui.jsx. A half-typed recipe outranks being
+     current by a wide margin, so a device holding one stays where it is
+     and takes the update at the next opportunity. It costs at most one
+     more session on the old build.
+
+     ONCE PER BUILD, and the guard is not decoration. If the service worker
+     has not yet swapped the cached bundle, reloading lands on the SAME
+     build, liveBuild still differs, and this fires again — an unbreakable
+     reload loop on somebody's phone in a shop. sessionStorage remembers
+     the attempt across the reload (which is the only thing that survives
+     one) and clears when the app is genuinely closed, so a later launch
+     gets a fresh try. A failure to store it must not become a loop either,
+     so a throwing sessionStorage means DON'T reload. */
+  useEffect(() => {
+    if (!liveBuild) return;
+    const RELOADED_FOR_KEY = "grocery-run-reloaded-for-build";
+    const maybeUpdate = () => {
+      if (document.visibilityState !== "visible" || hasUnsavedWork()) return;
+      let alreadyTried = true; // if we cannot tell, do not reload
+      try {
+        alreadyTried = sessionStorage.getItem(RELOADED_FOR_KEY) === liveBuild;
+        if (!alreadyTried) sessionStorage.setItem(RELOADED_FOR_KEY, liveBuild);
+      } catch {
+        return;
+      }
+      if (!alreadyTried) location.reload();
+    };
+    maybeUpdate();
+    /* AND AGAIN ON EVERY RETURN TO THE APP, because the first attempt is
+       allowed to decline. A device that was mid-recipe when the new build
+       landed would otherwise never take it: liveBuild does not change
+       again, so nothing would re-run this. Coming back to the app is also
+       exactly when the draft is most likely to be finished or abandoned. */
+    const onVisible = () => maybeUpdate();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [liveBuild]);
 
   // Subscribe to the household node whenever the code changes.
   useEffect(() => {
@@ -1558,24 +1605,10 @@ export default function App() {
       </nav>
       )}
 
-      {/* A banner at the top of a scrolling page is easy to scroll past — and
-          for an update you're being ASKED to take, being missed is the whole
-          failure. Both of these are modals in the app's existing dialog
-          treatment rather than a second visual language.
-
-          The gate keeps its banner as well: dismissing this must not leave
-          editing mysteriously dead with no explanation on screen. */}
-      <ChoiceDialog
-        open={!!liveBuild && liveBuild !== dismissedBuild && !tooOld}
-        title="Update available"
-        cancelLabel="Later"
-        onCancel={() => setDismissedBuild(liveBuild)}
-        choices={[{ label: "Reload now", kind: "primary", onClick: () => location.reload() }]}
-      >
-        A newer version of Grocery Run is ready. Reloading takes a moment and
-        keeps your list, week plan and meals exactly as they are.
-      </ChoiceDialog>
-
+      {/* The update offer that used to sit here is GONE — see the effect that
+          reloads automatically. What remains is the hard gate below, which is
+          a different thing: it explains why editing is dead, and dismissing
+          it must not leave that mysterious. It keeps its banner too. */}
       <ChoiceDialog
         open={tooOld && !gateSeen}
         title="Update to keep editing"

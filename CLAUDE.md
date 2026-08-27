@@ -1,14 +1,34 @@
 # Working on Grocery Run
 
-A personal React + Vite PWA for meal planning and shopping, used by two people on
-two phones. Not a product — a real tool that gets used weekly, so bugs cost a
-wasted trip or a duplicate purchase rather than a support ticket.
+A React + Vite PWA for meal planning and shopping. It is used weekly and for
+real, so a bug costs a wasted trip or a duplicate purchase — which is a higher
+bar than a support ticket, not a lower one.
+
+**Built to a professional standard, run on free infrastructure.** Those are two
+separate facts and neither excuses the other. The current scale is small; the
+quality bar does not move because of that, and "only a couple of people use it"
+is never a reason to ship something worse. It is also not an argument in a
+design discussion — if a feature is weak, say why the feature is weak.
+
+**PHASE 1 IS EVERYTHING THAT FITS IN A FREE TIER**, and that is a real design
+constraint rather than a temporary embarrassment: it forces choices that stay
+small and legible. **PHASE 2 IS WHAT HAPPENS WHEN IT NO LONGER FITS** — enough
+households that a free tier's limits start to bind. Phase 2 is DOCUMENTED, not
+built. See `Architecture.txt`: every infrastructure choice records why it wins
+at zero cost, the specific limit that ends phase 1, and what replaces it.
+
+**The seams are what make that credible.** `sync.js` being the only file allowed
+to import Firebase was never about tidiness — it is what lets the whole backend
+be swapped without touching the app. Anything chosen for phase 1 gets a seam
+thin enough that its phase 2 replacement is a swap rather than a rewrite. When
+you add a dependency on an external service, put it behind one, and write the
+entry.
 
 ## Read these first
 
 - `DeveloperNotes.txt` — the roadmap. What is still open, why it hasn't been
-  done, and **what would change the answer**. Ten items, ~240 lines. Read it
-  to find out what's left.
+  done, and **what would change the answer**. Nine items. Read it to find out
+  what's left.
 - `DeveloperNotes-Completed.txt` — every finished item, unedited. This is the
   record of **why things are the way they are**, and most days it's the more
   useful of the two. **Search it before changing anything that looks odd**:
@@ -16,6 +36,10 @@ wasted trip or a duplicate purchase rather than a support ticket.
   why usually exists. Search it before redoing anything, too — several
   entries record something tried, measured and rejected, and the reasons are
   usually still valid. The mistakes are kept deliberately.
+- `Architecture.txt` — every infrastructure and tool choice, each recorded for
+  **both phases**: why it wins on the free tier, the specific limit that ends
+  phase 1, and what replaces it. Read it before adding a dependency on anything
+  external, and add an entry when you do.
 - The block comments in `src/lib.js`. The non-obvious decisions are documented
   where the code is, not in commit messages.
 
@@ -30,7 +54,7 @@ items in it.
 | File | Holds | Rule |
 |---|---|---|
 | `src/theme.js` | colors, fonts, `inputStyle` | values only |
-| `src/ui.jsx` | shared components (`Btn`, `Seg`, `Section`, `StickyBar`, dialogs) and the `useSticky` hook | no app data |
+| `src/ui.jsx` | shared components (`Btn`, `Seg`, `Section`, `StickyBar`, dialogs) and the `useSticky` / `useUnsavedWork` hooks | no app data |
 | `src/lib.js` | pure logic | **no React, no DOM, no Firebase** — this is why it's testable |
 | `src/sync.js` | the database seam | the ONLY file allowed to import Firebase |
 | `src/tabs/*.jsx` | features | assembled from the above |
@@ -133,6 +157,15 @@ the moment it stuck, which makes the document taller mid-scroll and the
 browser's scroll anchoring nudges the page to compensate. That was invisible
 until something restored a scroll position, and then it drifted 10px per tab
 switch and compounded. Keep the padding total equal in both states.
+
+**When something already happens automatically, do not add a notice about it.**
+Take away the escape hatch instead. Item 30 was asked for as "warn when another
+device is on an older build" and was built twice as a warning — a dialog telling
+one person to go and ask another to update, then a passive build stamp in
+Settings. Both were wrong. Devices already checked for new builds on their own;
+what kept one behind was the "Later" button offering to keep it there. Deleting
+that button fixed it. A notification about a mechanism that works is a step
+backwards from the mechanism.
 
 **Branch from `main`. Never stack branches.** The repo squash-merges, so a
 branch cut from another branch carries commits whose content reaches `main`

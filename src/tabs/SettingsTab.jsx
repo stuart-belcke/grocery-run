@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { C, fontBody, inputStyle, syncTone } from "../theme";
-import { Btn, ConfirmDialog, AlertDialog, Section, Seg, HelpText } from "../ui";
+import { Btn, ConfirmDialog, AlertDialog, Section, Seg, HelpText, useUnsavedWork } from "../ui";
 import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, remapStateIngredientIds, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, inviteLive, newInviteToken, searchHelp, writeErrorAdvice, householdLabel, hasHouseholdName, cleanHouseholdName, exampleHouseholdName, HOUSEHOLD_NAME_MAX } from "../lib";
 import { syncEnabled } from "../sync";
 import { HOW_IT_WORKS, FAQS } from "../help";
@@ -131,6 +131,9 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
 
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
+  // A pasted backup is a whole household's data and nothing else holds a
+  // copy of it yet — an automatic update waits for it. See ui.jsx.
+  useUnsavedWork("settings.import", !!importText.trim());
   const [msg, setMsg] = useState("");
   // Pre-filled when the app was opened from a tapped invite link on a device
   // that is already past the first-run screen. Same field, same validation.
@@ -1221,36 +1224,6 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
       <p style={{ fontSize: 12, color: C.faint, textAlign: "center", margin: "14px 0 4px", fontFamily: "ui-monospace, Menlo, monospace" }}>
         Build {__BUILD__}
       </p>
-
-      {/* ITEM 30, AND ONLY WHEN IT DIFFERS. Two phones diverged once and the
-          only signal either gave was "Synced" — which says the socket is
-          connected and nothing whatever about whose data won. This is the
-          missing half of the line above: that one is the build THIS device is
-          running, this one is the build that last wrote the household.
-
-          A FACT, NOT AN INSTRUCTION, and that is the whole design. The first
-          attempt was a modal on the newer phone saying "another device needs
-          an update — ask them to reopen the app", which was wrong twice over:
-          the app ALREADY offers every device its own "Update available —
-          Reload now" on launch, on returning to it and on reconnect, so the
-          stale phone is being told directly and far better; and the person
-          reading the modal cannot update someone else's phone anyway. It
-          made a working automatic mechanism into somebody's errand.
-
-          What was actually missing was never a prompt. It was an answer to
-          "why does this look wrong", and that is a line you go and read when
-          something already looks wrong — not something that interrupts.
-
-          The stamp leads with its own timestamp, so older-or-newer is legible
-          without the app claiming it: no comparison, no ordering rule, and
-          nothing to get wrong about a build a household has that this device
-          has never heard of. Hidden when it matches, which is nearly always,
-          because a line that is normally noise stops being read. */}
-      {hCatalog && hCatalog.buildId && hCatalog.buildId !== __BUILD__ && (
-        <p style={{ fontSize: 12, color: C.faint, textAlign: "center", margin: "0 0 4px", fontFamily: "ui-monospace, Menlo, monospace" }}>
-          Household last saved by {hCatalog.buildId}
-        </p>
-      )}
 
       <ConfirmDialog
         open={!!askJoin}

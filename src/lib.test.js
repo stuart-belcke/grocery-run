@@ -1203,24 +1203,6 @@ test("a catalog written before this was recorded reads as 0, and doesn't gate", 
   assert.equal(isBuildTooOld(older.appDataVersion, APP_DATA_VERSION), false);
 });
 
-/* ---------------- item 30: which build last wrote the household ----------------
-   A record, not a rule. Nothing branches on buildId — Settings shows it beside
-   this device's own build so "whose data won" has an answer. The only thing
-   worth pinning is that reading a household written before the stamp existed
-   produces a string rather than undefined, since that value is rendered. */
-
-test("normalizeCatalog defaults a missing buildId to an empty string, not undefined", () => {
-  const cat = normalizeCatalog({ recipes: {} });
-  assert.equal(cat.buildId, "");
-});
-
-test("normalizeCatalog keeps a buildId it was given, and ignores a non-string", () => {
-  assert.equal(normalizeCatalog({ buildId: "2026-08-26 02:47 UTC · 3f9be76" }).buildId, "2026-08-26 02:47 UTC · 3f9be76");
-  for (const junk of [7, null, {}, []]) {
-    assert.equal(normalizeCatalog({ buildId: junk }).buildId, "", `${JSON.stringify(junk)} is not a build id`);
-  }
-});
-
 /* ---------------- preferences ---------------- */
 
 test("the week start ROTATES the days, never renumbers them", () => {
