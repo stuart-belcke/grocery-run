@@ -1,12 +1,7 @@
-// THROWAWAY. Proves a Cloudflare Worker's own IP space gets served by these
-// five sites the same way a GitHub Actions runner did (item 106) — a
-// datacenter IP is not one reputation, and this is the one that matters.
-// Delete this worker once it has answered that.
+// THROWAWAY, dump 2: full recipeInstructions shape, not just a count — need
+// ground truth before writing an extractor against it.
 const FIXTURES = [
-  "https://www.allrecipes.com/recipe/15925/creamy-au-gratin-potatoes/",
   "https://babyfoode.com/blog/mini-chicken-carrot-meatballs-for-baby/",
-  "https://www.themediterraneandish.com/baked-cod-recipe-lemon-garlic/",
-  "https://www.olivetomato.com/greek-style-roasted-lemon-and-garlic-chicken-with-potatoes-and-carrots/",
   "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/",
 ];
 
@@ -28,23 +23,25 @@ function findRecipeNode(html) {
 
 export default {
   async fetch() {
-    const lines = [];
+    const out = [];
     for (const url of FIXTURES) {
       const host = new URL(url).host;
-      try {
-        const res = await fetch(url, {
-          headers: {
-            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
-            accept: "text/html,application/xhtml+xml",
-          },
-        });
-        const html = await res.text();
-        const recipe = findRecipeNode(html);
-        lines.push(`${host.padEnd(32)} status=${res.status}  bytes=${html.length}  recipeNode=${recipe ? "yes name=" + JSON.stringify(recipe.name) : "no"}`);
-      } catch (e) {
-        lines.push(`${host.padEnd(32)} FETCH ERROR: ${e.message}`);
-      }
+      const res = await fetch(url, {
+        headers: {
+          "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+          accept: "text/html,application/xhtml+xml",
+        },
+      });
+      const html = await res.text();
+      const recipe = findRecipeNode(html);
+      out.push(`=== ${host} ===`);
+      out.push(JSON.stringify({
+        name: recipe?.name,
+        recipeYield: recipe?.recipeYield,
+        recipeIngredient: recipe?.recipeIngredient,
+        recipeInstructions: recipe?.recipeInstructions,
+      }, null, 2));
     }
-    return new Response(lines.join("\n") + "\n", { headers: { "content-type": "text/plain" } });
+    return new Response(out.join("\n"), { headers: { "content-type": "text/plain" } });
   },
 };
