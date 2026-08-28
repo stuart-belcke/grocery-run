@@ -1,7 +1,7 @@
 Grocery Run — Roadmap
 =====================
 
-What is still open. Nine items, none of them urgent — this app does its job.
+What is still open. Eight items, none of them urgent — this app does its job.
 
 THE NUMBERS ARE IDs, NOT POSITIONS, AND ARE NEVER REUSED OR REASSIGNED. They
 were allocated chronologically, so a low number here means the item is OLD and
@@ -13,7 +13,7 @@ what makes one findable; for what to do next, use the list below.
 FINISHED WORK LIVES IN DeveloperNotes-Completed.txt, and most days that is the
 more useful of the two: it records WHY the app is the way it is, which is what
 you need before changing something that looks odd. Search it before altering
-anything surprising, and before redoing anything — several entries record
+anything surprising, and before redoing anything, too — several entries record
 something tried, measured and rejected. A gap in the numbering here means the
 item is finished and lives over there.
 
@@ -21,8 +21,6 @@ item is finished and lives over there.
 IF YOU ARE PICKING SOMETHING UP
 -------------------------------
 
-  106  import a recipe from a link      A PRIORITY now. One phone test decides
-                                       whether it needs a server at all
   110  the parser                       standing task: more captured pages
    98  the test gaps                    a register; 98a is the costly one
 
@@ -173,25 +171,21 @@ file reached 5,886 lines with ten live items in it.
 
     WHAT TO PICK UP FIRST, in the order that would teach the most:
       - DONE — THE NAME NOW COMES BACK ON ALL FIVE. It was blank on every
-        page, which meant typing the title by hand on every import: the one
-        rough edge felt every single time. Blank was deliberate (a blank
-        field asks to be filled in, a wrong one gets saved), so replacing it
-        had to be right far more often than wrong.
+        page, which meant typing the title by hand on every import. Blank was
+        deliberate (a blank field asks to be filled in, a wrong one gets
+        saved), so replacing it had to be right far more often than wrong.
         NOT A GUESS AT WHAT A TITLE LOOKS LIKE — that is what item 109
         records building, measuring and reverting. A STRUCTURAL fact instead:
         every recipe site puts a "Home > Category > Category" trail directly
         above the page heading, and the heading is the recipe. Two trail
-        styles cover all five, and AllRecipes uses neither arrow — a bulleted
+        styles cover all five; AllRecipes uses neither arrow — a bulleted
         all-caps trail spaced out with runs of spaces.
-        titleAfterBreadcrumb() in lib.js. Falls back to blank and never to a
+        titleAfterBreadcrumb() in lib.js falls back to blank and never to a
         guess, so it can only improve on the old answer. A paste has no
         breadcrumb — a person starts selecting at the recipe — so pastes are
-        untouched.
-        AverieCooks shouts its heading, so an all-caps line is sentence-cased
-        through cap(), the same path every ingredient name takes.
-        Five mutations, all caught. The one worth keeping: dropping the
-        breadcrumb requirement so the first line wins again fails four tests,
-        including the stylesheet one that started all of this.
+        untouched. AverieCooks shouts its heading, so an all-caps line is
+        sentence-cased through cap(), the same path every ingredient name
+        takes.
         STILL OPEN UNDERNEATH IT: a site with no breadcrumb at all has never
         been seen, and would come back blank as before.
       - A UK OR EUROPEAN SITE has never been tested. The parser was taught
@@ -212,18 +206,18 @@ file reached 5,886 lines with ten live items in it.
         black pepper" was ONE ingredient, and on the AllRecipes page that
         card ALSO lists "1/2 teaspoon salt" — so salt reached the list under
         two names that cannot be added up.
-        THE FIRST ATTEMPT WAS A REGEX IN THE PARSER: split on "and" when the
-        line says "to taste". It was wrong twice over, and item 40 had
-        already settled both halves. It INVENTED A SIGNAL THAT EXISTED —
+        THE FIRST ATTEMPT WAS A REGEX IN THE PARSER, splitting on "and" when
+        the line says "to taste" — wrong twice over, and item 40 had already
+        settled both halves. It INVENTED A SIGNAL THAT EXISTED —
         existingIngredientSuggestions already returns Salt AND Black pepper
-        for that row, two different known ingredients matching one row, and
-        the catalog tells it apart from "4 cloves garlic peeled and cut in
+        for that row, two known ingredients matching one row, and the
+        catalog tells it apart from "4 cloves garlic peeled and cut in
         half" (only "Garlic" resolves) with no marker word needed. And it
         DECIDED INSTEAD OF ASKING, which is the exact failure item 40 exists
         to record.
         NOW: splitSuggestion() in lib.js proposes on the separator and lets
-        the catalog confirm both halves, and the caller renders a chip beside
-        the "Already have:" one. Accepting returns the CATALOG's names, so it
+        the catalog confirm both halves, rendering a chip beside the
+        "Already have:" one. Accepting returns the CATALOG's names, so it
         unmerges the row and canonicalizes both at once.
         BEFORE REACHING FOR A HEURISTIC HERE, CHECK WHETHER THE CATALOG
         ALREADY KNOWS. It usually does, and the evidence beats the hint.

@@ -29,13 +29,16 @@ entry.
 - `DeveloperNotes.txt` — the roadmap. What is still open, why it hasn't been
   done, and **what would change the answer**. Nine items. Read it to find out
   what's left.
-- `DeveloperNotes-Completed.txt` — every finished item, unedited. This is the
-  record of **why things are the way they are**, and most days it's the more
-  useful of the two. **Search it before changing anything that looks odd**:
-  the strange things here are usually load-bearing and the entry explaining
-  why usually exists. Search it before redoing anything, too — several
-  entries record something tried, measured and rejected, and the reasons are
-  usually still valid. The mistakes are kept deliberately.
+- `DeveloperNotes-Completed.txt` — every finished item. This is the record of
+  **why things are the way they are**, and most days it's the more useful of
+  the two. **Search it before changing anything that looks odd**: the strange
+  things here are usually load-bearing and the entry explaining why usually
+  exists. Search it before redoing anything, too — several entries record
+  something tried, measured and rejected, and the reasons are usually still
+  valid. It gets pruned periodically to stay readable — restated context,
+  narrative padding and near-duplicate coverage get cut — but the decisions
+  and their load-bearing reasons survive every pass. Mistakes stay recorded;
+  only the retelling gets shorter.
 - `Architecture.txt` — every infrastructure and tool choice, each recorded for
   **both phases**: why it wins on the free tier, the specific limit that ends
   phase 1, and what replaces it. Read it before adding a dependency on anything
