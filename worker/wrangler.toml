@@ -1,0 +1,8 @@
+# Deployed by .github/workflows/deploy-worker.yml on every push to main
+# that touches worker/**. The name is STABLE (not per-run, unlike the
+# throwaway probe this replaced) — the app's client code hardcodes the
+# URL this name produces, so renaming it breaks recipe import until the
+# app is redeployed too.
+name = "grocery-run-recipe-import"
+main = "index.js"
+compatibility_date = "2026-08-28"
