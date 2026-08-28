@@ -1,0 +1,46 @@
+name: THROWAWAY — verify the restored allowlist plus the rate limit together
+
+on:
+  push:
+    branches: [claude/cf-verify-allowlist-restore]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Deploy under a throwaway name
+        run: npx wrangler deploy --name "grocery-run-cf-verify-al-${{ github.run_id }}"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Exercise allowlist + rate limit together
+        run: |
+          url="https://grocery-run-cf-verify-al-${{ github.run_id }}.stuart-belcke.workers.dev"
+          sleep 3
+          echo "=== a NEW site from the 11 added today (recipetineats.com) — should be allowed and serve JSON-LD ==="
+          curl -sS --max-time 30 -w '\nHTTP %{http_code}\n' "$url/?url=https%3A%2F%2Fwww.recipetineats.com%2Foven-baked-chicken-and-rice%2F"
+          echo
+          echo "=== a site never on the list (allrecipes.com) — should be host_not_allowed, not even a fetch attempt ==="
+          curl -sS --max-time 30 -w '\nHTTP %{http_code}\n' "$url/?url=https%3A%2F%2Fwww.allrecipes.com%2Frecipe%2F15925%2Fcreamy-au-gratin-potatoes%2F"
+          echo
+          echo "=== a second call, one of the original five (babyfoode.com) — confirms an allowed host still works after a disallowed one, on the real (unmodified) rate limit ==="
+          curl -sS --max-time 30 -w '\nHTTP %{http_code}\n' "$url/?url=https%3A%2F%2Fbabyfoode.com%2Fblog%2Fmini-chicken-carrot-meatballs-for-baby%2F"
+          echo
+          echo "=== internal target must still be refused, independent of the allowlist ==="
+          curl -sS --max-time 30 -w '\nHTTP %{http_code}\n' "$url/?url=https%3A%2F%2F127.0.0.1%2Fsecret"
+
+      - name: Delete the throwaway deployment
+        if: always()
+        run: npx wrangler delete --name "grocery-run-cf-verify-al-${{ github.run_id }}" --force || true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
