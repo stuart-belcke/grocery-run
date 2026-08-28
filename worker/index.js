@@ -41,6 +41,22 @@
  *  private address, unrelated to the allowlist question above.
  * ------------------------------------------------------------------ */
 
+/* MATCHED WITH "www." STRIPPED FROM BOTH SIDES, which is not cosmetic —
+   it is the difference between the feature working and not. Each host
+   below was recorded in whichever form the discovery probe happened to
+   fetch, but BOTH forms are live: 15 of the 16 serve a 301 from one to
+   the other (measured 2026-08-28), and fetch() follows redirects by
+   default, so either spelling reaches the same page. Comparing the raw
+   hostname would refuse half of them — a person pasting
+   www.pinchofyum.com or recipetineats.com would be told the site "isn't
+   set up yet" when it is, and which form they got depends on nothing but
+   where they copied the link from.
+   STRIPPING CANNOT WIDEN THE LIST: it only ever collapses two spellings
+   of ONE registrable domain onto the single entry here. "www." is a
+   subdomain label, not a domain boundary, so no other site can be
+   reached through it. */
+const bareHost = (h) => String(h || "").toLowerCase().replace(/^www\./, "");
+
 // Hosts confirmed to serve a real Recipe JSON-LD node to a Cloudflare
 // Worker's own IPs. The first five from item 106's original build
 // (2026-08-24/25); the rest from a same-day site-discovery probe
@@ -63,7 +79,7 @@ const ALLOWED_HOSTS = new Set([
   "downshiftology.com",
   "natashaskitchen.com",
   "www.spendwithpennies.com",
-]);
+].map(bareHost));
 
 /* A DAILY CAP, PER IP, VIA WORKERS KV — not the account-wide free-tier
    quota (100k/day, shared by every caller), a per-caller one. The Worker
@@ -96,18 +112,36 @@ function dailyLimitKey(ip) {
   return `${ip}:${today}`;
 }
 
-// Returns true if this request may proceed, having already counted itself
-// toward today's total. KV is "permissive, eventually consistent" by
-// Cloudflare's own description — two requests arriving within the same
-// instant could both read the count before either's write lands, letting
-// the total run one or two over. Fine for a throttle; wrong for a hard
-// security boundary, which this was never meant to be.
+/* Returns true if this request may proceed, having already counted itself
+   toward today's total. KV is "permissive, eventually consistent" by
+   Cloudflare's own description — two requests arriving within the same
+   instant could both read the count before either's write lands, letting
+   the total run one or two over. Fine for a throttle; wrong for a hard
+   security boundary, which this was never meant to be.
+
+   FAILS OPEN, ON PURPOSE, and the reason matters more than the line: this
+   is a THROTTLE sitting behind an ALLOWLIST, not the thing keeping the
+   endpoint safe. If KV is unreachable, over its own write quota, or simply
+   unbound by a bad deploy, the honest tradeoff is "let a request through
+   uncounted" rather than "recipe import is broken today" — the allowlist
+   still bounds what can be fetched either way.
+   UNGUARDED, THIS WAS THE WORSE BUG: an exception here escapes the whole
+   handler, so Cloudflare answers with its own HTML error page instead of
+   this Worker's JSON. recipeImport.js then fails to parse it and reports
+   "network", and the app shows "Couldn't fetch that page" — pointing the
+   user at the recipe site, which is fine, for a fault entirely on this
+   side. Item 106 already hit that exact shape once (an unguarded fetch in
+   a probe surfacing as an opaque platform error); same lesson, applied. */
 async function underDailyLimit(env, ip) {
   const key = dailyLimitKey(ip);
-  const current = Number(await env.RATE_LIMIT_KV.get(key)) || 0;
-  if (current >= RATE_LIMIT_PER_DAY) return false;
-  await env.RATE_LIMIT_KV.put(key, String(current + 1), { expirationTtl: 60 * 60 * 30 });
-  return true;
+  try {
+    const current = Number(await env.RATE_LIMIT_KV.get(key)) || 0;
+    if (current >= RATE_LIMIT_PER_DAY) return false;
+    await env.RATE_LIMIT_KV.put(key, String(current + 1), { expirationTtl: 60 * 60 * 30 });
+    return true;
+  } catch {
+    return true;
+  }
 }
 
 // Loopback, link-local (incl. the cloud metadata IP, 169.254.169.254) and
@@ -216,7 +250,7 @@ export default {
     try { parsed = target ? new URL(target) : null; } catch { parsed = null; }
     if (!parsed || parsed.protocol !== "https:") return json({ ok: false, reason: "bad_url" }, 400, allowedOrigin);
     if (isBlockedTarget(parsed.hostname)) return json({ ok: false, reason: "bad_url" }, 400, allowedOrigin);
-    if (!ALLOWED_HOSTS.has(parsed.hostname)) {
+    if (!ALLOWED_HOSTS.has(bareHost(parsed.hostname))) {
       return json({ ok: false, reason: "host_not_allowed", host: parsed.hostname }, 200, allowedOrigin);
     }
 
