@@ -2260,5 +2260,29 @@ into the details panel and the name grew.
     Two guards stayed (https only, no internal/loopback/link-local targets —
     hygiene, not curation). The accuracy question moved to the response
     shape instead: `source: "jsonld"` vs `"text"`, surfaced to the user as a
-    caution banner on "text" rather than silently trusted. See
-    Architecture.txt entry 4 for the retrigger if abuse ever shows up.
+    caution banner on "text" rather than silently trusted.
+
+    SECOND FOLLOW-UP, SAME DAY: A DAILY PER-IP CAP REPLACED "NO PROTECTION
+    AT ALL." The owner asked directly — a shared-secret header stops a
+    casual scanner, but does it actually stop someone calling the Worker
+    over and over? It doesn't; that needs a real rate limiter, which a
+    secret is not. 50 requests/day per caller IP, counted in a Workers KV
+    namespace created once by hand (grocery-run-recipe-import-rate-limit —
+    `wrangler kv namespace create` works fine non-interactively from CI,
+    checked live before relying on it, the same way the workers.dev
+    subdomain gotcha got checked before item 106's Worker was first built).
+    NOT the Workers Rate Limiting binding: also free-tier, also checked
+    live, but its window tops out at 60 seconds — built for a burst, not a
+    day's worth of spread-out requests. A KV key of IP+UTC-date does that
+    instead, going stale into tomorrow's key on its own with no cleanup.
+    Verified live: a probe with the limit dropped to 3 got HTTP 200 three
+    times, then HTTP 429 {"reason":"rate_limited"} on the fourth.
+    KEYED ON IP, NOT ON A HOUSEHOLD, because the Worker still doesn't know
+    about the app's households or sign-ins — teaching it Firebase auth
+    would cost it that isolation, so IP is the closest stand-in available,
+    not an identity check. An approximation, on purpose: this is a throttle
+    against sustained abuse, not a security boundary, and real usage (a
+    couple of recipes) is nowhere near the limit either way.
+    See Architecture.txt entry 4 for the phase-2 retrofit (real
+    per-household accounting via a Firebase token) if the IP approximation
+    ever actually causes a false positive.

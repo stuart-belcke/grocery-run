@@ -159,23 +159,54 @@ PHASE 1   Free at Cloudflare's Workers tier — [VERIFY] roughly 100k
           reliable) vs source: "text" (the same best-effort heuristic a paste
           gets) — recipeImport.js passes this through, and the app shows a
           caution banner on "text" rather than silently trusting it.
+          A DAILY CAP, PER IP, ADDED 2026-08-28 — the actual answer to "the
+          endpoint gets found and hammered," once the allowlist stopped being
+          the thing that prevented it. 50 requests/day per caller IP, counted
+          in a Workers KV namespace (grocery-run-recipe-import-rate-limit,
+          created once by hand — same one-time-provisioning shape as the
+          workers.dev subdomain, `wrangler kv namespace create` works fine
+          non-interactively from CI, unlike the subdomain). Real usage is a
+          household adding a couple of recipes; the limit only has to make
+          sustained abuse pointless, not police normal use, so it's set with
+          wide margin rather than tuned tight. NOT the Workers Rate Limiting
+          binding (also free-tier, checked live before building either) —
+          that one's window tops out at 60 seconds, built for stopping a
+          burst, not a day's worth of spread-out requests; the daily figure
+          needed a counter keyed on caller IP + UTC date instead, which goes
+          stale into next day's key on its own. Verified live: a probe
+          deploy with the limit dropped to 3 got HTTP 200 three times and
+          HTTP 429 {"reason":"rate_limited"} on the fourth.
+          KEYED ON IP, NOT ON A HOUSEHOLD — the Worker still has no notion of
+          the app's households or sign-ins (deliberate; teaching it Firebase
+          auth would break recipeImport.js's isolation of it), so IP is the
+          closest available stand-in for "one household," not an identity
+          check. Approximate on purpose: a throttle, not a security boundary.
 CEILING   The free tier's request count, and Cloudflare Workers' own CPU-time
           limit per request [VERIFY] — a slow, large recipe page could in
           principle be close to it, though nothing measured so far has come
-          near.
+          near. Workers KV's own free-tier write limit [VERIFY] is the
+          ceiling on the rate limiter itself, at roughly one write per
+          request that's under the cap — far below it at real household
+          scale.
 PHASE 2   A paid Workers plan, or moving the fetch to any other server-side
           runtime — the seam below is what makes either a swap, not a
-          rewrite. If abuse of the open endpoint actually shows up (visible
-          as a quota spike in the Cloudflare dashboard, or the household
-          getting locked out by someone else's traffic), the retrofit is a
-          shared-secret header the app already controls (it's the only
-          caller with recipeImport.js's source) or Cloudflare's own rate
-          limiting — both land in worker/index.js alone.
-TRIGGER   Requests approaching the free tier's daily cap — either abuse (see
-          PHASE 2's retrofit) or many more households than phase 1 assumes.
-SEAM      worker/index.js owns fetching and JSON-LD extraction; it is the
-          only place that has network egress or would hold a rate limit or
-          shared secret if one is added.
+          rewrite. If the per-IP daily cap ever proves too coarse (one IP
+          serving several households, e.g. a shared office network, or one
+          household bouncing between many IPs on mobile data), the retrofit
+          is real per-household accounting: pass the app's own Firebase ID
+          token to the Worker and key the KV counter on the household's uid
+          instead of the connecting IP. That needs the Worker to verify a
+          Firebase token, which is the one thing that would cost it its
+          current isolation from the app's auth model — worth doing only if
+          the IP-based approximation actually causes a problem, not before.
+TRIGGER   The IP-keyed cap producing a real false positive (a household
+          locked out by another household's traffic, or vice versa) — or
+          requests approaching the free tier's own daily cap, which at
+          household scale would mean many more households than phase 1
+          assumes.
+SEAM      worker/index.js owns fetching, JSON-LD extraction, and the rate
+          limit; it is the only place that has network egress or touches the
+          KV namespace.
           src/recipeImport.js is the only app file that knows the Worker's
           URL, and returns the exact {name, servings, notes, ingredients}
           shape parseRecipeText already returns (via recipeFromJsonLd in
