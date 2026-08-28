@@ -2316,3 +2316,30 @@ into the details panel and the name grew.
     www.averiecooks.com, thecozycook.com), that is 16 verified hosts — a
     real starting list, not a token gesture, for the day a curated
     allowlist is worth having again.
+
+    FOURTH FOLLOW-UP, SAME DAY: "THE DAY A CURATED ALLOWLIST IS WORTH
+    HAVING AGAIN" WAS TODAY, NOT LATER. Asked directly why the 16-site list
+    above was only a documentation note rather than the thing actually
+    running: it wasn't a considered "wait for more audience" choice, it
+    was inertia — the list existed, restoring it was cheap, and there was
+    no real reason not to. worker/index.js's ALLOWED_HOSTS is back, seeded
+    with all 16, checked in front of the daily rate limit (a disallowed
+    host costs the caller nothing out of today's count, since it's refused
+    before the limit is ever touched).
+    WORTH BEING HONEST THAT THIS WAS NOT A STRAIGHT LINE: the allowlist was
+    removed, then a rate limit was added and tightened as its replacement,
+    then a site-discovery probe was run specifically to make a future
+    re-curation cheap, and then — same day — that future arrived
+    immediately, because "wait for more audience" was never actually load-
+    bearing to the decision; it was just the framing the removal happened
+    under. THE ACTUAL LESSON, kept because it is worth not re-learning: a
+    host allowlist and a request-volume cap answer two different questions
+    (WHERE vs HOW MANY) and were never in tension with each other — running
+    both was available the whole time, not a tradeoff that needed an
+    audience-size trigger to resolve.
+    Verified live again with both mechanisms deployed together: a newly-
+    allowlisted site (recipetineats.com) served real JSON-LD, a
+    never-listed one (allrecipes.com) came back host_not_allowed without
+    an actual fetch attempt, and an allowlisted site still worked
+    immediately afterward — the disallowed call did not cost any of the
+    caller's daily budget.

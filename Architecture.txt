@@ -135,33 +135,36 @@ PHASE 1   Free at Cloudflare's Workers tier — [VERIFY] roughly 100k
           of the app's own build. src/recipeImport.js is the ONLY app file
           allowed to know the Worker exists — mirrors sync.js's isolation of
           Firebase, so replacing the Worker later is a change to one file.
-          Measured live from a Cloudflare Worker's own IPs on 2026-08-28: 4 of
-          5 real recipe sites serve a Recipe JSON-LD node cleanly (403 for
-          AllRecipes — a licensing block, not bot detection, confirmed by the
-          403 body naming contentlicensing@people.inc; no header or IP
-          changes that). See DeveloperNotes-Completed.txt item 106.
-          NO HOST ALLOWLIST, REVISED 2026-08-28 — the Worker fetches any
-          https URL. A curated allowlist never actually gated PARSING: JSON-LD
-          extraction is generic and reads any site's schema.org markup the
-          same way, allowlisted or not. What it gated was ABUSE — an
-          unauthenticated fetch endpoint is a free, anonymous URL fetcher for
-          anyone who finds it, billed against this account's quota regardless
-          of who sends the request. THE OWNER ACCEPTED THAT RISK EXPLICITLY:
-          "we can't possibly have every website" on a curated list, and the
-          free tier caps the financial exposure at $0 either way — the worst
-          case is the household's own quota getting eaten by someone else's
-          traffic, not a bill. Two cheap guards stayed: HTTPS only, and
+          A CURATED HOST ALLOWLIST — 16 hosts as of 2026-08-28, every one
+          fetched live from a Cloudflare Worker's own IPs and confirmed to
+          serve a real, single Recipe JSON-LD node (not assumed from a
+          homepage or a reputation). Curated because an unauthenticated
+          fetch endpoint with no list is a free, anonymous URL fetcher for
+          anyone who finds it, billed against this account's quota
+          regardless of who sends the request — the free tier bounds the
+          financial exposure at $0 either way, but the household's own
+          quota getting eaten by someone else's traffic is still a real cost.
+          GROWING THE LIST IS CHEAP BY DESIGN: one line in worker/index.js
+          plus a deploy, and adding a site means verifying it live the same
+          way, not guessing. Excluded on purpose: allrecipes.com and its
+          Dotdash Meredith siblings (a licensing block — the 402/403 body
+          names contentlicensing@people.inc — not bot detection, and no
+          header or IP works around it); damndelicious.net (a plain 403
+          with no JSON-LD reachable, not a known licensing wall, more
+          likely generic bot protection, not investigated further).
+          Two cheap guards apply regardless of the list: HTTPS only, and
           internal/loopback/link-local targets refused outright
-          (isBlockedTarget in worker/index.js) — hygiene against the endpoint
-          probing private infrastructure, unrelated to the abuse question.
-          THE ACCURACY SIGNAL MOVED TO THE RESPONSE SHAPE INSTEAD:
-          source: "jsonld" (structured, what item 106's captures show is
-          reliable) vs source: "text" (the same best-effort heuristic a paste
-          gets) — recipeImport.js passes this through, and the app shows a
+          (isBlockedTarget in worker/index.js) — hygiene against the
+          endpoint probing private infrastructure, unrelated to curation.
+          THE ACCURACY SIGNAL IS THE RESPONSE SHAPE: source: "jsonld"
+          (structured, what every allowlisted site above was verified to
+          serve) vs source: "text" (the same best-effort heuristic a paste
+          gets, for the rare allowlisted page that turns out not to carry
+          it) — recipeImport.js passes this through, and the app shows a
           caution banner on "text" rather than silently trusting it.
-          A DAILY CAP, PER IP, ADDED 2026-08-28 — the actual answer to "the
-          endpoint gets found and hammered," once the allowlist stopped being
-          the thing that prevented it. 20 requests/day per caller IP, counted
+          A DAILY CAP, PER IP, ON TOP OF THE ALLOWLIST — the list narrows
+          WHERE a request can go; this narrows HOW MANY can be sent to
+          somewhere already on it. 20 requests/day per caller IP, counted
           in a Workers KV namespace (grocery-run-recipe-import-rate-limit,
           created once by hand — same one-time-provisioning shape as the
           workers.dev subdomain, `wrangler kv namespace create` works fine
@@ -177,12 +180,24 @@ PHASE 1   Free at Cloudflare's Workers tier — [VERIFY] roughly 100k
           needed a counter keyed on caller IP + UTC date instead, which goes
           stale into next day's key on its own. Verified live: a probe
           deploy with the limit dropped to 3 got HTTP 200 three times and
-          HTTP 429 {"reason":"rate_limited"} on the fourth.
+          HTTP 429 {"reason":"rate_limited"} on the fourth; a disallowed
+          host is refused before the count is ever touched.
           KEYED ON IP, NOT ON A HOUSEHOLD — the Worker still has no notion of
           the app's households or sign-ins (deliberate; teaching it Firebase
           auth would break recipeImport.js's isolation of it), so IP is the
           closest available stand-in for "one household," not an identity
           check. Approximate on purpose: a throttle, not a security boundary.
+          NOT A STRAIGHT LINE TO GET HERE: the allowlist was dropped for a
+          few hours the same day, in favor of fetching any https host, on
+          the reasoning that a per-site list never actually gated PARSING
+          (JSON-LD extraction reads any site's markup the same way) — only
+          ABUSE, which the free tier bounds at $0 regardless. Reconsidered
+          and restored the same day: bounding WHICH sites get fetched and
+          bounding HOW MANY requests reach them are both worth doing, not a
+          choice between them. Full arc in DeveloperNotes-Completed.txt
+          item 106, including the site-discovery probe that grew the list
+          from 5 hosts to 16 specifically so curation wouldn't feel like
+          giving something up.
 CEILING   The free tier's request count, and Cloudflare Workers' own CPU-time
           limit per request [VERIFY] — a slow, large recipe page could in
           principle be close to it, though nothing measured so far has come
@@ -206,22 +221,9 @@ TRIGGER   The IP-keyed cap producing a real false positive (a household
           requests approaching the free tier's own daily cap, which at
           household scale would mean many more households than phase 1
           assumes.
-          A SECOND, SEPARATE TRIGGER — NOT A COST ONE: the open-host design
-          (any https URL, no curated allowlist) is an audience bet, not a
-          budget one. It is accepted specifically because the only people
-          who currently know this Worker's URL exists are the people this
-          repo is written for — a stranger finding it costs nothing today
-          because there is nobody it could plausibly cost. That reasoning
-          stops holding the moment the app has any real audience beyond a
-          small trusted circle, independent of whether usage still fits the
-          free tier. THE RETROFIT AT THAT POINT: go back to a curated host
-          allowlist — genuinely easy now, since 2026-08-28's site-discovery
-          probe (DeveloperNotes-Completed.txt item 106) already built a
-          verified-working list to start from, so re-curating would not be
-          starting over.
-SEAM      worker/index.js owns fetching, JSON-LD extraction, and the rate
-          limit; it is the only place that has network egress or touches the
-          KV namespace.
+SEAM      worker/index.js owns fetching, JSON-LD extraction, the allowlist,
+          and the rate limit; it is the only place that has network egress
+          or touches the KV namespace.
           src/recipeImport.js is the only app file that knows the Worker's
           URL, and returns the exact {name, servings, notes, ingredients}
           shape parseRecipeText already returns (via recipeFromJsonLd in
