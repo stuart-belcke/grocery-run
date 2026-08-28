@@ -2244,11 +2244,11 @@ into the details panel and the name grew.
     JSON-LD path, a disallowed host, a malformed/missing URL, and both CORS
     cases — before the permanent deploy workflow was trusted.
 
-    WHAT THIS DOES NOT COVER: more than the four allowlisted sites (item 110
-    is the standing task to grow both the allowlist and the parser); a
-    UK/European site's units; a page whose JSON-LD is missing on an
-    otherwise-allowlisted host (falls back to text-extraction via
-    HTMLRewriter, unexercised by any captured fixture so far).
+    WHAT THIS DOES NOT COVER: a UK/European site's units; a page whose
+    JSON-LD is missing (falls back to text-extraction via HTMLRewriter —
+    reachable now that any site can hit that path, but still untested
+    against a real captured page, only a synthetic e2e fixture). Item 110
+    is the standing task to grow the parser against more captured sites.
 
     FOLLOW-UP, SAME DAY: THE HOST ALLOWLIST WAS REMOVED. The owner's
     reasoning: "we can't possibly have every website" on a curated list —
