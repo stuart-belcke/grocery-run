@@ -1,0 +1,42 @@
+name: THROWAWAY — probe whether a Workers KV namespace can be created from CI
+
+on:
+  push:
+    branches: [claude/cf-kv-probe]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Create a throwaway KV namespace, non-interactively
+        run: npx wrangler kv namespace create "grocery-run-kv-probe-${{ github.run_id }}" 2>&1 | tee /tmp/create.log
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Extract the namespace id and prove read/write works
+        run: |
+          id=$(grep -oE '"?id"?\s*[:=]\s*"[a-f0-9]+"' /tmp/create.log | grep -oE '[a-f0-9]{32}' | head -1)
+          echo "namespace id: $id"
+          if [ -z "$id" ]; then echo "COULD NOT PARSE NAMESPACE ID — see create.log above"; exit 1; fi
+          npx wrangler kv key put --namespace-id "$id" "probe-key" "probe-value"
+          npx wrangler kv key get --namespace-id "$id" "probe-key"
+          echo "id=$id" >> "$GITHUB_ENV"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Delete the throwaway namespace
+        if: always()
+        run: npx wrangler kv namespace delete --namespace-id "$id" --force || true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
