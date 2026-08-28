@@ -2290,3 +2290,29 @@ into the details panel and the name grew.
     See Architecture.txt entry 4 for the phase-2 retrofit (real
     per-household accounting via a Firebase token) if the IP approximation
     ever actually causes a false positive.
+
+    THIRD FOLLOW-UP, SAME DAY: A VERIFIED-WORKING SITE LIST, FOR WHENEVER A
+    CURATED ALLOWLIST COMES BACK. The owner's framing: the open-host design
+    is a bet acceptable ONLY while the audience is small and trusted (see
+    Architecture.txt entry 4's second trigger) — worth starting to build the
+    list that a later re-curation would use, rather than starting that from
+    zero when the day comes. 12 independent food-blog candidates (chosen to
+    avoid Dotdash Meredith properties, already known blocked) probed the
+    same way the original five were — real fetch from a Cloudflare Worker's
+    own IPs, the exact findRecipeNode from worker/index.js, not a stand-in.
+    11 OF 12 SERVE CLEAN RECIPE JSON-LD:
+      recipetineats.com, pinchofyum.com, cookieandkate.com,
+      budgetbytes.com, minimalistbaker.com, gimmesomeoven.com,
+      skinnytaste.com, wellplated.com, downshiftology.com,
+      natashaskitchen.com, spendwithpennies.com.
+    ONE BLOCKED: damndelicious.net returned 403 with no JSON-LD reachable.
+    UNLIKE ALLRECIPES, THIS ISN'T A KNOWN LICENSING WALL — Damn Delicious is
+    independently owned, not a Dotdash Meredith property, so the block is
+    more likely generic bot protection than a deliberate policy. Not
+    investigated further; paste-the-page still works for it regardless of
+    which.
+    Combined with the five already known from item 106's own build
+    (babyfoode.com, www.themediterraneandish.com, www.olivetomato.com,
+    www.averiecooks.com, thecozycook.com), that is 16 verified hosts — a
+    real starting list, not a token gesture, for the day a curated
+    allowlist is worth having again.

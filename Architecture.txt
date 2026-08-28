@@ -206,6 +206,19 @@ TRIGGER   The IP-keyed cap producing a real false positive (a household
           requests approaching the free tier's own daily cap, which at
           household scale would mean many more households than phase 1
           assumes.
+          A SECOND, SEPARATE TRIGGER — NOT A COST ONE: the open-host design
+          (any https URL, no curated allowlist) is an audience bet, not a
+          budget one. It is accepted specifically because the only people
+          who currently know this Worker's URL exists are the people this
+          repo is written for — a stranger finding it costs nothing today
+          because there is nobody it could plausibly cost. That reasoning
+          stops holding the moment the app has any real audience beyond a
+          small trusted circle, independent of whether usage still fits the
+          free tier. THE RETROFIT AT THAT POINT: go back to a curated host
+          allowlist — genuinely easy now, since 2026-08-28's site-discovery
+          probe (DeveloperNotes-Completed.txt item 106) already built a
+          verified-working list to start from, so re-curating would not be
+          starting over.
 SEAM      worker/index.js owns fetching, JSON-LD extraction, and the rate
           limit; it is the only place that has network egress or touches the
           KV namespace.
