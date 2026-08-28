@@ -6,3 +6,13 @@
 name = "grocery-run-recipe-import"
 main = "index.js"
 compatibility_date = "2026-08-28"
+
+# The per-IP daily rate limit's counter store (index.js: underDailyLimit).
+# Created ONCE, by hand, via `wrangler kv namespace create` — this id is
+# permanent and account-specific, the same one-time-provisioning shape as
+# the workers.dev subdomain registration. Not per-run like the throwaway
+# probes' own namespaces were; deleting and recreating this would silently
+# reset everyone's daily count to zero.
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "aaf256ae3b594fe6ab2fda204ed68578"

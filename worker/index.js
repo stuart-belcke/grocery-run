@@ -16,15 +16,58 @@
  *  anybody who finds it, billed against this Cloudflare account's
  *  free-tier quota (100k/day) regardless of who sends the request.
  *  ACCEPTED FOR PHASE 1: the free tier caps the financial exposure at
- *  $0, and the household actually being locked out by someone else's
- *  abuse is the trigger to revisit — a shared-secret header the app
- *  sends, or Cloudflare's own rate limiting, both retrofit onto this
- *  same file without touching the app. See Architecture.txt entry 4.
- *  What IS still refused: internal/loopback/link-local targets (below)
- *  — cheap hygiene against this becoming a probe for infrastructure
- *  that happens to answer on a private address, unrelated to the
- *  abuse question above.
+ *  $0. What actually stops the "endpoint gets found and hammered" case
+ *  is the daily cap below — real usage is a household adding a couple
+ *  of recipes, so a limit generous enough to never be felt in practice
+ *  still makes sustained abuse pointless. See Architecture.txt entry 4.
+ *  What IS still refused outright: internal/loopback/link-local targets
+ *  (below) — cheap hygiene against this becoming a probe for
+ *  infrastructure that happens to answer on a private address,
+ *  unrelated to the abuse question above.
  * ------------------------------------------------------------------ */
+
+/* A DAILY CAP, PER IP, VIA WORKERS KV — not the account-wide free-tier
+   quota (100k/day, shared by every caller), a per-caller one. The Worker
+   has no notion of the app's households or sign-ins (deliberately —
+   recipeImport.js is the only app file that knows this Worker exists;
+   teaching the Worker about Firebase auth would break that isolation), so
+   the caller's IP is the closest thing to "one household" available here.
+   Not exact — a household roaming across networks sees several counters,
+   several households behind one IP (a shared office/campus network) share
+   one — but proportionate to what this defends against: an abuse THROTTLE,
+   not an identity check.
+   KV, not the Workers Rate Limiting binding: that binding's window tops
+   out at 60 seconds, built for "stop a burst," not "stop 200 requests
+   spread evenly across a day" — which a day-keyed KV counter catches
+   because the key itself expires at midnight rather than a fixed window
+   sliding forward.
+   GENEROUS ON PURPOSE: real usage is a household adding a couple of
+   recipes in a sitting, nowhere near this number on any real day: it only
+   has to make sustained abuse pointless, not police normal use. */
+const RATE_LIMIT_PER_DAY = 50;
+
+// One key per IP per UTC day — the key going stale at midnight IS the
+// reset, so there is nothing to clean up by hand. expirationTtl is set
+// past 24h only so a key never outlives the day that named it by more
+// than a few hours, not because the count needs to survive that long.
+function dailyLimitKey(ip) {
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD, UTC
+  return `${ip}:${today}`;
+}
+
+// Returns true if this request may proceed, having already counted itself
+// toward today's total. KV is "permissive, eventually consistent" by
+// Cloudflare's own description — two requests arriving within the same
+// instant could both read the count before either's write lands, letting
+// the total run one or two over. Fine for a throttle; wrong for a hard
+// security boundary, which this was never meant to be.
+async function underDailyLimit(env, ip) {
+  const key = dailyLimitKey(ip);
+  const current = Number(await env.RATE_LIMIT_KV.get(key)) || 0;
+  if (current >= RATE_LIMIT_PER_DAY) return false;
+  await env.RATE_LIMIT_KV.put(key, String(current + 1), { expirationTtl: 60 * 60 * 30 });
+  return true;
+}
 
 // Loopback, link-local (incl. the cloud metadata IP, 169.254.169.254) and
 // the three private IPv4 ranges, plus their IPv6 equivalents and bare
@@ -113,7 +156,7 @@ function json(body, status, origin) {
 }
 
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     const origin = request.headers.get("origin");
     const allowedOrigin = origin && ALLOWED_ORIGINS.has(origin) ? origin : null;
 
@@ -132,6 +175,12 @@ export default {
     try { parsed = target ? new URL(target) : null; } catch { parsed = null; }
     if (!parsed || parsed.protocol !== "https:") return json({ ok: false, reason: "bad_url" }, 400, allowedOrigin);
     if (isBlockedTarget(parsed.hostname)) return json({ ok: false, reason: "bad_url" }, 400, allowedOrigin);
+
+    // Charged against the caller's daily count before the fetch, not after
+    // — a request that goes on to fail (a 404, a timeout) still cost a
+    // Worker invocation and still counts as one of today's uses.
+    const ip = request.headers.get("cf-connecting-ip") || "unknown";
+    if (!(await underDailyLimit(env, ip))) return json({ ok: false, reason: "rate_limited" }, 429, allowedOrigin);
 
     let res;
     try {

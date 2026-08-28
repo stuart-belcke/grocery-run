@@ -131,3 +131,21 @@ test("SHOULD: a Worker that's unreachable shows the same fallback message, not a
     await page.done();
   }
 });
+
+test("SHOULD: hitting today's per-network import cap says so, and still points at pasting text", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    // The Worker's own daily cap (worker/index.js: underDailyLimit) is a
+    // 429 with reason "rate_limited" — a household is nowhere near it in
+    // real use, but the message still has to exist and say what to do.
+    await mockWorker(page, { ok: false, reason: "rate_limited" });
+    await openPasteWithUrl(page, RECIPE_URL);
+    await page.waitForTimeout(400);
+
+    await page.getByText(/hit today.s import limit/).waitFor();
+    assert.equal(await page.getByPlaceholder("Meal name").inputValue(), "");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
