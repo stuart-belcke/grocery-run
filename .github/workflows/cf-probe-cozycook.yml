@@ -1,0 +1,43 @@
+name: THROWAWAY — probe thecozycook.com for Recipe JSON-LD
+
+on:
+  push:
+    branches: [claude/cf-worker-probe-cozycook]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      # Deploys the REAL worker/index.js under a throwaway name, but with
+      # thecozycook.com added to the allowlist just for this probe — proves
+      # both "does the site serve JSON-LD to a Worker IP" and "does the real
+      # extraction code handle it", not a hand-rolled stand-in.
+      - name: Temporarily allow thecozycook.com for this probe only
+        run: sed -i 's/"www.averiecooks.com",/"www.averiecooks.com",\n  "thecozycook.com",/' index.js
+
+      - name: Deploy under a throwaway name
+        run: npx wrangler deploy --name "grocery-run-cf-probe-cozycook-${{ github.run_id }}"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Fetch the cube steak recipe
+        run: |
+          url="https://grocery-run-cf-probe-cozycook-${{ github.run_id }}.stuart-belcke.workers.dev"
+          sleep 3
+          curl -sS --max-time 30 "$url/?url=https%3A%2F%2Fthecozycook.com%2Fcube-steak-recipe%2F"
+
+      - name: Delete the throwaway deployment
+        if: always()
+        run: npx wrangler delete --name "grocery-run-cf-probe-cozycook-${{ github.run_id }}" --force || true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
