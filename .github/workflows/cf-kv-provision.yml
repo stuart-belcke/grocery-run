@@ -1,0 +1,31 @@
+name: ONE-TIME — provision the real recipe-import rate-limit KV namespace
+
+on:
+  push:
+    branches: [claude/cf-kv-provision]
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      # PERMANENT — not deleted at the end of this run, unlike the earlier
+      # throwaway probes. The printed id gets pasted into wrangler.toml by
+      # hand afterward; this workflow file is deleted once that's done.
+      - name: Create the real namespace
+        run: npx wrangler kv namespace create "grocery-run-recipe-import-rate-limit" 2>&1 | tee /tmp/create.log
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Print the id plainly, once
+        run: |
+          id=$(grep -oE '"?id"?\s*[:=]\s*"[a-f0-9]+"' /tmp/create.log | grep -oE '[a-f0-9]{32}' | head -1)
+          echo "NAMESPACE ID: $id"
