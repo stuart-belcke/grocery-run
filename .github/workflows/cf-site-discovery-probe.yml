@@ -1,0 +1,104 @@
+name: THROWAWAY — probe candidate recipe sites for Recipe JSON-LD
+
+on:
+  push:
+    branches: [claude/cf-site-discovery-probe]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Write the probe worker
+        working-directory: /tmp
+        run: |
+          mkdir -p probe && cd probe
+          cat > worker.js <<'JSEOF'
+          const CANDIDATES = [
+            "https://www.recipetineats.com/oven-baked-chicken-and-rice/",
+            "https://pinchofyum.com/chicken-parmesan",
+            "https://cookieandkate.com/best-lentil-soup-recipe/",
+            "https://www.budgetbytes.com/one-pot-creamy-pesto-chicken-pasta/",
+            "https://minimalistbaker.com/1-pot-everyday-lentil-soup/",
+            "https://www.gimmesomeoven.com/chili-recipe/",
+            "https://www.skinnytaste.com/baked-chicken-breasts/",
+            "https://damndelicious.net/2015/03/13/garlic-butter-shrimp-pasta/",
+            "https://www.wellplated.com/lentil-soup/",
+            "https://downshiftology.com/recipes/dijon-baked-salmon/",
+            "https://natashaskitchen.com/beef-stroganoff/",
+            "https://www.spendwithpennies.com/best-meatloaf-recipe/",
+          ];
+
+          // Exact same extraction logic as worker/index.js's findRecipeNode,
+          // so "found" here means the real Worker would find it too.
+          function findRecipeNode(html) {
+            const blocks = [...html.matchAll(/<script[^>]*application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]);
+            const found = [];
+            const walk = (n) => {
+              if (!n || typeof n !== "object") return;
+              if (Array.isArray(n)) return n.forEach(walk);
+              const t = n["@type"];
+              if (t === "Recipe" || (Array.isArray(t) && t.includes("Recipe"))) found.push(n);
+              Object.values(n).forEach(walk);
+            };
+            for (const b of blocks) {
+              try { walk(JSON.parse(b)); } catch {}
+            }
+            return found[0] || null;
+          }
+
+          const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
+
+          export default {
+            async fetch() {
+              const out = [];
+              for (const url of CANDIDATES) {
+                const host = new URL(url).host;
+                try {
+                  const res = await fetch(url, { headers: { "user-agent": UA, accept: "text/html,application/xhtml+xml" } });
+                  const html = await res.text();
+                  const recipe = findRecipeNode(html);
+                  out.push(JSON.stringify({
+                    host,
+                    status: res.status,
+                    jsonld: !!recipe,
+                    name: recipe ? recipe.name : null,
+                    ingredients: recipe && recipe.recipeIngredient ? recipe.recipeIngredient.length : null,
+                  }));
+                } catch (e) {
+                  out.push(JSON.stringify({ host, error: `${e.name}: ${e.message}` }));
+                }
+              }
+              return new Response(out.join("\n"), { headers: { "content-type": "text/plain" } });
+            },
+          };
+          JSEOF
+          cat > wrangler.toml <<'TOMLEOF'
+          name = "grocery-run-cf-site-discovery"
+          main = "worker.js"
+          compatibility_date = "2026-08-28"
+          TOMLEOF
+
+      - name: Deploy under a throwaway name
+        working-directory: /tmp/probe
+        run: npx wrangler deploy --name "grocery-run-cf-site-discovery-${{ github.run_id }}"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Fetch results
+        run: |
+          sleep 3
+          curl -sS --max-time 60 "https://grocery-run-cf-site-discovery-${{ github.run_id }}.stuart-belcke.workers.dev"
+
+      - name: Delete the throwaway deployment
+        if: always()
+        working-directory: /tmp/probe
+        run: npx wrangler delete --name "grocery-run-cf-site-discovery-${{ github.run_id }}" --force || true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
