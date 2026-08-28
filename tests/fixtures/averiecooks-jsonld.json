@@ -1,0 +1,95 @@
+{
+  "name": "Mediterranean Chicken Feta Pasta Bake",
+  "recipeYield": [
+    "4",
+    "4 servings"
+  ],
+  "recipeIngredient": [
+    "1 teaspoon salt",
+    "1 teaspoon freshly ground black pepper",
+    "1 teaspoon chili powder",
+    "1 teaspoon smoked paprika (regular paprika may be substituted)",
+    "4  skin-on bone-in chicken thighs*",
+    "4 to 6 tablespoons olive oil (divided)",
+    "1/2 cup white or yellow onion (finely diced)",
+    "1/2  of a medium red pepper (seeded and diced small)",
+    "1  serrano chile pepper (seeded and finely minced; optional**)",
+    "3 to 5 cloves garlic (finely minced)",
+    "Zest from 1 lemon",
+    "Lemon juice from 1 lemon",
+    "1 teaspoon cumin",
+    "1/2 teaspoon dried thyme",
+    "1/2 cup reduced sodium chicken broth",
+    "1/2 cup dry white wine (optional but recommended***)",
+    "8 ounces full fat feta cheese (cubed (do not use low fat or fat free feta because it doesn't melt well))",
+    "3/4 cup whole cherry or grape tomatoes (2 Roma tomatoes, diced in large bite-sized pieces may be substituted)",
+    "1/2 cup pitted kalamata olives (no substitutions)",
+    "8 ounces bowtie pasta****",
+    "1/2 cup reserved pasta water (for possible use)",
+    "Fresh parsley or basil (finely minced; optional for garnishing)"
+  ],
+  "recipeInstructions": [
+    {
+      "@type": "HowToSection",
+      "name": "Dry Rub",
+      "itemListElement": [
+        { "@type": "HowToStep", "text": "To a small bowl, add the salt, pepper, chili powder, smoked paprika, and stir to combine.", "name": "Mix Seasonings", "url": "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/#wprm-recipe-98546-step-0-0" },
+        { "@type": "HowToStep", "text": "Score the skin side tops of the chicken thighs, making about 6 slits on each piece.", "name": "Score Chicken", "url": "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/#wprm-recipe-98546-step-0-1" },
+        { "@type": "HowToStep", "text": "Evenly distribute the spice rub onto each of the 4 pieces of chicken, and rub it in.", "name": "Season Chicken", "url": "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/#wprm-recipe-98546-step-0-2" },
+        { "@type": "HowToStep", "text": "Place chicken in an airtight container and refrigerate for at least 2 hours, or overnight if desired.", "name": "Marinate Chicken", "url": "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/#wprm-recipe-98546-step-0-3" },
+        { "@type": "HowToStep", "text": "About 20 to 30 minutes before you plan to begin cooking the chicken, remove it from the fridge and allow it to sit on the counter to warm up a bit.", "name": "Rest Chicken", "url": "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/#wprm-recipe-98546-step-0-4" },
+        { "@type": "HowToStep", "text": "Preheat oven to 350F.", "name": "Preheat Oven", "url": "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/#wprm-recipe-98546-step-0-5" }
+      ]
+    },
+    {
+      "@type": "HowToSection",
+      "name": "Searing Chicken",
+      "itemListElement": [
+        { "@type": "HowToStep", "text": "To a large, oven-safe, high-sided skillet, Dutch oven, or similar braising pot, add 1 to 2 tablespoons olive oil, add the chicken skin-side down, and sear over medium-high heat for about 3 minutes. Tip - While the chicken is searing, don&#x27;t move it, disturb it, or check on it. Just let it be. Remove it from the skillet and set aside.", "name": "Sear Chicken", "url": "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/#wprm-recipe-98546-step-1-0" }
+      ]
+    },
+    {
+      "@type": "HowToSection",
+      "name": "Sauteing Vegetables",
+      "itemListElement": [
+        { "@type": "HowToStep", "text": "Add 1 to 2 tablespoons additional olive oil, and add the onions, red peppers, optional serranos, and saute over medium-high heat for about 3 minutes; stir frequently.", "name": "Sauté Vegetables", "url": "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/#wprm-recipe-98546-step-2-0" },
+        { "@type": "HowToStep", "text": "Add the garlic and saute for 1 minute; stir continuously.", "name": "Sauté Garlic", "url": "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/#wprm-recipe-98546-step-2-1" },
+        { "@type": "HowToStep", "text": "Add the lemon zest, lemon juice, cumin, thyme, white wine, and stir to combine. Caution - The liquids will likely bubble up and steam quite vigorously right after you add them for a second or two. Just be careful so you&#39;re not caught off guard with a facefull of very hot steam.", "name": "Add Liquid", "url": "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/#wprm-recipe-98546-step-2-2" }
+      ]
+    },
+    {
+      "@type": "HowToSection",
+      "name": "Baking",
+      "itemListElement": [
+        { "@type": "HowToStep", "text": "Add the chicken back into the skillet, and evenly sprinkle in the feta, cherry tomatoes, kalamata olives, place the skillet in the oven, and bake for about 20 minutes, or until the chicken is cooked through. Tips - Start boiling your pasta (step 12) while chicken bakes! And I recommend checking the temperature with a digital thermometer. Chicken thighs are done with the meat (don&#x27;t touch the bone) is at an internal temp of 175F. The temp will also continue to rise, off the heat, due to carryover cooking.", "name": "Combine and Bake", "url": "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/#wprm-recipe-98546-step-3-0" }
+      ]
+    },
+    {
+      "@type": "HowToSection",
+      "name": "Boiling Pasta",
+      "itemListElement": [
+        { "@type": "HowToStep", "text": "While the chicken is baking, cook your pasta according to package directions, minus 2 minutes, because it will continue to cook more in the sauce and you don&#x27;t want it to be overcooked. For example - If the directions say boil 11 minutes for al dente, you actually only need to boil it for 9 minutes.", "name": "Boil Pasta", "url": "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/#wprm-recipe-98546-step-4-0" },
+        { "@type": "HowToStep", "text": "Drain pasta but reserve 1/2 to 3/4 cup pasta water for your sauce later on should you need the pasta water. Note - I don&#x27;t rinse pasta, but you can if you think it helps prevent sticking. I personally add a tablespoon of olive oil to my boiling water for anti-sticking.", "name": "Drain Pasta", "url": "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/#wprm-recipe-98546-step-4-1" },
+        { "@type": "HowToStep", "text": "After chicken has baked and is done, remove the skillet from the oven, and remove the chicken pieces and set them on a plate.", "name": "Remove Chicken", "url": "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/#wprm-recipe-98546-step-4-2" }
+      ]
+    },
+    {
+      "@type": "HowToSection",
+      "name": "Mashing to Make the Sauce",
+      "itemListElement": [
+        { "@type": "HowToStep", "text": "Mash and stir together the remaining ingredients in the skillet - the feta, tomatoes, red peppers, olives, etc. I use a fork but you can use a potato masher.", "name": "Mash Ingredients", "url": "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/#wprm-recipe-98546-step-5-0" },
+        { "@type": "HowToStep", "text": "Depending on how the sauce looks to you, add some pasta water. Tip - 1/2 cup should be plenty, but you can add a bit more if you think it needs it.", "name": "Thin Sauce", "url": "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/#wprm-recipe-98546-step-5-1" }
+      ]
+    },
+    {
+      "@type": "HowToSection",
+      "name": "Assembly",
+      "itemListElement": [
+        { "@type": "HowToStep", "text": "Add the cooked pasta and toss to combine.", "name": "Toss", "url": "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/#wprm-recipe-98546-step-6-0" },
+        { "@type": "HowToStep", "text": "Add the chicken back in and return the skillet to the oven for 5 minutes, or until everything is nicely warmed through.", "name": "Add Chicken", "url": "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/#wprm-recipe-98546-step-6-1" },
+        { "@type": "HowToStep", "text": "Taste the dish and if you think it needs it, add more salt, pepper, a sprinkling of red chili flakes for heat, etc.", "name": "Season", "url": "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/#wprm-recipe-98546-step-6-2" },
+        { "@type": "HowToStep", "text": "Optionally (but recommended), garnish with fresh herbs and serve immediately. Leftovers will keep airtight for up to 5 days in the fridge or up to 4 months in the freezer. Tip - The pasta may continue to absorb some of the sauce so it may appear you have less sauce when you open your container of leftovers. Pasta has a way of doing this. And if it happens, the pasta will be on the softer side, rather than al dente.", "name": "Store", "url": "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/#wprm-recipe-98546-step-6-3" }
+      ]
+    }
+  ]
+}

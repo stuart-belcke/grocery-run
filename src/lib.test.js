@@ -110,6 +110,9 @@ import {
   parseRecipeText,
   titleAfterBreadcrumb,
   unplannedMeals,
+  decodeHtmlEntities,
+  stepsFromRecipeInstructions,
+  recipeFromJsonLd,
 } from "./lib.js";
 
 /* ---------------- forward compatibility ----------------
@@ -3194,6 +3197,26 @@ test("parseIngredientLine does not turn an adjective pair into an ingredient cal
   assert.deepEqual(parseIngredientLine("1 onion, quartered lengthways"), { name: "Onion", qty: 1, unit: "", note: "quartered lengthways" });
 });
 
+test("parseIngredientLine collapses WPRM's doubled parens instead of leaving stray brackets", () => {
+  // babyfoode.com's JSON-LD recipeIngredient (item 106), not the rendered
+  // page — the plugin's own template doubles the parens in that field.
+  // \(([^)]*)\) alone treats the inner "(" as ordinary text and matches
+  // "((or ground turkey)" instead of "(or ground turkey)", so this used to
+  // come back as { name: "Ground chicken )", note: "(or ground turkey" }.
+  assert.deepEqual(parseIngredientLine("1 lb ground chicken ((or ground turkey))"), {
+    name: "Ground chicken",
+    qty: 1,
+    unit: "lb",
+    note: "or ground turkey",
+  });
+  assert.deepEqual(parseIngredientLine("1/2 cup breadcrumbs ((regular or panko))"), {
+    name: "Breadcrumbs",
+    qty: 0.5,
+    unit: "cup",
+    note: "regular or panko",
+  });
+});
+
 // The exact text pasted from Half Baked Harvest's site for the Greek chicken
 // meatball recipe — WP Recipe Maker's layout, with three method sections
 // (CROCKPOT / INSTANT POT / STOVE-TOP) under one Instructions heading. Only
@@ -3697,6 +3720,80 @@ test("parseRecipeText drops the duplicated ingredient card and photo credits fro
   assert.ok(!result.notes.includes("Keep Screen Awake"), "the screen-lock checkbox became a step");
   assert.ok(!/^\d+\.\s*(1\/2X|1X|2X)$/m.test(result.notes), "a scaler button became a step");
   assert.ok(!result.notes.includes("yields 4 servings"), "the yields line became a step");
+});
+
+/* -------------- recipe JSON-LD (item 106) --------------
+   Real, captured data — babyfoode.com and averiecooks.com's Recipe nodes,
+   fetched from a Cloudflare Worker's own IPs on 2026-08-28 (the same class
+   of address the production Worker uses) and pasted verbatim into
+   tests/fixtures/*-jsonld.json. Not authored: the traps below (the escaped
+   ampersand, the meatball-count recipeYield, name/text differing on a
+   HowToStep, the nested HowToSection on averiecooks) are all things the
+   real pages do, not scenarios invented to exercise the code. */
+
+const JSONLD = (f) => JSON.parse(readFileSync(new URL(`../tests/fixtures/${f}`, import.meta.url), "utf8"));
+
+test("decodeHtmlEntities handles the named and numeric forms a real page used", () => {
+  assert.equal(decodeHtmlEntities("Chicken &amp; Veggie"), "Chicken & Veggie");
+  assert.equal(decodeHtmlEntities("don&#x27;t"), "don't");
+  assert.equal(decodeHtmlEntities("you&#39;re"), "you're");
+  assert.equal(decodeHtmlEntities(""), "");
+  assert.equal(decodeHtmlEntities(undefined), "");
+});
+
+test("stepsFromRecipeInstructions flattens a plain array of HowToStep", () => {
+  const steps = stepsFromRecipeInstructions([
+    { "@type": "HowToStep", text: "Preheat the oven.", name: "Preheat" },
+    { "@type": "HowToStep", text: "Let cool and serve.", name: "Let cool and serve." },
+  ]);
+  assert.deepEqual(steps, ["Preheat the oven.", "Let cool and serve."]);
+});
+
+test("stepsFromRecipeInstructions walks nested HowToSection>itemListElement", () => {
+  // averiecooks.com's real shape: sections, not a flat list. A reader that
+  // only handled a flat array of HowToStep would silently drop this whole
+  // recipe's steps down to zero.
+  const steps = stepsFromRecipeInstructions(JSONLD("averiecooks-jsonld.json").recipeInstructions);
+  assert.equal(steps.length, 20, JSON.stringify(steps));
+  assert.equal(steps[0], "To a small bowl, add the salt, pepper, chili powder, smoked paprika, and stir to combine.");
+});
+
+test("stepsFromRecipeInstructions also takes a bare string or array of strings", () => {
+  assert.deepEqual(stepsFromRecipeInstructions("Just mix it and bake."), ["Just mix it and bake."]);
+  assert.deepEqual(stepsFromRecipeInstructions(["Mix.", "Bake."]), ["Mix.", "Bake."]);
+});
+
+test("recipeFromJsonLd: babyfoode.com — name unescaped, recipeYield NOT read as servings", () => {
+  const r = recipeFromJsonLd(JSONLD("babyfoode-jsonld.json"));
+  assert.equal(r.name, "Baked Chicken & Veggie Meatballs for Baby (and Kids, Too!)");
+  // recipeYield is ["24", "24 1\" meatballs"] — 24 MEATBALLS, not 24 servings.
+  // Reading it as servings would scale the whole shopping list wrong.
+  assert.equal(r.servings, null);
+  assert.equal(r.ingredients.length, 10, JSON.stringify(r.ingredients.map((i) => i.name)));
+  assert.deepEqual(r.ingredients[0], { name: "Ground chicken", qty: 1, unit: "lb", note: "or ground turkey" });
+  const steps = r.notes.split("\n");
+  assert.equal(steps.length, 5, JSON.stringify(steps));
+  assert.equal(steps[0], "1. Pre-heat the oven to 400 degrees F. Line a baking sheet with parchment paper, silicone mat or tin foil.");
+  assert.equal(steps[4], "5. Let cool and serve.");
+});
+
+test("recipeFromJsonLd: averiecooks.com — recipeYield IS servings here, sections flatten in order", () => {
+  const r = recipeFromJsonLd(JSONLD("averiecooks-jsonld.json"));
+  assert.equal(r.name, "Mediterranean Chicken Feta Pasta Bake");
+  // Same shape as babyfoode's recipeYield (an array with an unlabeled count
+  // and a labeled one), but THIS one's second entry says "servings" — so,
+  // unlike babyfoode, this one is trusted.
+  assert.equal(r.servings, 4);
+  assert.equal(r.ingredients.length, 22, JSON.stringify(r.ingredients.map((i) => i.name)));
+  const steps = r.notes.split("\n");
+  assert.equal(steps.length, 20, JSON.stringify(steps));
+  assert.equal(steps[0], "1. To a small bowl, add the salt, pepper, chili powder, smoked paprika, and stir to combine.");
+  assert.equal(steps[19], "20. Optionally (but recommended), garnish with fresh herbs and serve immediately. Leftovers will keep airtight for up to 5 days in the fridge or up to 4 months in the freezer. Tip - The pasta may continue to absorb some of the sauce so it may appear you have less sauce when you open your container of leftovers. Pasta has a way of doing this. And if it happens, the pasta will be on the softer side, rather than al dente.");
+  // Entities inside a step's own text, not just the title — a decoder that
+  // only ran on `name` would leave these as literal "&#x27;" in the saved
+  // notes.
+  assert.ok(r.notes.includes("don't move it"), "an apostrophe stayed escaped inside a step");
+  assert.ok(r.notes.includes("you're not caught off guard"), "an apostrophe stayed escaped inside a step");
 });
 
 /* ---------------- the catalog export is sorted ----------------

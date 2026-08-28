@@ -1129,6 +1129,16 @@ const PREP_WORDS =
 export function splitIngredientNote(text) {
   let rest = String(text || "").trim();
   const notes = [];
+  /* WPRM (the WordPress Recipe Maker plugin — babyfoode.com and others) puts
+     out DOUBLED parens in its own JSON-LD, "((or ground turkey))" and
+     "((regular or panko))" — a markup quirk of the plugin's own template,
+     not something a person typed. \(([^)]*)\) alone treats the inner "(" as
+     ordinary text and matches "((or ground turkey)" instead of the intended
+     "(or ground turkey)", leaving a stray "(" in the name and a stray ")" in
+     the note. Collapsed first because it's a WRAPPER, not real nesting — no
+     captured ingredient line has ever meant two different things by "((" —
+     so a single pass of "(optional)" parsing still applies as before it. */
+  rest = rest.replace(/\(\(/g, "(").replace(/\)\)/g, ")");
   // Parentheses anywhere: "(optional)", "(15 oz)", "(or whole milk)".
   rest = rest.replace(/\(([^)]*)\)/g, (_, inner) => {
     const t = inner.trim();
@@ -1481,6 +1491,84 @@ export function parseRecipeText(text) {
       .join("\n");
   }
 
+  return { name, servings, notes, ingredients };
+}
+
+/* -------------------- recipe JSON-LD (item 106) -------------------- */
+
+// A JSON-LD value that's "one or many" shows up both ways across real sites
+// — recipeYield is always an array on the five captured pages, but nothing
+// in the spec requires it. Not asArray() above: that one turns a bare string
+// into [] (it's built for plain-object "0"/"1" collections), which would
+// silently drop a single-string recipeYield/recipeIngredient/recipeInstructions.
+const listOf = (v) => (Array.isArray(v) ? v : v != null ? [v] : []);
+
+const NAMED_HTML_ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+
+// The JSON-LD text already went through JSON.parse, so this decodes the
+// SITE's own escaping ("Chicken &amp; Veggie", "don&#x27;t") rather than
+// HTML tags — captured live from babyfoode.com and averiecooks.com.
+export function decodeHtmlEntities(text) {
+  return String(text || "").replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, ent) => {
+    if (ent[0] === "#") {
+      const hex = ent[1].toLowerCase() === "x";
+      const code = parseInt(hex ? ent.slice(2) : ent.slice(1), hex ? 16 : 10);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : whole;
+    }
+    return NAMED_HTML_ENTITIES[ent.toLowerCase()] || whole;
+  });
+}
+
+/* recipeInstructions is a plain string, an array of strings, an array of
+   HowToStep objects, OR — averiecooks.com, captured 2026-08-28 — an array of
+   HowToSection objects that each nest HowToStep objects under
+   itemListElement. A HowToStep's `name` is a short label ("Mix Seasonings");
+   `text` is the actual instruction, and the two differ, so `text` wins.
+   Recurses because nothing in the schema rules out a section nesting another
+   section, even though no captured page does. */
+export function stepsFromRecipeInstructions(instructions) {
+  const steps = [];
+  const walk = (node) => {
+    if (!node) return;
+    if (typeof node === "string") { const t = node.trim(); if (t) steps.push(t); return; }
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (typeof node !== "object") return;
+    if (Array.isArray(node.itemListElement)) return node.itemListElement.forEach(walk);
+    const t = String(node.text || node.name || "").trim();
+    if (t) steps.push(t);
+  };
+  walk(instructions);
+  return steps;
+}
+
+/* Turns a JSON-LD Recipe node (already JSON.parse'd, from the Worker) into
+   the exact shape parseRecipeText returns, so fillDraft has ONE definition
+   of "a parsed recipe" whether it came from pasted text or a fetched page's
+   structured data. See item 106 for the traps this works around. */
+export function recipeFromJsonLd(node) {
+  const name = decodeHtmlEntities(String(node?.name || "").trim());
+  /* recipeYield IS AN ARRAY AND IS NOT SERVINGS. babyfoode.com's is
+     ["24", "24 1\" meatballs"] — twenty-four MEATBALLS, not twenty-four
+     servings. Reading it as servings would scale a shopping list wrong,
+     quietly — the one trap here that would cost a trip. Only trusted when an
+     entry says so explicitly ("4 servings", averiecooks.com), the same word
+     SERVINGS_FIRST_RE requires of a pasted page's own servings line. */
+  let servings = null;
+  for (const y of listOf(node?.recipeYield)) {
+    const m = String(y).match(/(\d+(?:\.\d+)?)\s+servings?\b/i);
+    if (m) { servings = Number(m[1]); break; }
+  }
+  // JSON-LD replaces the HEURISTIC HUNT for where the ingredient list starts
+  // and ends; it does NOT replace parseIngredientLine — "1 lb ground chicken
+  // ((or ground turkey))" still needs the same parenthetical/note handling a
+  // pasted line does.
+  const ingredients = listOf(node?.recipeIngredient)
+    .map((l) => parseIngredientLine(decodeHtmlEntities(String(l))))
+    .filter(Boolean);
+  const notes = stepsFromRecipeInstructions(node?.recipeInstructions)
+    .map((s) => decodeHtmlEntities(s))
+    .map((s, i) => `${i + 1}. ${s}`)
+    .join("\n");
   return { name, servings, notes, ingredients };
 }
 
