@@ -1,0 +1,51 @@
+name: THROWAWAY — verify the real recipe-import Worker deploys and works
+
+on:
+  push:
+    branches: [claude/cf-worker-verify]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Deploy under a throwaway name
+        run: npx wrangler deploy --name "grocery-run-cf-verify-${{ github.run_id }}" 2>&1 | tee /tmp/deploy.log
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Exercise every response shape
+        run: |
+          url="https://grocery-run-cf-verify-${{ github.run_id }}.stuart-belcke.workers.dev"
+          sleep 3
+          echo "=== allowlisted host, real recipe (JSON-LD path) ==="
+          curl -sS --max-time 30 "$url/?url=https%3A%2F%2Fbabyfoode.com%2Fblog%2Fmini-chicken-carrot-meatballs-for-baby%2F"
+          echo
+          echo "=== disallowed host ==="
+          curl -sS --max-time 30 "$url/?url=https%3A%2F%2Fwww.allrecipes.com%2Frecipe%2F15925%2F"
+          echo
+          echo "=== bad url ==="
+          curl -sS --max-time 30 "$url/?url=not-a-url"
+          echo
+          echo "=== missing url ==="
+          curl -sS --max-time 30 "$url/"
+          echo
+          echo "=== CORS: allowed origin ==="
+          curl -sS --max-time 30 -H "Origin: https://stuart-belcke.github.io" -D - -o /dev/null "$url/?url=https%3A%2F%2Fbabyfoode.com%2Fblog%2Fmini-chicken-carrot-meatballs-for-baby%2F" | grep -i access-control-allow-origin || echo "NO CORS HEADER"
+          echo "=== CORS: disallowed origin ==="
+          curl -sS --max-time 30 -H "Origin: https://evil.example" -D - -o /dev/null "$url/?url=https%3A%2F%2Fbabyfoode.com%2Fblog%2Fmini-chicken-carrot-meatballs-for-baby%2F" | grep -i access-control-allow-origin && echo "LEAKED CORS HEADER" || echo "correctly no CORS header"
+
+      - name: Delete the throwaway deployment
+        if: always()
+        run: npx wrangler delete --name "grocery-run-cf-verify-${{ github.run_id }}" --force || true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
