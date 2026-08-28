@@ -28,6 +28,7 @@ const ALLOWED_HOSTS = new Set([
   "www.themediterraneandish.com",
   "www.olivetomato.com",
   "www.averiecooks.com",
+  "thecozycook.com",
 ]);
 
 // The app's own origins — GitHub Pages production, and local dev/e2e.
