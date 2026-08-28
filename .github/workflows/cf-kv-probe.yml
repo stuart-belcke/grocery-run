@@ -32,7 +32,10 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      - name: Prove REMOTE read/write works (the first attempt used wrangler's local simulation by mistake — "Resource location: local" in its log — which proves nothing about the real service)
+      # The first attempt's put/get ran against wrangler's LOCAL simulation
+      # by mistake ("Resource location: local" in its log) — --remote here
+      # is what actually proves the real Cloudflare service works from CI.
+      - name: Prove REMOTE read/write works, not wrangler's local simulation
         run: |
           id=$(grep -oE '"?id"?\s*[:=]\s*"[a-f0-9]+"' /tmp/create.log | grep -oE '[a-f0-9]{32}' | head -1)
           echo "namespace id: $id"
