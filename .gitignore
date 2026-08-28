@@ -1,4 +1,8 @@
 node_modules/
+
+# Claude Code's own scratch worktrees for background subagents — tooling
+# state, never project content.
+.claude/
 # Any build output: `dist/` from `npm run build`, plus the ad-hoc
 # `dist-<something>/` a person makes while checking one build by hand.
 # One of those was committed once and sat in the repo for a week.
