@@ -1,0 +1,52 @@
+name: THROWAWAY — verify the open-host Worker and its blocked-target guard
+
+on:
+  push:
+    branches: [claude/cf-worker-verify-open]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Deploy under a throwaway name
+        run: npx wrangler deploy --name "grocery-run-cf-verify-open-${{ github.run_id }}"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Exercise the new behavior
+        run: |
+          url="https://grocery-run-cf-verify-open-${{ github.run_id }}.stuart-belcke.workers.dev"
+          sleep 3
+          echo "=== a previously-disallowed host (AllRecipes) now gets a real fetch attempt ==="
+          curl -sS --max-time 30 "$url/?url=https%3A%2F%2Fwww.allrecipes.com%2Frecipe%2F15925%2Fcreamy-au-gratin-potatoes%2F"
+          echo
+          echo "=== a site never on any allowlist (thecozycook.com without the earlier one-off addition would have been blocked; now just works) ==="
+          curl -sS --max-time 30 "$url/?url=https%3A%2F%2Fwww.olivetomato.com%2Fgreek-style-roasted-lemon-and-garlic-chicken-with-potatoes-and-carrots%2F"
+          echo
+          echo "=== loopback target must still be refused ==="
+          curl -sS --max-time 30 "$url/?url=https%3A%2F%2F127.0.0.1%2Fsecret"
+          echo
+          echo "=== cloud metadata IP must still be refused ==="
+          curl -sS --max-time 30 "$url/?url=https%3A%2F%2F169.254.169.254%2Flatest%2Fmeta-data%2F"
+          echo
+          echo "=== private RFC1918 target must still be refused ==="
+          curl -sS --max-time 30 "$url/?url=https%3A%2F%2F192.168.1.1%2F"
+          echo
+          echo "=== localhost by name must still be refused ==="
+          curl -sS --max-time 30 "$url/?url=https%3A%2F%2Flocalhost%2F"
+
+      - name: Delete the throwaway deployment
+        if: always()
+        run: npx wrangler delete --name "grocery-run-cf-verify-open-${{ github.run_id }}" --force || true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
