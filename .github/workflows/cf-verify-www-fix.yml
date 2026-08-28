@@ -1,0 +1,47 @@
+name: THROWAWAY — verify the www fix and the KV fail-open
+
+on:
+  push:
+    branches: [claude/cf-verify-www-fix]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Deploy WITHOUT the KV binding, to prove the fail-open path
+        run: |
+          sed -i '/^\[\[kv_namespaces\]\]/,$d' wrangler.toml
+          echo "--- wrangler.toml with KV binding removed ---"
+          cat wrangler.toml
+          npx wrangler deploy --name "grocery-run-cf-nokv-${{ github.run_id }}"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: With KV unbound, import must still work (fail open), not return an HTML error page
+        run: |
+          url="https://grocery-run-cf-nokv-${{ github.run_id }}.stuart-belcke.workers.dev"
+          sleep 3
+          echo "=== KV unbound + a www form that is NOT the recorded spelling ==="
+          curl -sS --max-time 30 -w '\nHTTP %{http_code}\n' "$url/?url=https%3A%2F%2Fwww.pinchofyum.com%2Fchicken-parmesan" | head -c 600
+          echo
+          echo "=== KV unbound + bare form of a www-recorded host ==="
+          curl -sS --max-time 30 -w '\nHTTP %{http_code}\n' "$url/?url=https%3A%2F%2Frecipetineats.com%2Foven-baked-chicken-and-rice%2F" | head -c 400
+          echo
+          echo "=== a host genuinely off the list must STILL be refused ==="
+          curl -sS --max-time 30 -w '\nHTTP %{http_code}\n' "$url/?url=https%3A%2F%2Fwww.allrecipes.com%2Frecipe%2F15925%2F"
+
+      - name: Delete throwaway
+        if: always()
+        run: npx wrangler delete --name "grocery-run-cf-nokv-${{ github.run_id }}" --force || true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
