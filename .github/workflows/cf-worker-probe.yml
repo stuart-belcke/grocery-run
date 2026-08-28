@@ -1,0 +1,41 @@
+# THROWAWAY PROBE (item 106, step 1 of the server-path plan). Deploys a
+# minimal Worker and hits the same five fixture URLs the GitHub Actions
+# probe already hit, to check CLOUDFLARE'S OWN IP space is served the same
+# way — a GitHub runner's IP and a Cloudflare Worker's IP are not the same
+# reputation, and item 106 explicitly calls this out as unproven until this
+# runs. Delete cf-worker-probe/ and this file once it has.
+name: cloudflare worker probe
+on:
+  push:
+    branches: [claude/cf-worker-probe]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Deploy the throwaway probe worker
+        working-directory: cf-worker-probe
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npx wrangler deploy --name "grocery-run-cf-probe-${{ github.run_id }}" 2>&1 | tee /tmp/deploy.log
+          echo "url=$(grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' /tmp/deploy.log | head -1)" >> "$GITHUB_ENV"
+
+      - name: Hit it and print what the fixtures actually returned
+        run: |
+          echo "Probe URL: $url"
+          sleep 3
+          curl -sS --max-time 60 "$url"
+
+      - name: Tear the throwaway worker down
+        if: always()
+        working-directory: cf-worker-probe
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler delete --name "grocery-run-cf-probe-${{ github.run_id }}" --force || true
