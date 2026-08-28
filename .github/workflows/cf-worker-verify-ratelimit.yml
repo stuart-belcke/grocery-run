@@ -1,0 +1,52 @@
+name: THROWAWAY — verify the daily per-IP rate limit actually trips
+
+on:
+  push:
+    branches: [claude/cf-worker-verify-ratelimit]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      # Lowered to 3 for this probe only, so the limit can actually be
+      # crossed inside one short CI run rather than needing 50 real calls.
+      - name: Lower RATE_LIMIT_PER_DAY to 3 for this probe only
+        run: sed -i 's/const RATE_LIMIT_PER_DAY = 50;/const RATE_LIMIT_PER_DAY = 3;/' index.js
+
+      - name: Deploy under a throwaway name
+        run: npx wrangler deploy --name "grocery-run-cf-verify-rl-${{ github.run_id }}"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Call it 4 times — the 4th must be refused
+        run: |
+          url="https://grocery-run-cf-verify-rl-${{ github.run_id }}.stuart-belcke.workers.dev/?url=https%3A%2F%2Fbabyfoode.com%2Fblog%2Fmini-chicken-carrot-meatballs-for-baby%2F"
+          sleep 3
+          for i in 1 2 3 4; do
+            echo "=== call $i ==="
+            curl -sS --max-time 30 -w '\nHTTP %{http_code}\n' "$url"
+          done
+
+      # NOT testing "a different IP is unaffected" here — cf-connecting-ip
+      # is set by Cloudflare's own edge from the real TCP connection and
+      # overwrites anything a client sends, so there is no way to spoof a
+      # second IP from one CI job. The keying itself is a two-line string
+      # concat (dailyLimitKey in index.js); what's worth proving live is
+      # that the counter actually increments and actually trips, which the
+      # step above does.
+
+      - name: Delete the throwaway deployment
+        if: always()
+        run: npx wrangler delete --name "grocery-run-cf-verify-rl-${{ github.run_id }}" --force || true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
