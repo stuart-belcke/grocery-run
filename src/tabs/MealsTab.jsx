@@ -824,11 +824,14 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                   (paste the text) in the same breath, per the app's own rule
                   against a notice that doesn't say what to do about it. The
                   Worker fetches any https site now, so the only failures left
-                  here are a malformed link or the fetch itself failing —
-                  never "this site isn't supported". */}
+                  here are a malformed link, the fetch itself failing, or
+                  today's per-network import cap (item 106) — never "this
+                  site isn't supported". */}
               {urlImportState && urlImportState !== "loading" && (
                 <div role="status" style={{ fontSize: 13, color: C.tomato, marginBottom: 8 }}>
-                  Couldn't fetch that page. Copy the recipe's text from the page and paste it here instead.
+                  {urlImportState.reason === "rate_limited"
+                    ? "This network has hit today's import limit — it resets tomorrow. Paste the recipe's text below instead."
+                    : "Couldn't fetch that page. Copy the recipe's text from the page and paste it here instead."}
                 </div>
               )}
               <div style={{ display: "flex", gap: 8 }}>
