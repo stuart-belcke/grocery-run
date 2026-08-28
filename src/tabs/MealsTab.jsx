@@ -7,6 +7,7 @@ import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop, SuggestInput, SearchField, useSticky, useUnsavedWork } from "../ui";
 import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, ingredientNames, normalizeCfg, ingredientMatches, existingIngredientSuggestions, splitSuggestion, unitMatches, ensureIngredientId, asArray, planSlotsFor, parseRecipeText } from "../lib";
+import { fetchRecipeFromUrl } from "../recipeImport";
 import { RecipeDetail } from "../RecipeDetail";
 
 // Rounded "pill" grouping a remove / count / add cluster so the controls read
@@ -117,6 +118,13 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
      answer to "why does this recipe stop after nine ingredients", and that
      question gets asked while looking at the filled-in editor. */
   const [importWarning, setImportWarning] = useState(null);
+  /* "loading" while a pasted URL is being fetched (item 106), or
+     { reason } once the Worker has answered and it wasn't a usable recipe —
+     a disallowed host, a fetch failure, a network error reaching the Worker
+     itself. null the rest of the time. Not sticky and not useState-shared
+     with pasteText: it describes THIS attempt, and closing or reopening the
+     panel should not leave a stale error sitting there. */
+  const [urlImportState, setUrlImportState] = useState(null);
 
 
   const setServings = (id, servings) =>
@@ -168,6 +176,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
   const closePaste = () => {
     setPasteOpen(false);
     setPasteText("");
+    setUrlImportState(null);
   };
 
   const blankDraft = () => ({ id: null, name: "", mealTypes: [], easy: false, side: false, servings: "4", source: "", notes: "", ingredients: [{ name: "", qty: "1", unit: "", note: "" }] });
@@ -190,12 +199,15 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
     closePaste();
   };
 
-  /* ONE definition of "fill a draft from recipe text", because there are now
-     two ways in: the paste panel below, and a Shortcut handing the app a whole
-     page (item 106). They must agree — a recipe that imports differently from
-     the way the same text pastes is two parsers to keep in step. */
-  const fillDraft = (d, text) => {
-    const parsed = parseRecipeText(text);
+  /* ONE definition of "fill a draft from a parsed recipe", because there are
+     now three ways in: the paste panel below (pasted text OR a pasted URL,
+     item 106), and a Shortcut handing the app a whole page. They must agree
+     — a recipe that imports differently depending on how it arrived is
+     three parsers to keep in step instead of one. Takes the ALREADY-PARSED
+     {name, servings, notes, ingredients} shape — parseRecipeText's own
+     return value, and recipeFromJsonLd's — rather than raw text, so the
+     caller decides which parser produced it. */
+  const fillDraft = (d, parsed) => {
     const isBlankIngredientRow = (i) => !i.name.trim() && i.qty === "1" && !i.unit.trim() && !(i.note || "").trim();
     const parsedIngredients = parsed.ingredients.map((i) => ({ name: i.name, qty: String(i.qty), unit: i.unit, note: i.note || "" }));
     const startsBlank = d.ingredients.length === 1 && isBlankIngredientRow(d.ingredients[0]);
@@ -208,13 +220,43 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
     };
   };
 
-  // Fills the open draft from pasted recipe text — never overwrites something
-  // already typed, so pasting mid-edit only adds to it rather than clobbering
-  // a manual correction. The blank starting ingredient row (name "" / qty "1"
-  // / unit "") is the one exception: it's what every new draft starts with,
-  // so a paste replaces it outright instead of leaving it as a stray blank row.
-  const applyParsedRecipe = () => {
-    setDraft((d) => fillDraft(d, pasteText));
+  // A bare URL and nothing else — a person pasting recipe TEXT never pastes
+  // just one unbroken link with no surrounding words, so this is enough to
+  // tell "fetch this" from "parse this" without asking.
+  const isBareUrl = (text) => /^https?:\/\/\S+$/i.test(text.trim());
+
+  // Fills the open draft from the paste panel — either pasted recipe text
+  // (parsed locally, as always) or a bare URL (fetched through the recipe
+  // Worker, item 106). Never overwrites something already typed, so pasting
+  // mid-edit only adds to it rather than clobbering a manual correction. The
+  // blank starting ingredient row (name "" / qty "1" / unit "") is the one
+  // exception: it's what every new draft starts with, so a paste replaces it
+  // outright instead of leaving it as a stray blank row.
+  const applyParsedRecipe = async () => {
+    const text = pasteText;
+    if (!isBareUrl(text)) {
+      setDraft((d) => fillDraft(d, parseRecipeText(text)));
+      closePaste();
+      return;
+    }
+    const url = text.trim();
+    setUrlImportState("loading");
+    const result = await fetchRecipeFromUrl(url);
+    if (!result.ok) {
+      setUrlImportState({ reason: result.reason });
+      return;
+    }
+    // The URL itself IS the source, so it's worth saving even though
+    // fillDraft has no notion of a "source" field — a paste or a Shortcut
+    // import never knows one to offer.
+    setDraft((d) => fillDraft({ ...d, source: d.source.trim() ? d.source : url }, result.parsed));
+    // The Worker fetches ANY https site now, not just ones known to publish
+    // a recipe in a structured format — so "text" (its best-effort fallback,
+    // the same heuristic reading a paste gets) is worth flagging, where
+    // "jsonld" (structured, and what item 106's captures show is reliable)
+    // is not.
+    setImportWarning(result.source === "text" ? { unverifiedSite: true } : null);
+    setUrlImportState(null);
     closePaste();
   };
 
@@ -238,7 +280,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
       setImportWarning({ guest: true });
       return;
     }
-    setDraft(fillDraft(blankDraft(), pendingImport.text));
+    setDraft(fillDraft(blankDraft(), parseRecipeText(pendingImport.text)));
     closePaste();
     setImportWarning(pendingImport.truncated ? { declared: pendingImport.declared, got: pendingImport.text.length } : null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -735,6 +777,10 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
           <div style={{ flex: 1, fontSize: 13, color: C.ink, lineHeight: 1.45 }}>
             {importWarning.guest ? (
               <>A recipe was sent to this phone, but a guest can’t add recipes — so it wasn’t opened. Ask whoever runs the household to import it, or to make you a member.</>
+            ) : importWarning.unverifiedSite ? (
+              <>
+                <strong>This site doesn't publish its recipe in a format the Worker can read directly.</strong> What's filled in below came from the page's plain text instead — the same best-effort reading a paste gets, not the reliable structured kind. Check every ingredient and step before saving.
+              </>
             ) : (
               <>
                 <strong>This recipe arrived cut short.</strong> {importWarning.got.toLocaleString()} of {Number(importWarning.declared).toLocaleString()} characters came through, so the end of it is missing — check the last ingredients and the method before saving. Copying the page and pasting it below has no length limit.
@@ -763,21 +809,35 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
           ) : (
             <div style={{ border: `1px dashed ${C.line}`, borderRadius: 8, padding: 10, marginBottom: 12 }}>
               <p style={{ margin: "0 0 6px", fontSize: 13, color: C.faint }}>
-                Fills in the fields below from a recipe you copied. Check them before saving.
+                Fills in the fields below from a recipe you copied — or paste a link to one and it's fetched for you. Check them before saving.
               </p>
               <textarea
-                placeholder="Paste the whole recipe here…"
+                placeholder="Paste the whole recipe, or a link to it…"
                 value={pasteText}
-                onChange={(e) => setPasteText(e.target.value)}
+                onChange={(e) => { setPasteText(e.target.value); setUrlImportState(null); }}
                 rows={8}
                 autoFocus
-                aria-label="Pasted recipe text"
+                aria-label="Pasted recipe text or link"
                 style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 8 }}
               />
+              {/* A FAILED IMPORT IS NOT A DEAD END — it says what still works
+                  (paste the text) in the same breath, per the app's own rule
+                  against a notice that doesn't say what to do about it. */}
+              {urlImportState && urlImportState !== "loading" && (
+                <div role="status" style={{ fontSize: 13, color: C.tomato, marginBottom: 8 }}>
+                  {urlImportState.reason === "rate_limited"
+                    ? "This network has hit today's import limit — it resets tomorrow. Paste the recipe's text below instead."
+                    : urlImportState.reason === "host_not_allowed"
+                    ? "That site isn't set up for automatic import yet. Copy the recipe's text from the page and paste it here instead."
+                    : "Couldn't fetch that page. Copy the recipe's text from the page and paste it here instead."}
+                </div>
+              )}
               <div style={{ display: "flex", gap: 8 }}>
                 <div style={{ flex: 1 }} />
                 <Btn small onClick={closePaste}>Cancel</Btn>
-                <Btn small kind="primary" disabled={!pasteText.trim()} onClick={applyParsedRecipe}>Parse into fields</Btn>
+                <Btn small kind="primary" disabled={!pasteText.trim() || urlImportState === "loading"} onClick={applyParsedRecipe}>
+                  {urlImportState === "loading" ? "Fetching…" : "Parse into fields"}
+                </Btn>
               </div>
             </div>
           )}

@@ -1,0 +1,66 @@
+name: Deploy the recipe-import Worker
+
+# worker/ is a separate mini-project (Cloudflare Workers runtime, not the
+# app's own Node/browser build), so it deploys on its own trigger rather
+# than riding along with deploy.yml's `checks` gate, which doesn't touch it
+# at all. Path-filtered so an unrelated push to main doesn't redeploy an
+# unchanged Worker.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "worker/**"
+      - ".github/workflows/deploy-worker.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-worker
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      # Same pattern deploy.yml uses for FIREBASE_SERVICE_ACCOUNT: skip
+      # rather than fail when the secret isn't set, so a fork (or this repo
+      # before the secret existed) doesn't turn red over a Worker it was
+      # never going to deploy anyway.
+      - name: Is there a Cloudflare token to deploy with?
+        id: cftoken
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "have=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "have=no" >> "$GITHUB_OUTPUT"
+            echo "::warning::CLOUDFLARE_API_TOKEN is not set, so the recipe-import Worker was NOT deployed."
+          fi
+
+      - name: Deploy
+        if: steps.cftoken.outputs.have == 'yes'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy
+
+      # Proves the deploy actually took, the same reason deploy.yml polls the
+      # live catalog after publishing: a green "Deploy" step only proves
+      # wrangler was told to upload something, not that the endpoint answers.
+      # babyfoode.com is allowlisted and known-good (item 106), so this is a
+      # real, minimal exercise of the fetch + JSON-LD path, not a ping.
+      - name: Verify the deployed Worker serves a real recipe
+        if: steps.cftoken.outputs.have == 'yes'
+        run: |
+          url="https://grocery-run-recipe-import.stuart-belcke.workers.dev/?url=https%3A%2F%2Fbabyfoode.com%2Fblog%2Fmini-chicken-carrot-meatballs-for-baby%2F"
+          body=$(curl -fsS --max-time 30 "$url")
+          echo "$body"
+          echo "$body" | grep -q '"ok":true' && echo "$body" | grep -q '"source":"jsonld"'

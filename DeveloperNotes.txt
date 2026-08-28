@@ -1,7 +1,7 @@
 Grocery Run — Roadmap
 =====================
 
-What is still open. Nine items, none of them urgent — this app does its job.
+What is still open. Eight items, none of them urgent — this app does its job.
 
 THE NUMBERS ARE IDs, NOT POSITIONS, AND ARE NEVER REUSED OR REASSIGNED. They
 were allocated chronologically, so a low number here means the item is OLD and
@@ -13,7 +13,7 @@ what makes one findable; for what to do next, use the list below.
 FINISHED WORK LIVES IN DeveloperNotes-Completed.txt, and most days that is the
 more useful of the two: it records WHY the app is the way it is, which is what
 you need before changing something that looks odd. Search it before altering
-anything surprising, and before redoing anything — several entries record
+anything surprising, and before redoing anything, too — several entries record
 something tried, measured and rejected. A gap in the numbering here means the
 item is finished and lives over there.
 
@@ -21,8 +21,6 @@ item is finished and lives over there.
 IF YOU ARE PICKING SOMETHING UP
 -------------------------------
 
-  106  import a recipe from a link      A PRIORITY now. One phone test decides
-                                       whether it needs a server at all
   110  the parser                       standing task: more captured pages
    98  the test gaps                    a register; 98a is the costly one
 
@@ -156,169 +154,6 @@ file reached 5,886 lines with ten live items in it.
     displayed and not what it means. Week start is not arguable.
     TRIGGER: revisit alongside 101; they are the same conversation.
 
-106. IMPORT A RECIPE FROM A LINK — THE APP HALF IS BUILT; ONE STEP IS LEFT
-    AND IT CAN ONLY BE DONE ON A PHONE.
-    Asked as: "other grocery apps parse recipes from links, is that
-    achievable for us?" Items 109 and 110 settled the two assumptions under
-    it; the receiver shipped with this entry. Where it stands:
-
-      PASTING THE PAGE'S TEXT WORKS TODAY and is still the supported path —
-        no length limit, and it is what item 110's five real sites made
-        reliable. Worth stating first, because "you cannot paste a link" got
-        heard once as "you cannot paste", which is the opposite of true.
-      THE APP CANNOT TAKE A URL AND NEVER WILL. A browser refuses to read
-        another site's HTML and no app-side code changes that.
-      THE APP-SIDE RECEIVER IS DONE. A URL of the form
-        `#chars=<n>&import=<encoded text>` opens the Meals tab with the
-        recipe editor already filled, through the same fillDraft the paste
-        panel uses. parseImportHash / importUrl in lib.js are the one
-        definition of the format. Seven browser tests, five mutations, all
-        caught. RecipeImportShortcut.md carries the whole thing.
-      THE SHORTCUT IS SPECIFIED BUT NOT BUILT. Seven actions, written down in
-        RecipeImportShortcut.md — Receive URLs, Get Contents of URL, Count
-        Characters, URL Encode, Text, Open URLs. UNVERIFIED: there was no iOS
-        device where it was written, and Shortcuts renames actions between
-        versions. The ORDER is the part that matters.
-
-    WHAT IS ACTUALLY LEFT: build those seven actions on a phone, share one
-    recipe through it, and see what happens. That is the whole remainder.
-
-    AND THE MEASUREMENT IT EXISTS TO TAKE. A page is 5-12k characters, 7-17k
-    once URL-encoded, and NOBODY HAS MEASURED what iOS does with a URL that
-    long. So the format declares the length BEFORE the text: truncation
-    removes the tail, the count survives it, and the app says "this arrived
-    cut short, 8,900 of 11,162 characters" rather than quietly importing
-    three quarters of a recipe — which parses cleanly, looks finished, and is
-    found out in the shop. THE LIMIT DID NOT NEED DECIDING IN ADVANCE, which
-    is the answer to the question this item used to open with.
-    WRITE THE NUMBER DOWN HERE when it happens. It is the only evidence
-    anybody will ever have of where the real limit is, and it decides whether
-    this survives or falls back to the clipboard (Copy to Clipboard instead
-    of Open URLs; less magical, no limit at all).
-
-    BE HONEST ABOUT THE GESTURE: even finished, this is not "paste a link
-    into the app". It is open the recipe in Safari, Share, tap the shortcut,
-    and the app opens filled in. That is a different thing from what the
-    question asked for.
-
-    THE SERVER OPTION WAS MEASURED ON 2026-08-24, and BOTH of the things it
-    was rejected for turned out to be wrong. Five fixture URLs fetched from a
-    GitHub Actions runner (Azure datacenter IP) — the same class of address a
-    Worker uses, which is what item 109 predicted would be blocked:
-
-      HOST                          STATUS   BYTES   Recipe JSON-LD
-      www.allrecipes.com            402        612   —
-      babyfoode.com                 200     679929   yes
-      www.themediterraneandish.com  200     634950   yes
-      www.olivetomato.com           200     473252   yes
-      www.averiecooks.com           200     783278   yes
-
-      FOUR OF FIVE SERVE A DATACENTER IP FINE. The prediction held for one
-      site only.
-      ALLRECIPES IS A POLICY BLOCK, NOT BOT DETECTION, and that distinction
-      decides whether it is worth fighting. The 402 body is a People Inc.
-      notice pointing at contentlicensing@people.inc. They are selling this
-      access. No user agent, header or proxy is the answer; it will not be
-      worked around, and pasting the page stays the route for that site.
-      THE JSON-LD IS THERE, AND IT IS REAL. Item 109 could not see it —
-      Shortcuts hands back tag-stripped text, so anything in a <script> was
-      invisible — and left the raw-HTML question open. It is answered: each
-      of the four carries exactly ONE ld+json block with exactly ONE Recipe
-      node. Not grepped, PARSED: name, recipeYield, recipeIngredient and
-      recipeInstructions all printed out in full.
-      THE COUNTS MATCH THE FIXTURES EXACTLY — 10, 12, 9, 22 ingredients
-      against tests/fixtures/README.md's 10, 12, 9, 22.
-      AND THE NAME COMES BACK, which is item 110's first open problem and the
-      one rough edge a user actually feels. So does a yield for babyfoode,
-      where the text parser gets nothing.
-
-    THREE TRAPS IN THAT DATA, found by printing it rather than assuming:
-      - `name` arrives HTML-ESCAPED ("Chicken &amp; Veggie"). Unescape it.
-      - `recipeYield` IS AN ARRAY and IS NOT SERVINGS. babyfoode's is
-        ["24","24 1\" meatballs"] — twenty-four meatballs, not twenty-four
-        servings. Reading it as servings would scale a whole shopping list
-        wrong, quietly. This is the one that would cost a trip.
-      - THE LINES STILL NEED THE EXISTING PARSER. "1 lb ground chicken ((or
-        ground turkey))", "1/2 cup carrot,  (finely shredded )" — doubled
-        brackets, stray double spaces. So JSON-LD replaces the HEURISTIC HUNT
-        for where the ingredient list starts and ends, which is exactly what
-        item 109's scored-heading experiment failed at. It does NOT replace
-        parseIngredientLine. Nothing already built is wasted.
-
-    WHAT THIS DOES NOT CHANGE: a browser still cannot fetch a page, so this
-    needs a server either way. The Shortcut stays the only route with no
-    infrastructure at all. And a GitHub runner is NOT a Cloudflare Worker —
-    different IPs, different reputation — so four passes are SUGGESTIVE, not
-    proof. Deploy a throwaway Worker against these same five before building
-    anything on it.
-
-    THE SERVER OPTION IS NOW WANTED, NOT MERELY PERMITTED. This used to say
-    "revisit only if somebody outside the two of us uses this, or an Android
-    phone joins a household". That trigger is retired: adding recipes easily
-    and reliably is a stated priority, and URL parsing is where it ends up.
-    It is a DIRECTION now, not a contingency. What is missing is only the
-    infrastructure decision, which is the owner's to make.
-
-    TWO THINGS ASKED ABOUT THE GESTURE ITSELF, both worth knowing before any
-    of the below:
-
-      COPYING A PAGE WITHOUT SHORTCUTS AT ALL: Safari's READER MODE. The Aa
-      button in the address bar -> Show Reader strips the page to the article,
-      then Select All / Copy. Far more reliable than dragging a selection
-      down a whole page, and it removes the navigation, ads and comment
-      section the parser currently has to fight — the junk that four of the
-      five fixtures exist to test. UNVERIFIED, and there is a real doubt:
-      Reader sometimes drops BOXED content, and the recipe card is usually a
-      box. One capture would settle it. If Reader keeps the card, this is the
-      easiest route for anybody and needs no setup whatsoever.
-
-      INSTALLING THE SHORTCUT IN ONE TAP: yes, via an iCloud link. Shortcuts
-      has Share -> Copy iCloud Link, which gives an icloud.com/shortcuts/...
-      URL; tapping it offers Add Shortcut. But the link can only be generated
-      FROM a phone that already has the shortcut, so the first build is
-      manual no matter what — and the app's address is baked into it, so a
-      shared link points at whichever deployment it was built against.
-      WHAT THE APP COULD THEN DO: carry that link (or its QR code) in the
-      help, so the second phone installs in one tap instead of retyping seven
-      actions. Cheap, and it only needs the link to exist. Blocked on a human
-      with a phone, not on any code here.
-
-    RUN THE CHEAP EXPERIMENT FIRST, because it might remove the server
-    entirely. Item 109 established that Get Contents of URL hands Shortcuts
-    the page's text with TAGS ALREADY STRIPPED, which is why the JSON-LD was
-    invisible. It did NOT establish that Shortcuts cannot be made to hand
-    over raw HTML — nobody has tried. If some arrangement of that action
-    yields the markup, then the structured data measured above is reachable
-    with NO SERVER AT ALL, on the route that already works from a domestic
-    IP, and every problem below dissolves. Ten minutes on a phone. Do this
-    before spending anything on hosting.
-
-    IF THAT FAILS, THE SERVER PATH, in order:
-      1. A throwaway Cloudflare Worker against the same five URLs, to check
-         that Cloudflare's own IPs are served — the GitHub runner is not
-         proof. If AllRecipes still 402s there, that is expected and fine:
-         it is a licensing block, not bot detection, and pasting the page
-         stays the answer for that one site.
-      2. THEN a real Worker: ~30 lines, free at 100k requests/day, plus an
-         ALLOWLIST OF RECIPE HOSTS so the endpoint cannot be used as a
-         general proxy. That allowlist is not optional — an open fetcher on
-         a public URL is somebody else's problem to abuse.
-      3. Read the JSON-LD first and fall back to parseRecipeText on the
-         page text. That is item 109's ladder, and it is the right shape:
-         try the most structured reading, widen when it yields nothing.
-      4. Feed both into the SAME fillDraft the paste panel and the URL
-         receiver already use, so there is one definition of what a recipe
-         means and three ways of arriving at it.
-
-    WHAT IT WOULD ACTUALLY BUY, beyond the gesture: the NAME, which comes
-    back blank on all five pages today and is the one rough edge felt every
-    single time (item 110). Plus servings on the pages the text parser
-    cannot get them from, and an ingredient list that needs no heuristic
-    hunt for where it starts. That is a bigger win than "paste a link"
-    sounds like.
-
-    AND IT WOULD WORK ON ANDROID, which the Shortcut never will.
-
 110. THE PARSER: STOPPED AT GOOD ENOUGH, and the list to resume from.
     Five real pages from five sites parse correctly — every ingredient list,
     every step list, four of five serving counts. tests/fixtures/README.md
@@ -336,25 +171,21 @@ file reached 5,886 lines with ten live items in it.
 
     WHAT TO PICK UP FIRST, in the order that would teach the most:
       - DONE — THE NAME NOW COMES BACK ON ALL FIVE. It was blank on every
-        page, which meant typing the title by hand on every import: the one
-        rough edge felt every single time. Blank was deliberate (a blank
-        field asks to be filled in, a wrong one gets saved), so replacing it
-        had to be right far more often than wrong.
+        page, which meant typing the title by hand on every import. Blank was
+        deliberate (a blank field asks to be filled in, a wrong one gets
+        saved), so replacing it had to be right far more often than wrong.
         NOT A GUESS AT WHAT A TITLE LOOKS LIKE — that is what item 109
         records building, measuring and reverting. A STRUCTURAL fact instead:
         every recipe site puts a "Home > Category > Category" trail directly
         above the page heading, and the heading is the recipe. Two trail
-        styles cover all five, and AllRecipes uses neither arrow — a bulleted
+        styles cover all five; AllRecipes uses neither arrow — a bulleted
         all-caps trail spaced out with runs of spaces.
-        titleAfterBreadcrumb() in lib.js. Falls back to blank and never to a
+        titleAfterBreadcrumb() in lib.js falls back to blank and never to a
         guess, so it can only improve on the old answer. A paste has no
         breadcrumb — a person starts selecting at the recipe — so pastes are
-        untouched.
-        AverieCooks shouts its heading, so an all-caps line is sentence-cased
-        through cap(), the same path every ingredient name takes.
-        Five mutations, all caught. The one worth keeping: dropping the
-        breadcrumb requirement so the first line wins again fails four tests,
-        including the stylesheet one that started all of this.
+        untouched. AverieCooks shouts its heading, so an all-caps line is
+        sentence-cased through cap(), the same path every ingredient name
+        takes.
         STILL OPEN UNDERNEATH IT: a site with no breadcrumb at all has never
         been seen, and would come back blank as before.
       - A UK OR EUROPEAN SITE has never been tested. The parser was taught
@@ -375,18 +206,18 @@ file reached 5,886 lines with ten live items in it.
         black pepper" was ONE ingredient, and on the AllRecipes page that
         card ALSO lists "1/2 teaspoon salt" — so salt reached the list under
         two names that cannot be added up.
-        THE FIRST ATTEMPT WAS A REGEX IN THE PARSER: split on "and" when the
-        line says "to taste". It was wrong twice over, and item 40 had
-        already settled both halves. It INVENTED A SIGNAL THAT EXISTED —
+        THE FIRST ATTEMPT WAS A REGEX IN THE PARSER, splitting on "and" when
+        the line says "to taste" — wrong twice over, and item 40 had already
+        settled both halves. It INVENTED A SIGNAL THAT EXISTED —
         existingIngredientSuggestions already returns Salt AND Black pepper
-        for that row, two different known ingredients matching one row, and
-        the catalog tells it apart from "4 cloves garlic peeled and cut in
+        for that row, two known ingredients matching one row, and the
+        catalog tells it apart from "4 cloves garlic peeled and cut in
         half" (only "Garlic" resolves) with no marker word needed. And it
         DECIDED INSTEAD OF ASKING, which is the exact failure item 40 exists
         to record.
         NOW: splitSuggestion() in lib.js proposes on the separator and lets
-        the catalog confirm both halves, and the caller renders a chip beside
-        the "Already have:" one. Accepting returns the CATALOG's names, so it
+        the catalog confirm both halves, rendering a chip beside the
+        "Already have:" one. Accepting returns the CATALOG's names, so it
         unmerges the row and canonicalizes both at once.
         BEFORE REACHING FOR A HEURISTIC HERE, CHECK WHETHER THE CATALOG
         ALREADY KNOWS. It usually does, and the evidence beats the hint.

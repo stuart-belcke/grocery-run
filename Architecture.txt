@@ -116,41 +116,139 @@ SEAM      src/sync.js again. The app deals in a `user` object and a role, never
           in a Firebase credential.
 
 
-4. RECIPE IMPORT FROM A LINK — UNDECIDED, AND THE LIVE ONE
------------------------------------------------------------
-DECISION  Not made. This is roadmap item 106, and it is the clearest example
-          on this page of a phase-1/phase-2 fork.
-PHASE 1   NO SERVER, because a browser may not read another site's HTML and no
-          app-side code changes that. The shipped answer is an iOS Shortcut
-          that fetches the page on the PHONE and hands the text to the app
-          through a URL. It costs nothing to run and there is no infrastructure
-          to own. Its cost is the gesture: open the recipe, Share, tap the
-          shortcut — not "paste a link into the app".
-CEILING   UNMEASURED, AND THAT IS THE OPEN QUESTION. A page is 5-12k characters,
-          7-17k once URL-encoded, and nobody has measured what iOS does with a
-          URL that long. The format declares its length before the text so
-          truncation is DETECTED rather than silently importing three quarters
-          of a recipe. Item 106 says to write the number down when it is known.
-PHASE 2   A tiny fetch-and-extract service — a Cloudflare Worker was the
-          candidate — which would make it a real "paste a link" on any device.
-          [VERIFY] Workers' free tier is around 100k requests/day, which is
-          enormous next to a household adding a few recipes a week, so this
-          might never cost anything either. THE REASON IT IS NOT PHASE 1 IS
-          NOT COST, IT IS OWNERSHIP: a server is a thing that can break, be
-          abused, or need patching, and the Shortcut is a thing that cannot.
-          A probe (branch claude/egress-probe) found 4 of 5 recipe sites serve
-          a datacenter IP happily and AllRecipes returns 402, plus JSON-LD in
-          the HTML of all four — meaning the server route would hand over
-          STRUCTURED data rather than text to parse. That result needs
-          confirming and writing into item 106.
-TRIGGER   The phone measurement above. If a real page's URL survives, the
-          Shortcut stands and phase 2 never happens; if iOS truncates, the
-          fallback is Copy-to-Clipboard first (less magical, no limit) and only
-          then a Worker.
-SEAM      parseImportHash / importUrl in lib.js are the one definition of the
-          format, and parseRecipeText already turns text into a draft
-          regardless of where the text came from. A Worker would feed the same
-          function, so the app side is already agnostic.
+4. RECIPE IMPORT FROM A LINK — A CLOUDFLARE WORKER, DECIDED 2026-08-28
+-----------------------------------------------------------------------
+DECISION  A Cloudflare Worker (worker/index.js) fetches the page server-side
+          and hands the app its Recipe JSON-LD, or its visible text as a
+          fallback. Chosen over the iOS Shortcut this item shipped with
+          first, because the Shortcut requires leaving the app (open the
+          recipe, Share, tap the shortcut) and building it on a real device
+          every time somebody wants to import a recipe was never actually
+          going to happen — the owner said so directly, and "the app half is
+          built" had sat waiting on a phone for days. A server that keeps the
+          whole gesture inside the app is worth owning for that alone.
+PHASE 1   Free at Cloudflare's Workers tier — [VERIFY] roughly 100k
+          requests/day, enormous next to a household adding a few recipes a
+          week. THE SEAM IS TIGHT: worker/index.js is a single file with no
+          dependencies, deployed by its own workflow
+          (.github/workflows/deploy-worker.yml) on push to main, independent
+          of the app's own build. src/recipeImport.js is the ONLY app file
+          allowed to know the Worker exists — mirrors sync.js's isolation of
+          Firebase, so replacing the Worker later is a change to one file.
+          A CURATED HOST ALLOWLIST — 16 hosts as of 2026-08-28, every one
+          fetched live from a Cloudflare Worker's own IPs and confirmed to
+          serve a real, single Recipe JSON-LD node (not assumed from a
+          homepage or a reputation). Curated because an unauthenticated
+          fetch endpoint with no list is a free, anonymous URL fetcher for
+          anyone who finds it, billed against this account's quota
+          regardless of who sends the request — the free tier bounds the
+          financial exposure at $0 either way, but the household's own
+          quota getting eaten by someone else's traffic is still a real cost.
+          GROWING THE LIST IS CHEAP BY DESIGN: one line in worker/index.js
+          plus a deploy, and adding a site means verifying it live the same
+          way, not guessing. Excluded on purpose: allrecipes.com and its
+          Dotdash Meredith siblings (a licensing block — the 402/403 body
+          names contentlicensing@people.inc — not bot detection, and no
+          header or IP works around it); damndelicious.net (a plain 403
+          with no JSON-LD reachable, not a known licensing wall, more
+          likely generic bot protection, not investigated further).
+          MATCHED ON THE BARE HOST, "www." stripped from both sides — an
+          entry records whichever spelling was probed, but both forms are
+          live (15 of 16 serve a 301 between them) and fetch() follows the
+          redirect, so the spelling somebody happened to copy must not
+          decide whether import works. Cannot widen the list: "www." is a
+          subdomain label, not a domain boundary.
+          Two cheap guards apply regardless of the list: HTTPS only, and
+          internal/loopback/link-local targets refused outright
+          (isBlockedTarget in worker/index.js) — hygiene against the
+          endpoint probing private infrastructure, unrelated to curation.
+          THE RATE LIMITER FAILS OPEN, and that direction is deliberate:
+          it is a throttle BEHIND the allowlist, not the thing keeping the
+          endpoint safe, so a KV outage or an unbound binding lets a
+          request through uncounted rather than breaking import. Failing
+          closed would hand the whole feature's availability to a
+          dependency that only bounds volume.
+          THE ACCURACY SIGNAL IS THE RESPONSE SHAPE: source: "jsonld"
+          (structured, what every allowlisted site above was verified to
+          serve) vs source: "text" (the same best-effort heuristic a paste
+          gets, for the rare allowlisted page that turns out not to carry
+          it) — recipeImport.js passes this through, and the app shows a
+          caution banner on "text" rather than silently trusting it.
+          A DAILY CAP, PER IP, ON TOP OF THE ALLOWLIST — the list narrows
+          WHERE a request can go; this narrows HOW MANY can be sent to
+          somewhere already on it. 20 requests/day per caller IP, counted
+          in a Workers KV namespace (grocery-run-recipe-import-rate-limit,
+          created once by hand — same one-time-provisioning shape as the
+          workers.dev subdomain, `wrangler kv namespace create` works fine
+          non-interactively from CI, unlike the subdomain). SET AS LOW AS
+          REAL USE ALLOWS, deliberately, not with headroom to spare — a
+          household imports a couple of recipes day to day, and the only
+          case needing more in one sitting is a first-time bulk import of
+          existing favorites, which 20 comfortably covers without offering
+          anything close to what sustained abuse would need. NOT the Workers
+          Rate Limiting binding (also free-tier, checked live before it) —
+          that one's window tops out at 60 seconds, built for stopping a
+          burst, not a day's worth of spread-out requests; the daily figure
+          needed a counter keyed on caller IP + UTC date instead, which goes
+          stale into next day's key on its own. Verified live: a probe
+          deploy with the limit dropped to 3 got HTTP 200 three times and
+          HTTP 429 {"reason":"rate_limited"} on the fourth; a disallowed
+          host is refused before the count is ever touched.
+          KEYED ON IP, NOT ON A HOUSEHOLD — the Worker still has no notion of
+          the app's households or sign-ins (deliberate; teaching it Firebase
+          auth would break recipeImport.js's isolation of it), so IP is the
+          closest available stand-in for "one household," not an identity
+          check. Approximate on purpose: a throttle, not a security boundary.
+          NOT A STRAIGHT LINE TO GET HERE: the allowlist was dropped for a
+          few hours the same day, in favor of fetching any https host, on
+          the reasoning that a per-site list never actually gated PARSING
+          (JSON-LD extraction reads any site's markup the same way) — only
+          ABUSE, which the free tier bounds at $0 regardless. Reconsidered
+          and restored the same day: bounding WHICH sites get fetched and
+          bounding HOW MANY requests reach them are both worth doing, not a
+          choice between them. Full arc in DeveloperNotes-Completed.txt
+          item 106, including the site-discovery probe that grew the list
+          from 5 hosts to 16 specifically so curation wouldn't feel like
+          giving something up.
+CEILING   The free tier's request count, and Cloudflare Workers' own CPU-time
+          limit per request [VERIFY] — a slow, large recipe page could in
+          principle be close to it, though nothing measured so far has come
+          near. Workers KV's own free-tier write limit [VERIFY] is the
+          ceiling on the rate limiter itself, at roughly one write per
+          request that's under the cap — far below it at real household
+          scale.
+PHASE 2   A paid Workers plan, or moving the fetch to any other server-side
+          runtime — the seam below is what makes either a swap, not a
+          rewrite. If the per-IP daily cap ever proves too coarse (one IP
+          serving several households, e.g. a shared office network, or one
+          household bouncing between many IPs on mobile data), the retrofit
+          is real per-household accounting: pass the app's own Firebase ID
+          token to the Worker and key the KV counter on the household's uid
+          instead of the connecting IP. That needs the Worker to verify a
+          Firebase token, which is the one thing that would cost it its
+          current isolation from the app's auth model — worth doing only if
+          the IP-based approximation actually causes a problem, not before.
+TRIGGER   The IP-keyed cap producing a real false positive (a household
+          locked out by another household's traffic, or vice versa) — or
+          requests approaching the free tier's own daily cap, which at
+          household scale would mean many more households than phase 1
+          assumes.
+SEAM      worker/index.js owns fetching, JSON-LD extraction, the allowlist,
+          and the rate limit; it is the only place that has network egress
+          or touches the KV namespace.
+          src/recipeImport.js is the only app file that knows the Worker's
+          URL, and returns the exact {name, servings, notes, ingredients}
+          shape parseRecipeText already returns (via recipeFromJsonLd in
+          lib.js) — so MealsTab's fillDraft has ONE merge path regardless of
+          whether a recipe arrived by paste, Shortcut, or Worker fetch.
+          Swapping the Worker for a different backend touches
+          recipeImport.js and nothing else.
+          THE SHORTCUT ITSELF IS RETIRED, not deleted: parseImportHash /
+          importUrl in lib.js (RecipeImportShortcut.md) still work as a
+          receiver, so a Shortcut or any other tool that hands the app a URL
+          hash keeps functioning — it is simply no longer the primary path,
+          and nobody needs to build one by hand on a phone to use this
+          feature.
 
 
 5. CI, SCHEDULED JOBS AND SECRETS — GitHub Actions
