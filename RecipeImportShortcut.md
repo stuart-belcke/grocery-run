@@ -1,5 +1,21 @@
 # Importing a recipe from a link (item 106)
 
+**SUPERSEDED AS THE PRIMARY PATH, 2026-08-28.** The Shortcut below was never
+built — the owner redirected item 106 away from it directly: leaving the app,
+setting up a Shortcut by hand, and leaving the app again every time is three
+more leave-the-app steps than "paste a link" should cost. The primary path is
+now a Cloudflare Worker (`worker/index.js`, `src/recipeImport.js`) that fetches
+the page server-side, so importing a recipe never leaves the app at all — see
+`Architecture.txt` entry 4 and item 106 in `DeveloperNotes-Completed.txt`.
+
+This document is kept because the RECEIVER it specifies is still live code:
+`parseImportHash` / `importUrl` in `lib.js` still accept a
+`#chars=<n>&import=<encoded text>` URL from anything that hands the app one —
+a Shortcut, if somebody builds it later, or any other tool. Nothing below is
+wrong; it's just no longer the thing to build first.
+
+---
+
 **The app still cannot fetch a page, and this does not change that.** A browser
 refuses to read another site's HTML, and no app-side code gets around it. What
 *can* fetch it is an iOS Shortcut, because Shortcuts is not a browser — so the

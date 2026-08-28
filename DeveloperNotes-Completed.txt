@@ -5523,3 +5523,121 @@ existing note overwritten, the gate always true, and unknown fields pruned.
 
 [DONE, item 104] The List row carried the same pressure and got the same
 treatment: the store moved into the details panel and the name grew.
+
+106. [DONE — A CLOUDFLARE WORKER, NOT THE SHORTCUT IT SHIPPED WITH FIRST.]
+    IMPORT A RECIPE FROM A LINK, WITHOUT LEAVING THE APP.
+
+    THE ITEM AS IT STOOD: the app half was built (parseImportHash / importUrl
+    in lib.js, receiving a URL of the form #chars=<n>&import=<encoded text>),
+    and "the one step left" was building a seven-action iOS Shortcut on a
+    real phone, by hand, and sharing it. It had sat that way for days.
+
+    THE OWNER REDIRECTED IT DIRECTLY: "I am less interested in using the
+    shortcuts in our parsing work flow if the user has to leave the app, set
+    up the shortcut on their own manually, and then leave the app every time
+    they want to import a recipe." That is three leaves-the-app steps in the
+    gesture this item was supposed to remove one from. The Shortcut was
+    de-scoped on the spot, not revisited later — Reader Mode and the
+    one-tap-install iCloud link (both still true, both still in
+    Architecture.txt's history if anyone wants the Shortcut path later) never
+    got built because the redirect made them moot.
+
+    WHAT REPLACED IT: a Cloudflare Worker (worker/index.js) that fetches the
+    given URL server-side and hands the app either the page's Recipe JSON-LD
+    or, failing that, its visible text — so importing a recipe is paste a
+    link, tap Parse, done, entirely inside the app. Chosen over the earlier
+    "phase 2, maybe never" framing because the owner reframed the whole
+    project as phase 1 (free tier) / phase 2 (paid, documented not built) —
+    see CLAUDE.md and Architecture.txt — and under that framing "the server
+    option is not merely permitted, it is wanted": reliable recipe import is
+    a stated priority, not a nice-to-have gated on user count.
+
+    TWO MEASUREMENTS, BOTH FROM A LIVE PROBE, NOT ASSUMED:
+      - A GitHub Actions runner (Azure datacenter IP) fetching the same five
+        fixture URLs item 110 uses: 4 of 5 sites served a full page with
+        exactly one Recipe JSON-LD node; AllRecipes returned 402, a People
+        Inc. licensing notice (contentlicensing@people.inc), not a bot block.
+      - A throwaway Cloudflare Worker (branch claude/cf-worker-probe, deleted
+        after use) fetching the same five from Cloudflare's OWN IP space,
+        because a Worker is not a GitHub runner and the runner result alone
+        was suggestive, not proof. Same result: 4 of 5 clean, AllRecipes 403
+        — a different code, the same deliberate block. Nothing about the
+        conclusion changed: paste-the-page stays the answer for AllRecipes
+        and its Dotdash Meredith siblings; everything else is fair game.
+
+    THREE TRAPS IN THE REAL JSON-LD, found by printing it rather than
+    assuming, and all three handled in recipeFromJsonLd (lib.js):
+      - `name` ARRIVES HTML-ESCAPED ("Baked Chicken &amp; Veggie…").
+        decodeHtmlEntities unescapes it — and has to run on every step's
+        `text` too, not just the title; averiecooks.com's own instructions
+        carry "don&#x27;t" and "you&#39;re" inline.
+      - `recipeYield` IS AN ARRAY AND IS NOT SERVINGS. babyfoode.com's is
+        ["24", "24 1\" meatballs"] — twenty-four MEATBALLS. Reading it as
+        servings would scale a shopping list wrong, quietly — the one trap
+        that would cost a trip. Only trusted when an entry says "N servings"
+        explicitly (true for averiecooks.com's "4 servings", false for
+        babyfoode's meatball count) — the same word parseRecipeText's own
+        SERVINGS_FIRST_RE already required of a pasted page.
+      - `recipeInstructions` HAS NO ONE SHAPE. babyfoode.com is a flat array
+        of HowToStep; averiecooks.com is an array of SEVEN HowToSection
+        objects (Dry Rub, Searing Chicken, Sauteing Vegetables, Baking,
+        Boiling Pasta, Mashing to Make the Sauce, Assembly), each nesting
+        HowToStep under itemListElement — a shape nobody had seen until it
+        was fetched and printed. stepsFromRecipeInstructions walks either
+        shape (and recurses, in case a section ever nests a section, though
+        none captured does).
+    A FOURTH TRAP TURNED UP BY WRITING THE TESTS, not anticipated by the
+    plan: WordPress Recipe Maker's own JSON-LD doubles its parens —
+    "1 lb ground chicken ((or ground turkey))" — which splitIngredientNote's
+    existing \(([^)]*)\) regex mishandled (the inner "(" read as ordinary
+    text, matching "((or ground turkey)" and leaving a stray "(" in the name
+    and ")" in the note). Fixed by collapsing doubled parens before the
+    existing note-extraction runs, so "(optional)"-style parsing is
+    unchanged — this was a pre-existing bug in code item 110 already shipped,
+    invisible until real JSON-LD (not the rendered page) was parsed directly.
+
+    THE ALLOWLIST IS THE WHOLE SAFETY STORY. worker/index.js refuses any host
+    not explicitly listed (babyfoode.com, www.themediterraneandish.com,
+    www.olivetomato.com, www.averiecooks.com today) — without it the Worker
+    is a free, anonymous URL fetcher for anyone who finds it, billed against
+    this Cloudflare account's quota regardless of who sends the request.
+    Adding a site is one line plus a deploy. CORS is allowlisted the same
+    way, by echoing back a known origin rather than "*", so only the app's
+    own pages can call it even though the Worker itself is unauthenticated.
+
+    THE SEAM: src/recipeImport.js is the ONLY app file that knows the
+    Worker's URL exists, mirroring sync.js's isolation of Firebase.
+    fetchRecipeFromUrl returns the exact {name, servings, notes, ingredients}
+    shape parseRecipeText already returns, so MealsTab's fillDraft has ONE
+    merge path whether a recipe arrived by paste, by the Shortcut receiver
+    (still functional, just no longer primary), or by the Worker. The paste
+    panel detects a bare URL and fetches it instead of parsing it as text; a
+    disallowed host or a failed fetch says so and points back at
+    paste-the-text, per the app's own rule that a dead end must say what
+    still works.
+
+    VERIFIED LIVE, TWICE, NOT JUST IN UNIT TESTS. The throwaway probe
+    (claude/cf-worker-probe) captured the real JSON-LD this item's fixtures
+    (tests/fixtures/babyfoode-jsonld.json, averiecooks-jsonld.json) and unit
+    tests are built from — not authored data. Separately, the actual
+    worker/index.js was deployed for real under a throwaway name
+    (claude/cf-worker-verify, deleted after use) and exercised end to end:
+    the JSON-LD path against a real allowlisted site, a disallowed host, a
+    malformed URL, a missing URL, and both CORS cases (allowed origin echoed,
+    disallowed origin gets no header) — all came back correct before the
+    permanent deploy workflow was trusted.
+    e2e coverage (tests/e2e/specs/recipeimport.spec.mjs) mocks the Worker's
+    own URL, the same way autoupdate.spec.mjs mocks catalog.json, and proves
+    the PASTE PANEL's wiring — URL detection, the merge into the draft
+    editor, the Source field auto-filling from a URL a paste never knows,
+    and the host-not-allowed / network-failure messages — separately from
+    the pure-function unit tests, which only prove the parsers are correct
+    in isolation.
+
+    WHAT THIS DOES NOT COVER: more than the four allowlisted sites (item 110
+    is the standing task to capture more real pages and grow both the
+    allowlist and the parser); a UK/European site's units; a page whose
+    JSON-LD Recipe node is missing or malformed on an otherwise-allowlisted
+    host (falls back to the Worker's text-extraction path via HTMLRewriter,
+    which is unexercised by any captured fixture so far because all four
+    allowlisted sites carry clean JSON-LD).
