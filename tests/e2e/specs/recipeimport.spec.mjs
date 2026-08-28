@@ -3,9 +3,9 @@
    unit tests against real captured data; what belongs here is proving the
    PASTE PANEL actually recognizes a bare URL, calls the Worker, and lands
    the result in the same editable fields a paste or a manual entry uses —
-   and that a site the Worker can only read as plain text (no host
-   allowlist any more — it fetches anything) says so rather than presenting
-   a best-effort guess as a trusted result.
+   and that each of the Worker's three "not a clean recipe" answers (a host
+   off the allowlist, a page it could only read as plain text, today's
+   per-network limit) gets its own honest message rather than a dead end.
 
    DRIVEN BY INTERCEPTING THE WORKER'S OWN URL (recipeImport.js's
    RECIPE_WORKER_URL), the same way autoupdate.spec.mjs intercepts
@@ -86,12 +86,12 @@ test("SHOULD: pasting a bare URL fetches it through the Worker and fills the for
   }
 });
 
-test("SHOULD: a site with no recipe JSON-LD still fills the form, but flags it as unverified", async () => {
+test("SHOULD: an allowlisted site with no recipe JSON-LD still fills the form, but flags it as unverified", async () => {
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
-    // The Worker fetches ANY https site now — no host allowlist — so this
-    // is the "source": "text" fallback: the same best-effort reading a
-    // paste already gets, from a site with no structured recipe markup.
+    // The "source": "text" fallback — an allowlisted host that, on some
+    // particular page, doesn't carry structured recipe markup. The same
+    // best-effort reading a paste already gets.
     await mockWorker(page, {
       ok: true,
       source: "text",
@@ -109,6 +109,25 @@ test("SHOULD: a site with no recipe JSON-LD still fills the form, but flags it a
     );
     // The caution banner says this wasn't the reliable structured route.
     await page.getByText(/doesn.t publish its recipe in a format the Worker can read directly/).waitFor();
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: a host off the allowlist says so, instead of silently doing nothing", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await mockWorker(page, { ok: false, reason: "host_not_allowed", host: "www.allrecipes.com" });
+    await openPasteWithUrl(page, "https://www.allrecipes.com/recipe/15925/creamy-au-gratin-potatoes/");
+    await page.waitForTimeout(400);
+
+    await page.getByText(/isn.t set up for automatic import yet/).waitFor();
+    // Nothing was filled in, and the panel is still open so the message and
+    // the textarea are both visible — pasting the page's text is still one
+    // action away, not a dead end that has to be reopened.
+    assert.equal(await page.getByPlaceholder("Meal name").inputValue(), "");
+    assert.equal(await page.getByLabel("Pasted recipe text or link").inputValue(), "https://www.allrecipes.com/recipe/15925/creamy-au-gratin-potatoes/");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

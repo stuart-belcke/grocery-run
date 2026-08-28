@@ -8,23 +8,62 @@
  *  the free tier that survives a datacenter IP being blocked less
  *  often than GitHub Actions' does — see Architecture.txt.
  *
- *  ANY HTTPS HOST IS FETCHED — no curated allowlist. A per-site allowlist
- *  never actually gated PARSING quality: JSON-LD extraction is generic
- *  and works identically on any site that carries schema.org Recipe
- *  markup, allowlisted or not. What a host allowlist would gate is ABUSE
- *  — without one, this endpoint is a free, anonymous URL fetcher for
- *  anybody who finds it, billed against this Cloudflare account's
- *  free-tier quota (100k/day) regardless of who sends the request.
- *  ACCEPTED FOR PHASE 1: the free tier caps the financial exposure at
- *  $0. What actually stops the "endpoint gets found and hammered" case
- *  is the daily cap below — real usage is a household adding a couple
- *  of recipes, so a limit generous enough to never be felt in practice
- *  still makes sustained abuse pointless. See Architecture.txt entry 4.
- *  What IS still refused outright: internal/loopback/link-local targets
- *  (below) — cheap hygiene against this becoming a probe for
- *  infrastructure that happens to answer on a private address,
- *  unrelated to the abuse question above.
+ *  A CURATED HOST ALLOWLIST, BACK AS OF 2026-08-28 — this Worker briefly
+ *  fetched any https host with no list at all; restored the same day.
+ *  A per-site list never gated PARSING quality (JSON-LD extraction reads
+ *  any site's markup the same way, listed or not) — it gates ABUSE: an
+ *  unauthenticated fetch endpoint with no list is a free, anonymous URL
+ *  fetcher for anybody who finds it, billed against this account's quota
+ *  regardless of who sends the request. THE OPEN VERSION WAS AN AUDIENCE
+ *  BET, ACCEPTABLE ONLY WHILE THIS APP HAS NO REAL AUDIENCE BEYOND THE
+ *  PEOPLE IT IS WRITTEN FOR — see Architecture.txt entry 4's second
+ *  trigger. Revisit that bet before removing this list again, not the
+ *  other way around.
+ *  16 HOSTS TODAY, EVERY ONE VERIFIED LIVE (DeveloperNotes-Completed.txt
+ *  item 106): each confirmed to serve a real, single Recipe JSON-LD node
+ *  to a Cloudflare Worker's own IPs, not assumed from a homepage or a
+ *  reputation. Adding a site is one line here plus a deploy — grow this
+ *  list generously; it was built specifically so growing it would be
+ *  cheap. allrecipes.com and its Dotdash Meredith siblings are
+ *  deliberately absent — that block is a licensing policy (a 402/403
+ *  naming contentlicensing@people.inc), not bot detection, and no
+ *  header or IP changes it. damndelicious.net is also absent: a plain
+ *  403 with no JSON-LD reachable, not a known licensing wall like
+ *  AllRecipes, more likely generic bot protection — not investigated
+ *  further since paste-the-page covers it regardless of which.
+ *  BEHIND THE LIST, THE DAILY RATE LIMIT STAYS — a household still only
+ *  needs a couple of recipes a day even on an allowlisted site, and the
+ *  list narrows WHERE a request can go, not HOW MANY can be sent to
+ *  somewhere it's already allowed to go.
+ *  What IS still refused outright regardless of the list: internal/
+ *  loopback/link-local targets (below) — cheap hygiene against this
+ *  becoming a probe for infrastructure that happens to answer on a
+ *  private address, unrelated to the allowlist question above.
  * ------------------------------------------------------------------ */
+
+// Hosts confirmed to serve a real Recipe JSON-LD node to a Cloudflare
+// Worker's own IPs. The first five from item 106's original build
+// (2026-08-24/25); the rest from a same-day site-discovery probe
+// (2026-08-28) run specifically to make a curated list worth having
+// again — see DeveloperNotes-Completed.txt item 106 for both.
+const ALLOWED_HOSTS = new Set([
+  "babyfoode.com",
+  "www.themediterraneandish.com",
+  "www.olivetomato.com",
+  "www.averiecooks.com",
+  "thecozycook.com",
+  "www.recipetineats.com",
+  "pinchofyum.com",
+  "cookieandkate.com",
+  "www.budgetbytes.com",
+  "minimalistbaker.com",
+  "www.gimmesomeoven.com",
+  "www.skinnytaste.com",
+  "www.wellplated.com",
+  "downshiftology.com",
+  "natashaskitchen.com",
+  "www.spendwithpennies.com",
+]);
 
 /* A DAILY CAP, PER IP, VIA WORKERS KV — not the account-wide free-tier
    quota (100k/day, shared by every caller), a per-caller one. The Worker
@@ -177,10 +216,15 @@ export default {
     try { parsed = target ? new URL(target) : null; } catch { parsed = null; }
     if (!parsed || parsed.protocol !== "https:") return json({ ok: false, reason: "bad_url" }, 400, allowedOrigin);
     if (isBlockedTarget(parsed.hostname)) return json({ ok: false, reason: "bad_url" }, 400, allowedOrigin);
+    if (!ALLOWED_HOSTS.has(parsed.hostname)) {
+      return json({ ok: false, reason: "host_not_allowed", host: parsed.hostname }, 200, allowedOrigin);
+    }
 
-    // Charged against the caller's daily count before the fetch, not after
-    // — a request that goes on to fail (a 404, a timeout) still cost a
-    // Worker invocation and still counts as one of today's uses.
+    // Checked AFTER the allowlist, not before: a request to a host that
+    // was never going to be fetched shouldn't spend any of the caller's
+    // daily budget. Charged before the fetch itself, though — a request
+    // that goes on to fail (a 404, a timeout) still cost a Worker
+    // invocation and still counts as one of today's uses.
     const ip = request.headers.get("cf-connecting-ip") || "unknown";
     if (!(await underDailyLimit(env, ip))) return json({ ok: false, reason: "rate_limited" }, 429, allowedOrigin);
 
