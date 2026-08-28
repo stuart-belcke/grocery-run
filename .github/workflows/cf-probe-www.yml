@@ -1,0 +1,32 @@
+name: THROWAWAY — do the other www forms resolve?
+
+on:
+  push:
+    branches: [claude/cf-probe-www]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wwwprobe
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Deploy throwaway
+        run: npx wrangler deploy --name "grocery-run-cf-probe-www-${{ github.run_id }}"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Fetch
+        run: |
+          sleep 3
+          curl -sS --max-time 60 "https://grocery-run-cf-probe-www-${{ github.run_id }}.stuart-belcke.workers.dev"
+      - name: Delete throwaway
+        if: always()
+        run: npx wrangler delete --name "grocery-run-cf-probe-www-${{ github.run_id }}" --force || true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
