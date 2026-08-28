@@ -5641,3 +5641,21 @@ treatment: the store moved into the details panel and the name grew.
     host (falls back to the Worker's text-extraction path via HTMLRewriter,
     which is unexercised by any captured fixture so far because all four
     allowlisted sites carry clean JSON-LD).
+
+    FOLLOW-UP, SAME DAY: THE HOST ALLOWLIST ABOVE WAS REMOVED. The owner's
+    reasoning: "we can't possibly have every website" on a curated list —
+    warn when uncertain and try anyway, rather than refuse outright. Worth
+    recording why this wasn't a reversal of the abuse-prevention logic so
+    much as separating two things the allowlist had bundled together: it
+    never actually gated PARSING (JSON-LD extraction is generic and reads
+    any site's markup the same way, allowlisted or not) — it gated ABUSE, an
+    unauthenticated endpoint being a free anonymous fetcher for anyone who
+    finds it. The owner accepted that risk explicitly, and the free tier
+    caps it at $0 regardless. Two guards stayed for unrelated reasons
+    (https only, and refusing internal/loopback/link-local targets — plain
+    hygiene, not a recipe-site curation question). The accuracy question the
+    allowlist used to answer moved to the response shape instead:
+    source: "jsonld" vs source: "text", already returned by the Worker, now
+    surfaced to the user as a caution banner on "text" rather than silently
+    trusted. See Architecture.txt entry 4 for the retrigger if abuse ever
+    actually shows up.

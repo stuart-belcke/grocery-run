@@ -10,13 +10,17 @@ import { parseRecipeText, recipeFromJsonLd } from "./lib";
 
 export const RECIPE_WORKER_URL = "https://grocery-run-recipe-import.stuart-belcke.workers.dev";
 
-/* Returns { ok: true, parsed } with `parsed` in the exact shape
+/* Returns { ok: true, parsed, source } with `parsed` in the exact shape
    parseRecipeText returns — {name, servings, notes, ingredients} — whether
    the Worker found JSON-LD or only page text, so the caller has one shape
    to feed into fillDraft regardless of which route the recipe came by.
-   Never throws: a network failure, a bad response body, and a host the
-   Worker's allowlist refuses all come back as { ok: false, reason }
-   instead, so the caller can show ONE kind of "paste it instead" message. */
+   `source` is "jsonld" (structured, high confidence) or "text" (the same
+   heuristic reading a paste gets — the Worker will fetch ANY https site, not
+   just ones known to carry recipe markup, so this is the caller's signal to
+   say "check this one" rather than trust it silently).
+   Never throws: a network failure and a bad response body both come back as
+   { ok: false, reason } instead, so the caller can show ONE kind of
+   "paste it instead" message. */
 export async function fetchRecipeFromUrl(url) {
   let res;
   try {
@@ -30,7 +34,7 @@ export async function fetchRecipeFromUrl(url) {
   } catch {
     return { ok: false, reason: "network" };
   }
-  if (!body || !body.ok) return { ok: false, reason: (body && body.reason) || "failed", host: body && body.host };
+  if (!body || !body.ok) return { ok: false, reason: (body && body.reason) || "failed" };
   const parsed = body.source === "jsonld" ? recipeFromJsonLd(body.recipe || {}) : parseRecipeText(body.text || "");
-  return { ok: true, parsed };
+  return { ok: true, parsed, source: body.source };
 }

@@ -3,8 +3,9 @@
    unit tests against real captured data; what belongs here is proving the
    PASTE PANEL actually recognizes a bare URL, calls the Worker, and lands
    the result in the same editable fields a paste or a manual entry uses —
-   and that a host the Worker's allowlist refuses says so instead of
-   silently doing nothing.
+   and that a site the Worker can only read as plain text (no host
+   allowlist any more — it fetches anything) says so rather than presenting
+   a best-effort guess as a trusted result.
 
    DRIVEN BY INTERCEPTING THE WORKER'S OWN URL (recipeImport.js's
    RECIPE_WORKER_URL), the same way autoupdate.spec.mjs intercepts
@@ -85,19 +86,29 @@ test("SHOULD: pasting a bare URL fetches it through the Worker and fills the for
   }
 });
 
-test("SHOULD: a host the Worker won't fetch says so, instead of silently doing nothing", async () => {
+test("SHOULD: a site with no recipe JSON-LD still fills the form, but flags it as unverified", async () => {
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
-    await mockWorker(page, { ok: false, reason: "host_not_allowed", host: "www.allrecipes.com" });
-    await openPasteWithUrl(page, "https://www.allrecipes.com/recipe/15925/creamy-au-gratin-potatoes/");
+    // The Worker fetches ANY https site now — no host allowlist — so this
+    // is the "source": "text" fallback: the same best-effort reading a
+    // paste already gets, from a site with no structured recipe markup.
+    await mockWorker(page, {
+      ok: true,
+      source: "text",
+      text: "Some Random Blog\nIngredients\n- 2 cups rice\n- 1 lb chicken thighs\nInstructions\n1. Cook it.",
+    });
+    await openPasteWithUrl(page, "https://example.com/some-recipe/");
     await page.waitForTimeout(400);
 
-    await page.getByText(/isn.t set up for automatic import yet/).waitFor();
-    // Nothing was filled in, and the panel is still open so the message and
-    // the textarea are both visible — pasting the page's text is still one
-    // action away, not a dead end that has to be reopened.
-    assert.equal(await page.getByPlaceholder("Meal name").inputValue(), "");
-    assert.equal(await page.getByLabel("Pasted recipe text or link").inputValue(), "https://www.allrecipes.com/recipe/15925/creamy-au-gratin-potatoes/");
+    // Unlike a disallowed host, the form DOES fill in — the owner asked for
+    // "always try" rather than a hard refusal.
+    assert.equal(await page.getByPlaceholder("Meal name").inputValue(), "Some Random Blog");
+    assert.deepEqual(
+      await page.getByPlaceholder("Ingredient", { exact: true }).evaluateAll((els) => els.map((e) => e.value)),
+      ["Rice", "Chicken thighs"]
+    );
+    // The caution banner says this wasn't the reliable structured route.
+    await page.getByText(/doesn.t publish its recipe in a format the Worker can read directly/).waitFor();
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

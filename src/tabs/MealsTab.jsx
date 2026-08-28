@@ -243,13 +243,19 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
     setUrlImportState("loading");
     const result = await fetchRecipeFromUrl(url);
     if (!result.ok) {
-      setUrlImportState({ reason: result.reason, host: result.host });
+      setUrlImportState({ reason: result.reason });
       return;
     }
     // The URL itself IS the source, so it's worth saving even though
     // fillDraft has no notion of a "source" field — a paste or a Shortcut
     // import never knows one to offer.
     setDraft((d) => fillDraft({ ...d, source: d.source.trim() ? d.source : url }, result.parsed));
+    // The Worker fetches ANY https site now, not just ones known to publish
+    // a recipe in a structured format — so "text" (its best-effort fallback,
+    // the same heuristic reading a paste gets) is worth flagging, where
+    // "jsonld" (structured, and what item 106's captures show is reliable)
+    // is not.
+    setImportWarning(result.source === "text" ? { unverifiedSite: true } : null);
     setUrlImportState(null);
     closePaste();
   };
@@ -771,6 +777,10 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
           <div style={{ flex: 1, fontSize: 13, color: C.ink, lineHeight: 1.45 }}>
             {importWarning.guest ? (
               <>A recipe was sent to this phone, but a guest can’t add recipes — so it wasn’t opened. Ask whoever runs the household to import it, or to make you a member.</>
+            ) : importWarning.unverifiedSite ? (
+              <>
+                <strong>This site doesn't publish its recipe in a format the Worker can read directly.</strong> What's filled in below came from the page's plain text instead — the same best-effort reading a paste gets, not the reliable structured kind. Check every ingredient and step before saving.
+              </>
             ) : (
               <>
                 <strong>This recipe arrived cut short.</strong> {importWarning.got.toLocaleString()} of {Number(importWarning.declared).toLocaleString()} characters came through, so the end of it is missing — check the last ingredients and the method before saving. Copying the page and pasting it below has no length limit.
@@ -810,15 +820,15 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                 aria-label="Pasted recipe text or link"
                 style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 8 }}
               />
-              {/* THE WORKER'S OWN "NOT SET UP FOR THIS SITE YET" is not a dead
-                  end — it says exactly what still works (paste the text) in
-                  the same breath, per the app's own rule against a notice
-                  that doesn't say what to do about it. */}
+              {/* A FETCH FAILURE IS NOT A DEAD END — it says what still works
+                  (paste the text) in the same breath, per the app's own rule
+                  against a notice that doesn't say what to do about it. The
+                  Worker fetches any https site now, so the only failures left
+                  here are a malformed link or the fetch itself failing —
+                  never "this site isn't supported". */}
               {urlImportState && urlImportState !== "loading" && (
                 <div role="status" style={{ fontSize: 13, color: C.tomato, marginBottom: 8 }}>
-                  {urlImportState.reason === "host_not_allowed"
-                    ? "That site isn't set up for automatic import yet. Copy the recipe's text from the page and paste it here instead."
-                    : "Couldn't fetch that page. Copy the recipe's text from the page and paste it here instead."}
+                  Couldn't fetch that page. Copy the recipe's text from the page and paste it here instead.
                 </div>
               )}
               <div style={{ display: "flex", gap: 8 }}>

@@ -135,26 +135,47 @@ PHASE 1   Free at Cloudflare's Workers tier — [VERIFY] roughly 100k
           of the app's own build. src/recipeImport.js is the ONLY app file
           allowed to know the Worker exists — mirrors sync.js's isolation of
           Firebase, so replacing the Worker later is a change to one file.
-          AN ALLOWLIST OF HOSTS IS NOT OPTIONAL: without one this endpoint is
-          a free, anonymous URL fetcher for anyone who finds it, billed
-          against this account's quota regardless of who sends the request.
           Measured live from a Cloudflare Worker's own IPs on 2026-08-28: 4 of
           5 real recipe sites serve a Recipe JSON-LD node cleanly (403 for
           AllRecipes — a licensing block, not bot detection, confirmed by the
           403 body naming contentlicensing@people.inc; no header or IP
           changes that). See DeveloperNotes-Completed.txt item 106.
+          NO HOST ALLOWLIST, REVISED 2026-08-28 — the Worker fetches any
+          https URL. A curated allowlist never actually gated PARSING: JSON-LD
+          extraction is generic and reads any site's schema.org markup the
+          same way, allowlisted or not. What it gated was ABUSE — an
+          unauthenticated fetch endpoint is a free, anonymous URL fetcher for
+          anyone who finds it, billed against this account's quota regardless
+          of who sends the request. THE OWNER ACCEPTED THAT RISK EXPLICITLY:
+          "we can't possibly have every website" on a curated list, and the
+          free tier caps the financial exposure at $0 either way — the worst
+          case is the household's own quota getting eaten by someone else's
+          traffic, not a bill. Two cheap guards stayed: HTTPS only, and
+          internal/loopback/link-local targets refused outright
+          (isBlockedTarget in worker/index.js) — hygiene against the endpoint
+          probing private infrastructure, unrelated to the abuse question.
+          THE ACCURACY SIGNAL MOVED TO THE RESPONSE SHAPE INSTEAD:
+          source: "jsonld" (structured, what item 106's captures show is
+          reliable) vs source: "text" (the same best-effort heuristic a paste
+          gets) — recipeImport.js passes this through, and the app shows a
+          caution banner on "text" rather than silently trusting it.
 CEILING   The free tier's request count, and Cloudflare Workers' own CPU-time
           limit per request [VERIFY] — a slow, large recipe page could in
           principle be close to it, though nothing measured so far has come
           near.
 PHASE 2   A paid Workers plan, or moving the fetch to any other server-side
           runtime — the seam below is what makes either a swap, not a
-          rewrite.
-TRIGGER   Requests approaching the free tier's daily cap, which at household
-          scale would mean either abuse (the allowlist doing its job matters
-          more than ever) or many more households than phase 1 assumes.
+          rewrite. If abuse of the open endpoint actually shows up (visible
+          as a quota spike in the Cloudflare dashboard, or the household
+          getting locked out by someone else's traffic), the retrofit is a
+          shared-secret header the app already controls (it's the only
+          caller with recipeImport.js's source) or Cloudflare's own rate
+          limiting — both land in worker/index.js alone.
+TRIGGER   Requests approaching the free tier's daily cap — either abuse (see
+          PHASE 2's retrofit) or many more households than phase 1 assumes.
 SEAM      worker/index.js owns fetching and JSON-LD extraction; it is the
-          only place that knows the host allowlist or has network egress.
+          only place that has network egress or would hold a rate limit or
+          shared secret if one is added.
           src/recipeImport.js is the only app file that knows the Worker's
           URL, and returns the exact {name, servings, notes, ingredients}
           shape parseRecipeText already returns (via recipeFromJsonLd in

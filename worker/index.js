@@ -8,28 +8,44 @@
  *  the free tier that survives a datacenter IP being blocked less
  *  often than GitHub Actions' does — see Architecture.txt.
  *
- *  THE ALLOWLIST IS NOT OPTIONAL. Without one, this endpoint is a free,
- *  anonymous URL fetcher for anybody who finds it — every request is
- *  billed against this Cloudflare account's free-tier quota (100k/day)
- *  regardless of who sends it, and there's nothing to stop it becoming
- *  the internet's proxy for hiding a requester's own IP. Adding a
- *  recipe site is one line here plus a deploy; that's the cost of
- *  keeping this from being an open door.
+ *  ANY HTTPS HOST IS FETCHED — no curated allowlist. A per-site allowlist
+ *  never actually gated PARSING quality: JSON-LD extraction is generic
+ *  and works identically on any site that carries schema.org Recipe
+ *  markup, allowlisted or not. What a host allowlist would gate is ABUSE
+ *  — without one, this endpoint is a free, anonymous URL fetcher for
+ *  anybody who finds it, billed against this Cloudflare account's
+ *  free-tier quota (100k/day) regardless of who sends the request.
+ *  ACCEPTED FOR PHASE 1: the free tier caps the financial exposure at
+ *  $0, and the household actually being locked out by someone else's
+ *  abuse is the trigger to revisit — a shared-secret header the app
+ *  sends, or Cloudflare's own rate limiting, both retrofit onto this
+ *  same file without touching the app. See Architecture.txt entry 4.
+ *  What IS still refused: internal/loopback/link-local targets (below)
+ *  — cheap hygiene against this becoming a probe for infrastructure
+ *  that happens to answer on a private address, unrelated to the
+ *  abuse question above.
  * ------------------------------------------------------------------ */
 
-// Hosts confirmed to serve a real Recipe JSON-LD node to a Cloudflare
-// Worker's own IPs (measured 2026-08-28, DeveloperNotes item 106).
-// allrecipes.com and its Dotdash Meredith siblings are deliberately NOT
-// here — that block is a licensing policy (a 402/403 with a notice
-// pointing at contentlicensing@people.inc), not bot detection, and no
-// header or IP will change it. Paste-the-page stays the answer there.
-const ALLOWED_HOSTS = new Set([
-  "babyfoode.com",
-  "www.themediterraneandish.com",
-  "www.olivetomato.com",
-  "www.averiecooks.com",
-  "thecozycook.com",
-]);
+// Loopback, link-local (incl. the cloud metadata IP, 169.254.169.254) and
+// the three private IPv4 ranges, plus their IPv6 equivalents and bare
+// "localhost" — the only hosts this Worker refuses on principle, regardless
+// of the abuse question above. A public recipe site is never any of these;
+// something reachable ONLY on a private address has no business being
+// fetched by a public, unauthenticated endpoint.
+function isBlockedTarget(hostname) {
+  const h = hostname.toLowerCase();
+  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local")) return true;
+  if (h === "::1" || h.startsWith("fe80:") || /^fc[0-9a-f]{2}:|^fd[0-9a-f]{2}:/.test(h)) return true;
+  const ipv4 = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4) {
+    const [a, b] = ipv4.slice(1).map(Number);
+    if (a === 127 || a === 10 || a === 0) return true;
+    if (a === 169 && b === 254) return true; // link-local, incl. cloud metadata
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+  }
+  return false;
+}
 
 // The app's own origins — GitHub Pages production, and local dev/e2e.
 // Echoed back rather than "*" so a browser only accepts the response when
@@ -115,9 +131,7 @@ export default {
     let parsed;
     try { parsed = target ? new URL(target) : null; } catch { parsed = null; }
     if (!parsed || parsed.protocol !== "https:") return json({ ok: false, reason: "bad_url" }, 400, allowedOrigin);
-    if (!ALLOWED_HOSTS.has(parsed.hostname)) {
-      return json({ ok: false, reason: "host_not_allowed", host: parsed.hostname }, 200, allowedOrigin);
-    }
+    if (isBlockedTarget(parsed.hostname)) return json({ ok: false, reason: "bad_url" }, 400, allowedOrigin);
 
     let res;
     try {
