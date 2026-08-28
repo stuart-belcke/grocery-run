@@ -27,7 +27,7 @@ entry.
 ## Read these first
 
 - `DeveloperNotes.txt` — the roadmap. What is still open, why it hasn't been
-  done, and **what would change the answer**. Eight items. Read it to find out
+  done, and **what would change the answer**. Nine items. Read it to find out
   what's left.
 - `DeveloperNotes-Completed.txt` — every finished item. This is the record of
   **why things are the way they are**, and most days it's the more useful of
