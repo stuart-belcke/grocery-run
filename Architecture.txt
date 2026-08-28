@@ -152,10 +152,22 @@ PHASE 1   Free at Cloudflare's Workers tier — [VERIFY] roughly 100k
           header or IP works around it); damndelicious.net (a plain 403
           with no JSON-LD reachable, not a known licensing wall, more
           likely generic bot protection, not investigated further).
+          MATCHED ON THE BARE HOST, "www." stripped from both sides — an
+          entry records whichever spelling was probed, but both forms are
+          live (15 of 16 serve a 301 between them) and fetch() follows the
+          redirect, so the spelling somebody happened to copy must not
+          decide whether import works. Cannot widen the list: "www." is a
+          subdomain label, not a domain boundary.
           Two cheap guards apply regardless of the list: HTTPS only, and
           internal/loopback/link-local targets refused outright
           (isBlockedTarget in worker/index.js) — hygiene against the
           endpoint probing private infrastructure, unrelated to curation.
+          THE RATE LIMITER FAILS OPEN, and that direction is deliberate:
+          it is a throttle BEHIND the allowlist, not the thing keeping the
+          endpoint safe, so a KV outage or an unbound binding lets a
+          request through uncounted rather than breaking import. Failing
+          closed would hand the whole feature's availability to a
+          dependency that only bounds volume.
           THE ACCURACY SIGNAL IS THE RESPONSE SHAPE: source: "jsonld"
           (structured, what every allowlisted site above was verified to
           serve) vs source: "text" (the same best-effort heuristic a paste

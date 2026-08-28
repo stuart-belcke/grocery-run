@@ -2343,3 +2343,43 @@ into the details panel and the name grew.
     an actual fetch attempt, and an allowlisted site still worked
     immediately afterward — the disallowed call did not cost any of the
     caller's daily budget.
+
+    TWO BUGS THE ALLOWLIST BROUGHT WITH IT, both found by re-reading the
+    diff rather than by anything failing:
+
+    1. HALF THE ALLOWLIST WAS UNREACHABLE. Each host went in under
+    whichever spelling the discovery probe happened to fetch — 7 bare, 9
+    "www." — and the check compared the raw hostname, so the OTHER
+    spelling of every one of the 16 was refused. Pasting
+    www.pinchofyum.com or recipetineats.com got "that site isn't set up
+    for automatic import yet" for a site that IS on the list, and which
+    form somebody has depends on nothing but where they copied the link.
+    NOT THEORETICAL: probed all 16, and 15 serve a 301 from one form to
+    the other, so both are live URLs anyone could hold; fetch() follows
+    the redirect, so the two always reach the same page.
+    FIXED by comparing with "www." stripped from both sides. That cannot
+    widen the list — "www." is a subdomain label, not a domain boundary,
+    so it only ever collapses two spellings of one registrable domain
+    onto the single entry. Checked that evil.com, wwwevil.com,
+    pinchofyum.com.evil.com and notpinchofyum.com all still refuse.
+
+    2. THE RATE LIMITER COULD TAKE THE WHOLE FEATURE DOWN WITH IT. The KV
+    read/write was unguarded, so an unbound binding, a KV outage or the
+    free tier's own write quota would throw out of the handler, and
+    Cloudflare would answer with its HTML error page instead of this
+    Worker's JSON. recipeImport.js can't parse that, reports "network",
+    and the app says "Couldn't fetch that page" — blaming the recipe site
+    for a fault entirely on this side. SAME SHAPE AS THE OPAQUE 1042 THIS
+    ITEM ALREADY HIT ONCE while probing, which is the reason it was worth
+    looking for.
+    FIXED by catching and FAILING OPEN. The reasoning is the load-bearing
+    part: this is a throttle sitting BEHIND an allowlist, not the thing
+    keeping the endpoint safe, so "let one request through uncounted"
+    beats "import is broken today" — the allowlist still bounds what can
+    be fetched either way. A limiter that fails closed would have been the
+    wrong default for the same reason.
+    BOTH VERIFIED LIVE ON ONE THROWAWAY DEPLOY WITH THE KV BINDING
+    DELETED FROM wrangler.toml, which exercises the fail-open path for
+    real rather than by argument: www.pinchofyum.com and
+    recipetineats.com both returned real JSON-LD, and www.allrecipes.com
+    was still refused.
