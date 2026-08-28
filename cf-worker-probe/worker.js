@@ -1,5 +1,5 @@
-// THROWAWAY, dump 2: full recipeInstructions shape, not just a count — need
-// ground truth before writing an extractor against it.
+// THROWAWAY, dump 3: same as dump 2, but every fetch is caught so a failure
+// shows up as text instead of an opaque platform error page.
 const FIXTURES = [
   "https://babyfoode.com/blog/mini-chicken-carrot-meatballs-for-baby/",
   "https://www.averiecooks.com/mediterranean-baked-crispy-chicken-and-pasta/",
@@ -26,21 +26,26 @@ export default {
     const out = [];
     for (const url of FIXTURES) {
       const host = new URL(url).host;
-      const res = await fetch(url, {
-        headers: {
-          "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
-          accept: "text/html,application/xhtml+xml",
-        },
-      });
-      const html = await res.text();
-      const recipe = findRecipeNode(html);
       out.push(`=== ${host} ===`);
-      out.push(JSON.stringify({
-        name: recipe?.name,
-        recipeYield: recipe?.recipeYield,
-        recipeIngredient: recipe?.recipeIngredient,
-        recipeInstructions: recipe?.recipeInstructions,
-      }, null, 2));
+      try {
+        const res = await fetch(url, {
+          headers: {
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+            accept: "text/html,application/xhtml+xml",
+          },
+        });
+        out.push(`status=${res.status}`);
+        const html = await res.text();
+        const recipe = findRecipeNode(html);
+        out.push(JSON.stringify({
+          name: recipe?.name,
+          recipeYield: recipe?.recipeYield,
+          recipeIngredient: recipe?.recipeIngredient,
+          recipeInstructions: recipe?.recipeInstructions,
+        }, null, 2));
+      } catch (e) {
+        out.push(`FETCH THREW: ${e.name}: ${e.message}\n${e.stack || ""}`);
+      }
     }
     return new Response(out.join("\n"), { headers: { "content-type": "text/plain" } });
   },
