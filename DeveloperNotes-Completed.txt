@@ -2266,7 +2266,11 @@ into the details panel and the name grew.
     AT ALL." The owner asked directly — a shared-secret header stops a
     casual scanner, but does it actually stop someone calling the Worker
     over and over? It doesn't; that needs a real rate limiter, which a
-    secret is not. 50 requests/day per caller IP, counted in a Workers KV
+    secret is not. Set at 20 requests/day per caller IP — a third round the
+    same day tightened it further, on request, from an initial 50: "someone
+    doesn't need to upload hundreds of recipes a day," and 20 comfortably
+    covers even a one-time bulk import of existing favorites without
+    offering headroom sustained abuse could use. Counted in a Workers KV
     namespace created once by hand (grocery-run-recipe-import-rate-limit —
     `wrangler kv namespace create` works fine non-interactively from CI,
     checked live before relying on it, the same way the workers.dev

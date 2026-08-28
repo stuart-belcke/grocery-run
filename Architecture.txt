@@ -161,15 +161,17 @@ PHASE 1   Free at Cloudflare's Workers tier — [VERIFY] roughly 100k
           caution banner on "text" rather than silently trusting it.
           A DAILY CAP, PER IP, ADDED 2026-08-28 — the actual answer to "the
           endpoint gets found and hammered," once the allowlist stopped being
-          the thing that prevented it. 50 requests/day per caller IP, counted
+          the thing that prevented it. 20 requests/day per caller IP, counted
           in a Workers KV namespace (grocery-run-recipe-import-rate-limit,
           created once by hand — same one-time-provisioning shape as the
           workers.dev subdomain, `wrangler kv namespace create` works fine
-          non-interactively from CI, unlike the subdomain). Real usage is a
-          household adding a couple of recipes; the limit only has to make
-          sustained abuse pointless, not police normal use, so it's set with
-          wide margin rather than tuned tight. NOT the Workers Rate Limiting
-          binding (also free-tier, checked live before building either) —
+          non-interactively from CI, unlike the subdomain). SET AS LOW AS
+          REAL USE ALLOWS, deliberately, not with headroom to spare — a
+          household imports a couple of recipes day to day, and the only
+          case needing more in one sitting is a first-time bulk import of
+          existing favorites, which 20 comfortably covers without offering
+          anything close to what sustained abuse would need. NOT the Workers
+          Rate Limiting binding (also free-tier, checked live before it) —
           that one's window tops out at 60 seconds, built for stopping a
           burst, not a day's worth of spread-out requests; the daily figure
           needed a counter keyed on caller IP + UTC date instead, which goes

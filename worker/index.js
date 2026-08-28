@@ -41,10 +41,12 @@
    spread evenly across a day" — which a day-keyed KV counter catches
    because the key itself expires at midnight rather than a fixed window
    sliding forward.
-   GENEROUS ON PURPOSE: real usage is a household adding a couple of
-   recipes in a sitting, nowhere near this number on any real day: it only
-   has to make sustained abuse pointless, not police normal use. */
-const RATE_LIMIT_PER_DAY = 50;
+   SET AS LOW AS REAL USE ALLOWS, deliberately, not with headroom to spare.
+   Day to day this is a couple of recipes; the only case that needs more in
+   one sitting is a first-time bulk import of a household's existing
+   favorites, which 20 comfortably covers. Nobody legitimately needs
+   hundreds in a day, so the limit doesn't offer hundreds. */
+const RATE_LIMIT_PER_DAY = 20;
 
 // One key per IP per UTC day — the key going stale at midnight IS the
 // reset, so there is nothing to clean up by hand. expirationTtl is set
