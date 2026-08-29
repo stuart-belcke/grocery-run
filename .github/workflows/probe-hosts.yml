@@ -1,0 +1,40 @@
+name: Probe candidate recipe hosts
+
+# TEMPORARY (item 113). This sandbox's egress proxy blocks recipe sites, so a
+# candidate host cannot be checked from where the code is written. A runner
+# has open internet, so the probe runs here instead. Removed once it has
+# answered -- it is a question, not a piece of the build.
+on:
+  push:
+    branches: [claude/recipe-card-link-overflow-ndfkvp]
+    paths:
+      - "worker/probe/**"
+      - ".github/workflows/probe-hosts.yml"
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Probe the hosts already present in the shipped catalog
+        run: |
+          node worker/probe/probe.mjs \
+            "https://juliasalbum.com/chicken-spaghetti-with-burrata/" \
+            "https://eatyourselfskinny.com/healthy-chicken-parmesan/" \
+            "https://www.halfbakedharvest.com/spicy-chipotle-honey-chicken/" \
+            "https://www.eatingwell.com/recipe/250735/green-goddess-salad-with-chicken/" \
+            "https://www.allrecipes.com/recipe/223042/chicken-parmesan/"
+      - name: Probe fresh candidates for the allowlist
+        run: |
+          node worker/probe/probe.mjs \
+            "https://www.loveandlemons.com/baked-ziti/" \
+            "https://smittenkitchen.com/2023/01/carrot-cake-with-cream-cheese-frosting/" \
+            "https://www.simplyrecipes.com/recipes/homemade_pizza_dough/" \
+            "https://www.seriouseats.com/the-best-chili-recipe" \
+            "https://sallysbakingaddiction.com/banana-bread/" \
+            "https://www.foodiecrush.com/best-chicken-noodle-soup/" \
+            "https://iowagirleats.com/sheet-pan-chicken-fajitas/" \
+            "https://www.halfbakedharvest.com/"
