@@ -168,3 +168,29 @@ test("SHOULD: hitting today's per-network import cap says so, and still points a
     await page.done();
   }
 });
+
+/* THE ONE FAILURE THAT IS NOT AN ANSWER AT ALL. Every case above is the
+   Worker replying something; this is it never replying. A route left
+   un-fulfilled is exactly the stalled request a privacy browser's blocker
+   produces — reported on DuckDuckGo, where the panel sat on "Fetching…"
+   forever with no way out — and before recipeImport.js carried an
+   AbortSignal there was nothing to end it.
+   IT REALLY WAITS OUT THE 15 SECONDS rather than mocking the clock: the
+   value being proven IS the timeout, and a test that stubbed it would pass
+   on a build with no timeout at all. */
+test("SHOULD: a Worker call that never answers gives up and says to paste instead", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await page.route(WORKER_URL_GLOB, () => {});
+    await openPasteWithUrl(page, RECIPE_URL);
+
+    await page.getByText(/took too long/).waitFor({ timeout: 25000 });
+    // The URL is still in the box, so pasting the text over it is one
+    // action away — a dead end here would mean closing and starting again.
+    assert.equal(await page.getByLabel("Pasted recipe text or link").inputValue(), RECIPE_URL);
+    assert.equal(await page.getByPlaceholder("Meal name").inputValue(), "");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});

@@ -121,6 +121,32 @@ file reached 5,886 lines with ten live items in it.
     e2e). Every gap above is one of two shapes — needs a database, or needs
     prose held to code.
 
+115. THE URL IMPORT HAD NO TIMEOUT — FIXED, AND WHY IT WAS INVISIBLE HERE.
+    Reported from real use: on the DuckDuckGo browser, pasting a link left
+    the panel on "Fetching…" forever. In Chrome the same link answered at
+    once — host_not_allowed, juliasalbum.com being off the allowlist — which
+    is exactly why the hang never showed up in testing.
+
+    fetchRecipeFromUrl called fetch() with no AbortSignal. fetch REJECTS on
+    a refused connection, so the try/catch around it read as complete
+    coverage; a request that is STALLED rather than refused never settles at
+    all, and nothing was watching a clock. A privacy browser holding an
+    unfamiliar third-party domain — workers.dev is precisely that shape —
+    produces this, as does a captive portal or a phone losing signal
+    mid-flight.
+
+    NOW AbortSignal.timeout(15000), a "timeout" reason of its own, and its
+    own message: a refusal might work on a retry, a timeout on this network
+    probably will not, so the two must not say the same thing.
+
+    COVERED BY AN e2e TEST THAT REALLY WAITS THE 15 SECONDS — a route left
+    un-fulfilled IS the stalled request. Mutation-tested both ways. Stubbing
+    the clock would have passed on a build with no timeout at all.
+
+    WHAT WOULD CHANGE THE ANSWER: if the Worker grows a slow path of its own
+    — a render step, a retry — 15s stops being generous, and the number
+    wants a measurement rather than a guess.
+
 101. MAKING A HOUSEHOLD IS A FIRST-RUN-ONLY ACTION, AND THAT IS NOW ODD.
     Asked while reading Settings: "if you can get invited to multiple, why
     not be able to make new ones?" The asymmetry is real rather than

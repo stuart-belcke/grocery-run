@@ -873,6 +873,8 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                     ? "This network has hit today's import limit — it resets tomorrow. Paste the recipe's text below instead."
                     : urlImportState.reason === "host_not_allowed"
                     ? "That site isn't set up for automatic import yet. Copy the recipe's text from the page and paste it here instead."
+                    : urlImportState.reason === "timeout"
+                    ? "That took too long — some browsers block the fetch, and some networks are just slow. Copy the recipe's text from the page and paste it here instead."
                     : "Couldn't fetch that page. Copy the recipe's text from the page and paste it here instead."}
                 </div>
               )}
