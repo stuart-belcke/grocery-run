@@ -2456,6 +2456,24 @@ into the details panel and the name grew.
     the meal-type rule rather than getting its own, because both are the
     same job: classifying the dish. Costs 158px at 390 (667 -> 825).
 
+    THE NOTE PLACEHOLDER WAS WRONG TWICE. "Note — diced, 15 oz, divided
+    (optional)" told you to type a QUANTITY into the one field in the row
+    that is not for quantities, with Qty and Unit sitting directly above
+    it; and the trailing "(optional)" joined the comma list, so the last
+    example read as "divided (optional)". "divided" went too — recipe
+    jargon for an ingredient used at two points in the method, which is
+    not what most people will read it as. Now "Optional — diced, drained":
+    all prep, "optional" leading so it cannot join the list, 209px against
+    236 of room at 320.
+    MEASURING THE PLACEHOLDERS FOUND A THIRD, pre-existing: "Cooking
+    instructions / notes (optional)" needed 306px against 236 at 320 and
+    was simply cut off there. The INSTRUCTIONS heading names that field
+    now, so the placeholder stopped repeating it — "Optional — steps,
+    notes, tips", 231px, fits both. NONE of this was visible to the
+    editor audit, which checks text nodes and never looked at a
+    placeholder; the check that found it measures each placeholder string
+    against its own field's content box.
+
     FINAL, BOTH WIDTHS: 0 tap targets under 44px (was 14), 0 clipped text,
     0 contrast failures, no horizontal overflow. The 390px card got
     SHORTER despite everything growing — 729 -> 667px — because the two

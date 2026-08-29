@@ -1116,7 +1116,16 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                 see what it guessed and correct it. It is deliberately NOT part
                 of the name — the name is what the shopping list groups by. */}
             <input
-              placeholder="Note — diced, 15 oz, divided (optional)"
+              /* THE EXAMPLES ARE ALL PREP, and "optional" leads rather than
+                 trails. The old text read "Note — diced, 15 oz, divided
+                 (optional)" and was wrong twice: "15 oz" told you to type a
+                 quantity into the one field that is NOT for quantities, with
+                 Qty and Unit sitting directly above it, and the trailing
+                 "(optional)" joined the comma list so the last example parsed
+                 as "divided (optional)". "divided" went too — it is recipe
+                 jargon for an ingredient used at two points in the method,
+                 which is not what most people will read it as. */
+              placeholder="Optional — diced, drained"
               aria-label="Ingredient note"
               value={ing.note || ""}
               onChange={(e) => {
@@ -1164,7 +1173,11 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
             <span style={{ ...groupLabel, display: "block" }}>Instructions</span>
           </div>
           <textarea
-            placeholder="Cooking instructions / notes (optional)"
+            /* The INSTRUCTIONS heading above it names the field now, so the
+               placeholder no longer repeats it — and "Cooking instructions /
+               notes (optional)" was measured at 306px against 236 of room at
+               320, so it was being cut off there anyway. */
+            placeholder="Optional — steps, notes, tips"
             value={draft.notes}
             onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
             rows={4}
