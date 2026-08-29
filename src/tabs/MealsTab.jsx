@@ -1124,8 +1124,13 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                  "(optional)" joined the comma list so the last example parsed
                  as "divided (optional)". "divided" went too — it is recipe
                  jargon for an ingredient used at two points in the method,
-                 which is not what most people will read it as. */
-              placeholder="Optional — diced, drained"
+                 which is not what most people will read it as.
+                 "e.g." rather than "Ex." because the app already says it that
+                 way — Onboarding's "e.g. Our Household". The em dash the
+                 first rewrite used cost 16px the 320px width did not have:
+                 "Optional — e.g. diced, drained" measures 244 against 236 of
+                 room, the comma form 228. */
+              placeholder="Optional, e.g. diced, drained"
               aria-label="Ingredient note"
               value={ing.note || ""}
               onChange={(e) => {
@@ -1177,7 +1182,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                placeholder no longer repeats it — and "Cooking instructions /
                notes (optional)" was measured at 306px against 236 of room at
                320, so it was being cut off there anyway. */
-            placeholder="Optional — steps, notes, tips"
+            placeholder="Optional, e.g. steps or tips"
             value={draft.notes}
             onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
             rows={4}

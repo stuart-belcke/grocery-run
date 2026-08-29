@@ -2462,14 +2462,20 @@ into the details panel and the name grew.
     it; and the trailing "(optional)" joined the comma list, so the last
     example read as "divided (optional)". "divided" went too — recipe
     jargon for an ingredient used at two points in the method, which is
-    not what most people will read it as. Now "Optional — diced, drained":
-    all prep, "optional" leading so it cannot join the list, 209px against
-    236 of room at 320.
+    not what most people will read it as. Now "Optional, e.g. diced,
+    drained" — all prep, "optional" leading so it cannot join the list, and
+    "e.g." saying outright that these ARE examples rather than leaving the
+    reader to infer it. "e.g." not "Ex." because the app already says it
+    that way, in Onboarding's "e.g. Our Household". 186px against 236 of
+    room at 320.
+    THE EM DASH COST 16px THE 320 WIDTH DID NOT HAVE: "Optional — e.g.
+    diced, drained" measures 244 against 236, the comma form 228.
     MEASURING THE PLACEHOLDERS FOUND A THIRD, pre-existing: "Cooking
     instructions / notes (optional)" needed 306px against 236 at 320 and
     was simply cut off there. The INSTRUCTIONS heading names that field
-    now, so the placeholder stopped repeating it — "Optional — steps,
-    notes, tips", 231px, fits both. NONE of this was visible to the
+    now, so the placeholder stopped repeating it — "Optional, e.g. steps
+    or tips", 212px, fits both. Three examples did not: "steps, notes,
+    tips" needed 250. NONE of this was visible to the
     editor audit, which checks text nodes and never looked at a
     placeholder; the check that found it measures each placeholder string
     against its own field's content box.
