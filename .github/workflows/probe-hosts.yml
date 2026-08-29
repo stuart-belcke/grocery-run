@@ -1,0 +1,48 @@
+name: Probe candidate recipe hosts
+
+# TEMPORARY (item 113), one host. This sandbox's egress proxy 403s recipe
+# sites, so the check has to run where there is open internet. Removed in
+# the commit right after the answer comes back.
+on:
+  push:
+    branches: [claude/recipe-card-link-overflow-ndfkvp]
+    paths:
+      - ".github/workflows/probe-hosts.yml"
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: eatyourselfskinny.com, on a real recipe URL
+        run: |
+          cat > /tmp/p.mjs <<'EOF'
+          import { readFileSync } from "node:fs";
+          // findRecipeNode lifted out of worker/index.js verbatim, so the
+          // probe cannot answer differently from what production does.
+          const src = readFileSync("worker/index.js", "utf8");
+          const body = src.slice(src.indexOf("function findRecipeNode"));
+          const findRecipeNode = new Function(`${body.slice(0, body.indexOf("\n}") + 2)}; return findRecipeNode;`)();
+          const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
+          for (const u of process.argv.slice(2)) {
+            try {
+              const r = await fetch(u, { headers: { "user-agent": UA, accept: "text/html" }, redirect: "follow", signal: AbortSignal.timeout(20000) });
+              const n = findRecipeNode(await r.text());
+              console.log(`${u}\n  HTTP ${r.status}  final ${r.url}`);
+              if (n) {
+                console.log(`  RECIPE  name=${JSON.stringify(String(n.name || "").slice(0, 50))}`);
+                console.log(`  recipeIngredient=${(n.recipeIngredient || []).length}  recipeYield=${JSON.stringify(n.recipeYield)}`);
+                console.log(`  instructions=${JSON.stringify(n.recipeInstructions || "").length > 40 ? "yes" : "MISSING"}`);
+                console.log(`  first 3: ${JSON.stringify((n.recipeIngredient || []).slice(0, 3))}`);
+              } else {
+                console.log(`  no Recipe node (ld+json blocks present: ${((await Promise.resolve("")).length, "see status above")})`);
+              }
+            } catch (e) { console.log(`${u}\n  FAILED ${e.name}: ${e.message}`); }
+          }
+          EOF
+          node /tmp/p.mjs \
+            "https://www.eatyourselfskinny.com/healthy-chicken-enchilada-recipe/" \
+            "https://eatyourselfskinny.com/healthy-chicken-enchilada-recipe/"
