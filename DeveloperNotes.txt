@@ -282,6 +282,25 @@ file reached 5,886 lines with ten live items in it.
     the HOMEPAGE, before any recipe was reached. Consistent with the
     licensing wall already recorded against allrecipes.
 
+    AND THEY ARE ON THE ALLOWLIST ANYWAY, on the owner's call, which is the
+    better design. Off the list they got "that site isn't set up for
+    automatic import yet" — UNTRUE of them: they are set up, they decline.
+    Allowed, the Worker really tries, gets the 402, and says so by name:
+    "allrecipes.com blocks automatic import — that is the site's choice,
+    not a problem with your link." It also SELF-HEALS; if a wall ever
+    lifts, they start working with no code change and no probe.
+    A REFUSAL IS NOW A DIFFERENT ANSWER FROM A FAILURE. 401/402/403/406/
+    429/451 are a site turning a reader away and will not come good on a
+    retry, so they return "site_blocked" with the host; a 404 or a 500 is a
+    wrong link or a broken page and stays "fetch_failed". The host travels
+    all the way through — Worker, recipeImport.js, into state — and the
+    e2e test mutation-fails if any link in that chain drops it, which
+    matters because a dropped host degrades silently to "That site" rather
+    than throwing.
+    THE COST, STATED: one real fetch and one of the day's 20 import slots
+    spent on a request that will very likely fail. That is the right trade
+    at 20 a day. It would not be at 2.
+
     A TRUE NEGATIVE: smittenkitchen.com publishes no JSON-LD. 24 real pages
     walked, twice, none carrying a Recipe node — hand-written HTML rather
     than a recipe plugin. Pasting its text still works, as it does for any

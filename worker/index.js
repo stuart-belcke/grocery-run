@@ -97,6 +97,20 @@ const ALLOWED_HOSTS = new Set([
   "sallysbakingaddiction.com",
   "www.foodiecrush.com",
   "iowagirleats.com",
+  /* FOUR THAT ARE KNOWN TO REFUSE US, HERE ON PURPOSE. Every one of these
+     answered the item 113 probe with HTTP 402 on its own homepage — all
+     four are Dotdash Meredith properties behind the same wall. Allowing
+     them anyway buys two things. The refusal becomes HONEST: off the list
+     they got "that site isn't set up for automatic import yet", which was
+     untrue — they are set up, they decline. And it SELF-HEALS: if the wall
+     ever lifts, these start working with no code change and no probe.
+     The cost is one real fetch and one of the day's 20 import slots spent
+     on a request that will very likely fail. That is the right trade at 20
+     a day; it would not be at 2. */
+  "www.eatingwell.com",
+  "www.allrecipes.com",
+  "www.simplyrecipes.com",
+  "www.seriouseats.com",
 ].map(bareHost));
 
 /* A DAILY CAP, PER IP, VIA WORKERS KV — not the account-wide free-tier
@@ -193,6 +207,12 @@ const ALLOWED_ORIGINS = new Set([
   "http://localhost:4173",
 ]);
 
+// 401/403 unauthorized or forbidden, 402 payment required (what the Dotdash
+// Meredith sites answer with), 406 not acceptable, 429 too many requests,
+// 451 unavailable for legal reasons. All of them are the SITE declining,
+// not the request going wrong.
+const BLOCKED_STATUSES = new Set([401, 402, 403, 406, 429, 451]);
+
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 
 // Proven against real pages by the throwaway probe this Worker replaces —
@@ -285,6 +305,16 @@ export default {
       res = await fetch(parsed.toString(), { headers: { "user-agent": UA, accept: "text/html,application/xhtml+xml" } });
     } catch (e) {
       return json({ ok: false, reason: "fetch_failed", detail: String(e && e.message || e) }, 200, allowedOrigin);
+    }
+    /* A SITE SAYING NO IS NOT THE SAME AS A FETCH GOING WRONG, and the
+       advice differs: a refusal will not come good on a retry, so the only
+       thing worth telling someone is to paste the text. These are the
+       statuses a site uses to turn a reader away — 402 is what all four
+       Dotdash Meredith properties answer with — as opposed to a 500 or a
+       404, which are a broken page or a wrong link. The host goes back
+       with it so the message can NAME the site rather than blame the app. */
+    if (BLOCKED_STATUSES.has(res.status)) {
+      return json({ ok: false, reason: "site_blocked", host: bareHost(parsed.hostname), status: res.status }, 200, allowedOrigin);
     }
     if (!res.ok) return json({ ok: false, reason: "fetch_failed", status: res.status }, 200, allowedOrigin);
 

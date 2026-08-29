@@ -52,7 +52,10 @@ export async function fetchRecipeFromUrl(url) {
   } catch {
     return { ok: false, reason: "network" };
   }
-  if (!body || !body.ok) return { ok: false, reason: (body && body.reason) || "failed" };
+  // `host` rides along on a refusal so the caller can NAME the site. It is
+  // the Worker's own bareHost value, not something re-derived here: the two
+  // must agree, or the message credits the wrong site.
+  if (!body || !body.ok) return { ok: false, reason: (body && body.reason) || "failed", host: body && body.host };
   const parsed = body.source === "jsonld" ? recipeFromJsonLd(body.recipe || {}) : parseRecipeText(body.text || "");
   return { ok: true, parsed, source: body.source };
 }

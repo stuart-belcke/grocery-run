@@ -287,7 +287,10 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
     setUrlImportState("loading");
     const result = await fetchRecipeFromUrl(url);
     if (!result.ok) {
-      setUrlImportState({ reason: result.reason });
+      // `host` too, not just the reason: a "site_blocked" message names the
+      // site, and this line dropping it would silently fall back to "That
+      // site" forever with nothing failing to say so.
+      setUrlImportState({ reason: result.reason, host: result.host });
       return;
     }
     // The URL itself IS the source, so it's worth saving even though
@@ -871,6 +874,8 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                 <div role="status" style={{ fontSize: 13, color: C.tomato, marginBottom: 8 }}>
                   {urlImportState.reason === "rate_limited"
                     ? "This network has hit today's import limit — it resets tomorrow. Paste the recipe's text below instead."
+                    : urlImportState.reason === "site_blocked"
+                    ? `${urlImportState.host || "That site"} blocks automatic import — that is the site's choice, not a problem with your link. Copy the recipe's text from the page and paste it here instead.`
                     : urlImportState.reason === "host_not_allowed"
                     ? "That site isn't set up for automatic import yet. Copy the recipe's text from the page and paste it here instead."
                     : urlImportState.reason === "timeout"

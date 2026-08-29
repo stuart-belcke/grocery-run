@@ -194,3 +194,28 @@ test("SHOULD: a Worker call that never answers gives up and says to paste instea
     await page.done();
   }
 });
+
+/* A SITE THAT REFUSES US IS NOT A SITE WE DO NOT KNOW, and the two used to
+   share a message. The four Dotdash Meredith properties are ON the
+   allowlist deliberately (worker/index.js) so the Worker really tries them
+   — which means the refusal comes back as HTTP 402, and the message has to
+   name the site rather than imply the app is at fault or that the site is
+   unsupported. */
+test("SHOULD: a site that blocks the fetch is named, and is not called unsupported", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await mockWorker(page, { ok: false, reason: "site_blocked", host: "allrecipes.com", status: 402 });
+    await openPasteWithUrl(page, "https://www.allrecipes.com/recipe/223042/chicken-parmesan/");
+    await page.waitForTimeout(400);
+
+    await page.getByText(/allrecipes\.com blocks automatic import/).waitFor();
+    // The old wording would be actively wrong here: the site IS set up for
+    // import, it declines. A test that only checked "some error showed"
+    // would pass on that regression.
+    assert.equal(await page.getByText(/isn.t set up for automatic import/).count(), 0);
+    assert.equal(await page.getByPlaceholder("Meal name").inputValue(), "");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
