@@ -21,7 +21,7 @@ item is finished and lives over there.
 IF YOU ARE PICKING SOMETHING UP
 -------------------------------
 
-  113  the import allowlist             22 hosts; eatyourselfskinny.com still open
+  113  the import allowlist             27 hosts; every catalog site now covered
   110  the parser                       standing task: more captured pages
    98  the test gaps                    a register; 98a is the costly one
 
@@ -272,10 +272,12 @@ file reached 5,886 lines with ten live items in it.
     Worker after deploying and greps for "ok":true, so production confirms
     the list on the way in.
 
-    ADDED (6), each serving a Recipe node with a non-empty recipeIngredient:
+    ADDED (7), each serving a Recipe node with a non-empty recipeIngredient:
       juliasalbum.com, loveandlemons.com, halfbakedharvest.com,
-      sallysbakingaddiction.com, foodiecrush.com, iowagirleats.com.
-    That is 22 hosts. Two of the six came from the owner's OWN catalog.
+      sallysbakingaddiction.com, foodiecrush.com, iowagirleats.com,
+      eatyourselfskinny.com.
+    Three of the seven came from the owner's OWN catalog. With the four
+    walled sites below, that is 27 hosts.
 
     REFUSED, ALL DOTDASH MEREDITH: eatingwell.com, allrecipes.com,
     simplyrecipes.com, seriouseats.com — HTTP 402 with a 612-byte body, on
@@ -306,11 +308,16 @@ file reached 5,886 lines with ten live items in it.
     than a recipe plugin. Pasting its text still works, as it does for any
     site.
 
-    STILL OPEN: eatyourselfskinny.com, which is IN THE SHIPPED CATALOG (2
-    recipes). UNANSWERED rather than refused — its homepage is JavaScript,
-    so the served HTML carries no links, and its sitemap is not at any of
-    the four paths the probe tried. WHAT WOULD SETTLE IT: one real recipe
-    URL from that site, probed directly.
+    eatyourselfskinny.com — THE PROBE SAID IT DID NOT WORK, AND THE PROBE
+    WAS WRONG. Its crawler found no links (JavaScript homepage) and no
+    sitemap at any path it knew, so it reported "no Recipe node on any of 0
+    pages", which reads exactly like a refusal. The owner supplied ONE real
+    recipe URL and it answered HTTP 200 with 24 ingredients and a
+    recipeYield of 8. Added. 27 hosts.
+    THIS IS THE CLEAREST CASE OF THE RULE BELOW: a site was one line away
+    from being written off on the strength of a bug in the thing testing
+    it. The cheapest fix for a "0 pages" result is to ask a person for one
+    URL, not to write more crawler.
 
     THE PROBE WAS WRONG TWICE, AND BOTH TIMES IT LOOKED LIKE A SITE
     REFUSING US. First it guessed recipe slugs and took six 404s; then it

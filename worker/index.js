@@ -86,17 +86,23 @@ const ALLOWED_HOSTS = new Set([
      shape as the original sixteen. Every one confirmed serving a Recipe
      node with a non-empty recipeIngredient, read by the findRecipeNode
      below rather than by a stand-in parser.
-     NOT ADDED, and why: smittenkitchen.com publishes no JSON-LD at all
-     (24 real pages walked, twice, none carrying a Recipe node — it is
-     hand-written HTML, not a recipe plugin), and eatyourselfskinny.com
-     went UNANSWERED rather than refused, its homepage being JavaScript
-     and its sitemap not at any path the probe knew. */
+     NOT ADDED: smittenkitchen.com publishes no JSON-LD at all — 24 real
+     pages walked, twice, none carrying a Recipe node. Hand-written HTML,
+     not a recipe plugin. */
   "juliasalbum.com",
   "www.loveandlemons.com",
   "www.halfbakedharvest.com",
   "sallysbakingaddiction.com",
   "www.foodiecrush.com",
   "iowagirleats.com",
+  /* THE PROBE SAID THIS ONE DID NOT WORK, AND THE PROBE WAS WRONG. Its
+     crawler found no links (JavaScript homepage) and no sitemap at any
+     path it knew, and reported "no Recipe node on any of 0 pages" — which
+     reads exactly like a refusal. Given ONE real recipe URL by the owner
+     it answered HTTP 200 with 24 ingredients and a recipeYield of 8.
+     Both forms are here in effect: the bare host 301s to www, and
+     bareHost collapses them anyway. */
+  "www.eatyourselfskinny.com",
   /* FOUR THAT ARE KNOWN TO REFUSE US, HERE ON PURPOSE. Every one of these
      answered the item 113 probe with HTTP 402 on its own homepage — all
      four are Dotdash Meredith properties behind the same wall. Allowing
