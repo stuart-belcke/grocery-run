@@ -17,6 +17,33 @@ const pillBtn = { minWidth: 26, height: 26, padding: "0 4px", borderRadius: 999,
 const pillLabel = { fontSize: 12, fontWeight: 600, color: C.faint, padding: "0 2px", whiteSpace: "nowrap" };
 const pillCount = { minWidth: 26, textAlign: "center", fontWeight: 700, fontVariantNumeric: "tabular-nums", fontSize: 14 };
 
+/* The toggle pills in the recipe editor — the four meal types, and the two
+   tags. ONE style object because they are one control shape: three copies of
+   the same nine lines is how they drifted to 27px while everything else was
+   raised to 44 (item 103c). Only the colours differ per pill, so only the
+   colours stay at the call site.
+   14px of vertical padding, not 5. Measured, not derived: a 13px font gives
+   a 15px line box here, so 15 + 28 + 2px of border is 45. The arithmetic
+   guess of 13px came out at 43 — a pixel under the floor, which is exactly
+   the kind of miss that only a measurement catches. */
+/* The group label takes a LINE OF ITS OWN (flexBasis 100% inside the
+   wrapping row), rather than sitting inline as the first item. Inline, the
+   label ate 130px of the first line and stranded "Dessert" alone on a second
+   one: measured at 390, the meal-type group was 98px tall as 3 pills + 1.
+   Given its own line all four fit together and the group measures 65px. It
+   costs 20px at 320, where the pills wrap either way — worth it, since 390 is
+   the width nearly every phone this runs on reports. */
+const groupLabel = { fontSize: 12, color: C.faint, flexBasis: "100%" };
+
+const pillTag = {
+  fontFamily: fontBody,
+  fontSize: 13,
+  fontWeight: 500,
+  padding: "14px 12px",
+  borderRadius: 999,
+  cursor: "pointer",
+};
+
 /* PROTOTYPE A — the week-plan picker, as a dialog rather than two <select>s
    swapped into the card's own row.
 
@@ -802,7 +829,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
           {!pasteOpen ? (
             <button
               onClick={() => setPasteOpen(true)}
-              style={{ display: "block", fontFamily: fontBody, fontSize: 12, fontWeight: 500, padding: "4px 10px", borderRadius: 999, cursor: "pointer", border: `1px solid ${C.line}`, background: "transparent", color: C.faint, marginBottom: 10 }}
+              style={{ display: "block", fontFamily: fontBody, fontSize: 13, fontWeight: 500, padding: "13px 14px", borderRadius: 999, cursor: "pointer", border: `1px solid ${C.line}`, background: "transparent", color: C.faint, marginBottom: 10 }}
             >
               📋 Paste a recipe to fill this in
             </button>
@@ -859,8 +886,16 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
             onChange={(e) => setDraft({ ...draft, source: e.target.value })}
             style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 10 }}
           />
-          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 12, color: C.faint }}>Meal type:</span>
+          {/* TWO GROUPS, TWO LABELS — they used to be one row under a single
+              "Meal type:" label, which was untrue of half of it: Breakfast /
+              Lunch / Dinner / Dessert are when you eat the thing, while Easy
+              and Side are properties of the dish. Unselected they render as
+              identical pills, so nothing but the label distinguished them and
+              the label was wrong about three of six. "Tags" is the app's own
+              word for these — the empty state already says "No meals are
+              tagged ⚡ Easy yet". */}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
+            <span style={groupLabel}>Meal type:</span>
             {MEAL_TYPES.map((t) => {
               const on = draft.mealTypes.includes(t);
               return (
@@ -869,12 +904,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                   onClick={() => toggleDraftType(t)}
                   aria-pressed={on}
                   style={{
-                    fontFamily: fontBody,
-                    fontSize: 13,
-                    fontWeight: 500,
-                    padding: "5px 12px",
-                    borderRadius: 999,
-                    cursor: "pointer",
+                    ...pillTag,
                     border: `1px solid ${on ? C.green : C.line}`,
                     background: on ? C.green : "#fff",
                     color: on ? "#fff" : C.ink,
@@ -884,17 +914,15 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                 </button>
               );
             })}
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
+            <span style={groupLabel}>Tags:</span>
             <button
               onClick={() => setDraft({ ...draft, easy: !draft.easy })}
               aria-pressed={draft.easy}
               title="Quick, low-effort meal — for when time and energy are short"
               style={{
-                fontFamily: fontBody,
-                fontSize: 13,
-                fontWeight: 500,
-                padding: "5px 12px",
-                borderRadius: 999,
-                cursor: "pointer",
+                ...pillTag,
                 border: `1px solid ${draft.easy ? C.gold : C.line}`,
                 background: draft.easy ? C.goldSoft : "#fff",
                 color: draft.easy ? C.gold : C.ink,
@@ -907,12 +935,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
               aria-pressed={draft.side}
               title="Typically served as a side dish, not the main — surfaces first when picking a side for a week-plan slot"
               style={{
-                fontFamily: fontBody,
-                fontSize: 13,
-                fontWeight: 500,
-                padding: "5px 12px",
-                borderRadius: 999,
-                cursor: "pointer",
+                ...pillTag,
                 border: `1px solid ${draft.side ? C.green : C.line}`,
                 background: draft.side ? C.greenSoft : "#fff",
                 color: draft.side ? C.green : C.ink,
@@ -928,7 +951,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                 min="1"
                 value={draft.servings}
                 onChange={(e) => setDraft({ ...draft, servings: e.target.value })}
-                style={{ ...inputStyle, width: 58, padding: "5px 8px" }}
+                style={{ ...inputStyle, width: 58, padding: "12px 8px" }}
               />
             </label>
           </div>
@@ -941,8 +964,18 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
             const pick = (k) => { setIngName(i, k.name); setIngSug(null); };
             return (
             <div key={i} style={{ marginBottom: 8 }}>
-            <div style={{ display: "flex", gap: 8 }}>
-              <div style={{ position: "relative", flex: 2, minWidth: 0 }}>
+            {/* WRAPS, and the name's 120px basis is what decides when. Four
+                controls cannot share one line at 320: even at their smallest
+                (Qty 64, Unit 70, and 44 for the remove button, which is item
+                103c's tap-target floor and cannot go lower) flex crushed the
+                name field to 44px — three characters of "chicken breast".
+                120 was picked by measuring every basis from 90 to 170 at both
+                widths: it is the largest that still keeps ONE line at 390
+                (going to 130 buys a wider field but costs 53px on EVERY
+                ingredient row) and the smallest that gives the name its own
+                full-width line at 320, where the row wraps at any basis. */}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <div style={{ position: "relative", flex: "1 1 120px", minWidth: 0 }}>
                 <input
                   placeholder="Ingredient"
                   value={ing.name}
@@ -1034,7 +1067,12 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                   list[i] = { ...ing, qty: e.target.value };
                   setDraft({ ...draft, ingredients: list });
                 }}
-                style={{ ...inputStyle, width: 54 }}
+                /* border-box, unlike its 54px content-box past: the row is
+                   width-starved and 20px of padding was being counted twice.
+                   64 leaves 42px of content, which fits every quantity the
+                   shipped catalog contains (longest: "0.125") and the widest
+                   thing typed by hand, "1 1/2", measured at 41px. */
+                style={{ ...inputStyle, width: 64, boxSizing: "border-box" }}
               />
               {/* Suggests the units THIS ingredient already uses first —
                   `cloves` for garlic before `cup`, which is merely common. */}
@@ -1051,7 +1089,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                 wrapStyle={{ width: 70, flexShrink: 0 }}
                 style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
               />
-              <Btn small onClick={() => setDraft({ ...draft, ingredients: draft.ingredients.filter((_, j) => j !== i) })} title="Remove ingredient">✕</Btn>
+              <Btn small style={{ minWidth: 44 }} onClick={() => setDraft({ ...draft, ingredients: draft.ingredients.filter((_, j) => j !== i) })} title="Remove ingredient">✕</Btn>
             </div>
             {/* Its own line, and always visible rather than behind a toggle:
                 the parser writes this field, so it has to be somewhere you can
@@ -1066,7 +1104,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                 list[i] = { ...ing, note: e.target.value };
                 setDraft({ ...draft, ingredients: list });
               }}
-              style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginTop: 4, fontSize: 13 }}
+              style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginTop: 4, fontSize: 13, padding: "14px 10px" }}
             />
             {splitPair && (
               <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 4, fontSize: 12, color: C.faint }}>
@@ -1075,7 +1113,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                   type="button"
                   onClick={() => applySplit(i, splitPair)}
                   aria-label={`Split into ${splitPair[0].name} and ${splitPair[1].name}`}
-                  style={{ padding: "2px 8px", borderRadius: 999, border: `1px solid ${C.line}`, background: C.paper, color: C.ink, cursor: "pointer", fontFamily: fontBody, fontSize: 12 }}
+                  style={{ padding: "13px 10px", borderRadius: 999, border: `1px solid ${C.line}`, background: C.paper, color: C.ink, cursor: "pointer", fontFamily: fontBody, fontSize: 12 }}
                 >
                   split into “{splitPair[0].name}” + “{splitPair[1].name}”
                 </button>
@@ -1089,7 +1127,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                     key={k.key}
                     type="button"
                     onClick={() => setIngName(i, k.name)}
-                    style={{ padding: "2px 8px", borderRadius: 999, border: `1px solid ${C.line}`, background: C.paper, color: C.ink, cursor: "pointer", fontFamily: fontBody, fontSize: 12 }}
+                    style={{ padding: "13px 10px", borderRadius: 999, border: `1px solid ${C.line}`, background: C.paper, color: C.ink, cursor: "pointer", fontFamily: fontBody, fontSize: 12 }}
                   >
                     use “{k.name}”
                   </button>

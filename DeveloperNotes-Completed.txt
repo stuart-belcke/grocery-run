@@ -2383,3 +2383,61 @@ into the details panel and the name grew.
     real rather than by argument: www.pinchofyum.com and
     recipetineats.com both returned real JSON-LD, and www.allrecipes.com
     was still refused.
+
+------------------------------------------------------------------------
+114. [DONE] THE RECIPE ENTRY FORM, MEASURED AGAINST ITEM 103c'S 44px FLOOR
+    AND FOUND TO MISS IT FOURTEEN TIMES. Item 103c raised Btn's paddings to
+    put buttons on a 44px tap target and scoped itself to Btn. Inputs were
+    never in that pass. Everything the recipe form is built from — the meal
+    type pills, the tag pills, every text field — was therefore still at 37
+    to 43px, measured at both 390 and 320 with the real catalog loaded.
+
+    inputStyle's vertical padding 8px -> 12px is the fix that carries
+    furthest: a 16px font gives a ~19px line box, so 19 + 24 + 2 of border
+    measures 45. It reaches every text field in the app, and the other four
+    tabs plus onboarding and the unit converter were swept at both widths
+    afterwards for overflow and clipping — all clean, all eight Settings
+    fields now 45px. THE NINE COMPACT NUMBER BOXES ARE DELIBERATELY
+    UNAFFECTED: they override `padding` themselves, so the shared value
+    never reaches them, and raising one of those is a per-row decision.
+
+    THE ARITHMETIC WAS WRONG THE FIRST TIME AND MEASURING CAUGHT IT. 13px
+    of padding on 13px type was derived assuming a 16px line box; it is 15,
+    so the pills came out at 43 — one under. `🥗 Side` had cleared 44 on the
+    same padding, which is what gave it away: its emoji makes the line box
+    taller. 14px, measured, not derived.
+
+    "Meal type:" WAS A LABEL OVER SIX PILLS AND WRONG ABOUT THREE OF THEM.
+    Breakfast / Lunch / Dinner / Dessert are when you eat the thing; Easy
+    and Side are properties of the dish. Unselected they render identically,
+    so the label was the only thing distinguishing them. Split into two
+    labelled groups using the app's own existing word — the empty state
+    already says "No meals are tagged ⚡ Easy yet".
+
+    THE LABEL THEN TOOK A LINE OF ITS OWN, because inline it ate 130px of
+    the first line and stranded "Dessert" alone on a second: the meal-type
+    group measured 98px at 390 as 3 pills + 1. Given its own line all four
+    fit together, 65px. Costs 20px at 320, where they wrap either way.
+
+    TWO MORE FOUND BY MEASURING RATHER THAN BY LOOKING, both in the
+    ingredient row, and the first of them made worse by this item's own
+    change. The remove button needed minWidth 44 to reach the floor, and
+    that width came out of the name field, which flex was already crushing:
+    55px -> 44px at 320. About three characters of "chicken breast". Four
+    controls cannot share that line at any size — even at Qty 64, Unit 70
+    and the 44 the tap floor forbids going below, the arithmetic does not
+    close. The row WRAPS now, and the name's 120px flex-basis is what
+    decides when: every basis from 90 to 170 was measured at both widths,
+    and 120 is the largest that still keeps ONE line at 390 (130 buys a
+    wider field and costs 53px on EVERY ingredient row) and the smallest
+    that gives the name a full-width line at 320. Name field 55 -> 186 at
+    320, and back to its pre-item width at 390.
+    Qty was 54px content-box while both its siblings were border-box, so
+    20px of padding was being counted twice. 64 border-box leaves 42px of
+    content, which fits the longest quantity in the shipped catalog
+    ("0.125") and the widest thing typed by hand, "1 1/2", at 41px.
+
+    FINAL, BOTH WIDTHS: 0 tap targets under 44px (was 14), 0 clipped text,
+    0 contrast failures, no horizontal overflow. The 390px card got
+    SHORTER despite everything growing — 729 -> 667px — because the two
+    label lines bought back more than the padding cost.
