@@ -21,7 +21,7 @@ item is finished and lives over there.
 IF YOU ARE PICKING SOMETHING UP
 -------------------------------
 
-  113  the import allowlist             one line per site, but verify it live
+  113  the import allowlist             22 hosts; eatyourselfskinny.com still open
   110  the parser                       standing task: more captured pages
    98  the test gaps                    a register; 98a is the costly one
 
@@ -258,49 +258,46 @@ file reached 5,886 lines with ten live items in it.
     it, and mutation-test every rule, because a green suite that was going to
     be green anyway is worse than no suite: it feels like evidence.
 
-113. GROW THE RECIPE-IMPORT ALLOWLIST. 16 hosts today; adding one is a
-    line of code.
-    worker/index.js carries ALLOWED_HOSTS, and a URL from anywhere else
-    comes back host_not_allowed — the app says "that site isn't set up for
-    automatic import yet" and points at pasting the page's text, which
-    still works with no length limit. So an unlisted site is a smaller
-    annoyance than it sounds: the feature degrades to what existed before
-    it, rather than failing.
+113. GROWING THE RECIPE-IMPORT ALLOWLIST — SIX ADDED, ONE STILL OPEN.
+    Prompted by real use: a juliasalbum.com link was pasted and refused.
+    The site was fine; it simply was not on the list.
 
-    WHY THIS IS CHEAP, AND WHY IT IS NOT ITEM 110. JSON-LD extraction is
-    GENERIC — findRecipeNode reads any site's schema.org markup the same
-    way — so adding a host needs NO parser work and no new fixture. That
-    is the whole difference from item 110, which is about the text parser
-    coping with page shapes it has not seen. A site that publishes recipe
-    JSON-LD costs one line here; a site that does not is item 110's
-    problem, because it falls through to parseRecipeText.
+    PROBED FROM A GITHUB RUNNER, not from Cloudflare's own IPs as the first
+    sixteen were. The sandbox this is written in cannot reach recipe sites
+    at all — its egress proxy 403s them — and a runner has open internet.
+    findRecipeNode was LIFTED OUT OF worker/index.js rather than
+    reimplemented, so the probe could not drift from production. The
+    fidelity gap that leaves — a site could allow GitHub and block
+    Cloudflare — closes for free: deploy-worker.yml already curls the LIVE
+    Worker after deploying and greps for "ok":true, so production confirms
+    the list on the way in.
 
-    HOW TO ADD ONE, and the only part that is not free: VERIFY IT LIVE
-    FIRST. Deploy worker/index.js under a throwaway name with the
-    candidate added, fetch a real recipe URL from it, and confirm
-    `"source":"jsonld"` with a sane ingredient count. Do not add a host
-    because it looks like a food blog. Three of this feature's four traps
-    were found only by printing what a real page actually served, and one
-    of them (recipeYield being a meatball count) would have mis-scaled a
-    shopping list silently.
-    Both www and bare forms of a host resolve to the same entry, so it
-    does not matter which spelling goes in the list.
+    ADDED (6), each serving a Recipe node with a non-empty recipeIngredient:
+      juliasalbum.com, loveandlemons.com, halfbakedharvest.com,
+      sallysbakingaddiction.com, foodiecrush.com, iowagirleats.com.
+    That is 22 hosts. Two of the six came from the owner's OWN catalog.
 
-    TWO KNOWN EXCLUSIONS, one permanent and one not:
-      allrecipes.com AND ITS DOTDASH MEREDITH SIBLINGS — settled, do not
-        retry. The 402/403 body names contentlicensing@people.inc: they
-        are selling this access, so no user agent, header or IP is the
-        answer. Paste-the-page is the route there, forever.
-      damndelicious.net — a plain 403 with no JSON-LD reachable, and NOT a
-        known licensing wall: it is independently owned, so this is more
-        likely generic bot protection. Never investigated. Worth one look
-        if somebody actually wants that site, since a different user agent
-        or a fetch with more browser-like headers might simply work — that
-        is a guess, and it has not been tested.
+    REFUSED, ALL DOTDASH MEREDITH: eatingwell.com, allrecipes.com,
+    simplyrecipes.com, seriouseats.com — HTTP 402 with a 612-byte body, on
+    the HOMEPAGE, before any recipe was reached. Consistent with the
+    licensing wall already recorded against allrecipes.
 
-    WHAT WOULD CHANGE THE ANSWER: wanting a recipe from a site that is not
-    on the list. That is the whole trigger, and it needs no other
-    justification — 16 is where a discovery probe happened to stop, not a
-    considered limit. The list exists to stop the Worker being an open
-    fetcher for strangers, not to ration which sites the household may
-    cook from, so growing it costs nothing that matters.
+    A TRUE NEGATIVE: smittenkitchen.com publishes no JSON-LD. 24 real pages
+    walked, twice, none carrying a Recipe node — hand-written HTML rather
+    than a recipe plugin. Pasting its text still works, as it does for any
+    site.
+
+    STILL OPEN: eatyourselfskinny.com, which is IN THE SHIPPED CATALOG (2
+    recipes). UNANSWERED rather than refused — its homepage is JavaScript,
+    so the served HTML carries no links, and its sitemap is not at any of
+    the four paths the probe tried. WHAT WOULD SETTLE IT: one real recipe
+    URL from that site, probed directly.
+
+    THE PROBE WAS WRONG TWICE, AND BOTH TIMES IT LOOKED LIKE A SITE
+    REFUSING US. First it guessed recipe slugs and took six 404s; then it
+    nested the sitemap array inside itself and reported a host as FAILED
+    that had never been asked. WHAT THAT MEANS NEXT TIME: a negative from
+    this probe is worth re-reading before it is believed, because every one
+    of its own bugs presents as a host that does not work. A POSITIVE needs
+    no such doubt — it required a real Recipe node to come back.
+

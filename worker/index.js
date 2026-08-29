@@ -79,6 +79,24 @@ const ALLOWED_HOSTS = new Set([
   "downshiftology.com",
   "natashaskitchen.com",
   "www.spendwithpennies.com",
+  /* SIX ADDED BY ITEM 113'S SECOND PROBE. juliasalbum.com and
+     halfbakedharvest.com came out of the owner's OWN catalog — a link to
+     the first was pasted in real use and refused, which is what prompted
+     this round. The other four are independent food blogs of the same
+     shape as the original sixteen. Every one confirmed serving a Recipe
+     node with a non-empty recipeIngredient, read by the findRecipeNode
+     below rather than by a stand-in parser.
+     NOT ADDED, and why: smittenkitchen.com publishes no JSON-LD at all
+     (24 real pages walked, twice, none carrying a Recipe node — it is
+     hand-written HTML, not a recipe plugin), and eatyourselfskinny.com
+     went UNANSWERED rather than refused, its homepage being JavaScript
+     and its sitemap not at any path the probe knew. */
+  "juliasalbum.com",
+  "www.loveandlemons.com",
+  "www.halfbakedharvest.com",
+  "sallysbakingaddiction.com",
+  "www.foodiecrush.com",
+  "iowagirleats.com",
 ].map(bareHost));
 
 /* A DAILY CAP, PER IP, VIA WORKERS KV — not the account-wide free-tier
