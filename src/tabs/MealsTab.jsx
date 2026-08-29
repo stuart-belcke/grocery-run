@@ -37,9 +37,15 @@ const groupLabel = { fontSize: 12, color: C.faint, flexBasis: "100%" };
 
 const pillTag = {
   fontFamily: fontBody,
-  fontSize: 13,
+  fontSize: 15,
   fontWeight: 500,
-  padding: "14px 12px",
+  /* 50px, comfortably over item 103c's 44px floor rather than sitting on
+     it: these six pills are the most-tapped controls in the form. It costs
+     the meal-type group a second line at 390 (67 -> 130px) — every size
+     above 13px does, measured across 13/14/15/16 — and 15px on this padding
+     is the largest that still leaves the Tags row and its Serves box on ONE
+     line. 16px drops Serves onto its own line as well. */
+  padding: "15px 16px",
   borderRadius: 999,
   cursor: "pointer",
 };

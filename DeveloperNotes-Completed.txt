@@ -2406,6 +2406,13 @@ into the details panel and the name grew.
     so the pills came out at 43 — one under. `🥗 Side` had cleared 44 on the
     same padding, which is what gave it away: its emoji makes the line box
     taller. 14px, measured, not derived.
+    THE PILLS THEN WENT BIGGER STILL, to 15px type on 15/16 padding — 50px,
+    comfortably over the floor rather than sitting on it, because these six
+    are the most-tapped controls in the form. EVERY SIZE ABOVE 13px COSTS
+    THE MEAL-TYPE GROUP A SECOND LINE at 390 (67 -> 130px); that is the
+    price of the size, not a bug to tune away. 13/14/15/16 were all
+    measured, and 15 is the largest that still leaves the Tags row and its
+    Serves box on ONE line — 16px drops Serves onto its own line too.
 
     "Meal type:" WAS A LABEL OVER SIX PILLS AND WRONG ABOUT THREE OF THEM.
     Breakfast / Lunch / Dinner / Dessert are when you eat the thing; Easy
