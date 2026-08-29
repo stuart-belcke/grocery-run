@@ -33,7 +33,18 @@ const pillCount = { minWidth: 26, textAlign: "center", fontWeight: 700, fontVari
    Given its own line all four fit together and the group measures 65px. It
    costs 20px at 320, where the pills wrap either way — worth it, since 390 is
    the width nearly every phone this runs on reports. */
-const groupLabel = { fontSize: 12, color: C.faint, flexBasis: "100%" };
+const groupLabel = {
+  fontSize: 11, fontWeight: 600, letterSpacing: 0.6, textTransform: "uppercase",
+  color: C.faint, flexBasis: "100%", marginBottom: 2,
+};
+/* FOUR GROUPS, FOUR HAIRLINES. The form is one unbroken column of rounded
+   boxes — name, link, pills, ingredient rows, instructions — and at a glance
+   nothing said where one job ended and the next began. A rule plus an
+   uppercase heading is the cheapest thing that draws that line: no nesting,
+   no extra cards, no height beyond the 12px above each rule. Deliberately
+   C.line rather than anything stronger, because these separate parts of ONE
+   form, not one form from another. */
+const groupRule = { borderTop: `1px solid ${C.line}`, paddingTop: 12, marginTop: 4 };
 
 const pillTag = {
   fontFamily: fontBody,
@@ -900,8 +911,8 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
               the label was wrong about three of six. "Tags" is the app's own
               word for these — the empty state already says "No meals are
               tagged ⚡ Easy yet". */}
-          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
-            <span style={groupLabel}>Meal type:</span>
+          <div style={{ ...groupRule, display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
+            <span style={groupLabel}>Meal type</span>
             {MEAL_TYPES.map((t) => {
               const on = draft.mealTypes.includes(t);
               return (
@@ -922,7 +933,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
             })}
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
-            <span style={groupLabel}>Tags:</span>
+            <span style={groupLabel}>Tags</span>
             <button
               onClick={() => setDraft({ ...draft, easy: !draft.easy })}
               aria-pressed={draft.easy}
@@ -960,6 +971,9 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                 style={{ ...inputStyle, width: 58, padding: "12px 8px" }}
               />
             </label>
+          </div>
+          <div style={{ ...groupRule, marginBottom: 8 }}>
+            <span style={{ ...groupLabel, display: "block" }}>Ingredients</span>
           </div>
           {draft.ingredients.map((ing, i) => {
             const sugOpen = ingSug?.row === i;
@@ -1146,6 +1160,9 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
           <Btn small onClick={() => setDraft({ ...draft, ingredients: [...draft.ingredients, { name: "", qty: "1", unit: "", note: "" }] })} style={{ marginBottom: 10 }}>
             + Ingredient
           </Btn>
+          <div style={{ ...groupRule, marginBottom: 8 }}>
+            <span style={{ ...groupLabel, display: "block" }}>Instructions</span>
+          </div>
           <textarea
             placeholder="Cooking instructions / notes (optional)"
             value={draft.notes}

@@ -2444,6 +2444,18 @@ into the details panel and the name grew.
     content, which fits the longest quantity in the shipped catalog
     ("0.125") and the widest thing typed by hand, "1 1/2", at 41px.
 
+    FOUR GROUPS, FOUR HAIRLINES, because the form was one unbroken column
+    of rounded boxes — name, link, pills, ingredient rows, instructions —
+    and nothing said where one job ended and the next began. A rule plus an
+    uppercase heading is the cheapest thing that draws that line: no
+    nesting, no extra cards, no height beyond the 12px above each rule.
+    C.line rather than anything stronger, deliberately: these separate
+    parts of ONE form, not one form from another. INGREDIENTS and
+    INSTRUCTIONS gained headings they never had — their placeholders named
+    them, but a placeholder disappears the moment you type. Tags sits under
+    the meal-type rule rather than getting its own, because both are the
+    same job: classifying the dish. Costs 158px at 390 (667 -> 825).
+
     FINAL, BOTH WIDTHS: 0 tap targets under 44px (was 14), 0 clipped text,
     0 contrast failures, no horizontal overflow. The 390px card got
     SHORTER despite everything growing — 729 -> 667px — because the two
