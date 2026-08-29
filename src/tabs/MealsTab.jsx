@@ -1126,11 +1126,19 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                  jargon for an ingredient used at two points in the method,
                  which is not what most people will read it as.
                  "e.g." rather than "Ex." because the app already says it that
-                 way — Onboarding's "e.g. Our Household". The em dash the
-                 first rewrite used cost 16px the 320px width did not have:
-                 "Optional — e.g. diced, drained" measures 244 against 236 of
-                 room, the comma form 228. */
-              placeholder="Optional, e.g. diced, drained"
+                 way — Onboarding's "e.g. Our Household", and it says outright
+                 that these ARE examples rather than leaving it to be inferred.
+                 The parentheses do what quotes around the examples would have
+                 done, without the risk that someone types the quotes.
+                 IT NAMES THE FIELD, which no earlier wording did: under an
+                 ingredient row this is an unlabelled full-width box, and its
+                 purpose had to be inferred from the examples. "Optional" was
+                 what paid for the word — "Optional notes (e.g. diced,
+                 drained)" lands within a few px of the 236 available at 320,
+                 and neither Qty nor Unit in the same row marks itself
+                 optional either. The parenthesised examples already read as
+                 suggestions rather than a requirement. */
+              placeholder="Notes (e.g. diced, drained)"
               aria-label="Ingredient note"
               value={ing.note || ""}
               onChange={(e) => {

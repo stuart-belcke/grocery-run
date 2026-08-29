@@ -2462,14 +2462,24 @@ into the details panel and the name grew.
     it; and the trailing "(optional)" joined the comma list, so the last
     example read as "divided (optional)". "divided" went too — recipe
     jargon for an ingredient used at two points in the method, which is
-    not what most people will read it as. Now "Optional, e.g. diced,
-    drained" — all prep, "optional" leading so it cannot join the list, and
-    "e.g." saying outright that these ARE examples rather than leaving the
-    reader to infer it. "e.g." not "Ex." because the app already says it
-    that way, in Onboarding's "e.g. Our Household". 186px against 236 of
-    room at 320.
-    THE EM DASH COST 16px THE 320 WIDTH DID NOT HAVE: "Optional — e.g.
-    diced, drained" measures 244 against 236, the comma form 228.
+    not what most people will read it as. Now "Notes (e.g. diced,
+    drained)" — all prep, and "e.g." saying outright that these ARE
+    examples rather than leaving the reader to infer it. "e.g." not "Ex."
+    because the app already says it that way, in Onboarding's "e.g. Our
+    Household". 174px against 236 of room at 320.
+    IT NAMES THE FIELD, WHICH NO EARLIER WORDING DID. Under an ingredient
+    row this is an unlabelled full-width box, and its purpose had to be
+    inferred from the examples. "Optional" was what paid for the word:
+    "Optional notes (e.g. diced, drained)" lands within a few px of the 236
+    available at 320, and neither Qty nor Unit in the same row marks itself
+    optional either — the parenthesised examples already read as
+    suggestions rather than a requirement.
+    THE PARENTHESES DO WHAT QUOTES AROUND THE EXAMPLES WOULD HAVE DONE,
+    without the risk that someone types the quotes into the field. "e.g.:"
+    was refused for the same class of reason: "e.g." already means "for
+    example", so the colon says it twice.
+    AND THE EM DASH AN EARLIER PASS USED COST 16px THE 320 WIDTH DID NOT
+    HAVE: "Optional — e.g. diced, drained" measured 244 against 236.
     MEASURING THE PLACEHOLDERS FOUND A THIRD, pre-existing: "Cooking
     instructions / notes (optional)" needed 306px against 236 at 320 and
     was simply cut off there. The INSTRUCTIONS heading names that field
