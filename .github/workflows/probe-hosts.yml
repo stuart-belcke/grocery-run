@@ -19,22 +19,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Probe the hosts already present in the shipped catalog
+      - name: Hosts already used by recipes in the shipped catalog
         run: |
           node worker/probe/probe.mjs \
-            "https://juliasalbum.com/chicken-spaghetti-with-burrata/" \
-            "https://eatyourselfskinny.com/healthy-chicken-parmesan/" \
-            "https://www.halfbakedharvest.com/spicy-chipotle-honey-chicken/" \
-            "https://www.eatingwell.com/recipe/250735/green-goddess-salad-with-chicken/" \
-            "https://www.allrecipes.com/recipe/223042/chicken-parmesan/"
-      - name: Probe fresh candidates for the allowlist
+            "https://juliasalbum.com/" \
+            "https://eatyourselfskinny.com/" \
+            "https://www.halfbakedharvest.com/" \
+            "https://www.eatingwell.com/" \
+            "https://www.allrecipes.com/"
+      - name: Fresh candidates for the allowlist
         run: |
           node worker/probe/probe.mjs \
-            "https://www.loveandlemons.com/baked-ziti/" \
-            "https://smittenkitchen.com/2023/01/carrot-cake-with-cream-cheese-frosting/" \
-            "https://www.simplyrecipes.com/recipes/homemade_pizza_dough/" \
-            "https://www.seriouseats.com/the-best-chili-recipe" \
-            "https://sallysbakingaddiction.com/banana-bread/" \
-            "https://www.foodiecrush.com/best-chicken-noodle-soup/" \
-            "https://iowagirleats.com/sheet-pan-chicken-fajitas/" \
-            "https://www.halfbakedharvest.com/"
+            "https://www.loveandlemons.com/" \
+            "https://smittenkitchen.com/" \
+            "https://sallysbakingaddiction.com/" \
+            "https://www.foodiecrush.com/" \
+            "https://iowagirleats.com/" \
+            "https://www.simplyrecipes.com/" \
+            "https://www.seriouseats.com/"
