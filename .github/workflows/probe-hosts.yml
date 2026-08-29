@@ -19,10 +19,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: The three the link-walk could not answer
-        run: |
-          node worker/probe/probe.mjs \
-            "https://eatyourselfskinny.com/" \
-            "https://www.halfbakedharvest.com/" \
-            "https://smittenkitchen.com/" \
-            "https://www.loveandlemons.com/"
+      - name: The last one still unanswered
+        run: node worker/probe/probe.mjs "https://eatyourselfskinny.com/"

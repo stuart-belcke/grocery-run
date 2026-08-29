@@ -56,11 +56,15 @@ async function probe(origin) {
     }
     sitemapLinks = sitemapLinks.filter((u) => { try { return new URL(u).hostname === host && !SKIP.test(u); } catch { return false; } });
 
-    const links = [...new Set(sitemapLinks.length ? sitemapLinks.slice(-25) : [
-      [...html.matchAll(/href=["'](https?:\/\/[^"']+|\/[^"']+)["']/gi)]
-        .map((m) => { try { return new URL(m[1], origin).href; } catch { return null; } })
-        .filter((u) => u && new URL(u).hostname === host && !SKIP.test(u) && !/\.(jpg|png|webp|css|js|xml|svg|ico)($|\?)/i.test(u))
-    ])];
+    const homepageLinks = [...html.matchAll(/href=["'](https?:\/\/[^"']+|\/[^"']+)["']/gi)]
+      .map((m) => { try { return new URL(m[1], origin).href; } catch { return null; } })
+      .filter((u) => u && new URL(u).hostname === host && !SKIP.test(u) && !/\.(jpg|png|webp|css|js|xml|svg|ico)($|\?)/i.test(u));
+
+    // Sitemap first when there is one; otherwise whatever the homepage
+    // served. Both are plain arrays of strings — an earlier version put one
+    // array INSIDE the other and every "link" came out as an array, which
+    // threw and read as a failed host.
+    const links = [...new Set(sitemapLinks.length ? sitemapLinks.slice(-25) : homepageLinks)];
 
     let tried = 0;
     for (const link of links.slice(0, 25)) {
