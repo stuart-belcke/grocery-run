@@ -19,21 +19,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Hosts already used by recipes in the shipped catalog
+      - name: The three the link-walk could not answer
         run: |
           node worker/probe/probe.mjs \
-            "https://juliasalbum.com/" \
             "https://eatyourselfskinny.com/" \
             "https://www.halfbakedharvest.com/" \
-            "https://www.eatingwell.com/" \
-            "https://www.allrecipes.com/"
-      - name: Fresh candidates for the allowlist
-        run: |
-          node worker/probe/probe.mjs \
-            "https://www.loveandlemons.com/" \
             "https://smittenkitchen.com/" \
-            "https://sallysbakingaddiction.com/" \
-            "https://www.foodiecrush.com/" \
-            "https://iowagirleats.com/" \
-            "https://www.simplyrecipes.com/" \
-            "https://www.seriouseats.com/"
+            "https://www.loveandlemons.com/"

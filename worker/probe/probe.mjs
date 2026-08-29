@@ -29,11 +29,38 @@ async function probe(origin) {
     if (!home.ok) return `${host.padEnd(28)} HOMEPAGE HTTP ${home.status} — blocked before any recipe was tried`;
     const html = await home.text();
 
-    const links = [...new Set(
+    // THE HOMEPAGE IS NOT ALWAYS A LIST OF LINKS. loveandlemons and
+    // eatyourselfskinny render theirs with JavaScript, so a regex over the
+    // served HTML found ZERO hrefs and the host came back "no Recipe node"
+    // — indistinguishable from a refusal. The sitemap is the honest source:
+    // every WordPress recipe blog publishes one, and it lists real posts.
+    let sitemapLinks = [];
+    for (const sm of ["/wp-sitemap-posts-post-1.xml", "/sitemap_index.xml", "/sitemap.xml", "/post-sitemap.xml"]) {
+      try {
+        const r = await get(new URL(sm, origin).href);
+        if (!r.ok) continue;
+        const xml = await r.text();
+        const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/gi)].map((m) => m[1].trim());
+        // A sitemap INDEX points at more sitemaps; follow the first post one.
+        if (/<sitemapindex/i.test(xml)) {
+          const child = locs.find((u) => /post|recipe/i.test(u)) || locs[0];
+          if (!child) continue;
+          const r2 = await get(child);
+          if (!r2.ok) continue;
+          sitemapLinks = [...(await r2.text()).matchAll(/<loc>([^<]+)<\/loc>/gi)].map((m) => m[1].trim());
+        } else {
+          sitemapLinks = locs;
+        }
+        if (sitemapLinks.length) break;
+      } catch { /* try the next sitemap path */ }
+    }
+    sitemapLinks = sitemapLinks.filter((u) => { try { return new URL(u).hostname === host && !SKIP.test(u); } catch { return false; } });
+
+    const links = [...new Set(sitemapLinks.length ? sitemapLinks.slice(-25) : [
       [...html.matchAll(/href=["'](https?:\/\/[^"']+|\/[^"']+)["']/gi)]
         .map((m) => { try { return new URL(m[1], origin).href; } catch { return null; } })
         .filter((u) => u && new URL(u).hostname === host && !SKIP.test(u) && !/\.(jpg|png|webp|css|js|xml|svg|ico)($|\?)/i.test(u))
-    )];
+    ])];
 
     let tried = 0;
     for (const link of links.slice(0, 25)) {
