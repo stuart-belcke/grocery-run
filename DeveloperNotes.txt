@@ -211,6 +211,25 @@ file reached 5,886 lines with ten live items in it.
     ITS PADDING IS 15px, NOT 13, for the third time in this item: a 13px
     font's line box is 15px, so 13 gives 41 and not 44.
 
+    AN EMPTY NOTE FOLDS BACK WHEN YOU LEAVE IT. Opening "+ Note" and
+    changing your mind should cost nothing; without this, every row tapped
+    by accident keeps 49px of blank field for the rest of the session and
+    the saving above leaks away one mistap at a time. A note with content
+    is untouched — it renders from what is IN it, not from the reveal
+    list, so blurring cannot collapse it. Mutation-tested.
+
+    THE ZOOM WAS RECONSIDERED AND KEPT FIXED. The owner's read was that it
+    "might be okay, it zooms back out when you navigate away" — which is
+    the problem rather than the reassurance: it does not reliably unzoom on
+    BLUR, so moving between fields leaves the page wider than the screen
+    until you leave the tab or pinch out by hand. It also zooms the PAGE,
+    not the field, and the note is the one place you are checking what the
+    parser guessed. The deciding argument is the one already in
+    screenreader.spec.mjs: a small field put back brings zoom-on-focus with
+    it, and someone then "fixes" that by restoring index.html's
+    maximum-scale=1, which is how pinch-zoom was taken from every Android
+    user in the first place.
+
     THE NOTE FIELD HAS BEEN ZOOMING iOS SINCE THE DAY IT WAS ADDED, and
     the test that exists to prevent exactly that never saw it. Reported as
     "clicking + Note zooms in" — autoFocus made a long-standing bug

@@ -1282,6 +1282,14 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                   setDraft({ ...draft, ingredients: list });
                 }}
                 autoFocus={noteOpen.includes(i) && !ing.note}
+                /* LEAVE IT EMPTY AND IT FOLDS BACK. Opening "+ Note" and
+                   changing your mind should cost nothing — otherwise every
+                   row you tapped by accident keeps 49px of blank field for
+                   the rest of the session, and the saving this was built for
+                   leaks away one mistap at a time. A note with anything in
+                   it is not affected: that one renders from its CONTENT, not
+                   from this list, so it cannot be collapsed by blurring. */
+                onBlur={() => { if (!ing.note) setNoteOpen((v) => v.filter((x) => x !== i)); }}
                 /* 16px, NOT 13, AND NOT A LOOK — theme.js spells out why: iOS
                    Safari zooms the whole page whenever a focused field's
                    computed size is under 16, and index.html used to "fix"

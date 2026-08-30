@@ -214,3 +214,35 @@ test("the cooking steps come out numbered, one per line", async () => {
     await page.done();
   }
 });
+
+/* OPENED BY MISTAKE COSTS NOTHING (item 116). "+ Note" reveals a field; if
+   you leave it without typing, it folds back. Otherwise every row tapped by
+   accident keeps 49px of blank field for the rest of the session and the
+   saving leaks away one mistap at a time. A note with CONTENT is unaffected
+   — it renders because it has something in it, not because it was asked
+   for, so blurring cannot collapse it. */
+test("an empty note folds back when you leave it, a filled one stays", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await newDraft(page);
+    await page.getByPlaceholder("Ingredient", { exact: true }).first().fill("Onion");
+
+    await openNote(page);
+    assert.equal(await page.getByLabel("Ingredient note").count(), 1);
+    // Away without typing.
+    await page.getByPlaceholder("Ingredient", { exact: true }).first().click();
+    await page.waitForTimeout(200);
+    assert.equal(await page.getByLabel("Ingredient note").count(), 0, "an empty note should fold back");
+    assert.equal(await page.getByRole("button", { name: /^\+ Note$/ }).count(), 1);
+
+    // Now with something in it — leaving must NOT take it away.
+    await openNote(page);
+    await page.getByLabel("Ingredient note").first().fill("diced");
+    await page.getByPlaceholder("Ingredient", { exact: true }).first().click();
+    await page.waitForTimeout(200);
+    assert.deepEqual(await noteInputs(page), ["diced"]);
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
