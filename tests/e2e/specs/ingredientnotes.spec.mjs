@@ -42,7 +42,19 @@ const pasteInto = async (page, text) => {
   await page.waitForTimeout(300);
 };
 
+/* AN EMPTY NOTE IS NOT ON SCREEN ANY MORE (item 116) — it folds into a
+   "+ Note" beside the quantity, because three lines of fields per ingredient
+   with two of them blank was 147px of nothing on a six-ingredient recipe. A
+   note that HAS something in it still always renders, which is the whole of
+   the original rule: the parser writes this field, so what it guessed has to
+   be visible without hunting. So a test reading notes reads what is SHOWN,
+   and a test TYPING one has to ask for the field first. */
 const noteInputs = (page) => page.getByLabel("Ingredient note").evaluateAll((els) => els.map((e) => e.value));
+
+const openNote = async (page, n = 0) => {
+  const add = page.getByRole("button", { name: /^\+ Note$/ });
+  if (await add.count() > n) await add.nth(n).click();
+};
 
 const saveMeal = async (page) => {
   await page.getByRole("button", { name: /^Save meal$/ }).click();
@@ -68,7 +80,14 @@ test("a pasted modifier lands in the note field, not in the ingredient's name", 
       await page.getByPlaceholder("Ingredient", { exact: true }).evaluateAll((els) => els.map((e) => e.value)),
       ["Large onion", "Crushed tomatoes", "Carrots"]
     );
-    assert.deepEqual(await noteInputs(page), ["diced", "14.5 oz", ""]);
+    /* TWO NOTES SHOWN, NOT THREE. "Carrots" carries no modifier, so its
+       note folds into a "+ Note" (item 116) — the field is rendered by
+       having CONTENT, which is exactly the case the parser creates. The
+       saved-recipe assertion below still expects note:"" on that row, and
+       that is the point: what is on screen changed, what is stored did not. */
+    assert.deepEqual(await noteInputs(page), ["diced", "14.5 oz"]);
+    assert.equal(await page.getByRole("button", { name: /^\+ Note$/ }).count(), 1,
+      "the row with no modifier should offer to add one");
 
     await saveMeal(page);
     await page.roundTrip();
@@ -92,6 +111,7 @@ test("a note typed by hand survives the save and the reload", async () => {
     await newDraft(page);
     await page.getByPlaceholder("Meal name").fill("Beans on toast");
     await page.getByPlaceholder("Ingredient", { exact: true }).first().fill("Butter beans");
+    await openNote(page);
     await page.getByLabel("Ingredient note").first().fill("rinsed");
     await saveMeal(page);
     await page.roundTrip();
@@ -112,6 +132,7 @@ test("re-opening a saved recipe shows the note back, and clearing it removes it"
     await newDraft(page);
     await page.getByPlaceholder("Meal name").fill("Soup");
     await page.getByPlaceholder("Ingredient", { exact: true }).first().fill("Stock");
+    await openNote(page);
     await page.getByLabel("Ingredient note").first().fill("low sodium");
     await saveMeal(page);
     await page.roundTrip();

@@ -164,6 +164,16 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
      useState, not useSticky: this is part of a draft, which is work in
      progress and asks again from scratch (see ui.jsx). */
   const [fieldsOpen, setFieldsOpen] = useState(false);
+  /* WHICH EMPTY NOTES HAVE BEEN ASKED FOR, by row index. A note that HAS
+     something in it always renders — that was the original reason this field
+     was not behind a toggle, and it still holds: the parser writes it, so
+     what it guessed has to be visible without hunting. An EMPTY one is 53px
+     of nothing per ingredient, which on a six-ingredient recipe is most of a
+     phone screen spent on boxes nobody filled in.
+     Indexed like ingSug above, and cleared wholesale when a row is removed —
+     indices shift, and a revealed note silently jumping to a different
+     ingredient is worse than asking again. */
+  const [noteOpen, setNoteOpen] = useState([]);
   // What a successful parse just filled in, so the card can say so and ask
   // for a review. Cleared whenever the draft is put down or started again.
   const [parsed, setParsed] = useState(null);
@@ -1163,7 +1173,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                   A quantity and its unit are ONE fact, "2 cups", and
                   splitting THEM across the wrap was always the wrong seam to
                   break on. */}
-                <Btn small style={{ minWidth: 44 }} onClick={() => setDraft({ ...draft, ingredients: draft.ingredients.filter((_, j) => j !== i) })} title="Remove ingredient">✕</Btn>
+                <Btn small style={{ minWidth: 44 }} onClick={() => { setNoteOpen([]); setDraft({ ...draft, ingredients: draft.ingredients.filter((_, j) => j !== i) }); }} title="Remove ingredient">✕</Btn>
                 {/* QTY AND UNIT WRAP AS A PAIR, in a flex item of their own, rather
                   than as two things that happen to sit next to each other.
                   Tuning the name's basis so the break landed in the right
@@ -1204,13 +1214,34 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                     wrapStyle={{ width: 70, flexShrink: 0 }}
                     style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
                   />
+                  {/* "+ NOTE" RIDES IN THIS GROUP RATHER THAN TAKING A LINE
+                      OF ITS OWN, and that is the whole saving. On its own
+                      line it measured 45px — the tap-target floor says it
+                      cannot be shorter — replacing a 45px input, so folding
+                      the empty note away bought FOUR PIXELS per ingredient
+                      and was not worth doing. Here it costs nothing: the row
+                      drops from three lines to two whenever the note is
+                      empty, which is most of them on a parsed recipe. */}
+                  {!(ing.note || noteOpen.includes(i)) && (
+                    <button
+                        type="button"
+                        onClick={() => setNoteOpen((v) => [...v, i])}
+                        style={{ padding: "15px 8px", background: "transparent", border: "none", color: C.faint, cursor: "pointer", fontFamily: fontBody, fontSize: 13, whiteSpace: "nowrap" }}
+                    >
+                        + Note
+                    </button>
+                  )}
                 </div>
                 
               </div>
-              {/* Its own line, and always visible rather than behind a toggle:
-                  the parser writes this field, so it has to be somewhere you can
-                  see what it guessed and correct it. It is deliberately NOT part
-                  of the name — the name is what the shopping list groups by. */}
+              {/* ITS OWN LINE, AND SHOWN WHENEVER IT HAS ANYTHING IN IT.
+                  That is the whole of the original rule — the parser writes
+                  this field, so what it guessed must be visible without
+                  hunting for it — and a filled note still always renders.
+                  What folds away is the EMPTY one, 53px of nothing per
+                  ingredient. It is deliberately NOT part of the name: the
+                  name is what the shopping list groups by. */}
+              {(ing.note || noteOpen.includes(i)) ? (
               <input
                 /* THE EXAMPLES ARE ALL PREP, and "optional" leads rather than
                    trails. The old text read "Note — diced, 15 oz, divided
@@ -1242,8 +1273,10 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                   list[i] = { ...ing, note: e.target.value };
                   setDraft({ ...draft, ingredients: list });
                 }}
+                autoFocus={noteOpen.includes(i) && !ing.note}
                 style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginTop: 4, fontSize: 13, padding: "14px 10px" }}
               />
+              ) : null}
               {splitPair && (
                 <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 4, fontSize: 12, color: C.faint }}>
                   <span>Two ingredients?</span>

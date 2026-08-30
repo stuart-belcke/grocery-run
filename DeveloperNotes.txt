@@ -195,6 +195,22 @@ file reached 5,886 lines with ten live items in it.
        reason, because the RICE row legitimately offers Brown rice and
        Jasmine rice. The assertion names the two destructive chips instead.
 
+    AN EMPTY NOTE FOLDS AWAY — 147px SAVED ON A SIX-INGREDIENT RECIPE
+    (the INGREDIENTS section measured 1128px, now 981). A note that HAS
+    something in it still always renders, so the original rule survives
+    intact: the parser writes this field, and what it guessed must be
+    visible without hunting for it. Only the blank ones go.
+    THE FIRST ATTEMPT SAVED FOUR PIXELS. "+ Note" on its own line is 45px
+    tall — item 103c's floor says it cannot be shorter — replacing a 45px
+    input, so folding the note away bought almost nothing and would have
+    shipped as a change that felt like an improvement and measured as
+    noise. It only pays once the affordance takes NO line of its own: it
+    rides in the Qty/Unit group, and the row drops from three lines to two.
+    THE MEASUREMENT IS WHAT CAUGHT THAT, not the screenshot — both versions
+    look equally tidy.
+    ITS PADDING IS 15px, NOT 13, for the third time in this item: a 13px
+    font's line box is 15px, so 13 gives 41 and not 44.
+
     SIX e2e SPECS OPEN THESE FIELDS TO TYPE INTO THEM and needed an
     openRecipeFields helper; the Shortcut-import path needed the same
     succeed() landing, which the suite caught as three real failures rather
