@@ -211,6 +211,32 @@ file reached 5,886 lines with ten live items in it.
     ITS PADDING IS 15px, NOT 13, for the third time in this item: a 13px
     font's line box is 15px, so 13 gives 41 and not 44.
 
+    THE INGREDIENT ROW IS TWO DECLARED LINES NOW, AND THE FOURTH ATTEMPT
+    IS THE ONE THAT HOLDS. Three passes tuned a wrapping flex and each one
+    stranded a different control at the width it had not been measured at:
+    a basis of 120 left the remove button alone at 390; 160 moved that onto
+    "lb"; grouping Qty with Unit fixed 390 and left the button alone at 320
+    once "+ Note" joined the line. The row is 294px at 390 and only 202 at
+    320 once the Section's padding and the ingredient block's are out.
+
+    THE REASON EVERY VERSION FAILED SOMEWHERE: with flexWrap on, AN ITEM
+    THAT DOES NOT FIT AT ITS BASIS WRAPS RATHER THAN SHRINKING. At 202px a
+    basis of 160 plus the button's 44 plus the 8px gap is 212 — over by
+    ten — so the button took a line of its own and the name then grew to
+    fill the line it had left. Every "fix" moved the ten pixels somewhere
+    else.
+    NOW: the Qty/Unit group carries flexBasis 100% so it always starts its
+    own line, and the name carries `flex: 1` — basis ZERO, so it cannot
+    push anything off and takes exactly what the button does not need.
+    Nothing to tune, and identical at both widths: the INGREDIENTS section
+    measures 1029px at 390 and 1029 at 320, where it was 981 and 1140.
+    390 pays 48px for that; 320 saves 111 and stops being a different
+    layout.
+    A LAYOUT THAT DIFFERS BY WIDTH IS A LAYOUT WITH A BUG WAITING IN IT —
+    every one of these was found by looking at a screenshot, never by a
+    check, because nothing clipped, nothing overflowed and no tap target
+    ever shrank.
+
     AN EMPTY NOTE FOLDS BACK WHEN YOU LEAVE IT. Opening "+ Note" and
     changing your mind should cost nothing; without this, every row tapped
     by accident keeps 49px of blank field for the rest of the session and

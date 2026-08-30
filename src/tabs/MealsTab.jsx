@@ -1064,24 +1064,24 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
               const pick = (k) => { setIngName(i, k.name); setIngSug(null); };
               return (
               <div key={i} style={{ marginBottom: 8, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 10, padding: 10 }}>
-              {/* WRAPS, and the name's basis decides the SHAPE it wraps into.
-                  Four controls cannot share one line: even at their smallest
-                  (Qty 64, Unit 70, and 44 for the remove button, which is
-                  item 103c's tap floor and cannot go lower) flex crushed the
-                  name to 44px — three characters of "chicken breast".
-                  160, RE-MEASURED AFTER ITEM 116 NARROWED THE ROW. The basis
-                  was 120, tuned when the row was 328px wide; nesting the
-                  fields inside a Section took it to 294, and at 294 a basis
-                  of 120 fits name+qty+unit and STRANDS THE REMOVE BUTTON
-                  ALONE ON A SECOND LINE. That was visible in a screenshot
-                  and invisible to every check there is — nothing clipped,
-                  nothing overflowed, no tap target shrank. 160 wraps 2+2 at
-                  390 (name+qty, then unit+remove) and 1+3 at 320 (the name
-                  full width), and the name gets 222px rather than 144.
-                  Every basis from 80 to 200 was measured at both widths; the
-                  only one-line option clips the name at 92px. */}
+              {/* TWO LINES, DECLARED RATHER THAN WRAPPED INTO. The group below
+                  carries flexBasis 100%, so it always starts a line of its
+                  own; this line holds the name and the remove button at
+                  every width, and the name takes whatever is left.
+                  NO FLEX-BASIS ON THE NAME, and that is the fix rather than
+                  a tidy-up. THREE VERSIONS TUNED ONE and each stranded a
+                  different control at the width it was not measured at:
+                  120 left the remove button alone at 390, 160 moved that
+                  onto "lb", and grouping Qty with Unit fixed 390 and left
+                  the button alone at 320. The reason is that WITH flexWrap
+                  ON, AN ITEM THAT DOES NOT FIT AT ITS BASIS WRAPS INSTEAD OF
+                  SHRINKING — at 320 the row is 202px and 160 + 44 + 8 is
+                  212, over by ten, so the button went to a line of its own
+                  and the name then grew to fill the one it left. `flex: 1`
+                  is basis zero: the name cannot push anything off, and it
+                  ends up with exactly the space the button does not need. */}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <div style={{ position: "relative", flex: "1 1 160px", minWidth: 0 }}>
+                <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
                   <input
                     placeholder="Ingredient"
                     value={ing.name}
@@ -1165,25 +1165,16 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                     </ul>
                   )}
                 </div>
-                {/* THE REMOVE BUTTON SITS WITH THE NAME, and Qty and Unit pair off on
-                  the line below. Ordered name / remove / qty / unit rather
-                  than name / qty / unit / remove, because the row WRAPS and
-                  the old order wrapped it badly — the button ended up alone
-                  on a second line, reading as though it belonged to nothing.
-                  A quantity and its unit are ONE fact, "2 cups", and
-                  splitting THEM across the wrap was always the wrong seam to
-                  break on. */}
+                {/* ON LINE ONE, BESIDE THE NAME. It removes the ingredient, so it
+                    belongs with the thing that names it — and the quantity,
+                    which is what you are most likely to be editing, is a bad
+                    neighbour for a destructive control. */}
                 <Btn small style={{ minWidth: 44 }} onClick={() => { setNoteOpen([]); setDraft({ ...draft, ingredients: draft.ingredients.filter((_, j) => j !== i) }); }} title="Remove ingredient">✕</Btn>
-                {/* QTY AND UNIT WRAP AS A PAIR, in a flex item of their own, rather
-                  than as two things that happen to sit next to each other.
-                  Tuning the name's basis so the break landed in the right
-                  place worked until it didn't: at 160 the row put name +
-                  remove + qty on the first line and stranded "lb" alone on
-                  the second — the same defect as before, moved onto a
-                  different control. A group cannot be split by a wrap, so
-                  this holds at any width instead of at the two that were
-                  measured. */}
-                <div style={{ display: "flex", gap: 8 }}>
+                {/* LINE TWO: how much of it. Qty and Unit stay grouped inside
+                    it because "2 cups" is one fact, and "+ Note" rides along
+                    rather than taking a line of its own — which is what
+                    makes folding an empty note save anything at all. */}
+                <div style={{ display: "flex", gap: 8, flexBasis: "100%", marginTop: 8 }}>
                   <input
                     placeholder="Qty"
                     value={ing.qty}
