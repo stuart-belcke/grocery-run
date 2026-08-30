@@ -162,6 +162,24 @@ test("no field is small enough to make iOS zoom the page", async () => {
         const b = page.locator("button").filter({ hasText: re }).first();
         if (await b.count()) { await b.click().catch(() => {}); await page.waitForTimeout(150); }
       }
+      /* AND THE RECIPE EDITOR, WHICH THIS TEST NEVER OPENED. Every field in
+         it was therefore unscanned, and one of them — the ingredient note —
+         sat at 13px from the day it was added, zooming the page on every
+         tap, with this test passing throughout. The editor is only reachable
+         by pressing "Add a meal", and since item 116 its fields are behind a
+         disclosure and its note behind a "+ Note", so all three have to be
+         opened to see anything at all. */
+      const addMeal = page.getByRole("button", { name: /^Add a meal$/ });
+      if (await addMeal.count()) {
+        await addMeal.click();
+        await page.waitForTimeout(200);
+        for (const re of [/^Recipe details/, /^Start from a recipe or link/]) {
+          const b = page.getByRole("button", { name: re }).first();
+          if (await b.count()) { await b.click().catch(() => {}); await page.waitForTimeout(150); }
+        }
+        const addNote = page.getByRole("button", { name: /^\+ Note$/ }).first();
+        if (await addNote.count()) { await addNote.click().catch(() => {}); await page.waitForTimeout(150); }
+      }
       small.push(...await page.evaluate((where) =>
         [...document.querySelectorAll("input, select, textarea")]
           .filter((el) => !["checkbox", "radio", "file", "hidden", "range"].includes(el.type))

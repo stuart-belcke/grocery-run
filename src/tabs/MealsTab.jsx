@@ -1265,7 +1265,15 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                    and neither Qty nor Unit in the same row marks itself
                    optional either. The parenthesised examples already read as
                    suggestions rather than a requirement. */
-                placeholder="Notes (e.g. diced, drained)"
+                /* ONE EXAMPLE, NOT TWO — the field went from 13px to 16px
+                   to stop iOS zooming, and 16px text is wider: "Notes (e.g.
+                   diced, drained)" measures 214px against the 180 this row
+                   has at 320 once the Section's padding is taken out. The
+                   name and the "e.g." are what survive the trim, because
+                   they are what the earlier passes established this
+                   placeholder was FOR: saying what the field is, and saying
+                   outright that what follows is an example. */
+                placeholder="Notes (e.g. diced)"
                 aria-label="Ingredient note"
                 value={ing.note || ""}
                 onChange={(e) => {
@@ -1274,7 +1282,18 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                   setDraft({ ...draft, ingredients: list });
                 }}
                 autoFocus={noteOpen.includes(i) && !ing.note}
-                style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginTop: 4, fontSize: 13, padding: "14px 10px" }}
+                /* 16px, NOT 13, AND NOT A LOOK — theme.js spells out why: iOS
+                   Safari zooms the whole page whenever a focused field's
+                   computed size is under 16, and index.html used to "fix"
+                   that by banning zoom outright, which took pinch-zoom away
+                   from every Android user permanently. This field has been
+                   13px since it was added and has been zooming the page on
+                   every tap; nobody noticed until item 116 gave it autoFocus
+                   and the jump became instant.
+                   screenreader.spec.mjs exists to catch exactly this and did
+                   not, because it never opened the recipe editor — see the
+                   note there. Padding drops to 12 to keep the height it had. */
+                style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginTop: 4, padding: "12px 10px" }}
               />
               ) : null}
               {splitPair && (

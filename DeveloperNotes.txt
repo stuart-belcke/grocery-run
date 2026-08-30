@@ -211,6 +211,33 @@ file reached 5,886 lines with ten live items in it.
     ITS PADDING IS 15px, NOT 13, for the third time in this item: a 13px
     font's line box is 15px, so 13 gives 41 and not 44.
 
+    THE NOTE FIELD HAS BEEN ZOOMING iOS SINCE THE DAY IT WAS ADDED, and
+    the test that exists to prevent exactly that never saw it. Reported as
+    "clicking + Note zooms in" — autoFocus made a long-standing bug
+    instant and therefore visible. The field was 13px; theme.js is explicit
+    that under 16 makes Safari zoom the whole page, and that index.html
+    once "fixed" this by banning zoom outright, taking pinch-zoom from
+    every Android user permanently.
+    WHY screenreader.spec.mjs MISSED IT: it walks the tabs and opens the
+    disclosures it knows about, but IT NEVER PRESSED "Add a meal". Every
+    field in the recipe editor was therefore unscanned — the assertion was
+    real, its reach was not. It opens the editor now, plus both of item
+    116's sections and the "+ Note", and mutation-tests red at 13px.
+    A TEST THAT CANNOT REACH THE FIELD IS NOT PROTECTING IT, which is the
+    same lesson as the placeholder measurement two items up: the editor
+    audit reported "0 clipped text" on a form with a placeholder being cut
+    off, because it walks text nodes and a placeholder is not one.
+
+    THE PLACEHOLDER LOST AN EXAMPLE TO PAY FOR THE FONT SIZE. 16px text is
+    wider: "Notes (e.g. diced, drained)" needs 214px against the 180 the
+    row has at 320 once the Section's padding is out. Now "Notes (e.g.
+    diced)", 143px. The name and the "e.g." are what survive, because they
+    are what this placeholder was established to be FOR.
+    AND THE PLACEHOLDER HARNESS WAS OVER-REPORTING: it compared a
+    TEXTAREA's placeholder against one line of its box, so the paste box
+    and the instructions box both read as cut when a textarea placeholder
+    WRAPS. Inputs only now.
+
     SIX e2e SPECS OPEN THESE FIELDS TO TYPE INTO THEM and needed an
     openRecipeFields helper; the Shortcut-import path needed the same
     succeed() landing, which the suite caught as three real failures rather
