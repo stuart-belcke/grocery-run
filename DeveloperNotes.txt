@@ -1,7 +1,7 @@
 Grocery Run — Roadmap
 =====================
 
-What is still open. Eight items, none of them urgent — this app does its job.
+What is still open. Nine items, none of them urgent — this app does its job.
 
 THE NUMBERS ARE IDs, NOT POSITIONS, AND ARE NEVER REUSED OR REASSIGNED. They
 were allocated chronologically, so a low number here means the item is OLD and
@@ -230,3 +230,4 @@ file reached 5,886 lines with ten live items in it.
     UNDERSTANDING — it can only agree with it. Capture the page, do not tidy
     it, and mutation-test every rule, because a green suite that was going to
     be green anyway is worse than no suite: it feels like evidence.
+

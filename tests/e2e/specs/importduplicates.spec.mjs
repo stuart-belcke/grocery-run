@@ -13,6 +13,16 @@ import assert from "node:assert/strict";
 import { openApp, assertNoPageErrors } from "../harness.mjs";
 import { smallCatalog } from "../fixtures.mjs";
 
+/* The recipe fields sit behind a disclosure now (item 116), so every test
+   that types into them has to open it — "Add a meal" gives you a CHOICE of
+   two ways in rather than the fields outright. An import or a paste opens
+   them by itself, which is why only the manual tests call this. */
+const openRecipeFields = async (page) => {
+  const btn = page.getByRole("button", { name: /^Recipe details/ });
+  if (await btn.getAttribute("aria-expanded") === "false") await btn.click();
+};
+
+
 const BASE = process.env.E2E_BASE_URL;
 
 const storedNames = async (page) => Object.values((await page.readCatalog()).ingredients).map((i) => i.name).sort();
@@ -20,6 +30,7 @@ const storedNames = async (page) => Object.values((await page.readCatalog()).ing
 const newDraftWith = async (page, ingredient) => {
   await page.tab("Recipes");
   await page.getByRole("button", { name: /^Add a meal$/ }).click();
+    await openRecipeFields(page);
   await page.waitForTimeout(300);
   await page.getByPlaceholder("Meal name").fill("Test meal");
   await page.getByPlaceholder("Ingredient", { exact: true }).first().fill(ingredient);
@@ -92,8 +103,9 @@ test("a pasted recipe surfaces the duplicate rather than silently forking the ca
   try {
     await page.tab("Recipes");
     await page.getByRole("button", { name: /^Add a meal$/ }).click();
+    await openRecipeFields(page);
     await page.waitForTimeout(300);
-    await page.getByRole("button", { name: /Paste a recipe to fill this in/ }).click();
+    await page.getByRole("button", { name: /Start from a recipe or link/ }).click();
     await page.getByLabel("Pasted recipe text").fill(["Roast", "Ingredients", "2 lb chicken", "1 cup rice"].join("\n"));
     await page.getByRole("button", { name: /^Parse into fields$/ }).click();
     await page.waitForTimeout(400);

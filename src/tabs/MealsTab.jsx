@@ -5,7 +5,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
-import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop, SuggestInput, SearchField, useSticky, useUnsavedWork } from "../ui";
+import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop, SuggestInput, SearchField, Section, useSticky, useUnsavedWork } from "../ui";
 import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, ingredientNames, normalizeCfg, ingredientMatches, existingIngredientSuggestions, splitSuggestion, unitMatches, ensureIngredientId, asArray, planSlotsFor, parseRecipeText } from "../lib";
 import { fetchRecipeFromUrl } from "../recipeImport";
 import { RecipeDetail } from "../RecipeDetail";
@@ -16,6 +16,50 @@ const pillWrap = { display: "inline-flex", alignItems: "center", gap: 2, backgro
 const pillBtn = { minWidth: 26, height: 26, padding: "0 4px", borderRadius: 999, border: "none", background: "transparent", cursor: "pointer", fontSize: 14, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: fontBody };
 const pillLabel = { fontSize: 12, fontWeight: 600, color: C.faint, padding: "0 2px", whiteSpace: "nowrap" };
 const pillCount = { minWidth: 26, textAlign: "center", fontWeight: 700, fontVariantNumeric: "tabular-nums", fontSize: 14 };
+
+/* The toggle pills in the recipe editor — the four meal types, and the two
+   tags. ONE style object because they are one control shape: three copies of
+   the same nine lines is how they drifted to 27px while everything else was
+   raised to 44 (item 103c). Only the colours differ per pill, so only the
+   colours stay at the call site.
+   14px of vertical padding, not 5. Measured, not derived: a 13px font gives
+   a 15px line box here, so 15 + 28 + 2px of border is 45. The arithmetic
+   guess of 13px came out at 43 — a pixel under the floor, which is exactly
+   the kind of miss that only a measurement catches. */
+/* The group label takes a LINE OF ITS OWN (flexBasis 100% inside the
+   wrapping row), rather than sitting inline as the first item. Inline, the
+   label ate 130px of the first line and stranded "Dessert" alone on a second
+   one: measured at 390, the meal-type group was 98px tall as 3 pills + 1.
+   Given its own line all four fit together and the group measures 65px. It
+   costs 20px at 320, where the pills wrap either way — worth it, since 390 is
+   the width nearly every phone this runs on reports. */
+const groupLabel = {
+  fontSize: 11, fontWeight: 600, letterSpacing: 0.6, textTransform: "uppercase",
+  color: C.faint, flexBasis: "100%", marginBottom: 2,
+};
+/* FOUR GROUPS, FOUR HAIRLINES. The form is one unbroken column of rounded
+   boxes — name, link, pills, ingredient rows, instructions — and at a glance
+   nothing said where one job ended and the next began. A rule plus an
+   uppercase heading is the cheapest thing that draws that line: no nesting,
+   no extra cards, no height beyond the 12px above each rule. Deliberately
+   C.line rather than anything stronger, because these separate parts of ONE
+   form, not one form from another. */
+const groupRule = { borderTop: `1px solid ${C.line}`, paddingTop: 12, marginTop: 4 };
+
+const pillTag = {
+  fontFamily: fontBody,
+  fontSize: 15,
+  fontWeight: 500,
+  /* 50px, comfortably over item 103c's 44px floor rather than sitting on
+     it: these six pills are the most-tapped controls in the form. It costs
+     the meal-type group a second line at 390 (67 -> 130px) — every size
+     above 13px does, measured across 13/14/15/16 — and 15px on this padding
+     is the largest that still leaves the Tags row and its Serves box on ONE
+     line. 16px drops Serves onto its own line as well. */
+  padding: "15px 16px",
+  borderRadius: 999,
+  cursor: "pointer",
+};
 
 /* PROTOTYPE A — the week-plan picker, as a dialog rather than two <select>s
    swapped into the card's own row.
@@ -112,6 +156,27 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
      a tab switch and surviving a reload are different questions. */
   const [mults, setMults] = useSticky("meals.mults", {});
   const [pasteOpen, setPasteOpen] = useState(false); // paste-a-recipe panel shown in the draft editor
+  /* WHICH OF THE TWO WAYS IN YOU ARE USING (item 116). Both start closed on
+     a NEW recipe, so "Add a meal" opens a short card offering a choice
+     rather than a screen and a half of empty fields with the fast path
+     buried one line above them. EDITING an existing recipe opens the fields
+     outright — there is nothing to choose, you came to change something.
+     useState, not useSticky: this is part of a draft, which is work in
+     progress and asks again from scratch (see ui.jsx). */
+  const [fieldsOpen, setFieldsOpen] = useState(false);
+  /* WHICH EMPTY NOTES HAVE BEEN ASKED FOR, by row index. A note that HAS
+     something in it always renders — that was the original reason this field
+     was not behind a toggle, and it still holds: the parser writes it, so
+     what it guessed has to be visible without hunting. An EMPTY one is 53px
+     of nothing per ingredient, which on a six-ingredient recipe is most of a
+     phone screen spent on boxes nobody filled in.
+     Indexed like ingSug above, and cleared wholesale when a row is removed —
+     indices shift, and a revealed note silently jumping to a different
+     ingredient is worse than asking again. */
+  const [noteOpen, setNoteOpen] = useState([]);
+  // What a successful parse just filled in, so the card can say so and ask
+  // for a review. Cleared whenever the draft is put down or started again.
+  const [parsed, setParsed] = useState(null);
   const [pasteText, setPasteText] = useState("");
   /* What a Shortcut handed over and how much of it survived the trip, or
      null. Held separately from the draft because it outlives one: it is the
@@ -182,9 +247,15 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
   const blankDraft = () => ({ id: null, name: "", mealTypes: [], easy: false, side: false, servings: "4", source: "", notes: "", ingredients: [{ name: "", qty: "1", unit: "", note: "" }] });
   const startNew = () => {
     setDraft(blankDraft());
+    setFieldsOpen(false);
+    setParsed(null);
     closePaste();
   };
   const startEdit = (r) => {
+    // Straight to the fields: an existing recipe has nothing to choose
+    // between, and a collapsed form would hide the thing you came to change.
+    setFieldsOpen(true);
+    setParsed(null);
     setDraft({
       id: r.id,
       name: r.name,
@@ -232,18 +303,35 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
   // blank starting ingredient row (name "" / qty "1" / unit "") is the one
   // exception: it's what every new draft starts with, so a paste replaces it
   // outright instead of leaving it as a stray blank row.
+  /* THE HAND-OFF FROM PARSING TO REVIEWING, and it is one function because
+     both routes in — a pasted recipe and a fetched link — have to end the
+     same way. Closes the panel that has done its job (leaving it open pushes
+     the thing being reviewed off-screen), opens the fields, and says what it
+     managed. The COUNT is the honest part: "12 ingredients" is checkable at
+     a glance in a way that "success" is not, and a parse that found two is
+     supposed to look wrong. */
+  const succeed = (p) => {
+    setParsed({ name: (p && p.name) || "", count: ((p && p.ingredients) || []).length });
+    setFieldsOpen(true);
+    closePaste();
+  };
+
   const applyParsedRecipe = async () => {
     const text = pasteText;
     if (!isBareUrl(text)) {
-      setDraft((d) => fillDraft(d, parseRecipeText(text)));
-      closePaste();
+      const p = parseRecipeText(text);
+      setDraft((d) => fillDraft(d, p));
+      succeed(p);
       return;
     }
     const url = text.trim();
     setUrlImportState("loading");
     const result = await fetchRecipeFromUrl(url);
     if (!result.ok) {
-      setUrlImportState({ reason: result.reason });
+      // `host` too, not just the reason: a "site_blocked" message names the
+      // site, and this line dropping it would silently fall back to "That
+      // site" forever with nothing failing to say so.
+      setUrlImportState({ reason: result.reason, host: result.host });
       return;
     }
     // The URL itself IS the source, so it's worth saving even though
@@ -257,7 +345,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
     // is not.
     setImportWarning(result.source === "text" ? { unverifiedSite: true } : null);
     setUrlImportState(null);
-    closePaste();
+    succeed(result.parsed);
   };
 
   /* A recipe handed over by a Shortcut opens the editor already filled in
@@ -280,8 +368,14 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
       setImportWarning({ guest: true });
       return;
     }
-    setDraft(fillDraft(blankDraft(), parseRecipeText(pendingImport.text)));
-    closePaste();
+    /* THE SAME LANDING AS A PASTE, through the same succeed(). A Shortcut
+       import arrives already parsed and already filled, so leaving the
+       fields collapsed would hand someone a card that claims to hold a
+       recipe and shows none of it — and it needs the review prompt at
+       least as much as a paste does, since nobody watched this one happen. */
+    const p = parseRecipeText(pendingImport.text);
+    setDraft(fillDraft(blankDraft(), p));
+    succeed(p);
     setImportWarning(pendingImport.truncated ? { declared: pendingImport.declared, got: pendingImport.text.length } : null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingImport]);
@@ -798,19 +892,34 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
       )}
 
       {draft && (
-        <div style={{ background: C.card, border: `1px solid ${C.green}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
-          {!pasteOpen ? (
-            <button
-              onClick={() => setPasteOpen(true)}
-              style={{ display: "block", fontFamily: fontBody, fontSize: 12, fontWeight: 500, padding: "4px 10px", borderRadius: 999, cursor: "pointer", border: `1px solid ${C.line}`, background: "transparent", color: C.faint, marginBottom: 10 }}
-            >
-              📋 Paste a recipe to fill this in
-            </button>
-          ) : (
-            <div style={{ border: `1px dashed ${C.line}`, borderRadius: 8, padding: 10, marginBottom: 12 }}>
-              <p style={{ margin: "0 0 6px", fontSize: 13, color: C.faint }}>
-                Fills in the fields below from a recipe you copied — or paste a link to one and it's fetched for you. Check them before saving.
-              </p>
+        /* A FRAME, NOT A CARD. This used to be a white card with 16px of padding
+             wrapped around two Sections that are themselves white cards with
+             16px of padding — the same job done twice, charged twice. At 320
+             the ingredient row had 202px of the screen's 320 left by the time
+             it got through page, card, Section and block padding.
+             The green border stays, because it is the only thing saying "you
+             are editing a draft"; the background and most of the padding go,
+             since the Sections supply both. */
+          <div style={{ border: `1px solid ${C.green}`, borderRadius: 12, padding: "8px 6px", marginBottom: 16 }}>
+          {/* TWO WAYS IN, BOTH BEHIND A DISCLOSURE (item 116). The paste
+              panel used to be one line above a screen and a half of empty
+              fields — measured at 831px on a 390 screen, 937 on a 320 — so
+              the fast path for most recipes was a footnote to the slow one.
+              As two collapsed sections the whole choice fits on screen at
+              once, and neither is presented as the afterthought.
+              THE FIELDS SURVIVE BEING COLLAPSED because they are controlled
+              inputs reading from `draft` in this component — not because
+              the disclosure keeps them mounted. It does not. A keepMounted
+              flag was built for exactly that fear and removed once the
+              mutation test passed with and without it. The e2e test stays:
+              it would catch a later refactor that moved draft state down
+              into the section, which is the change that WOULD lose work. */}
+          <Section
+            title="Start from a recipe or link"
+            open={pasteOpen}
+            onToggle={(v) => (v ? setPasteOpen(true) : closePaste())}
+            bodyPadding="0 10px 12px"
+          >
               <textarea
                 placeholder="Paste the whole recipe, or a link to it…"
                 value={pasteText}
@@ -827,292 +936,465 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                 <div role="status" style={{ fontSize: 13, color: C.tomato, marginBottom: 8 }}>
                   {urlImportState.reason === "rate_limited"
                     ? "This network has hit today's import limit — it resets tomorrow. Paste the recipe's text below instead."
+                    : urlImportState.reason === "site_blocked"
+                    ? `${urlImportState.host || "That site"} blocks automatic import — that is the site's choice, not a problem with your link. Copy the recipe's text from the page and paste it here instead.`
                     : urlImportState.reason === "host_not_allowed"
                     ? "That site isn't set up for automatic import yet. Copy the recipe's text from the page and paste it here instead."
+                    : urlImportState.reason === "timeout"
+                    ? "That took too long — some browsers block the fetch, and some networks are just slow. Copy the recipe's text from the page and paste it here instead."
                     : "Couldn't fetch that page. Copy the recipe's text from the page and paste it here instead."}
                 </div>
               )}
+              {/* ONE ACTION HERE, NOT TWO. This row used to carry its own
+                  "Cancel" — and once the panel became a Section (item 116),
+                  the card showed TWO buttons reading "Cancel" a few
+                  centimetres apart: this one dropped the pasted text, the one
+                  at the bottom throws away the whole recipe. Same word,
+                  wildly different consequence, and no way to tell them apart
+                  by looking.
+                  Removing it costs nothing, because the section header
+                  already does exactly what it did: collapsing calls the same
+                  closePaste, clearing the box on the way out. */}
               <div style={{ display: "flex", gap: 8 }}>
                 <div style={{ flex: 1 }} />
-                <Btn small onClick={closePaste}>Cancel</Btn>
                 <Btn small kind="primary" disabled={!pasteText.trim() || urlImportState === "loading"} onClick={applyParsedRecipe}>
                   {urlImportState === "loading" ? "Fetching…" : "Parse into fields"}
                 </Btn>
               </div>
-            </div>
-          )}
-          <input
-            placeholder="Meal name"
-            value={draft.name}
-            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-            style={{ ...inputStyle, width: "100%", boxSizing: "border-box", fontSize: 16, fontWeight: 500, marginBottom: 10 }}
-          />
-          {/* ITS OWN FIELD, not a line inside Notes — so a link pasted here
-              renders as a tappable Source section on the card instead of
-              running off the edge of it (see RecipeDetail). type="url" gets
-              the right mobile keyboard; nothing here requires a URL, since a
-              typed citation is a legal source too. */}
-          <input
-            type="url"
-            placeholder="Source / link (optional)"
-            value={draft.source}
-            onChange={(e) => setDraft({ ...draft, source: e.target.value })}
-            style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 10 }}
-          />
-          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 12, color: C.faint }}>Meal type:</span>
-            {MEAL_TYPES.map((t) => {
-              const on = draft.mealTypes.includes(t);
-              return (
-                <button
-                  key={t}
-                  onClick={() => toggleDraftType(t)}
-                  aria-pressed={on}
-                  style={{
-                    fontFamily: fontBody,
-                    fontSize: 13,
-                    fontWeight: 500,
-                    padding: "5px 12px",
-                    borderRadius: 999,
-                    cursor: "pointer",
-                    border: `1px solid ${on ? C.green : C.line}`,
-                    background: on ? C.green : "#fff",
-                    color: on ? "#fff" : C.ink,
-                  }}
-                >
-                  {t}
-                </button>
-              );
-            })}
-            <button
-              onClick={() => setDraft({ ...draft, easy: !draft.easy })}
-              aria-pressed={draft.easy}
-              title="Quick, low-effort meal — for when time and energy are short"
-              style={{
-                fontFamily: fontBody,
-                fontSize: 13,
-                fontWeight: 500,
-                padding: "5px 12px",
-                borderRadius: 999,
-                cursor: "pointer",
-                border: `1px solid ${draft.easy ? C.gold : C.line}`,
-                background: draft.easy ? C.goldSoft : "#fff",
-                color: draft.easy ? C.gold : C.ink,
-              }}
-            >
-              ⚡ Easy
-            </button>
-            <button
-              onClick={() => setDraft({ ...draft, side: !draft.side })}
-              aria-pressed={draft.side}
-              title="Typically served as a side dish, not the main — surfaces first when picking a side for a week-plan slot"
-              style={{
-                fontFamily: fontBody,
-                fontSize: 13,
-                fontWeight: 500,
-                padding: "5px 12px",
-                borderRadius: 999,
-                cursor: "pointer",
-                border: `1px solid ${draft.side ? C.green : C.line}`,
-                background: draft.side ? C.greenSoft : "#fff",
-                color: draft.side ? C.green : C.ink,
-              }}
-            >
-              🥗 Side
-            </button>
-            <span style={{ flex: 1 }} />
-            <label style={{ fontSize: 12, color: C.faint, display: "flex", alignItems: "center", gap: 6 }}>
-              Serves
-              <input
-                type="number"
-                min="1"
-                value={draft.servings}
-                onChange={(e) => setDraft({ ...draft, servings: e.target.value })}
-                style={{ ...inputStyle, width: 58, padding: "5px 8px" }}
-              />
-            </label>
-          </div>
-          {draft.ingredients.map((ing, i) => {
-            const sugOpen = ingSug?.row === i;
-            const matches = sugOpen ? ingMatches(ing.name) : [];
-            const showList = sugOpen && matches.length > 0;
-            const dupes = ingDuplicates(ing.name);
-            const splitPair = ingSplit(ing.name);
-            const pick = (k) => { setIngName(i, k.name); setIngSug(null); };
-            return (
-            <div key={i} style={{ marginBottom: 8 }}>
-            <div style={{ display: "flex", gap: 8 }}>
-              <div style={{ position: "relative", flex: 2, minWidth: 0 }}>
-                <input
-                  placeholder="Ingredient"
-                  value={ing.name}
-                  onChange={(e) => {
-                    setIngName(i, e.target.value);
-                    setIngSug({ row: i, idx: -1 });
-                  }}
-                  onFocus={() => setIngSug({ row: i, idx: -1 })}
-                  onBlur={() => setIngSug((s) => (s?.row === i ? null : s))}
-                  onKeyDown={(e) => {
-                    if (showList && e.key === "ArrowDown") {
-                      e.preventDefault();
-                      setIngSug({ row: i, idx: Math.min((ingSug.idx ?? -1) + 1, matches.length - 1) });
-                    } else if (showList && e.key === "ArrowUp") {
-                      e.preventDefault();
-                      setIngSug({ row: i, idx: Math.max((ingSug.idx ?? -1) - 1, -1) });
-                    } else if (e.key === "Enter" && showList && ingSug.idx >= 0) {
-                      e.preventDefault();
-                      pick(matches[ingSug.idx]);
-                    } else if (e.key === "Escape") {
-                      setIngSug(null);
-                    }
-                  }}
-                  role="combobox"
-                  aria-expanded={showList}
-                  aria-autocomplete="list"
-                  style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
-                />
-                {showList && (
-                  <ul
-                    role="listbox"
+          </Section>
+          <Section
+            title="Recipe details"
+            aside={parsed ? <span style={{ fontSize: 12, color: C.green, fontWeight: 600 }}>filled in</span> : null}
+            open={fieldsOpen}
+            onToggle={setFieldsOpen}
+            bodyPadding="0 10px 12px"
+          >
+            {/* SAID HERE, NOT IN THE PASTE PANEL, because here is where the
+                thing being checked actually is. The old wording lived above
+                the fields and fired before anything had happened ("Fills in
+                the fields below... Check them before saving"), which made it
+                an instruction you read and forgot. This is a result: it
+                names what was found, counts what it found, and asks for the
+                one thing that matters. role="status" so it is announced
+                rather than silently appearing under a screen reader. */}
+            {parsed && (
+              <div role="status" style={{ background: C.greenSoft, border: `1px solid ${C.green}`, borderRadius: 8, padding: "10px 12px", marginBottom: 12, fontSize: 13, color: C.ink }}>
+                <strong>Filled in{parsed.name ? ` “${parsed.name}”` : ""}</strong>
+                {parsed.count > 0 ? ` — ${parsed.count} ingredient${parsed.count === 1 ? "" : "s"}.` : " — no ingredients found."}
+                {" Please review it before saving."}
+              </div>
+            )}
+            <input
+              placeholder="Meal name"
+              value={draft.name}
+              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+              style={{ ...inputStyle, width: "100%", boxSizing: "border-box", fontSize: 16, fontWeight: 500, marginBottom: 10 }}
+            />
+            {/* ITS OWN FIELD, not a line inside Notes — so a link pasted here
+                renders as a tappable Source section on the card instead of
+                running off the edge of it (see RecipeDetail). type="url" gets
+                the right mobile keyboard; nothing here requires a URL, since a
+                typed citation is a legal source too. */}
+            <input
+              type="url"
+              placeholder="Source / link (optional)"
+              value={draft.source}
+              onChange={(e) => setDraft({ ...draft, source: e.target.value })}
+              style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginBottom: 10 }}
+            />
+            {/* TWO GROUPS, TWO LABELS — they used to be one row under a single
+                "Meal type:" label, which was untrue of half of it: Breakfast /
+                Lunch / Dinner / Dessert are when you eat the thing, while Easy
+                and Side are properties of the dish. Unselected they render as
+                identical pills, so nothing but the label distinguished them and
+                the label was wrong about three of six. "Tags" is the app's own
+                word for these — the empty state already says "No meals are
+                tagged ⚡ Easy yet". */}
+            <div style={{ ...groupRule, display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
+              <span style={groupLabel}>Meal type</span>
+              {MEAL_TYPES.map((t) => {
+                const on = draft.mealTypes.includes(t);
+                return (
+                  <button
+                    key={t}
+                    onClick={() => toggleDraftType(t)}
+                    aria-pressed={on}
                     style={{
-                      position: "absolute",
-                      zIndex: 20,
-                      top: "calc(100% + 4px)",
-                      left: 0,
-                      right: 0,
-                      listStyle: "none",
-                      margin: 0,
-                      padding: 4,
-                      background: C.card,
-                      border: `1px solid ${C.line}`,
-                      borderRadius: 8,
-                      boxShadow: "0 6px 20px rgba(0,0,0,0.12)",
-                      maxHeight: 240,
-                      overflowY: "auto",
+                      ...pillTag,
+                      border: `1px solid ${on ? C.green : C.line}`,
+                      background: on ? C.green : "#fff",
+                      color: on ? "#fff" : C.ink,
                     }}
                   >
-                    {matches.map((k, mi) => {
-                      const store = normalizeCfg(data.config[k.key]).store;
-                      const active = mi === ingSug.idx;
-                      return (
-                        <li key={k.key} role="option" aria-selected={active}>
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onMouseEnter={() => setIngSug({ row: i, idx: mi })}
-                            onClick={() => pick(k)}
-                            style={{
-                              display: "flex",
-                              alignItems: "baseline",
-                              gap: 8,
-                              width: "100%",
-                              textAlign: "left",
-                              padding: "8px 10px",
-                              borderRadius: 6,
-                              border: "none",
-                              cursor: "pointer",
-                              background: active ? C.greenSoft : "transparent",
-                              color: C.ink,
-                              fontFamily: fontBody,
-                              fontSize: 14,
-                            }}
-                          >
-                            <span style={{ fontWeight: 500 }}>{k.name}</span>
-                            {store !== UNASSIGNED && <span style={{ marginLeft: "auto", fontSize: 12, color: C.faint }}>{store}</span>}
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
+                    {t}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>
+              <span style={groupLabel}>Tags</span>
+              <button
+                onClick={() => setDraft({ ...draft, easy: !draft.easy })}
+                aria-pressed={draft.easy}
+                title="Quick, low-effort meal — for when time and energy are short"
+                style={{
+                  ...pillTag,
+                  border: `1px solid ${draft.easy ? C.gold : C.line}`,
+                  background: draft.easy ? C.goldSoft : "#fff",
+                  color: draft.easy ? C.gold : C.ink,
+                }}
+              >
+                ⚡ Easy
+              </button>
+              <button
+                onClick={() => setDraft({ ...draft, side: !draft.side })}
+                aria-pressed={draft.side}
+                title="Typically served as a side dish, not the main — surfaces first when picking a side for a week-plan slot"
+                style={{
+                  ...pillTag,
+                  border: `1px solid ${draft.side ? C.green : C.line}`,
+                  background: draft.side ? C.greenSoft : "#fff",
+                  color: draft.side ? C.green : C.ink,
+                }}
+              >
+                🥗 Side
+              </button>
+              <span style={{ flex: 1 }} />
+              <label style={{ fontSize: 12, color: C.faint, display: "flex", alignItems: "center", gap: 6 }}>
+                Serves
+                <input
+                  type="number"
+                  min="1"
+                  value={draft.servings}
+                  onChange={(e) => setDraft({ ...draft, servings: e.target.value })}
+                  style={{ ...inputStyle, width: 58, padding: "12px 8px" }}
+                />
+              </label>
+            </div>
+            <div style={{ ...groupRule, marginBottom: 8 }}>
+              <span style={{ ...groupLabel, display: "block" }}>Ingredients</span>
+            </div>
+            {draft.ingredients.map((ing, i) => {
+              const sugOpen = ingSug?.row === i;
+              const matches = sugOpen ? ingMatches(ing.name) : [];
+              const showList = sugOpen && matches.length > 0;
+              const dupes = ingDuplicates(ing.name);
+              const splitPair = ingSplit(ing.name);
+              const pick = (k) => { setIngName(i, k.name); setIngSug(null); };
+              return (
+              <div key={i} style={{ marginBottom: 8, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 10, padding: 8 }}>
+              {/* TWO LINES, DECLARED RATHER THAN WRAPPED INTO. The group below
+                  carries flexBasis 100%, so it always starts a line of its
+                  own; this line holds the name and the remove button at
+                  every width, and the name takes whatever is left.
+                  NO FLEX-BASIS ON THE NAME, and that is the fix rather than
+                  a tidy-up. THREE VERSIONS TUNED ONE and each stranded a
+                  different control at the width it was not measured at:
+                  120 left the remove button alone at 390, 160 moved that
+                  onto "lb", and grouping Qty with Unit fixed 390 and left
+                  the button alone at 320. The reason is that WITH flexWrap
+                  ON, AN ITEM THAT DOES NOT FIT AT ITS BASIS WRAPS INSTEAD OF
+                  SHRINKING — at 320 the row is 202px and 160 + 44 + 8 is
+                  212, over by ten, so the button went to a line of its own
+                  and the name then grew to fill the one it left. `flex: 1`
+                  is basis zero: the name cannot push anything off, and it
+                  ends up with exactly the space the button does not need. */}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
+                  <input
+                    placeholder="Ingredient"
+                    value={ing.name}
+                    onChange={(e) => {
+                      setIngName(i, e.target.value);
+                      setIngSug({ row: i, idx: -1 });
+                    }}
+                    onFocus={() => setIngSug({ row: i, idx: -1 })}
+                    onBlur={() => setIngSug((s) => (s?.row === i ? null : s))}
+                    onKeyDown={(e) => {
+                      if (showList && e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setIngSug({ row: i, idx: Math.min((ingSug.idx ?? -1) + 1, matches.length - 1) });
+                      } else if (showList && e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setIngSug({ row: i, idx: Math.max((ingSug.idx ?? -1) - 1, -1) });
+                      } else if (e.key === "Enter" && showList && ingSug.idx >= 0) {
+                        e.preventDefault();
+                        pick(matches[ingSug.idx]);
+                      } else if (e.key === "Escape") {
+                        setIngSug(null);
+                      }
+                    }}
+                    role="combobox"
+                    aria-expanded={showList}
+                    aria-autocomplete="list"
+                    style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
+                  />
+                  {showList && (
+                    <ul
+                      role="listbox"
+                      style={{
+                        position: "absolute",
+                        zIndex: 20,
+                        top: "calc(100% + 4px)",
+                        left: 0,
+                        right: 0,
+                        listStyle: "none",
+                        margin: 0,
+                        padding: 4,
+                        background: C.card,
+                        border: `1px solid ${C.line}`,
+                        borderRadius: 8,
+                        boxShadow: "0 6px 20px rgba(0,0,0,0.12)",
+                        maxHeight: 240,
+                        overflowY: "auto",
+                      }}
+                    >
+                      {matches.map((k, mi) => {
+                        const store = normalizeCfg(data.config[k.key]).store;
+                        const active = mi === ingSug.idx;
+                        return (
+                          <li key={k.key} role="option" aria-selected={active}>
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onMouseEnter={() => setIngSug({ row: i, idx: mi })}
+                              onClick={() => pick(k)}
+                              style={{
+                                display: "flex",
+                                alignItems: "baseline",
+                                gap: 8,
+                                width: "100%",
+                                textAlign: "left",
+                                padding: "8px 10px",
+                                borderRadius: 6,
+                                border: "none",
+                                cursor: "pointer",
+                                background: active ? C.greenSoft : "transparent",
+                                color: C.ink,
+                                fontFamily: fontBody,
+                                fontSize: 14,
+                              }}
+                            >
+                              <span style={{ fontWeight: 500 }}>{k.name}</span>
+                              {store !== UNASSIGNED && <span style={{ marginLeft: "auto", fontSize: 12, color: C.faint }}>{store}</span>}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+                {/* ON LINE ONE, BESIDE THE NAME. It removes the ingredient, so it
+                    belongs with the thing that names it — and the quantity,
+                    which is what you are most likely to be editing, is a bad
+                    neighbour for a destructive control. */}
+                <Btn small style={{ minWidth: 44 }} onClick={() => { setNoteOpen([]); setDraft({ ...draft, ingredients: draft.ingredients.filter((_, j) => j !== i) }); }} title="Remove ingredient">✕</Btn>
+                {/* LINE TWO: how much of it. Qty and Unit stay grouped inside
+                    it because "2 cups" is one fact, and "+ Note" rides along
+                    rather than taking a line of its own — which is what
+                    makes folding an empty note save anything at all. */}
+                <div style={{ display: "flex", gap: 8, flexBasis: "100%", marginTop: 8 }}>
+                  <input
+                    placeholder="Qty"
+                    value={ing.qty}
+                    onChange={(e) => {
+                      const list = [...draft.ingredients];
+                      list[i] = { ...ing, qty: e.target.value };
+                      setDraft({ ...draft, ingredients: list });
+                    }}
+                    /* border-box, unlike its 54px content-box past: the row is
+                       width-starved and 20px of padding was being counted twice.
+                       64 leaves 42px of content, which fits every quantity the
+                       shipped catalog contains (longest: "0.125") and the widest
+                       thing typed by hand, "1 1/2", measured at 41px. */
+                    style={{ ...inputStyle, width: 64, boxSizing: "border-box" }}
+                  />
+                  {/* Suggests the units THIS ingredient already uses first —
+                      `cloves` for garlic before `cup`, which is merely common. */}
+                  <SuggestInput
+                    placeholder="Unit"
+                    aria-label="Unit"
+                    value={ing.unit}
+                    suggestions={unitMatches(data, ing.ingredientId || ing.name, ing.unit)}
+                    onChange={(v) => {
+                      const list = [...draft.ingredients];
+                      list[i] = { ...ing, unit: v };
+                      setDraft({ ...draft, ingredients: list });
+                    }}
+                    wrapStyle={{ width: 70, flexShrink: 0 }}
+                    style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
+                  />
+                  {/* "+ NOTE" RIDES IN THIS GROUP RATHER THAN TAKING A LINE
+                      OF ITS OWN, and that is the whole saving. On its own
+                      line it measured 45px — the tap-target floor says it
+                      cannot be shorter — replacing a 45px input, so folding
+                      the empty note away bought FOUR PIXELS per ingredient
+                      and was not worth doing. Here it costs nothing: the row
+                      drops from three lines to two whenever the note is
+                      empty, which is most of them on a parsed recipe. */}
+                  {!(ing.note || noteOpen.includes(i)) && (
+                    <button
+                        type="button"
+                        onClick={() => setNoteOpen((v) => [...v, i])}
+                        style={{ padding: "15px 8px", background: "transparent", border: "none", color: C.faint, cursor: "pointer", fontFamily: fontBody, fontSize: 13, whiteSpace: "nowrap" }}
+                    >
+                        + Note
+                    </button>
+                  )}
+                </div>
+                
               </div>
+              {/* ITS OWN LINE, AND SHOWN WHENEVER IT HAS ANYTHING IN IT.
+                  That is the whole of the original rule — the parser writes
+                  this field, so what it guessed must be visible without
+                  hunting for it — and a filled note still always renders.
+                  What folds away is the EMPTY one, 53px of nothing per
+                  ingredient. It is deliberately NOT part of the name: the
+                  name is what the shopping list groups by. */}
+              {(ing.note || noteOpen.includes(i)) ? (
               <input
-                placeholder="Qty"
-                value={ing.qty}
+                /* THE EXAMPLES ARE ALL PREP, and "optional" leads rather than
+                   trails. The old text read "Note — diced, 15 oz, divided
+                   (optional)" and was wrong twice: "15 oz" told you to type a
+                   quantity into the one field that is NOT for quantities, with
+                   Qty and Unit sitting directly above it, and the trailing
+                   "(optional)" joined the comma list so the last example parsed
+                   as "divided (optional)". "divided" went too — it is recipe
+                   jargon for an ingredient used at two points in the method,
+                   which is not what most people will read it as.
+                   "e.g." rather than "Ex." because the app already says it that
+                   way — Onboarding's "e.g. Our Household", and it says outright
+                   that these ARE examples rather than leaving it to be inferred.
+                   The parentheses do what quotes around the examples would have
+                   done, without the risk that someone types the quotes.
+                   IT NAMES THE FIELD, which no earlier wording did: under an
+                   ingredient row this is an unlabelled full-width box, and its
+                   purpose had to be inferred from the examples. "Optional" was
+                   what paid for the word — "Optional notes (e.g. diced,
+                   drained)" lands within a few px of the 236 available at 320,
+                   and neither Qty nor Unit in the same row marks itself
+                   optional either. The parenthesised examples already read as
+                   suggestions rather than a requirement. */
+                /* ONE EXAMPLE, NOT TWO — the field went from 13px to 16px
+                   to stop iOS zooming, and 16px text is wider: "Notes (e.g.
+                   diced, drained)" measures 214px against the 180 this row
+                   has at 320 once the Section's padding is taken out. The
+                   name and the "e.g." are what survive the trim, because
+                   they are what the earlier passes established this
+                   placeholder was FOR: saying what the field is, and saying
+                   outright that what follows is an example. */
+                placeholder="Notes (e.g. diced)"
+                aria-label="Ingredient note"
+                value={ing.note || ""}
                 onChange={(e) => {
                   const list = [...draft.ingredients];
-                  list[i] = { ...ing, qty: e.target.value };
+                  list[i] = { ...ing, note: e.target.value };
                   setDraft({ ...draft, ingredients: list });
                 }}
-                style={{ ...inputStyle, width: 54 }}
+                autoFocus={noteOpen.includes(i) && !ing.note}
+                /* LEAVE IT EMPTY AND IT FOLDS BACK. Opening "+ Note" and
+                   changing your mind should cost nothing — otherwise every
+                   row you tapped by accident keeps 49px of blank field for
+                   the rest of the session, and the saving this was built for
+                   leaks away one mistap at a time. A note with anything in
+                   it is not affected: that one renders from its CONTENT, not
+                   from this list, so it cannot be collapsed by blurring. */
+                onBlur={() => { if (!ing.note) setNoteOpen((v) => v.filter((x) => x !== i)); }}
+                /* 16px, NOT 13, AND NOT A LOOK — theme.js spells out why: iOS
+                   Safari zooms the whole page whenever a focused field's
+                   computed size is under 16, and index.html used to "fix"
+                   that by banning zoom outright, which took pinch-zoom away
+                   from every Android user permanently. This field has been
+                   13px since it was added and has been zooming the page on
+                   every tap; nobody noticed until item 116 gave it autoFocus
+                   and the jump became instant.
+                   screenreader.spec.mjs exists to catch exactly this and did
+                   not, because it never opened the recipe editor — see the
+                   note there. Padding drops to 12 to keep the height it had. */
+                style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginTop: 4, padding: "12px 10px" }}
               />
-              {/* Suggests the units THIS ingredient already uses first —
-                  `cloves` for garlic before `cup`, which is merely common. */}
-              <SuggestInput
-                placeholder="Unit"
-                aria-label="Unit"
-                value={ing.unit}
-                suggestions={unitMatches(data, ing.ingredientId || ing.name, ing.unit)}
-                onChange={(v) => {
-                  const list = [...draft.ingredients];
-                  list[i] = { ...ing, unit: v };
-                  setDraft({ ...draft, ingredients: list });
-                }}
-                wrapStyle={{ width: 70, flexShrink: 0 }}
-                style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
-              />
-              <Btn small onClick={() => setDraft({ ...draft, ingredients: draft.ingredients.filter((_, j) => j !== i) })} title="Remove ingredient">✕</Btn>
-            </div>
-            {/* Its own line, and always visible rather than behind a toggle:
-                the parser writes this field, so it has to be somewhere you can
-                see what it guessed and correct it. It is deliberately NOT part
-                of the name — the name is what the shopping list groups by. */}
-            <input
-              placeholder="Note — diced, 15 oz, divided (optional)"
-              aria-label="Ingredient note"
-              value={ing.note || ""}
-              onChange={(e) => {
-                const list = [...draft.ingredients];
-                list[i] = { ...ing, note: e.target.value };
-                setDraft({ ...draft, ingredients: list });
-              }}
-              style={{ ...inputStyle, width: "100%", boxSizing: "border-box", marginTop: 4, fontSize: 13 }}
-            />
-            {splitPair && (
-              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 4, fontSize: 12, color: C.faint }}>
-                <span>Two ingredients?</span>
-                <button
-                  type="button"
-                  onClick={() => applySplit(i, splitPair)}
-                  aria-label={`Split into ${splitPair[0].name} and ${splitPair[1].name}`}
-                  style={{ padding: "2px 8px", borderRadius: 999, border: `1px solid ${C.line}`, background: C.paper, color: C.ink, cursor: "pointer", fontFamily: fontBody, fontSize: 12 }}
-                >
-                  split into “{splitPair[0].name}” + “{splitPair[1].name}”
-                </button>
-              </div>
-            )}
-            {dupes.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 4, fontSize: 12, color: C.faint }}>
-                <span>Already have:</span>
-                {dupes.map((k) => (
+              ) : null}
+              {splitPair && (
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 4, fontSize: 12, color: C.faint }}>
+                  <span>Two ingredients?</span>
                   <button
-                    key={k.key}
                     type="button"
-                    onClick={() => setIngName(i, k.name)}
-                    style={{ padding: "2px 8px", borderRadius: 999, border: `1px solid ${C.line}`, background: C.paper, color: C.ink, cursor: "pointer", fontFamily: fontBody, fontSize: 12 }}
+                    onClick={() => applySplit(i, splitPair)}
+                    aria-label={`Split into ${splitPair[0].name} and ${splitPair[1].name}`}
+                    style={{ padding: "13px 10px", borderRadius: 999, border: `1px solid ${C.line}`, background: C.paper, color: C.ink, cursor: "pointer", fontFamily: fontBody, fontSize: 12 }}
                   >
-                    use “{k.name}”
+                    split into “{splitPair[0].name}” + “{splitPair[1].name}”
                   </button>
-                ))}
+                </div>
+              )}
+              {/* NOT WHILE A SPLIT IS ON OFFER. "Salt and Pepper" matched
+                  the household's "Salt" and put a "use 'Salt'" chip directly
+                  beside "split into 'Salt' + 'Black pepper'" — one button
+                  fixes the row, the other SILENTLY DROPS THE PEPPER, and the
+                  two looked equally reasonable. splitSuggestion knows the
+                  name is two ingredients; existingIngredientSuggestions does
+                  not, so where they disagree the one with more information
+                  wins. */}
+              {!splitPair && dupes.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 4, fontSize: 12, color: C.faint }}>
+                  <span>Already have:</span>
+                  {dupes.map((k) => (
+                    <button
+                      key={k.key}
+                      type="button"
+                      onClick={() => setIngName(i, k.name)}
+                      style={{ padding: "13px 10px", borderRadius: 999, border: `1px solid ${C.line}`, background: C.paper, color: C.ink, cursor: "pointer", fontFamily: fontBody, fontSize: 12 }}
+                    >
+                      use “{k.name}”
+                    </button>
+                  ))}
+                </div>
+              )}
               </div>
-            )}
+              );
+            })}
+            <Btn small onClick={() => setDraft({ ...draft, ingredients: [...draft.ingredients, { name: "", qty: "1", unit: "", note: "" }] })} style={{ marginBottom: 10 }}>
+              + Ingredient
+            </Btn>
+            <div style={{ ...groupRule, marginBottom: 8 }}>
+              <span style={{ ...groupLabel, display: "block" }}>Instructions</span>
             </div>
-            );
-          })}
-          <Btn small onClick={() => setDraft({ ...draft, ingredients: [...draft.ingredients, { name: "", qty: "1", unit: "", note: "" }] })} style={{ marginBottom: 10 }}>
-            + Ingredient
-          </Btn>
-          <textarea
-            placeholder="Cooking instructions / notes (optional)"
-            value={draft.notes}
-            onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
-            rows={4}
-            style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 8 }}
-          />
+            <textarea
+              /* SAME SHAPE AS THE INGREDIENT NOTE — "Name (e.g. example)" —
+                 because two placeholders in one form written to two different
+                 patterns read as an oversight, which is exactly what it was.
+                 "OPTIONAL" IS GONE ON PURPOSE. It was true of the field and
+                 wrong about the recipe: instructions are the normal case,
+                 and a hint leading with "optional" invites leaving out the
+                 half of a recipe that says how to cook it. The ingredient
+                 note keeps the idea because THERE it is accurate — most
+                 ingredients genuinely have nothing to add.
+                 It repeats the INSTRUCTIONS heading above it and that costs
+                 nothing: a placeholder is gone the moment you type. Length is
+                 free here in a way it is not for the note, because this is a
+                 TEXTAREA and a textarea's placeholder WRAPS rather than
+                 truncating. The original "Cooking instructions / notes
+                 (optional)" went for a real reason though — 306px against
+                 236 of room at 320, cut off. */
+              placeholder="Instructions (e.g. brown the meat first)"
+              value={draft.notes}
+              onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
+              rows={4}
+              style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 8 }}
+            />
+          </Section>
           <div style={{ display: "flex", gap: 8 }}>
             <div style={{ flex: 1 }} />
             <Btn small onClick={() => { setDraft(null); closePaste(); }}>Cancel</Btn>
-            <Btn small kind="primary" onClick={saveDraft}>Save meal</Btn>
+            {/* DISABLED UNTIL THERE IS A NAME, because saveDraft has always
+                returned early without one and the button therefore did
+                NOTHING when pressed. That was survivable while the fields
+                were open — an empty name box is visibly empty. With both
+                sections collapsed the resting card is a name you cannot
+                see and a live Save button, which is a press that appears to
+                fail. saveDraft keeps its own guard; this only stops the
+                pointless press. */}
+            <Btn small kind="primary" disabled={!draft.name.trim()} onClick={saveDraft}>Save meal</Btn>
           </div>
         </div>
       )}

@@ -17,6 +17,16 @@ import assert from "node:assert/strict";
 import { openApp } from "../harness.mjs";
 import { smallCatalog } from "../fixtures.mjs";
 
+/* The recipe fields sit behind a disclosure now (item 116), so every test
+   that types into them has to open it — "Add a meal" gives you a CHOICE of
+   two ways in rather than the fields outright. An import or a paste opens
+   them by itself, which is why only the manual tests call this. */
+const openRecipeFields = async (page) => {
+  const btn = page.getByRole("button", { name: /^Recipe details/ });
+  if (await btn.getAttribute("aria-expanded") === "false") await btn.click();
+};
+
+
 const BASE = process.env.E2E_BASE_URL;
 
 /* Rewrite the served catalog.json to advertise a build this bundle is not.
@@ -59,6 +69,7 @@ test("an open recipe draft is not thrown away by an update", async () => {
   try {
     await page.tab("Recipes");
     await page.getByRole("button", { name: /^Add a meal$/ }).click();
+    await openRecipeFields(page);
     await page.waitForTimeout(300);
     await page.getByPlaceholder("Meal name").fill("Half-written dinner");
     await markPage(page);
@@ -84,6 +95,7 @@ test("the update is taken once the draft is out of the way", async () => {
   try {
     await page.tab("Recipes");
     await page.getByRole("button", { name: /^Add a meal$/ }).click();
+    await openRecipeFields(page);
     await page.waitForTimeout(300);
     await page.getByPlaceholder("Meal name").fill("Half-written dinner");
     await markPage(page);

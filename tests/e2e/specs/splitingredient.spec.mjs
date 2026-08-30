@@ -17,6 +17,16 @@ import assert from "node:assert/strict";
 import { openApp, assertNoPageErrors } from "../harness.mjs";
 import { smallCatalog } from "../fixtures.mjs";
 
+/* The recipe fields sit behind a disclosure now (item 116), so every test
+   that types into them has to open it — "Add a meal" gives you a CHOICE of
+   two ways in rather than the fields outright. An import or a paste opens
+   them by itself, which is why only the manual tests call this. */
+const openRecipeFields = async (page) => {
+  const btn = page.getByRole("button", { name: /^Recipe details/ });
+  if (await btn.getAttribute("aria-expanded") === "false") await btn.click();
+};
+
+
 const BASE = process.env.E2E_BASE_URL;
 
 // Both halves have to already exist for an offer to be made, so the catalog
@@ -43,8 +53,9 @@ test("SHOULD: a row naming two known ingredients offers to become two", async ()
   try {
     await page.tab("Recipes");
     await page.getByRole("button", { name: /^Add a meal$/ }).click();
+    await openRecipeFields(page);
     await page.waitForTimeout(300);
-    await page.getByRole("button", { name: /Paste a recipe to fill this in/ }).click();
+    await page.getByRole("button", { name: /Start from a recipe or link/ }).click();
     await page.getByLabel("Pasted recipe text").fill("Test Bake\n- 2 cups rice\n- salt and ground black pepper to taste");
     await page.getByRole("button", { name: /^Parse into fields$/ }).click();
     await page.waitForTimeout(300);
@@ -66,8 +77,9 @@ test("SHOULD: accepting the split writes two real ingredients, not just two boxe
   try {
     await page.tab("Recipes");
     await page.getByRole("button", { name: /^Add a meal$/ }).click();
+    await openRecipeFields(page);
     await page.waitForTimeout(300);
-    await page.getByRole("button", { name: /Paste a recipe to fill this in/ }).click();
+    await page.getByRole("button", { name: /Start from a recipe or link/ }).click();
     await page.getByLabel("Pasted recipe text").fill("Test Bake\n- 2 cups rice\n- salt and ground black pepper to taste");
     await page.getByRole("button", { name: /^Parse into fields$/ }).click();
     await page.waitForTimeout(300);
@@ -104,13 +116,51 @@ test("SHOULD: nothing is offered when the household has never heard of one half"
   try {
     await page.tab("Recipes");
     await page.getByRole("button", { name: /^Add a meal$/ }).click();
+    await openRecipeFields(page);
     await page.waitForTimeout(300);
-    await page.getByRole("button", { name: /Paste a recipe to fill this in/ }).click();
+    await page.getByRole("button", { name: /Start from a recipe or link/ }).click();
     await page.getByLabel("Pasted recipe text").fill("Test Bake\n- 4 cloves of garlic peeled and cut in half\n- 2 cups rice");
     await page.getByRole("button", { name: /^Parse into fields$/ }).click();
     await page.waitForTimeout(300);
 
     assert.equal(await page.getByRole("button", { name: /^Split into / }).count(), 0, "a preparation note was offered as a split");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* THE TWO OFFERS USED TO SIT SIDE BY SIDE, AND ONE OF THEM LOST DATA.
+   "salt and ground black pepper" matches the household's existing "Salt" by
+   the same whole-word rule everything else uses, so the row carried a "use
+   'Salt'" chip directly beside "split into 'Salt' + 'Black pepper'". Both
+   looked like tidy-ups. One of them silently drops the pepper — and the
+   pepper is exactly what the split exists to rescue.
+   Reported from real use, on a row the parser had merged. */
+test("SHOULD: a row that is really two ingredients is never offered a name that drops one", async () => {
+  const page = await openApp(BASE, { catalog: catalogWithSeasonings() });
+  try {
+    await page.tab("Recipes");
+    await page.getByRole("button", { name: /^Add a meal$/ }).click();
+    await openRecipeFields(page);
+    await page.waitForTimeout(300);
+    await page.getByRole("button", { name: /Start from a recipe or link/ }).click();
+    await page.getByLabel("Pasted recipe text").fill("Test Bake\n- 2 cups rice\n- salt and ground black pepper to taste");
+    await page.getByRole("button", { name: /^Parse into fields$/ }).click();
+    await page.waitForTimeout(300);
+
+    assert.equal(await splitChip(page).count(), 1, "the split itself should still be offered");
+    // The destructive one must be gone. Named exactly, so this cannot pass
+    // by the whole suggestion block happening to be absent.
+    // NAMED EXACTLY, both of them. A page-wide "no Already have: anywhere"
+    // check fails for the wrong reason — the RICE row legitimately offers
+    // "Brown rice" and "Jasmine rice", which is the feature working. What
+    // must not exist is a chip that would replace THIS row with one half of
+    // itself.
+    assert.equal(await page.getByRole("button", { name: /^use “Salt”$/ }).count(), 0,
+      'the "use Salt" chip would overwrite the row and lose the pepper');
+    assert.equal(await page.getByRole("button", { name: /^use “Black pepper”$/ }).count(), 0,
+      'the same in reverse — it would lose the salt');
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

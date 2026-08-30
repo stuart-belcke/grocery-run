@@ -21,12 +21,30 @@ export const RECIPE_WORKER_URL = "https://grocery-run-recipe-import.stuart-belck
    Never throws: a network failure and a bad response body both come back as
    { ok: false, reason } instead, so the caller can show ONE kind of
    "paste it instead" message. */
+/* A REQUEST THAT NEVER SETTLES IS THE ONE FAILURE THE CATCH BELOW CANNOT
+   SEE. fetch() rejects on a refused connection, but a request that is
+   stalled rather than refused — a privacy browser's tracker blocker holding
+   an unfamiliar third-party domain open, a captive portal, a phone that
+   loses signal mid-flight — leaves the promise pending forever, and the
+   panel sat on "Fetching…" with no way out and no way to know it was never
+   coming back. Reported on the DuckDuckGo browser, where the whole
+   workers.dev domain is the kind of thing a blocker holds.
+   15 SECONDS, because the Worker is doing a full page fetch on the far side
+   and a slow recipe site is not an error; anything past that is not going to
+   arrive in time to be useful anyway. AbortSignal.timeout throws, so it
+   lands in the same catch as a refusal — told apart by name, since the two
+   need different advice: a refusal might work on a retry, a timeout on this
+   network probably will not. */
+const FETCH_TIMEOUT_MS = 15000;
+
 export async function fetchRecipeFromUrl(url) {
   let res;
   try {
-    res = await fetch(`${RECIPE_WORKER_URL}/?url=${encodeURIComponent(url)}`);
-  } catch {
-    return { ok: false, reason: "network" };
+    res = await fetch(`${RECIPE_WORKER_URL}/?url=${encodeURIComponent(url)}`, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+  } catch (e) {
+    return { ok: false, reason: e && e.name === "TimeoutError" ? "timeout" : "network" };
   }
   let body;
   try {
@@ -34,7 +52,10 @@ export async function fetchRecipeFromUrl(url) {
   } catch {
     return { ok: false, reason: "network" };
   }
-  if (!body || !body.ok) return { ok: false, reason: (body && body.reason) || "failed" };
+  // `host` rides along on a refusal so the caller can NAME the site. It is
+  // the Worker's own bareHost value, not something re-derived here: the two
+  // must agree, or the message credits the wrong site.
+  if (!body || !body.ok) return { ok: false, reason: (body && body.reason) || "failed", host: body && body.host };
   const parsed = body.source === "jsonld" ? recipeFromJsonLd(body.recipe || {}) : parseRecipeText(body.text || "");
   return { ok: true, parsed, source: body.source };
 }

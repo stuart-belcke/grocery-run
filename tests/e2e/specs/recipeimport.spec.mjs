@@ -17,6 +17,16 @@ import assert from "node:assert/strict";
 import { openApp, assertNoPageErrors } from "../harness.mjs";
 import { smallCatalog } from "../fixtures.mjs";
 
+/* The recipe fields sit behind a disclosure now (item 116), so every test
+   that types into them has to open it — "Add a meal" gives you a CHOICE of
+   two ways in rather than the fields outright. An import or a paste opens
+   them by itself, which is why only the manual tests call this. */
+const openRecipeFields = async (page) => {
+  const btn = page.getByRole("button", { name: /^Recipe details/ });
+  if (await btn.getAttribute("aria-expanded") === "false") await btn.click();
+};
+
+
 const BASE = process.env.E2E_BASE_URL;
 const WORKER_URL_GLOB = "https://grocery-run-recipe-import.stuart-belcke.workers.dev/**";
 
@@ -45,8 +55,9 @@ const mockWorker = (page, body) => page.route(WORKER_URL_GLOB, (route) => route.
 const openPasteWithUrl = async (page, url) => {
   await page.tab("Recipes");
   await page.getByRole("button", { name: /^Add a meal$/ }).click();
+    await openRecipeFields(page);
   await page.waitForTimeout(300);
-  await page.getByRole("button", { name: /Paste a recipe to fill this in/ }).click();
+  await page.getByRole("button", { name: /Start from a recipe or link/ }).click();
   await page.getByLabel("Pasted recipe text or link").fill(url);
   await page.getByRole("button", { name: /Parse into fields/ }).click();
 };
@@ -163,6 +174,151 @@ test("SHOULD: hitting today's per-network import cap says so, and still points a
 
     await page.getByText(/hit today.s import limit/).waitFor();
     assert.equal(await page.getByPlaceholder("Meal name").inputValue(), "");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* THE ONE FAILURE THAT IS NOT AN ANSWER AT ALL. Every case above is the
+   Worker replying something; this is it never replying. A route left
+   un-fulfilled is exactly the stalled request a privacy browser's blocker
+   produces — reported on DuckDuckGo, where the panel sat on "Fetching…"
+   forever with no way out — and before recipeImport.js carried an
+   AbortSignal there was nothing to end it.
+   IT REALLY WAITS OUT THE 15 SECONDS rather than mocking the clock: the
+   value being proven IS the timeout, and a test that stubbed it would pass
+   on a build with no timeout at all. */
+test("SHOULD: a Worker call that never answers gives up and says to paste instead", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await page.route(WORKER_URL_GLOB, () => {});
+    await openPasteWithUrl(page, RECIPE_URL);
+
+    await page.getByText(/took too long/).waitFor({ timeout: 25000 });
+    // The URL is still in the box, so pasting the text over it is one
+    // action away — a dead end here would mean closing and starting again.
+    assert.equal(await page.getByLabel("Pasted recipe text or link").inputValue(), RECIPE_URL);
+    assert.equal(await page.getByPlaceholder("Meal name").inputValue(), "");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* A SITE THAT REFUSES US IS NOT A SITE WE DO NOT KNOW, and the two used to
+   share a message. The four Dotdash Meredith properties are ON the
+   allowlist deliberately (worker/index.js) so the Worker really tries them
+   — which means the refusal comes back as HTTP 402, and the message has to
+   name the site rather than imply the app is at fault or that the site is
+   unsupported. */
+test("SHOULD: a site that blocks the fetch is named, and is not called unsupported", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await mockWorker(page, { ok: false, reason: "site_blocked", host: "allrecipes.com", status: 402 });
+    await openPasteWithUrl(page, "https://www.allrecipes.com/recipe/223042/chicken-parmesan/");
+    await page.waitForTimeout(400);
+
+    await page.getByText(/allrecipes\.com blocks automatic import/).waitFor();
+    // The old wording would be actively wrong here: the site IS set up for
+    // import, it declines. A test that only checked "some error showed"
+    // would pass on that regression.
+    assert.equal(await page.getByText(/isn.t set up for automatic import/).count(), 0);
+    assert.equal(await page.getByPlaceholder("Meal name").inputValue(), "");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* ITEM 116 — THE TWO WAYS IN, AND THE HAND-OFF BETWEEN THEM. */
+
+test("SHOULD: Add a meal offers a choice, rather than opening a screen of empty fields", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await page.tab("Recipes");
+    await page.getByRole("button", { name: /^Add a meal$/ }).click();
+    await page.waitForTimeout(300);
+
+    // Both shut. The paste panel used to sit one line above a screen and a
+    // half of fields, which is what made the fast path read as a footnote.
+    assert.equal(await page.getByRole("button", { name: /^Start from a recipe or link/ }).getAttribute("aria-expanded"), "false");
+    assert.equal(await page.getByRole("button", { name: /^Recipe details/ }).getAttribute("aria-expanded"), "false");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: a successful import closes the paste panel, opens the fields, and asks for a review", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await mockWorker(page, JSONLD_RESPONSE);
+    await openPasteWithUrl(page, RECIPE_URL);
+    await page.waitForTimeout(500);
+
+    assert.equal(await page.getByRole("button", { name: /^Start from a recipe or link/ }).getAttribute("aria-expanded"), "false");
+    assert.equal(await page.getByRole("button", { name: /^Recipe details/ }).getAttribute("aria-expanded"), "true");
+    // The COUNT is the checkable part: "2 ingredients" is something you can
+    // disbelieve at a glance in a way that "success" is not.
+    await page.getByText(/2 ingredients/).waitFor();
+    await page.getByText(/review it before saving/).waitFor();
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* THE ONE THAT WOULD LOSE WORK SILENTLY. Section's default unmounts its
+   children when it closes, and a collapsed draft that discards itself is
+   the kind of bug nobody reports as a bug — they assume they mistyped.
+   keepMounted is what stops it; this is the test that fails without it. */
+test("SHOULD: collapsing the fields hides a half-typed recipe, and does not destroy it", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await page.tab("Recipes");
+    await page.getByRole("button", { name: /^Add a meal$/ }).click();
+    const details = page.getByRole("button", { name: /^Recipe details/ });
+    await details.click();
+    await page.getByPlaceholder("Meal name").fill("Half typed thing");
+    await page.getByPlaceholder("Ingredient", { exact: true }).first().fill("chicken breast");
+
+    await details.click();   // collapse
+    await page.waitForTimeout(200);
+    await details.click();   // and back
+    await page.waitForTimeout(200);
+
+    assert.equal(await page.getByPlaceholder("Meal name").inputValue(), "Half typed thing");
+    assert.equal(await page.getByPlaceholder("Ingredient", { exact: true }).first().inputValue(), "chicken breast");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* A PARSE THAT FOUND NOTHING MUST SAY SO. This is the case where the review
+   prompt matters most — a page whose markup the Worker could read but whose
+   ingredients it could not — and it is the one branch of the banner that a
+   passing import never exercises. "6 ingredients" and "no ingredients found"
+   are different claims, and only the second one is a warning. */
+test("SHOULD: an import that finds no ingredients says that, rather than claiming success", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await mockWorker(page, {
+      ok: true, source: "jsonld",
+      recipe: { name: "Grandma's Mystery Bake", recipeYield: ["4"], recipeIngredient: [], recipeInstructions: [{ "@type": "HowToStep", text: "Bake it." }] },
+    });
+    await openPasteWithUrl(page, RECIPE_URL);
+    await page.waitForTimeout(500);
+
+    await page.getByText(/no ingredients found/).waitFor();
+    // Not the plural branch dressed up as a zero — this must not read
+    // "0 ingredients", which scans as a count rather than as a warning.
+    assert.equal(await page.getByText(/0 ingredients/).count(), 0);
+    // The name it DID find still lands, and the fields still open, so there
+    // is something to correct rather than a dead end.
+    assert.equal(await page.getByPlaceholder("Meal name").inputValue(), "Grandma's Mystery Bake");
+    assert.equal(await page.getByRole("button", { name: /^Recipe details/ }).getAttribute("aria-expanded"), "true");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

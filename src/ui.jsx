@@ -482,8 +482,23 @@ export function SuggestInput({ value, onChange, suggestions = [], style, wrapSty
   );
 }
 
-export function Section({ title, aside, children, defaultOpen = false }) {
-  const [open, setOpen] = useState(defaultOpen);
+/* OPTIONALLY CONTROLLED, added for the recipe editor (item 116) and
+   optional so every existing caller behaves exactly as before: pass `open`
+   and `onToggle` and the PARENT drives the disclosure, which is what lets a
+   successful paste close one section and open another. Private state cannot
+   express that.
+   A keepMounted flag was built here too and then removed. The reasoning for
+   it was that `{open && children}` destroys what is inside on close and
+   would discard a half-typed recipe — WHICH IS FALSE, and the mutation test
+   is what said so: every field in that form is a CONTROLLED input reading
+   from the parent's draft state, so unmounting the section has nothing to
+   lose and re-renders identically on the way back. The test passed with the
+   flag and without it. */
+export function Section({ title, aside, children, defaultOpen = false, open: openProp, onToggle, bodyPadding = "0 16px 16px" }) {
+  const [openSelf, setOpen] = useState(defaultOpen);
+  const controlled = openProp !== undefined;
+  const open = controlled ? openProp : openSelf;
+  const toggle = () => (controlled ? onToggle && onToggle(!open) : setOpen((v) => !v));
   return (
     <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, marginBottom: 12, overflow: "hidden" }}>
       {/* The button lives INSIDE an h2, which is the standard disclosure
@@ -493,7 +508,7 @@ export function Section({ title, aside, children, defaultOpen = false }) {
           Zero margin so nothing about the layout changes. */}
       <h2 style={{ margin: 0, font: "inherit", fontWeight: "inherit" }}>
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggle}
         aria-expanded={open}
         style={{
           display: "flex",
@@ -525,7 +540,11 @@ export function Section({ title, aside, children, defaultOpen = false }) {
         <span aria-hidden style={{ color: C.faint, fontSize: 13, flexShrink: 0 }}>{open ? "\u25b2" : "\u25be"}</span>
       </button>
       </h2>
-      {open && <div style={{ padding: "0 16px 16px" }}>{children}</div>}
+      {/* bodyPadding is overridable for the recipe editor, where these
+          sections are nested INSIDE another card and 16px on each side is
+          being charged twice. Settings, where a Section is top-level, keeps
+          the default. */}
+      {open && <div style={{ padding: bodyPadding }}>{children}</div>}
     </div>
   );
 }

@@ -35,7 +35,18 @@ export const fontBody = "'Space Grotesk', system-ui, -apple-system, sans-serif";
    removes the reason for the ban. Nothing below 16 anywhere on a field;
    screenreader.spec.mjs asserts it, because one 14px field put back would
    quietly restore the behaviour the ban existed to prevent. */
-export const inputStyle = { padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.line}`, fontFamily: fontBody, fontSize: 16 };
+/* 12px of vertical padding, not 8, is what puts a full-width field on item
+   103c's 44px tap-target floor: a 16px font gives a ~19px line box, so
+   19 + 24 + 2px of border measures 45. Item 103c raised Btn's two paddings
+   for exactly this reason and scoped itself to Btn; inputs were never in
+   that pass, which left every text field in the app at 37px — measured, at
+   both 320 and 390.
+   THE COMPACT NUMBER BOXES ARE UNAFFECTED, and deliberately so: the nine
+   places that put a quantity or servings box inside a row all override
+   `padding` themselves, so they keep whatever height their row needs and
+   this value never reaches them. Raising one of those is a per-row layout
+   decision, not a shared-style one. */
+export const inputStyle = { padding: "12px 10px", borderRadius: 8, border: `1px solid ${C.line}`, fontFamily: fontBody, fontSize: 16 };
 
 // The sync indicator's four tones. Here rather than next to the logic that
 // picks one, because two places draw that indicator (the header and the

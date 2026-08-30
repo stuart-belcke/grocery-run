@@ -8,6 +8,16 @@ import assert from "node:assert/strict";
 import { openApp, assertNoPageErrors } from "../harness.mjs";
 import { smallCatalog, cleanCatalog, idOf, stateWith } from "../fixtures.mjs";
 
+/* The recipe fields sit behind a disclosure now (item 116), so every test
+   that types into them has to open it — "Add a meal" gives you a CHOICE of
+   two ways in rather than the fields outright. An import or a paste opens
+   them by itself, which is why only the manual tests call this. */
+const openRecipeFields = async (page) => {
+  const btn = page.getByRole("button", { name: /^Recipe details/ });
+  if (await btn.getAttribute("aria-expanded") === "false") await btn.click();
+};
+
+
 const BASE = process.env.E2E_BASE_URL;
 
 const listedNames = (page) =>
@@ -553,9 +563,10 @@ test("SHOULD: pasting a recipe fills in the add-meal form, and the parsed ingred
   try {
     await page.tab("Recipes");
     await page.getByRole("button", { name: /^Add a meal$/ }).click();
+    await openRecipeFields(page);
     await page.waitForTimeout(300);
 
-    await page.getByRole("button", { name: /Paste a recipe to fill this in/ }).click();
+    await page.getByRole("button", { name: /Start from a recipe or link/ }).click();
     await page.getByLabel("Pasted recipe text").fill("Weeknight Rice Bowl\n- 2 cups rice\n- 1 lb chicken thighs\n- 1 bell pepper");
     await page.getByRole("button", { name: /^Parse into fields$/ }).click();
     await page.waitForTimeout(300);
@@ -587,11 +598,12 @@ test("SHOULD: pasting into a draft that already has a name and ingredients adds 
   try {
     await page.tab("Recipes");
     await page.getByRole("button", { name: /^Add a meal$/ }).click();
+    await openRecipeFields(page);
     await page.waitForTimeout(300);
     await page.getByPlaceholder("Meal name").fill("My Custom Meal");
     await page.getByPlaceholder("Ingredient", { exact: true }).first().fill("Butter");
 
-    await page.getByRole("button", { name: /Paste a recipe to fill this in/ }).click();
+    await page.getByRole("button", { name: /Start from a recipe or link/ }).click();
     await page.getByLabel("Pasted recipe text").fill("Some Other Name\n- 2 cups rice");
     await page.getByRole("button", { name: /^Parse into fields$/ }).click();
     await page.waitForTimeout(300);
