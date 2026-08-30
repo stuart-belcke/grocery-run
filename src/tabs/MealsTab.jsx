@@ -1053,19 +1053,25 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
               const splitPair = ingSplit(ing.name);
               const pick = (k) => { setIngName(i, k.name); setIngSug(null); };
               return (
-              <div key={i} style={{ marginBottom: 8 }}>
-              {/* WRAPS, and the name's 120px basis is what decides when. Four
-                  controls cannot share one line at 320: even at their smallest
-                  (Qty 64, Unit 70, and 44 for the remove button, which is item
-                  103c's tap-target floor and cannot go lower) flex crushed the
-                  name field to 44px — three characters of "chicken breast".
-                  120 was picked by measuring every basis from 90 to 170 at both
-                  widths: it is the largest that still keeps ONE line at 390
-                  (going to 130 buys a wider field but costs 53px on EVERY
-                  ingredient row) and the smallest that gives the name its own
-                  full-width line at 320, where the row wraps at any basis. */}
+              <div key={i} style={{ marginBottom: 8, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 10, padding: 10 }}>
+              {/* WRAPS, and the name's basis decides the SHAPE it wraps into.
+                  Four controls cannot share one line: even at their smallest
+                  (Qty 64, Unit 70, and 44 for the remove button, which is
+                  item 103c's tap floor and cannot go lower) flex crushed the
+                  name to 44px — three characters of "chicken breast".
+                  160, RE-MEASURED AFTER ITEM 116 NARROWED THE ROW. The basis
+                  was 120, tuned when the row was 328px wide; nesting the
+                  fields inside a Section took it to 294, and at 294 a basis
+                  of 120 fits name+qty+unit and STRANDS THE REMOVE BUTTON
+                  ALONE ON A SECOND LINE. That was visible in a screenshot
+                  and invisible to every check there is — nothing clipped,
+                  nothing overflowed, no tap target shrank. 160 wraps 2+2 at
+                  390 (name+qty, then unit+remove) and 1+3 at 320 (the name
+                  full width), and the name gets 222px rather than 144.
+                  Every basis from 80 to 200 was measured at both widths; the
+                  only one-line option clips the name at 92px. */}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <div style={{ position: "relative", flex: "1 1 120px", minWidth: 0 }}>
+                <div style={{ position: "relative", flex: "1 1 160px", minWidth: 0 }}>
                   <input
                     placeholder="Ingredient"
                     value={ing.name}
@@ -1149,37 +1155,57 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                     </ul>
                   )}
                 </div>
-                <input
-                  placeholder="Qty"
-                  value={ing.qty}
-                  onChange={(e) => {
-                    const list = [...draft.ingredients];
-                    list[i] = { ...ing, qty: e.target.value };
-                    setDraft({ ...draft, ingredients: list });
-                  }}
-                  /* border-box, unlike its 54px content-box past: the row is
-                     width-starved and 20px of padding was being counted twice.
-                     64 leaves 42px of content, which fits every quantity the
-                     shipped catalog contains (longest: "0.125") and the widest
-                     thing typed by hand, "1 1/2", measured at 41px. */
-                  style={{ ...inputStyle, width: 64, boxSizing: "border-box" }}
-                />
-                {/* Suggests the units THIS ingredient already uses first —
-                    `cloves` for garlic before `cup`, which is merely common. */}
-                <SuggestInput
-                  placeholder="Unit"
-                  aria-label="Unit"
-                  value={ing.unit}
-                  suggestions={unitMatches(data, ing.ingredientId || ing.name, ing.unit)}
-                  onChange={(v) => {
-                    const list = [...draft.ingredients];
-                    list[i] = { ...ing, unit: v };
-                    setDraft({ ...draft, ingredients: list });
-                  }}
-                  wrapStyle={{ width: 70, flexShrink: 0 }}
-                  style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
-                />
+                {/* THE REMOVE BUTTON SITS WITH THE NAME, and Qty and Unit pair off on
+                  the line below. Ordered name / remove / qty / unit rather
+                  than name / qty / unit / remove, because the row WRAPS and
+                  the old order wrapped it badly — the button ended up alone
+                  on a second line, reading as though it belonged to nothing.
+                  A quantity and its unit are ONE fact, "2 cups", and
+                  splitting THEM across the wrap was always the wrong seam to
+                  break on. */}
                 <Btn small style={{ minWidth: 44 }} onClick={() => setDraft({ ...draft, ingredients: draft.ingredients.filter((_, j) => j !== i) })} title="Remove ingredient">✕</Btn>
+                {/* QTY AND UNIT WRAP AS A PAIR, in a flex item of their own, rather
+                  than as two things that happen to sit next to each other.
+                  Tuning the name's basis so the break landed in the right
+                  place worked until it didn't: at 160 the row put name +
+                  remove + qty on the first line and stranded "lb" alone on
+                  the second — the same defect as before, moved onto a
+                  different control. A group cannot be split by a wrap, so
+                  this holds at any width instead of at the two that were
+                  measured. */}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    placeholder="Qty"
+                    value={ing.qty}
+                    onChange={(e) => {
+                      const list = [...draft.ingredients];
+                      list[i] = { ...ing, qty: e.target.value };
+                      setDraft({ ...draft, ingredients: list });
+                    }}
+                    /* border-box, unlike its 54px content-box past: the row is
+                       width-starved and 20px of padding was being counted twice.
+                       64 leaves 42px of content, which fits every quantity the
+                       shipped catalog contains (longest: "0.125") and the widest
+                       thing typed by hand, "1 1/2", measured at 41px. */
+                    style={{ ...inputStyle, width: 64, boxSizing: "border-box" }}
+                  />
+                  {/* Suggests the units THIS ingredient already uses first —
+                      `cloves` for garlic before `cup`, which is merely common. */}
+                  <SuggestInput
+                    placeholder="Unit"
+                    aria-label="Unit"
+                    value={ing.unit}
+                    suggestions={unitMatches(data, ing.ingredientId || ing.name, ing.unit)}
+                    onChange={(v) => {
+                      const list = [...draft.ingredients];
+                      list[i] = { ...ing, unit: v };
+                      setDraft({ ...draft, ingredients: list });
+                    }}
+                    wrapStyle={{ width: 70, flexShrink: 0 }}
+                    style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
+                  />
+                </div>
+                
               </div>
               {/* Its own line, and always visible rather than behind a toggle:
                   the parser writes this field, so it has to be somewhere you can
@@ -1231,7 +1257,15 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                   </button>
                 </div>
               )}
-              {dupes.length > 0 && (
+              {/* NOT WHILE A SPLIT IS ON OFFER. "Salt and Pepper" matched
+                  the household's "Salt" and put a "use 'Salt'" chip directly
+                  beside "split into 'Salt' + 'Black pepper'" — one button
+                  fixes the row, the other SILENTLY DROPS THE PEPPER, and the
+                  two looked equally reasonable. splitSuggestion knows the
+                  name is two ingredients; existingIngredientSuggestions does
+                  not, so where they disagree the one with more information
+                  wins. */}
+              {!splitPair && dupes.length > 0 && (
                 <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 4, fontSize: 12, color: C.faint }}>
                   <span>Already have:</span>
                   {dupes.map((k) => (

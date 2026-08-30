@@ -129,3 +129,40 @@ test("SHOULD: nothing is offered when the household has never heard of one half"
     await page.done();
   }
 });
+
+/* THE TWO OFFERS USED TO SIT SIDE BY SIDE, AND ONE OF THEM LOST DATA.
+   "salt and ground black pepper" matches the household's existing "Salt" by
+   the same whole-word rule everything else uses, so the row carried a "use
+   'Salt'" chip directly beside "split into 'Salt' + 'Black pepper'". Both
+   looked like tidy-ups. One of them silently drops the pepper — and the
+   pepper is exactly what the split exists to rescue.
+   Reported from real use, on a row the parser had merged. */
+test("SHOULD: a row that is really two ingredients is never offered a name that drops one", async () => {
+  const page = await openApp(BASE, { catalog: catalogWithSeasonings() });
+  try {
+    await page.tab("Recipes");
+    await page.getByRole("button", { name: /^Add a meal$/ }).click();
+    await openRecipeFields(page);
+    await page.waitForTimeout(300);
+    await page.getByRole("button", { name: /Start from a recipe or link/ }).click();
+    await page.getByLabel("Pasted recipe text").fill("Test Bake\n- 2 cups rice\n- salt and ground black pepper to taste");
+    await page.getByRole("button", { name: /^Parse into fields$/ }).click();
+    await page.waitForTimeout(300);
+
+    assert.equal(await splitChip(page).count(), 1, "the split itself should still be offered");
+    // The destructive one must be gone. Named exactly, so this cannot pass
+    // by the whole suggestion block happening to be absent.
+    // NAMED EXACTLY, both of them. A page-wide "no Already have: anywhere"
+    // check fails for the wrong reason — the RICE row legitimately offers
+    // "Brown rice" and "Jasmine rice", which is the feature working. What
+    // must not exist is a chip that would replace THIS row with one half of
+    // itself.
+    assert.equal(await page.getByRole("button", { name: /^use “Salt”$/ }).count(), 0,
+      'the "use Salt" chip would overwrite the row and lose the pepper');
+    assert.equal(await page.getByRole("button", { name: /^use “Black pepper”$/ }).count(), 0,
+      'the same in reverse — it would lose the salt');
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});

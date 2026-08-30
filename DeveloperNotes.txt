@@ -167,6 +167,34 @@ file reached 5,886 lines with ten live items in it.
     while the fields were open and an empty name box was visibly empty, and
     not once the resting card is a name you cannot see beside a live Save.
 
+    THREE THINGS THE FIRST SCREENSHOT OF THE FINISHED FLOW CAUGHT, none of
+    which any check could see — nothing clipped, nothing overflowed, no tap
+    target shrank, and every test passed:
+    1. THE REMOVE BUTTON WAS ALONE ON ITS OWN LINE. The name's flex basis
+       was 120, tuned when the ingredient row was 328px wide; nesting the
+       fields in a Section took the row to 294 and the wrap landed one
+       control too late. Retuning to 160 moved the defect onto "lb"
+       instead. FIXED PROPERLY BY GROUPING: Qty and Unit are now one flex
+       item, so a wrap cannot come between them at ANY width — "2 cups" is
+       one fact and was always the wrong seam to break on. The row reads
+       name + remove, then qty + unit.
+    2. EACH INGREDIENT NOW HAS AN OUTLINE, the same paper-and-hairline
+       block the Pantry tab uses for a row. Three lines of fields per
+       ingredient with nothing between them meant one ingredient's note sat
+       against the next one's name and the boundary had to be inferred.
+    3. THE ROW OFFERED TO DESTROY ITSELF. "salt and ground black pepper"
+       matched the household's "Salt", so a "use 'Salt'" chip sat directly
+       beside "split into 'Salt' + 'Black pepper'". One fixes the row; the
+       other SILENTLY DROPS THE PEPPER, which is the exact thing the split
+       exists to rescue — and both looked like tidy-ups. Suppressed while a
+       split is on offer: splitSuggestion knows the name is two
+       ingredients, existingIngredientSuggestions does not, so where they
+       disagree the better-informed one wins. Mutation-tested.
+       THE TEST FOR IT HAD TO BE NARROWED, and the reason is worth keeping:
+       "no 'Already have:' anywhere on the page" failed for the wrong
+       reason, because the RICE row legitimately offers Brown rice and
+       Jasmine rice. The assertion names the two destructive chips instead.
+
     SIX e2e SPECS OPEN THESE FIELDS TO TYPE INTO THEM and needed an
     openRecipeFields helper; the Shortcut-import path needed the same
     succeed() landing, which the suite caught as three real failures rather
