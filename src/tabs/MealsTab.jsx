@@ -892,7 +892,15 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
       )}
 
       {draft && (
-        <div style={{ background: C.card, border: `1px solid ${C.green}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
+        /* A FRAME, NOT A CARD. This used to be a white card with 16px of padding
+             wrapped around two Sections that are themselves white cards with
+             16px of padding — the same job done twice, charged twice. At 320
+             the ingredient row had 202px of the screen's 320 left by the time
+             it got through page, card, Section and block padding.
+             The green border stays, because it is the only thing saying "you
+             are editing a draft"; the background and most of the padding go,
+             since the Sections supply both. */
+          <div style={{ border: `1px solid ${C.green}`, borderRadius: 12, padding: "8px 6px", marginBottom: 16 }}>
           {/* TWO WAYS IN, BOTH BEHIND A DISCLOSURE (item 116). The paste
               panel used to be one line above a screen and a half of empty
               fields — measured at 831px on a 390 screen, 937 on a 320 — so
@@ -910,6 +918,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
             title="Start from a recipe or link"
             open={pasteOpen}
             onToggle={(v) => (v ? setPasteOpen(true) : closePaste())}
+            bodyPadding="0 10px 12px"
           >
               <textarea
                 placeholder="Paste the whole recipe, or a link to it…"
@@ -958,6 +967,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
             aside={parsed ? <span style={{ fontSize: 12, color: C.green, fontWeight: 600 }}>filled in</span> : null}
             open={fieldsOpen}
             onToggle={setFieldsOpen}
+            bodyPadding="0 10px 12px"
           >
             {/* SAID HERE, NOT IN THE PASTE PANEL, because here is where the
                 thing being checked actually is. The old wording lived above
@@ -1072,7 +1082,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
               const splitPair = ingSplit(ing.name);
               const pick = (k) => { setIngName(i, k.name); setIngSug(null); };
               return (
-              <div key={i} style={{ marginBottom: 8, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 10, padding: 10 }}>
+              <div key={i} style={{ marginBottom: 8, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 10, padding: 8 }}>
               {/* TWO LINES, DECLARED RATHER THAN WRAPPED INTO. The group below
                   carries flexBasis 100%, so it always starts a line of its
                   own; this line holds the name and the remove button at

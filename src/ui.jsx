@@ -494,7 +494,7 @@ export function SuggestInput({ value, onChange, suggestions = [], style, wrapSty
    from the parent's draft state, so unmounting the section has nothing to
    lose and re-renders identically on the way back. The test passed with the
    flag and without it. */
-export function Section({ title, aside, children, defaultOpen = false, open: openProp, onToggle }) {
+export function Section({ title, aside, children, defaultOpen = false, open: openProp, onToggle, bodyPadding = "0 16px 16px" }) {
   const [openSelf, setOpen] = useState(defaultOpen);
   const controlled = openProp !== undefined;
   const open = controlled ? openProp : openSelf;
@@ -540,7 +540,11 @@ export function Section({ title, aside, children, defaultOpen = false, open: ope
         <span aria-hidden style={{ color: C.faint, fontSize: 13, flexShrink: 0 }}>{open ? "\u25b2" : "\u25be"}</span>
       </button>
       </h2>
-      {open && <div style={{ padding: "0 16px 16px" }}>{children}</div>}
+      {/* bodyPadding is overridable for the recipe editor, where these
+          sections are nested INSIDE another card and 16px on each side is
+          being charged twice. Settings, where a Section is top-level, keeps
+          the default. */}
+      {open && <div style={{ padding: bodyPadding }}>{children}</div>}
     </div>
   );
 }

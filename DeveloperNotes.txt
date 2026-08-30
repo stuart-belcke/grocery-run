@@ -211,6 +211,24 @@ file reached 5,886 lines with ten live items in it.
     ITS PADDING IS 15px, NOT 13, for the third time in this item: a 13px
     font's line box is 15px, so 13 gives 41 and not 44.
 
+    A CARD INSIDE A CARD WAS CHARGING FOR THE SAME PADDING TWICE. The
+    owner counted it: "a field in the ingredient is nested 4 times". At 320
+    the ingredient row had 202px of the screen's 320 by the time it came
+    through page (-28), draft card (-34), Section (-34) and ingredient
+    block (-22). 118px, 37% OF THE SCREEN, spent on gaps.
+    THE REDUNDANCY WAS THE DRAFT CARD ITSELF: a white rounded card with
+    16px of padding, wrapped around two Sections that are each a white
+    rounded card with 16px of padding. Its background and most of its
+    padding are gone; the GREEN BORDER STAYS, because it is the only thing
+    that says "you are editing a draft".
+    Section gained an optional bodyPadding (default unchanged, so Settings
+    is untouched — verified: all eight of its fields still 45px at both
+    widths), and the editor's two use 10 rather than 16. The ingredient
+    block went 10 to 8.
+    RESULT AT 320: the row is 238px, was 202. The ingredient NAME field is
+    186px, was 150 — a quarter wider for nothing but removing duplication.
+    The card at rest is 189px, was 205.
+
     THE INGREDIENT ROW IS TWO DECLARED LINES NOW, AND THE FOURTH ATTEMPT
     IS THE ONE THAT HOLDS. Three passes tuned a wrapping flex and each one
     stranded a different control at the width it had not been measured at:
