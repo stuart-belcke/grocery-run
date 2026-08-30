@@ -1360,11 +1360,23 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
               <span style={{ ...groupLabel, display: "block" }}>Instructions</span>
             </div>
             <textarea
-              /* The INSTRUCTIONS heading above it names the field now, so the
-                 placeholder no longer repeats it — and "Cooking instructions /
-                 notes (optional)" was measured at 306px against 236 of room at
-                 320, so it was being cut off there anyway. */
-              placeholder="Optional, e.g. steps or tips"
+              /* SAME SHAPE AS THE INGREDIENT NOTE — "Name (e.g. example)" —
+                 because two placeholders in one form written to two different
+                 patterns read as an oversight, which is exactly what it was.
+                 "OPTIONAL" IS GONE ON PURPOSE. It was true of the field and
+                 wrong about the recipe: instructions are the normal case,
+                 and a hint leading with "optional" invites leaving out the
+                 half of a recipe that says how to cook it. The ingredient
+                 note keeps the idea because THERE it is accurate — most
+                 ingredients genuinely have nothing to add.
+                 It repeats the INSTRUCTIONS heading above it and that costs
+                 nothing: a placeholder is gone the moment you type. Length is
+                 free here in a way it is not for the note, because this is a
+                 TEXTAREA and a textarea's placeholder WRAPS rather than
+                 truncating. The original "Cooking instructions / notes
+                 (optional)" went for a real reason though — 306px against
+                 236 of room at 320, cut off. */
+              placeholder="Instructions (e.g. brown the meat first)"
               value={draft.notes}
               onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
               rows={4}
