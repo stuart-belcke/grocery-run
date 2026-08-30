@@ -17,6 +17,16 @@ import assert from "node:assert/strict";
 import { openApp, assertNoPageErrors } from "../harness.mjs";
 import { smallCatalog } from "../fixtures.mjs";
 
+/* The recipe fields sit behind a disclosure now (item 116), so every test
+   that types into them has to open it — "Add a meal" gives you a CHOICE of
+   two ways in rather than the fields outright. An import or a paste opens
+   them by itself, which is why only the manual tests call this. */
+const openRecipeFields = async (page) => {
+  const btn = page.getByRole("button", { name: /^Recipe details/ });
+  if (await btn.getAttribute("aria-expanded") === "false") await btn.click();
+};
+
+
 const BASE = process.env.E2E_BASE_URL;
 const WORKER_URL_GLOB = "https://grocery-run-recipe-import.stuart-belcke.workers.dev/**";
 
@@ -45,8 +55,9 @@ const mockWorker = (page, body) => page.route(WORKER_URL_GLOB, (route) => route.
 const openPasteWithUrl = async (page, url) => {
   await page.tab("Recipes");
   await page.getByRole("button", { name: /^Add a meal$/ }).click();
+    await openRecipeFields(page);
   await page.waitForTimeout(300);
-  await page.getByRole("button", { name: /Paste a recipe or link/ }).click();
+  await page.getByRole("button", { name: /Start from a recipe or link/ }).click();
   await page.getByLabel("Pasted recipe text or link").fill(url);
   await page.getByRole("button", { name: /Parse into fields/ }).click();
 };
@@ -214,6 +225,71 @@ test("SHOULD: a site that blocks the fetch is named, and is not called unsupport
     // would pass on that regression.
     assert.equal(await page.getByText(/isn.t set up for automatic import/).count(), 0);
     assert.equal(await page.getByPlaceholder("Meal name").inputValue(), "");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* ITEM 116 — THE TWO WAYS IN, AND THE HAND-OFF BETWEEN THEM. */
+
+test("SHOULD: Add a meal offers a choice, rather than opening a screen of empty fields", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await page.tab("Recipes");
+    await page.getByRole("button", { name: /^Add a meal$/ }).click();
+    await page.waitForTimeout(300);
+
+    // Both shut. The paste panel used to sit one line above a screen and a
+    // half of fields, which is what made the fast path read as a footnote.
+    assert.equal(await page.getByRole("button", { name: /^Start from a recipe or link/ }).getAttribute("aria-expanded"), "false");
+    assert.equal(await page.getByRole("button", { name: /^Recipe details/ }).getAttribute("aria-expanded"), "false");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: a successful import closes the paste panel, opens the fields, and asks for a review", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await mockWorker(page, JSONLD_RESPONSE);
+    await openPasteWithUrl(page, RECIPE_URL);
+    await page.waitForTimeout(500);
+
+    assert.equal(await page.getByRole("button", { name: /^Start from a recipe or link/ }).getAttribute("aria-expanded"), "false");
+    assert.equal(await page.getByRole("button", { name: /^Recipe details/ }).getAttribute("aria-expanded"), "true");
+    // The COUNT is the checkable part: "2 ingredients" is something you can
+    // disbelieve at a glance in a way that "success" is not.
+    await page.getByText(/2 ingredients/).waitFor();
+    await page.getByText(/review it before saving/).waitFor();
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* THE ONE THAT WOULD LOSE WORK SILENTLY. Section's default unmounts its
+   children when it closes, and a collapsed draft that discards itself is
+   the kind of bug nobody reports as a bug — they assume they mistyped.
+   keepMounted is what stops it; this is the test that fails without it. */
+test("SHOULD: collapsing the fields hides a half-typed recipe, and does not destroy it", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await page.tab("Recipes");
+    await page.getByRole("button", { name: /^Add a meal$/ }).click();
+    const details = page.getByRole("button", { name: /^Recipe details/ });
+    await details.click();
+    await page.getByPlaceholder("Meal name").fill("Half typed thing");
+    await page.getByPlaceholder("Ingredient", { exact: true }).first().fill("chicken breast");
+
+    await details.click();   // collapse
+    await page.waitForTimeout(200);
+    await details.click();   // and back
+    await page.waitForTimeout(200);
+
+    assert.equal(await page.getByPlaceholder("Meal name").inputValue(), "Half typed thing");
+    assert.equal(await page.getByPlaceholder("Ingredient", { exact: true }).first().inputValue(), "chicken breast");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

@@ -17,6 +17,16 @@ import assert from "node:assert/strict";
 import { openApp, assertNoPageErrors } from "../harness.mjs";
 import { smallCatalog } from "../fixtures.mjs";
 
+/* The recipe fields sit behind a disclosure now (item 116), so every test
+   that types into them has to open it — "Add a meal" gives you a CHOICE of
+   two ways in rather than the fields outright. An import or a paste opens
+   them by itself, which is why only the manual tests call this. */
+const openRecipeFields = async (page) => {
+  const btn = page.getByRole("button", { name: /^Recipe details/ });
+  if (await btn.getAttribute("aria-expanded") === "false") await btn.click();
+};
+
+
 const BASE = process.env.E2E_BASE_URL;
 
 // Both halves have to already exist for an offer to be made, so the catalog
@@ -43,8 +53,9 @@ test("SHOULD: a row naming two known ingredients offers to become two", async ()
   try {
     await page.tab("Recipes");
     await page.getByRole("button", { name: /^Add a meal$/ }).click();
+    await openRecipeFields(page);
     await page.waitForTimeout(300);
-    await page.getByRole("button", { name: /Paste a recipe or link/ }).click();
+    await page.getByRole("button", { name: /Start from a recipe or link/ }).click();
     await page.getByLabel("Pasted recipe text").fill("Test Bake\n- 2 cups rice\n- salt and ground black pepper to taste");
     await page.getByRole("button", { name: /^Parse into fields$/ }).click();
     await page.waitForTimeout(300);
@@ -66,8 +77,9 @@ test("SHOULD: accepting the split writes two real ingredients, not just two boxe
   try {
     await page.tab("Recipes");
     await page.getByRole("button", { name: /^Add a meal$/ }).click();
+    await openRecipeFields(page);
     await page.waitForTimeout(300);
-    await page.getByRole("button", { name: /Paste a recipe or link/ }).click();
+    await page.getByRole("button", { name: /Start from a recipe or link/ }).click();
     await page.getByLabel("Pasted recipe text").fill("Test Bake\n- 2 cups rice\n- salt and ground black pepper to taste");
     await page.getByRole("button", { name: /^Parse into fields$/ }).click();
     await page.waitForTimeout(300);
@@ -104,8 +116,9 @@ test("SHOULD: nothing is offered when the household has never heard of one half"
   try {
     await page.tab("Recipes");
     await page.getByRole("button", { name: /^Add a meal$/ }).click();
+    await openRecipeFields(page);
     await page.waitForTimeout(300);
-    await page.getByRole("button", { name: /Paste a recipe or link/ }).click();
+    await page.getByRole("button", { name: /Start from a recipe or link/ }).click();
     await page.getByLabel("Pasted recipe text").fill("Test Bake\n- 4 cloves of garlic peeled and cut in half\n- 2 cups rice");
     await page.getByRole("button", { name: /^Parse into fields$/ }).click();
     await page.waitForTimeout(300);

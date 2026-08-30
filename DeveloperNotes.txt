@@ -21,7 +21,7 @@ item is finished and lives over there.
 IF YOU ARE PICKING SOMETHING UP
 -------------------------------
 
-  113  the import allowlist             27 hosts; every catalog site now covered
+  116  recipe editor: two ways in       205px at rest, was 831\n  113  the import allowlist             27 hosts; every catalog site now covered
   110  the parser                       standing task: more captured pages
    98  the test gaps                    a register; 98a is the costly one
 
@@ -120,6 +120,58 @@ file reached 5,886 lines with ten live items in it.
     rules (on the real emulator), the sweep scripts, the rendered UI (273
     e2e). Every gap above is one of two shapes — needs a database, or needs
     prose held to code.
+
+116. THE RECIPE EDITOR IS A CHOICE OF TWO WAYS IN, NOT A WALL OF FIELDS.
+    The owner's reading, and it was right: "the pasting option that most
+    people will use is one line above a ton of manual entry fields". The
+    card measured 831px at 390 and 937 at 320 — over a full screen — with
+    the fast path for most recipes a footnote above the slow one.
+
+    NOW TWO DISCLOSURES: "Start from a recipe or link" and "Recipe
+    details", both closed on a NEW recipe. AT REST THE CARD IS 205px, 0.2
+    of a screen, and the whole choice is visible at once. Editing an
+    EXISTING recipe opens the fields outright — there is nothing to choose,
+    you came to change something.
+
+    THE HAND-OFF IS ONE FUNCTION, succeed(), because all three routes in —
+    a pasted recipe, a fetched link, a Shortcut import — have to land the
+    same way: close the panel that has done its job, open the fields, and
+    say what was found. It NAMES AND COUNTS: "Filled in 'Chicken Parmesan'
+    — 12 ingredients. Please review it before saving." The count is the
+    checkable part; a parse that found two is supposed to look wrong in a
+    way that the word "success" never would.
+
+    THAT RETIRED THE OLD NOTE, as the owner predicted. "Fills in the fields
+    below from a recipe you copied — or paste a link to one and it's
+    fetched for you. Check them before saving" sat above the fields and
+    fired BEFORE anything had happened, so it was an instruction to
+    remember. The replacement is a result, in the place the thing being
+    checked actually is.
+
+    Section (ui.jsx) grew an OPTIONAL controlled mode for this — a parent
+    has to be able to close one section and open another, which private
+    state cannot express. Existing callers are untouched.
+
+    A keepMounted FLAG WAS BUILT HERE AND THEN DELETED, and the reason is
+    worth keeping. The fear was that Section's `{open && children}` would
+    discard a half-typed recipe when the fields collapsed. THE MUTATION
+    TEST SAID OTHERWISE: it passed with the flag and without it, because
+    every field in that form is a CONTROLLED input reading from `draft` in
+    MealsTab — unmounting has nothing to lose. The flag was protecting
+    against a bug that could not happen. The e2e test stays, because it
+    WOULD catch a later refactor that pushed draft state down into the
+    section.
+
+    SAVE IS DISABLED WITHOUT A NAME NOW. saveDraft has always returned
+    early without one, so the button did nothing when pressed — survivable
+    while the fields were open and an empty name box was visibly empty, and
+    not once the resting card is a name you cannot see beside a live Save.
+
+    SIX e2e SPECS OPEN THESE FIELDS TO TYPE INTO THEM and needed an
+    openRecipeFields helper; the Shortcut-import path needed the same
+    succeed() landing, which the suite caught as three real failures rather
+    than test churn — a filled draft behind collapsed fields is a card
+    claiming to hold a recipe and showing none of it.
 
 115. THE URL IMPORT HAD NO TIMEOUT — FIXED, AND WHY IT WAS INVISIBLE HERE.
     Reported from real use: on the DuckDuckGo browser, pasting a link left

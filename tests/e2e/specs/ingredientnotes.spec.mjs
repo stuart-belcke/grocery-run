@@ -16,16 +16,27 @@ import assert from "node:assert/strict";
 import { openApp, assertNoPageErrors } from "../harness.mjs";
 import { smallCatalog } from "../fixtures.mjs";
 
+/* The recipe fields sit behind a disclosure now (item 116), so every test
+   that types into them has to open it — "Add a meal" gives you a CHOICE of
+   two ways in rather than the fields outright. An import or a paste opens
+   them by itself, which is why only the manual tests call this. */
+const openRecipeFields = async (page) => {
+  const btn = page.getByRole("button", { name: /^Recipe details/ });
+  if (await btn.getAttribute("aria-expanded") === "false") await btn.click();
+};
+
+
 const BASE = process.env.E2E_BASE_URL;
 
 const newDraft = async (page) => {
   await page.tab("Recipes");
   await page.getByRole("button", { name: /^Add a meal$/ }).click();
+    await openRecipeFields(page);
   await page.waitForTimeout(300);
 };
 
 const pasteInto = async (page, text) => {
-  await page.getByRole("button", { name: /Paste a recipe or link/ }).click();
+  await page.getByRole("button", { name: /Start from a recipe or link/ }).click();
   await page.getByLabel("Pasted recipe text").fill(text);
   await page.getByRole("button", { name: /^Parse into fields$/ }).click();
   await page.waitForTimeout(300);
