@@ -295,3 +295,32 @@ test("SHOULD: collapsing the fields hides a half-typed recipe, and does not dest
     await page.done();
   }
 });
+
+/* A PARSE THAT FOUND NOTHING MUST SAY SO. This is the case where the review
+   prompt matters most — a page whose markup the Worker could read but whose
+   ingredients it could not — and it is the one branch of the banner that a
+   passing import never exercises. "6 ingredients" and "no ingredients found"
+   are different claims, and only the second one is a warning. */
+test("SHOULD: an import that finds no ingredients says that, rather than claiming success", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await mockWorker(page, {
+      ok: true, source: "jsonld",
+      recipe: { name: "Grandma's Mystery Bake", recipeYield: ["4"], recipeIngredient: [], recipeInstructions: [{ "@type": "HowToStep", text: "Bake it." }] },
+    });
+    await openPasteWithUrl(page, RECIPE_URL);
+    await page.waitForTimeout(500);
+
+    await page.getByText(/no ingredients found/).waitFor();
+    // Not the plural branch dressed up as a zero — this must not read
+    // "0 ingredients", which scans as a count rather than as a warning.
+    assert.equal(await page.getByText(/0 ingredients/).count(), 0);
+    // The name it DID find still lands, and the fields still open, so there
+    // is something to correct rather than a dead end.
+    assert.equal(await page.getByPlaceholder("Meal name").inputValue(), "Grandma's Mystery Bake");
+    assert.equal(await page.getByRole("button", { name: /^Recipe details/ }).getAttribute("aria-expanded"), "true");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});

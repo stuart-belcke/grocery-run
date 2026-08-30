@@ -64,3 +64,25 @@ jobs:
           body=$(curl -fsS --max-time 30 "$url")
           echo "$body"
           echo "$body" | grep -q '"ok":true' && echo "$body" | grep -q '"source":"jsonld"'
+
+      # THE OTHER ANSWER THE ALLOWLIST EXISTS TO PRODUCE. The four Dotdash
+      # Meredith hosts are allowlisted DELIBERATELY (item 113): allowed, the
+      # Worker really tries them, gets the wall, and the app can name the
+      # site instead of calling it unsupported. That path has only ever been
+      # exercised against a mock.
+      # EITHER ANSWER PASSES, and that is the point rather than a weakness:
+      # "site_blocked" is the wall still up, "ok":true is the wall down and
+      # the self-healing working. What must NEVER come back is
+      # "host_not_allowed" — that would mean the allowlist had silently lost
+      # these hosts and the honest message with them.
+      - name: Verify a walled site is named rather than called unsupported
+        if: steps.cftoken.outputs.have == 'yes'
+        run: |
+          url="https://grocery-run-recipe-import.stuart-belcke.workers.dev/?url=https%3A%2F%2Fwww.allrecipes.com%2Frecipe%2F223042%2Fchicken-parmesan%2F"
+          body=$(curl -fsS --max-time 30 "$url")
+          echo "$body"
+          if echo "$body" | grep -q '"reason":"host_not_allowed"'; then
+            echo "::error::allrecipes.com fell off the allowlist — a blocked site would now be called unsupported"
+            exit 1
+          fi
+          echo "$body" | grep -qE '"reason":"site_blocked"|"ok":true'
