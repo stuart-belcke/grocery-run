@@ -44,7 +44,7 @@ test("SHOULD: a row naming two known ingredients offers to become two", async ()
     await page.tab("Recipes");
     await page.getByRole("button", { name: /^Add a meal$/ }).click();
     await page.waitForTimeout(300);
-    await page.getByRole("button", { name: /Paste a recipe to fill this in/ }).click();
+    await page.getByRole("button", { name: /Paste a recipe or link/ }).click();
     await page.getByLabel("Pasted recipe text").fill("Test Bake\n- 2 cups rice\n- salt and ground black pepper to taste");
     await page.getByRole("button", { name: /^Parse into fields$/ }).click();
     await page.waitForTimeout(300);
@@ -67,7 +67,7 @@ test("SHOULD: accepting the split writes two real ingredients, not just two boxe
     await page.tab("Recipes");
     await page.getByRole("button", { name: /^Add a meal$/ }).click();
     await page.waitForTimeout(300);
-    await page.getByRole("button", { name: /Paste a recipe to fill this in/ }).click();
+    await page.getByRole("button", { name: /Paste a recipe or link/ }).click();
     await page.getByLabel("Pasted recipe text").fill("Test Bake\n- 2 cups rice\n- salt and ground black pepper to taste");
     await page.getByRole("button", { name: /^Parse into fields$/ }).click();
     await page.waitForTimeout(300);
@@ -105,7 +105,7 @@ test("SHOULD: nothing is offered when the household has never heard of one half"
     await page.tab("Recipes");
     await page.getByRole("button", { name: /^Add a meal$/ }).click();
     await page.waitForTimeout(300);
-    await page.getByRole("button", { name: /Paste a recipe to fill this in/ }).click();
+    await page.getByRole("button", { name: /Paste a recipe or link/ }).click();
     await page.getByLabel("Pasted recipe text").fill("Test Bake\n- 4 cloves of garlic peeled and cut in half\n- 2 cups rice");
     await page.getByRole("button", { name: /^Parse into fields$/ }).click();
     await page.waitForTimeout(300);

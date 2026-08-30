@@ -25,7 +25,7 @@ const newDraft = async (page) => {
 };
 
 const pasteInto = async (page, text) => {
-  await page.getByRole("button", { name: /Paste a recipe to fill this in/ }).click();
+  await page.getByRole("button", { name: /Paste a recipe or link/ }).click();
   await page.getByLabel("Pasted recipe text").fill(text);
   await page.getByRole("button", { name: /^Parse into fields$/ }).click();
   await page.waitForTimeout(300);

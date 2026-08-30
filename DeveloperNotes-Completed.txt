@@ -2490,6 +2490,23 @@ into the details panel and the name grew.
     placeholder; the check that found it measures each placeholder string
     against its own field's content box.
 
+    THE PASTE BUTTON SAID "PASTE A RECIPE TO FILL THIS IN" AND WAS WRONG
+    ABOUT BOTH HALVES. It never mentioned a LINK, which is half of what the
+    panel accepts (isBareUrl decides which, silently) — so someone holding
+    a URL had no reason to press a button offering to take a recipe. And
+    "to fill this in" named a consequence rather than an action, with
+    "this" pointing at the form BELOW while the button sits above it; the
+    panel's own first line already explains the filling, so the button was
+    repeating it badly. Now "📋 Paste a recipe or link".
+    IT ALSO LOOKED LIKE A CONTROL YOU WERE MEANT TO IGNORE — faint grey
+    text on a transparent pill, when for most recipes it is the fastest
+    path in the form. Full width, 15px, C.ink; still OUTLINED rather than
+    solid, because the primary action in this card is Save and two solid
+    buttons would argue about which one that is.
+    SIX e2e SPECS NAME THIS BUTTON to open the panel, so the label is not
+    only cosmetic — importduplicates, ingredientnotes, meals (x2),
+    recipeimport and splitingredient all had to move with it.
+
     FINAL, BOTH WIDTHS: 0 tap targets under 44px (was 14), 0 clipped text,
     0 contrast failures, no horizontal overflow. The 390px card got
     SHORTER despite everything growing — 729 -> 667px — because the two

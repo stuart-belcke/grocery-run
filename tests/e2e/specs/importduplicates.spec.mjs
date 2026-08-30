@@ -93,7 +93,7 @@ test("a pasted recipe surfaces the duplicate rather than silently forking the ca
     await page.tab("Recipes");
     await page.getByRole("button", { name: /^Add a meal$/ }).click();
     await page.waitForTimeout(300);
-    await page.getByRole("button", { name: /Paste a recipe to fill this in/ }).click();
+    await page.getByRole("button", { name: /Paste a recipe or link/ }).click();
     await page.getByLabel("Pasted recipe text").fill(["Roast", "Ingredients", "2 lb chicken", "1 cup rice"].join("\n"));
     await page.getByRole("button", { name: /^Parse into fields$/ }).click();
     await page.waitForTimeout(400);

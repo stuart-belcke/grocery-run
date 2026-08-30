@@ -555,7 +555,7 @@ test("SHOULD: pasting a recipe fills in the add-meal form, and the parsed ingred
     await page.getByRole("button", { name: /^Add a meal$/ }).click();
     await page.waitForTimeout(300);
 
-    await page.getByRole("button", { name: /Paste a recipe to fill this in/ }).click();
+    await page.getByRole("button", { name: /Paste a recipe or link/ }).click();
     await page.getByLabel("Pasted recipe text").fill("Weeknight Rice Bowl\n- 2 cups rice\n- 1 lb chicken thighs\n- 1 bell pepper");
     await page.getByRole("button", { name: /^Parse into fields$/ }).click();
     await page.waitForTimeout(300);
@@ -591,7 +591,7 @@ test("SHOULD: pasting into a draft that already has a name and ingredients adds 
     await page.getByPlaceholder("Meal name").fill("My Custom Meal");
     await page.getByPlaceholder("Ingredient", { exact: true }).first().fill("Butter");
 
-    await page.getByRole("button", { name: /Paste a recipe to fill this in/ }).click();
+    await page.getByRole("button", { name: /Paste a recipe or link/ }).click();
     await page.getByLabel("Pasted recipe text").fill("Some Other Name\n- 2 cups rice");
     await page.getByRole("button", { name: /^Parse into fields$/ }).click();
     await page.waitForTimeout(300);

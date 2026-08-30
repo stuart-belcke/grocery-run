@@ -46,7 +46,7 @@ const openPasteWithUrl = async (page, url) => {
   await page.tab("Recipes");
   await page.getByRole("button", { name: /^Add a meal$/ }).click();
   await page.waitForTimeout(300);
-  await page.getByRole("button", { name: /Paste a recipe to fill this in/ }).click();
+  await page.getByRole("button", { name: /Paste a recipe or link/ }).click();
   await page.getByLabel("Pasted recipe text or link").fill(url);
   await page.getByRole("button", { name: /Parse into fields/ }).click();
 };

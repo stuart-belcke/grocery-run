@@ -847,11 +847,24 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
       {draft && (
         <div style={{ background: C.card, border: `1px solid ${C.green}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
           {!pasteOpen ? (
+            /* "OR LINK", because a link is half of what this accepts and the
+               old label never said so — someone holding a URL had no reason
+               to press a button offering to take a recipe. "to fill this in"
+               went the other way: it named a consequence rather than the
+               action, and "this" pointed at the form BELOW while the button
+               sits above it. The panel's own first line already explains the
+               filling, so the button was repeating it badly.
+               AND IT LOOKS LIKE AN OFFER NOW. Faint grey text on a
+               transparent pill reads as a control you are meant to ignore;
+               for most recipes this is the fastest path in the form. Full
+               width and C.ink, still outlined rather than solid — the
+               primary action in this card is Save, and two solid buttons
+               would argue about which one that is. */
             <button
               onClick={() => setPasteOpen(true)}
-              style={{ display: "block", fontFamily: fontBody, fontSize: 13, fontWeight: 500, padding: "13px 14px", borderRadius: 999, cursor: "pointer", border: `1px solid ${C.line}`, background: "transparent", color: C.faint, marginBottom: 10 }}
+              style={{ display: "block", width: "100%", boxSizing: "border-box", fontFamily: fontBody, fontSize: 15, fontWeight: 500, padding: "15px 16px", borderRadius: 999, cursor: "pointer", border: `1px solid ${C.line}`, background: "transparent", color: C.ink, marginBottom: 10 }}
             >
-              📋 Paste a recipe to fill this in
+              📋 Paste a recipe or link
             </button>
           ) : (
             <div style={{ border: `1px dashed ${C.line}`, borderRadius: 8, padding: 10, marginBottom: 12 }}>
