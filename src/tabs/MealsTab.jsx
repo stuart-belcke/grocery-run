@@ -936,9 +936,18 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                     : "Couldn't fetch that page. Copy the recipe's text from the page and paste it here instead."}
                 </div>
               )}
+              {/* ONE ACTION HERE, NOT TWO. This row used to carry its own
+                  "Cancel" — and once the panel became a Section (item 116),
+                  the card showed TWO buttons reading "Cancel" a few
+                  centimetres apart: this one dropped the pasted text, the one
+                  at the bottom throws away the whole recipe. Same word,
+                  wildly different consequence, and no way to tell them apart
+                  by looking.
+                  Removing it costs nothing, because the section header
+                  already does exactly what it did: collapsing calls the same
+                  closePaste, clearing the box on the way out. */}
               <div style={{ display: "flex", gap: 8 }}>
                 <div style={{ flex: 1 }} />
-                <Btn small onClick={closePaste}>Cancel</Btn>
                 <Btn small kind="primary" disabled={!pasteText.trim() || urlImportState === "loading"} onClick={applyParsedRecipe}>
                   {urlImportState === "loading" ? "Fetching…" : "Parse into fields"}
                 </Btn>
