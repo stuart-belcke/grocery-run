@@ -2820,10 +2820,32 @@ into the details panel and the name grew.
     purpose flour</span>"), so even the Worker's own pageText fallback (and a
     real person copying the visible page) reads "1 cupall-purpose flour" —
     no separating space. Fed through parseRecipeText as a paste, this comes
-    back "Cupall-purpose flour" with no unit, and the page's own duplicate
-    "Ingredients" section plus "Shop recipe on Amazon" / "Exclusively for
-    Prime members…" lines get pulled in as fake ingredients too. Confirmed by
-    actually running parseRecipeText against the extracted page text, not by
-    reasoning about the markup. Adding this host would only route a broken
-    parse through the Worker instead of a manual paste; it buys nothing over
+    back "Cupall-purpose flour" with no unit, and the page's own "Shop recipe
+    on Amazon" / "Exclusively for Prime members…" upsell lines get pulled in
+    as fake ingredients too. Adding this host would only route a broken parse
+    through the Worker instead of a manual paste; it buys nothing over
     today's message telling someone to paste the recipe text by hand.
+
+    THE OWNER THEN PASTED THE ACTUAL PAGE TEXT, AND IT WAS WORSE THAN THE
+    PROBE FOUND: this page's heading is "Method", not "Instructions" or
+    "Directions" — neither SECTION_HEADING_RE nor the insStart search
+    recognized it, so the ingredient-section scan (which stops only at a
+    recognized heading) never stopped at all. It ran straight through the six
+    real steps AND the "Nutritional Info" table below them ("Total Fat",
+    "220mg", "Protein"…) as 30 fake ingredients, and notes came back empty —
+    no instructions section was ever found to fill it. A SECOND MISS
+    COMPOUNDED IT: "Nutritional Info" itself matched neither "nutrition" nor
+    "facts" in END_OF_STEPS_RE, so even once "Method" was recognized, the
+    steps loop still ran past the real last step into the nutrition table.
+    FIXED, BOTH GENERAL RATHER THAN SITE-SPECIFIC: "method" added to
+    SECTION_HEADING_RE and the insStart search (a common heading on plenty of
+    sites, not just this one); END_OF_STEPS_RE widened from
+    "nutrition(\s+facts)?" to "nutrition(al)?(\s+(facts|information|info))?".
+    Mutation-tested — each reverted alone, the paired test failed, restored.
+    Confirmed by actually running parseRecipeText against real pasted text
+    (twice — the probe's extraction, then the owner's own paste), not by
+    reasoning about the markup either time.
+    STILL LEFT: the run-together "Cupall-purpose flour" text and the two
+    upsell lines are unchanged. Those are wholefoodsmarket.com's own markup
+    quirks, not a general parser gap, and are why this host stays off the
+    allowlist regardless of the two fixes above.

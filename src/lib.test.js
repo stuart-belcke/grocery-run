@@ -3317,6 +3317,25 @@ test("parseRecipeText keeps only the first method's steps when a recipe lists se
   assert.ok(!result.notes.includes("INSTANT POT"), "the method heading itself isn't left in the notes");
 });
 
+// item 117: found on a real wholefoodsmarket.com paste. "Method" wasn't
+// recognized as an instructions heading at all, so the ingredient-section
+// scan (which stops only at a recognized heading) never stopped — every
+// step AND the nutrition table below them came back as fake ingredients,
+// and notes stayed empty because no instructions section was ever found.
+test("parseRecipeText reads a \"Method\" heading as the instructions section", () => {
+  const result = parseRecipeText(["Toast", "Ingredients", "2 slices bread", "Method", "Put the bread in.", "Take the bread out."].join("\n"));
+  assert.deepEqual(result.ingredients.map((i) => i.name), ["Bread"]);
+  assert.deepEqual(result.notes.split("\n"), ["1. Put the bread in.", "2. Take the bread out."]);
+});
+
+// item 117, same paste: "Nutritional Info" matched neither "nutrition" nor
+// "facts" in END_OF_STEPS_RE, so the whole nutrition table ("Total Fat",
+// "220mg", "Protein"...) ran on as fake steps past the real last one.
+test("parseRecipeText stops steps at a \"Nutritional Info\" heading", () => {
+  const result = parseRecipeText(["Toast", "Method", "Put the bread in.", "Take the bread out.", "Nutritional Info", "Calories", "120"].join("\n"));
+  assert.deepEqual(result.notes.split("\n"), ["1. Put the bread in.", "2. Take the bread out."]);
+});
+
 test("parseRecipeText leaves the name blank rather than guessing when the paste starts mid-boilerplate", () => {
   const result = parseRecipeText("Cook Mode\nAuthor: Someone\nServings: 4\nIngredients\n▢ 1 cup rice");
   assert.equal(result.name, "");

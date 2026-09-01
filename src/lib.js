@@ -1255,7 +1255,7 @@ const YIELDS_RE = /yields\s+(\d+(?:\.\d+)?)\s*servings?/i;
 // "Servings:" and "4 servings" land on separate lines on some cards, so the
 // number leads its word instead of following it.
 const SERVINGS_FIRST_RE = /^(\d+(?:\.\d+)?)\s+servings?\b/i;
-const SECTION_HEADING_RE = /^(ingredients?|instructions?|directions?)\s*$/i;
+const SECTION_HEADING_RE = /^(ingredients?|instructions?|directions?|method)\s*$/i;
 
 /* Where the steps stop. Used to say /^(nutrition|notes?)$/ and therefore ran
    straight past "Cook's Note" — the heading this page actually uses — taking
@@ -1264,7 +1264,15 @@ const SECTION_HEADING_RE = /^(ingredients?|instructions?|directions?)\s*$/i;
    ("Recipe Notes" and "Chef's Notes" are the same shape), and the apostrophe
    has to be allowed in both its straight and curly forms, because a page
    typesets one and a keyboard produces the other. */
-const END_OF_STEPS_RE = /^(nutrition(\s+facts)?|([A-Za-z'’]+\s+)?notes?|video|post navigation|leave a (reply|comment)|\d+\s+comments?\b|comments?|more comments|did you make this recipe|tried this recipe)\s*[:.]?\s*$|all rights reserved/i;
+// "nutrition(al)? (facts|information|info)?" — wholefoodsmarket.com's own
+// "Nutritional Info" (item 117) matched neither "nutrition" nor "facts", so
+// its whole nutrition table (12 lines: "Total Fat", "220mg", "Protein"...)
+// ran on as fake instruction steps past the real last one.
+// "nutrition(al)? (facts|information|info)?" — wholefoodsmarket.com's own
+// "Nutritional Info" (item 117) matched neither "nutrition" nor "facts", so
+// its whole nutrition table (12 lines: "Total Fat", "220mg", "Protein"...)
+// ran on as fake instruction steps past the real last one.
+const END_OF_STEPS_RE = /^(nutrition(al)?(\s+(facts|information|info))?|([A-Za-z'’]+\s+)?notes?|video|post navigation|leave a (reply|comment)|\d+\s+comments?\b|comments?|more comments|did you make this recipe|tried this recipe)\s*[:.]?\s*$|all rights reserved/i;
 
 /* What starts a numbered step. `[.)]` alone missed this page entirely, where
    the number is separated from its text by a TAB rather than punctuation
@@ -1433,7 +1441,12 @@ export function parseRecipeText(text) {
   }
 
   let notes = "";
-  const insStart = lines.findIndex((l) => /^(instructions?|directions?)\s*$/i.test(l));
+  /* "Method" — wholefoodsmarket.com's own heading (item 117) — was missing
+     here, so a real paste of that recipe never found an instructions
+     section at all: every step AND every nutrition-facts line ("Total Fat",
+     "220mg", "Protein"...) fell through to the no-heading ingredient
+     fallback below and came back as fake ingredients instead. */
+  const insStart = lines.findIndex((l) => /^(instructions?|directions?|method)\s*$/i.test(l));
   if (insStart !== -1) {
     const steps = [];
     let numbered = false;
