@@ -20,26 +20,17 @@ function findRecipeNode(html) {
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 
-const urls = [
-  "https://www.wholefoodsmarket.com/recipes/fluffy-cottage-cheese-pancakes",
-  "https://www.theleangreenbean.com/lentil-banana-muffins/",
-];
-
-for (const url of urls) {
-  try {
-    const res = await fetch(url, { headers: { "user-agent": UA, accept: "text/html,application/xhtml+xml" } });
-    console.log(`\n${url}\n  status: ${res.status}  final url: ${res.url}`);
-    if (!res.ok) continue;
-    const html = await res.text();
-    const recipe = findRecipeNode(html);
-    if (recipe) {
-      console.log(`  RECIPE FOUND: name=${JSON.stringify(recipe.name)} ingredients=${(recipe.recipeIngredient || []).length}`);
-      console.log(`  recipeIngredient: ${JSON.stringify(recipe.recipeIngredient)}`);
-      console.log(`  recipeYield: ${JSON.stringify(recipe.recipeYield)}`);
-    } else {
-      console.log("  NO RECIPE NODE");
-    }
-  } catch (e) {
-    console.log(`  FETCH FAILED: ${e && e.message || e}`);
-  }
-}
+const url = "https://www.wholefoodsmarket.com/recipes/fluffy-cottage-cheese-pancakes";
+const res = await fetch(url, { headers: { "user-agent": UA, accept: "text/html,application/xhtml+xml" } });
+const html = await res.text();
+console.log("status", res.status, "length", html.length);
+const blocks = [...html.matchAll(/<script[^>]*application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]);
+console.log("ld+json block count:", blocks.length);
+blocks.forEach((b, i) => {
+  console.log(`--- block ${i} (first 500 chars) ---`);
+  console.log(b.slice(0, 500));
+});
+console.log("recipeIngredient literal count in html:", (html.match(/recipeIngredient/g) || []).length);
+console.log("'@type\":\"Recipe' literal count in html:", (html.match(/"@type":"Recipe"/g) || []).length);
+console.log("has __NEXT_DATA__:", html.includes("__NEXT_DATA__"));
+console.log("has window.__INITIAL_STATE__:", html.includes("__INITIAL_STATE__"));
