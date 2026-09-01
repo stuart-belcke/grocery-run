@@ -103,6 +103,14 @@ const ALLOWED_HOSTS = new Set([
      Both forms are here in effect: the bare host 301s to www, and
      bareHost collapses them anyway. */
   "www.eatyourselfskinny.com",
+  // ITEM 117: one link pasted in real use (theleangreenbean.com), refused
+  // because it wasn't listed. Probed the same way as item 113 — a Recipe
+  // node came back with a non-empty recipeIngredient (11 ingredients, a
+  // recipeYield of 12). wholefoodsmarket.com was checked in the same round
+  // and left OFF: it serves no JSON-LD at all (a Next.js app; the recipe is
+  // real HTML on the page, just never a Recipe node), the same shape as
+  // smittenkitchen.com above — pasting the page text still works.
+  "www.theleangreenbean.com",
   /* FOUR THAT ARE KNOWN TO REFUSE US, HERE ON PURPOSE. Every one of these
      answered the item 113 probe with HTTP 402 on its own homepage — all
      four are Dotdash Meredith properties behind the same wall. Allowing
