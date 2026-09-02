@@ -105,20 +105,56 @@ if ("serviceWorker" in navigator && window.isSecureContext && !localOnly) {
   let updateReady = false;
   let refreshing = false;
 
+  const isBusy = () =>
+    !canReloadForUpdate({
+      visibilityState: document.visibilityState,
+      activeTag: document.activeElement && document.activeElement.tagName,
+      contentEditable: !!(document.activeElement && document.activeElement.isContentEditable),
+      dialogOpen: !!document.querySelector('[role="dialog"]'),
+    });
+
   const applyUpdate = () => {
     if (!updateReady || refreshing) return;
-    if (
-      !canReloadForUpdate({
-        visibilityState: document.visibilityState,
-        activeTag: document.activeElement && document.activeElement.tagName,
-        contentEditable: !!(document.activeElement && document.activeElement.isContentEditable),
-        dialogOpen: !!document.querySelector('[role="dialog"]'),
-      })
-    ) {
-      return; // busy — try again on the next event below
-    }
+    if (isBusy()) return; // busy — try again on the next event below
     refreshing = true; // reload() is not instant; without this the events below re-enter
     window.location.reload();
+  };
+
+  /* THE NEW BUILD DOES NOT TAKE OVER UNTIL THIS PAGE IS READY TO GO WITH IT,
+     which is the whole of item 120 and the reason sw.js no longer calls
+     skipWaiting() on its own.
+
+     THE WHITE SCREEN THIS FIXES. The worker used to install, skipWaiting, and
+     claim this page the moment a deploy landed — and `activate` deletes the
+     previous build's cache. The reload onto the new build is deliberately
+     DEFERRED while the tab is busy (a half-typed recipe outranks being
+     current), so between those two moments the old page kept running with its
+     cache deleted underneath it. sync.js loads Firebase through dynamic
+     import(), so the next one of those asked for a hashed chunk that this
+     build's cache had never held and that the site no longer serves — the
+     import rejects, and the app is a white screen until it is force-closed.
+     Reported from a real phone right after a deploy.
+     A CACHE-FIRST WORKER MUST NOT ADOPT A PAGE IT CANNOT FEED, and waiting is
+     the cheapest way to keep that true: while the old worker is still in
+     charge, the old page's chunks are still in the old worker's cache.
+
+     WHY THE PAGE DECIDES AND NOT THE WORKER. The worker cannot tell a first
+     install from an update without guessing at its client list — during
+     install it controls nobody, and counting uncontrolled windows would call
+     the very first visit an update. The page already knows, exactly, from
+     `hadController`. So the policy stays in one place, next to the reload
+     rule it has to agree with. */
+  let registration = null;
+
+  const letTheNewBuildTakeOver = () => {
+    const waiting = registration && registration.waiting;
+    if (!waiting || refreshing) return;
+    // A FIRST INSTALL HAS NOBODY TO STRAND, so it is promoted immediately and
+    // without asking: nothing is running that this worker's cache can't serve,
+    // and holding back would leave the first visit uncontrolled — and so not
+    // offline-capable — until some later reload.
+    if (hadController && isBusy()) return; // try again on the next event below
+    waiting.postMessage({ type: "SKIP_WAITING" });
   };
 
   navigator.serviceWorker.addEventListener("controllerchange", () => {
@@ -129,14 +165,32 @@ if ("serviceWorker" in navigator && window.isSecureContext && !localOnly) {
 
   /* The moments a busy tab stops being busy. `focusout` is deferred by a tick
      because activeElement is not updated until after it fires, so checking
-     immediately would still see the field being left. */
-  document.addEventListener("visibilitychange", applyUpdate);
-  window.addEventListener("focusout", () => setTimeout(applyUpdate, 0));
+     immediately would still see the field being left.
+     Both run: one asks the waiting build to take over, the other reloads once
+     it has. They are the same moments because they answer the same question. */
+  const onFree = () => {
+    letTheNewBuildTakeOver();
+    applyUpdate();
+  };
+  document.addEventListener("visibilitychange", onFree);
+  window.addEventListener("focusout", () => setTimeout(onFree, 0));
 
   window.addEventListener("load", () => {
     navigator.serviceWorker
       .register("./sw.js")
       .then((reg) => {
+        registration = reg;
+        // Already sitting there — an update that finished installing while the
+        // app was closed, or during a previous session that never reached a
+        // safe moment.
+        letTheNewBuildTakeOver();
+        reg.addEventListener("updatefound", () => {
+          const installing = reg.installing;
+          if (!installing) return;
+          installing.addEventListener("statechange", () => {
+            if (installing.state === "installed") letTheNewBuildTakeOver();
+          });
+        });
         // Registration alone only ever checks once, at this moment. An app kept
         // in memory for days therefore never learns a new build exists — which
         // is exactly how two phones ended up on different versions with no

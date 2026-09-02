@@ -83,6 +83,7 @@ The parts, if you need one on its own:
 | `npm run lint` | eslint |
 | `npm test` | unit tests, `node --test` over `src/**/*.test.js` |
 | `npm run test:rules` | `database.rules.json` against the real emulator |
+| `npm run test:sw` | a real deploy landing on a running app (NOT in `check`) |
 | `npm run test:e2e` | the real build in a real browser |
 | `npm run build` | the production bundle |
 
@@ -114,6 +115,17 @@ paste, and passing tests now do mean the deployed rules are the tested ones —
 provided the `FIREBASE_SERVICE_ACCOUNT` secret is set. Without it the deploy
 step warns and skips, which is the one case where a green run has not shipped
 the rules.
+
+**The service worker is invisible to `npm run check`.** `test:e2e` builds with
+`VITE_LOCAL_ONLY=1`, and main.jsx deliberately skips registering a worker in
+that build, so nothing in the gate exercises offline caching or what happens
+to an app that is already open when a deploy lands. `npm run test:sw` is the
+only thing that does: it makes two real builds with different hashed
+filenames, serves one, then swaps in the other underneath a running browser.
+It is out of `check` because those two builds cost ~40s on top of a
+four-minute gate. Run it when you touch `public/sw.js`, the update path in
+`src/main.jsx`, or `canReloadForUpdate` — item 120 was a white screen on a
+real phone that every other test in this repo was blind to.
 
 **Leaving and restoring a household cannot be tested here** — both need the
 database the e2e build compiles out. The rules under them are covered
