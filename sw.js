@@ -17,8 +17,8 @@
         cache is touched — so going offline mid-update leaves the previous
         app working instead of nothing at all                                */
 
-const BUILD = "347862c1";
-const PRECACHE = ["./","./catalog.json","./manifest.webmanifest","./icon.svg","./icon-192.png","./icon-512.png","./icon-maskable-512.png","./apple-touch-icon.png","./assets/index-Bh2ZcVwV.js","./assets/index.esm-DSysC4yv.js","./assets/index.esm-BHAHWwh0.js","./assets/index.esm-K83wNhdl.js","./assets/index.esm2017-ClIYgWP-.js"];
+const BUILD = "494208b1";
+const PRECACHE = ["./","./catalog.json","./manifest.webmanifest","./icon.svg","./icon-192.png","./icon-512.png","./icon-maskable-512.png","./apple-touch-icon.png","./assets/index-urees_iA.js","./assets/index.esm-DSysC4yv.js","./assets/index.esm-BHAHWwh0.js","./assets/index.esm-K83wNhdl.js","./assets/index.esm2017-ClIYgWP-.js"];
 
 /* CACHE STORAGE IS PER-ORIGIN, NOT PER-WORKER, and this origin runs more than
    one copy of the app. The real one lives at /grocery-run/; every open pull
@@ -63,18 +63,34 @@ const isPreview = SCOPE.includes("/pr-preview/");
 // means the other app's.
 const fromOwnCache = (req) => caches.open(CACHE).then((c) => c.match(req));
 
-self.addEventListener("install", (e) =>
-  e.waitUntil(
-    caches
-      .open(CACHE)
-      .then((c) => c.addAll(PRECACHE))
-      // Only take over once a COMPLETE copy of this build is stored. If
-      // addAll fails (offline mid-install), we never skipWaiting, activate
-      // never runs, and the previous service worker keeps serving its own
-      // intact cache.
-      .then(() => self.skipWaiting())
-  )
-);
+/* INSTALL STORES THE BUILD AND THEN WAITS TO BE ASKED (item 120). It used to
+   call skipWaiting() here, which meant a deploy took this page over the
+   instant it finished downloading — while the reload onto the new build is
+   deliberately deferred if the tab is busy. `activate` below then deleted the
+   previous build's cache out from under a page that was still running on it,
+   and the next dynamic import() of a Firebase chunk asked for a hashed file
+   this cache never held and the site no longer serves. White screen, until
+   the app was force-closed. Reported from a real phone after a deploy.
+
+   So the page says when. main.jsx posts SKIP_WAITING at a moment it is
+   willing to reload — immediately on a first install, where there is nothing
+   running that this cache cannot serve, and otherwise once the tab is idle.
+   Takeover and reload then happen together instead of minutes apart.
+
+   IF THE MESSAGE NEVER COMES, nothing is broken: this worker sits in `waiting`
+   and the previous one keeps serving its own intact cache, which is the same
+   place a failed addAll leaves things. Closing every tab activates it in the
+   normal way.
+
+   THE OFFLINE GUARANTEE IS UNCHANGED and is why addAll still gates
+   everything: a COMPLETE copy of this build is stored before this worker is
+   eligible to take over at all, so going offline mid-update leaves the
+   previous app working rather than nothing. */
+self.addEventListener("install", (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(PRECACHE))));
+
+self.addEventListener("message", (e) => {
+  if (e.data && e.data.type === "SKIP_WAITING") self.skipWaiting();
+});
 
 self.addEventListener("activate", (e) =>
   e.waitUntil(
