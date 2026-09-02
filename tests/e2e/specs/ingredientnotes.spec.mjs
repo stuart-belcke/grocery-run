@@ -208,7 +208,7 @@ test("the cooking steps come out numbered, one per line", async () => {
 
     const cat = await page.readCatalog();
     const recipe = Object.values(cat.recipes).find((r) => r.name === "Pasta");
-    assert.deepEqual(recipe.notes.split("\n"), ["1. Boil the water.", "2. Add the pasta. Cook until al dente.", "3. Drain."]);
+    assert.deepEqual(recipe.instructions.split("\n"), ["1. Boil the water.", "2. Add the pasta. Cook until al dente.", "3. Drain."]);
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

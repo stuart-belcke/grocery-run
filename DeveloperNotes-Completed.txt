@@ -2849,3 +2849,74 @@ into the details panel and the name grew.
     upsell lines are unchanged. Those are wholefoodsmarket.com's own markup
     quirks, not a general parser gap, and are why this host stays off the
     allowlist regardless of the two fixes above.
+
+118. THE COOKING METHOD GETS ITS OWN FIELD, AND `notes` FINALLY MEANS NOTES.
+    Asked for as "rename Notes to Instructions, then add a Notes section".
+    One field was doing two jobs and was named for the smaller one.
+
+    IT WAS ALREADY HALF-RENAMED, WHICH IS WHAT MADE IT CONFUSING. Item 116
+    changed the EDITOR's heading and placeholder to "Instructions"; the stored
+    field stayed `notes`, and RecipeDetail still printed the heading "Notes"
+    over the same text. One field, two names, depending on which screen you
+    were on. Now: `instructions` is the method, `notes` is the cook's own
+    remarks, and all three places agree.
+
+    APP_DATA_VERSION 3 -> 4, WHICH IS THE PART TO CHECK BEFORE BELIEVING THE
+    REST. version.js says to spend it only when an older build would get
+    things WRONG rather than merely miss something, and this is that case and
+    not the usual one: `notes` did not go away, it changed MEANING. An older
+    build prints `notes` as the method, so after this it would show a recipe's
+    method as empty, and — the moment somebody writes a real note — show
+    "I halve the sugar" as the entire way to cook the dish. Adding
+    `instructions` alone would NOT have earned a bump; repurposing `notes` is
+    what does. The gate stops WRITES only, so the other phone still opens and
+    still shops while it waits to update, and the shopping list is built from
+    `ingredients` and never touched either way.
+
+    EXPAND-THEN-CONTRACT WAS CONSIDERED AND REJECTED, against the usual rule.
+    Writing the method into BOTH fields for a release keeps old builds correct
+    right up until an old build EDITS a recipe: it writes `notes`, carries
+    `instructions` through untouched and stale, and then two copies of the
+    method disagree with nothing to say which is current. A brief forced
+    update beats two disagreeing methods.
+
+    THE MIGRATION'S GATE IS A KEY, NOT A SHAPE, and this is the whole safety
+    argument. needsInstructions asks whether an `instructions` KEY EXISTS —
+    never whether it is empty, never whether `notes` looks like steps. The
+    tempting version ("has notes, has no method") cannot tell unmigrated data
+    from a recipe saved LAST WEEK by a cook who wrote a note and no method,
+    and would file their "I halve the sugar" as the method. saveDraft
+    therefore writes `instructions` unconditionally, empty string included:
+    that is what makes "no key" mean "written before this release", and it is
+    load-bearing rather than untidy. Mutation-tested — the shape-based gate
+    was written deliberately and fails exactly the test that guards it.
+
+    NOTES IS NOT SCALED AND THE METHOD IS. Planning a meal for eight doubles
+    "2 tbsp" inside the instructions, because those amounts have to stay
+    honest against the ingredient list. A remark is a person's own words about
+    their own cooking, so doubling the numbers in it would be putting words in
+    their mouth — "I halve the sugar" scaled is nonsense. No "x2" marker on
+    Notes either: the marker exists to say amounts moved, and none did. That
+    difference is also why these are two fields rather than one box with a
+    blank line in it — sharing one would have meant scaling both or neither.
+
+    AN IMPORT FILLS INSTRUCTIONS AND NEVER TOUCHES NOTES. parseRecipeText and
+    recipeFromJsonLd return no `notes` key at all now: a parser reads a web
+    page, and a web page has no opinion about what THIS kitchen wants to
+    change. Covered by an e2e test that types a note, then imports over it.
+
+    CHANGED: version.js, lib.js (both parsers' return shape, needsInstructions
+    /withInstructions), App.jsx (migrateInstructions, run independently of the
+    other two migrations rather than chained behind them — chained, it would
+    wait for a second adopt that may never come), MealsTab (draft, fillDraft,
+    saveDraft, a second textarea), RecipeDetail (two blocks), SettingsTab
+    (the export carries both), public/catalog.json (23 keys renamed, and
+    nothing else — a re-serialisation reformatted all 2,565 lines of a file
+    that is hand-edited and diffed in git, so it was reverted for a
+    line-anchored rename).
+
+    TESTED: 379 unit tests including six on the migration, 312 e2e including
+    two new ones that assert what was PERSISTED after a round trip rather
+    than what the form shows. Both new fields walked by hand in a real browser
+    at 390px — the editor's two sections, and the recipe card printing
+    INSTRUCTIONS and NOTES as separate blocks.

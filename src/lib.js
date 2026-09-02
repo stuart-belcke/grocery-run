@@ -1009,7 +1009,7 @@ export const normalizeRecipe = (r) => ({ ...r, mealTypes: asArray(r.mealTypes), 
 
 /* --------------------------- recipe paste --------------------------
    Turns text copied from a recipe site (or typed free-form) into a best-guess
-   { name, servings, notes, ingredients }. Assistive, not authoritative: every
+   { name, servings, instructions, ingredients }. Assistive, not authoritative: every
    field it returns lands in the draft editor's normal, editable inputs — this
    never writes a recipe on its own, so a wrong guess costs a correction, not
    corrupted data.
@@ -1440,7 +1440,7 @@ export function parseRecipeText(text) {
     }
   }
 
-  let notes = "";
+  let instructions = "";
   /* "Method" — wholefoodsmarket.com's own heading (item 117) — was missing
      here, so a real paste of that recipe never found an instructions
      section at all: every step AND every nutrition-facts line ("Total Fat",
@@ -1497,14 +1497,18 @@ export function parseRecipeText(text) {
     // starts at "5.", and a paste with no numbers at all still cooks in order.
     // The credit strip runs LAST, after the wrapped-line join above, so a
     // credit that arrived on the continuation line is caught too.
-    notes = steps
+    instructions = steps
       .map((s) => s.replace(TRAILING_CREDIT_RE, "").replace(/^[\s]*[\u25a2\u2610\u2611\u2713\u2022\u25cf\u25cb\u25e6\u2023*\u00b7]+[\s]*/, "").trim())
       .filter(Boolean)
       .map((s, i) => `${i + 1}. ${s}`)
       .join("\n");
   }
 
-  return { name, servings, notes, ingredients };
+  /* NO `notes` KEY HERE, AND THAT IS THE POINT (item 118). What a page gives
+     up is the METHOD; the cook's own remarks are something only a person can
+     write, so a parser has nothing to put in that field and must not invent
+     one. fillDraft leaves the draft's own notes alone for the same reason. */
+  return { name, servings, instructions, ingredients };
 }
 
 /* -------------------- recipe JSON-LD (item 106) -------------------- */
@@ -1578,11 +1582,11 @@ export function recipeFromJsonLd(node) {
   const ingredients = listOf(node?.recipeIngredient)
     .map((l) => parseIngredientLine(decodeHtmlEntities(String(l))))
     .filter(Boolean);
-  const notes = stepsFromRecipeInstructions(node?.recipeInstructions)
+  const instructions = stepsFromRecipeInstructions(node?.recipeInstructions)
     .map((s) => decodeHtmlEntities(s))
     .map((s, i) => `${i + 1}. ${s}`)
     .join("\n");
-  return { name, servings, notes, ingredients };
+  return { name, servings, instructions, ingredients };
 }
 
 export function normalizeLocal(raw) {
@@ -2149,6 +2153,47 @@ export function withUnitNotes(catalog) {
         return out;
       }),
     };
+  }
+  return { ...catalog, recipes };
+}
+
+/* Item 118: the cooking method moves from `notes` to `instructions`, freeing
+   `notes` to mean what its name has always suggested — the cook's own remarks.
+
+   HOW A RECIPE THAT STILL NEEDS MOVING IS TOLD APART FROM ONE THAT DOESN'T,
+   because getting this wrong would file somebody's "I halve the sugar" as the
+   method: the test is whether an `instructions` KEY EXISTS AT ALL, never
+   whether it is empty and never whether `notes` looks like steps. saveDraft
+   always writes the key, empty string included, so "no key" can only mean a
+   recipe last written by a build from before this release. A recipe written
+   since then has the key, so a cook who fills in Notes and leaves
+   Instructions blank is never touched — which the shape test would have got
+   wrong, since that recipe looks exactly like unmigrated data.
+
+   That invariant is the whole safety argument, so saveDraft's unconditional
+   write of `instructions` is load-bearing rather than untidy. It is also why
+   this is a real migration rather than a read-time fallback: a fallback would
+   have to make the same guess on every read, forever, instead of once.
+
+   The empty string is not written back, and no key is invented for a recipe
+   that never had a method — `{...r}` first, so a field this build has never
+   heard of survives, which is the rule withUnitNotes above is written to. */
+const recipeNeedsInstructions = (r) => !!r && !("instructions" in r) && typeof r.notes === "string" && !!r.notes.trim();
+
+export function needsInstructions(catalog) {
+  return Object.values(asObject(catalog && catalog.recipes)).some(recipeNeedsInstructions);
+}
+
+export function withInstructions(catalog) {
+  if (!needsInstructions(catalog)) return catalog;
+  const recipes = {};
+  for (const [id, r] of Object.entries(asObject(catalog.recipes))) {
+    if (!recipeNeedsInstructions(r)) { recipes[id] = r; continue; }
+    const out = { ...r, instructions: r.notes.trim() };
+    // `notes` is emptied rather than left alongside: leaving it would print
+    // the whole method a second time, now labelled as the cook's remarks.
+    delete out.notes;
+    recipes[id] = out;
   }
   return { ...catalog, recipes };
 }

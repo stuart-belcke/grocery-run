@@ -431,7 +431,11 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
       mealTypes: r.mealTypes || [],
       easy: !!r.easy,
       servings: r.servings || 4,
-      notes: r.notes || "",
+      instructions: r.instructions || "",
+      // Only when there is one, matching how the recipe itself is stored — an
+      // empty `notes` on all 23 shipped recipes would be 23 lines of noise in
+      // a file whose whole job is to diff cleanly in git.
+      ...(r.notes ? { notes: r.notes } : {}),
       // r.ingredients already carries the resolved name (App fills it in when
       // it assembles `data`), so the export drops the id and keeps the name.
       // note is carried through when present. Dropping it here would quietly
