@@ -3730,6 +3730,62 @@ test("two ALTERNATIVE methods still keep only the first", () => {
   assert.ok(!r.instructions.includes("Set the instant pot to sauté"), "the second method's steps came back");
 });
 
+/* ---- item 119: a page's own Notes section reaches the notes field ---- */
+
+test("a page's Notes section is captured instead of thrown away", () => {
+  // Four of the five captured pages carry one, and every one was dropped
+  // while END_OF_STEPS_RE only ever used the heading to stop at.
+  const notes = (f) => parseRecipeText(PAGE(f)).notes;
+  assert.match(notes("babyfoode-page.txt"), /Storage: you can store these meatballs/);
+  assert.match(notes("mediterraneandish-page.txt"), /Leftover Storage:/);
+  assert.match(notes("averiecooks-page.txt"), /skin-on chicken thighs/);
+  assert.match(notes("allrecipes-page.txt"), /Gruy.re or Swiss/);
+  // The fifth has no such section, and must not invent one.
+  assert.equal(notes("olivetomato-page.txt"), "");
+});
+
+test("the notes stop where the page stops being the recipe", () => {
+  /* The whole risk of reading this section at all. Each page follows its
+     notes with something different, and none of it belongs in the field:
+     a nutrition table, a Save/Rate/Print strip, a share prompt, a boast
+     about how many people cooked it. */
+  const notes = (f) => parseRecipeText(PAGE(f)).notes;
+  const a = notes("allrecipes-page.txt");
+  assert.ok(!/SAVE|RATE|PRINT/.test(a), "a Save/Rate/Print strip became a note");
+  assert.ok(!/home cooks made it/.test(a), '"10,316 home cooks made it!" became a note');
+  assert.ok(!/Nutrition Facts/i.test(a), "the nutrition heading became a note");
+
+  const b = notes("babyfoode-page.txt");
+  assert.ok(!/Calories:/.test(b), "a nutrition line became a note");
+  assert.ok(!/Did you make this recipe/i.test(b), "the share prompt became a note");
+  assert.ok(!/Medically reviewed/.test(b), "the author credit became a note");
+
+  const m = notes("mediterraneandish-page.txt");
+  assert.ok(!/Nutrition|Calories/i.test(m), "the nutrition table became a note");
+  assert.ok(!/Tried this recipe/i.test(m), "the share prompt became a note");
+
+  const av = notes("averiecooks-page.txt");
+  assert.ok(!/©|copyright/i.test(av), "the copyright line became a note");
+  assert.ok(!/Click the Stars/i.test(av), "the rating prompt became a note");
+});
+
+test("reading the notes does not disturb the method", () => {
+  // The steps and the notes are cut from the same page at the same boundary,
+  // so getting the notes wrong is a way to get the steps wrong too.
+  const steps = (f) => parseRecipeText(PAGE(f)).instructions.split("\n").filter(Boolean).length;
+  assert.equal(steps("babyfoode-page.txt"), 5);
+  assert.equal(steps("mediterraneandish-page.txt"), 7);
+  assert.equal(steps("averiecooks-page.txt"), 20);
+  assert.equal(steps("allrecipes-page.txt"), 9);
+  assert.equal(steps("olivetomato-page.txt"), 11);
+});
+
+test("a note keeps its words and loses the bullet it was drawn with", () => {
+  const r = parseRecipeText(["Stew", "Instructions", "1. Cook.", "Notes", "• Keeps for 3 days.", "* Swap the beef for lamb."].join("\n"));
+  assert.deepEqual(r.notes.split("\n"), ["Keeps for 3 days.", "Swap the beef for lamb."]);
+  assert.equal(r.instructions, "1. Cook.");
+});
+
 test("no step keeps the bullet the page drew it with", () => {
   // Cosmetic, but it is what the cook reads at the stove: every one of these
   // pages bullets its steps, and the marker was being kept and then numbered

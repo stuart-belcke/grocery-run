@@ -2941,3 +2941,59 @@ into the details panel and the name grew.
     than what the form shows. Both new fields walked by hand in a real browser
     at 390px — the editor's two sections, and the recipe card printing
     INSTRUCTIONS and NOTES as separate blocks.
+
+119. THE PAGE'S OWN NOTES SECTION WAS BEING THROWN AWAY.
+    Asked as "did the parser route the right data to the right fields", which
+    it had not — item 118 built the notes field and left nothing filling it.
+
+    ITEM 118 SAID A PARSER COULD NEVER SUPPLY THIS, AND THE FIXTURES SAY
+    OTHERWISE. Four of the five captured pages carry a "Notes" or "Cook's
+    Note" section: babyfoode's storage times and substitution combos,
+    themediterraneandish's serving suggestions and leftover storage,
+    averiecooks' footnotes on why skin-on thighs, allrecipes' cheese
+    alternatives. All of it real, all of it dropped on the floor.
+
+    IT HAD ONLY EVER BEEN FOUND IN ORDER TO STOP AT IT. END_OF_STEPS_RE has
+    always treated that heading as the end of the method — correct, and
+    unchanged. What changes is that the lines after it are now READ. While a
+    recipe had ONE text field there was nowhere to put them that was not the
+    method, so dropping them was the better of two bad answers; item 118 made
+    the field, and this fills it.
+
+    WHERE IT STOPS WAS MEASURED, NOT ASSUMED, and the measuring is what found
+    the third stop condition. The junk after a notes section is the same junk
+    that follows the steps, so END_OF_STEPS_RE and SECTION_HEADING_RE cover
+    most of it — but babyfoode ends its notes with a bare
+    "Serving: 1meatball, Calories: 32kcal, …" line, which neither matches.
+    BOILERPLATE_RE does, so it is in the stop set too. Verified against all
+    four pages: no Save/Rate/Print strip, no nutrition table, no
+    "10,316 home cooks made it!", no copyright line, no share prompt.
+    Mutation-tested twice — dropping BOILERPLATE_RE from the stop set, and
+    removing the stop entirely — and the same test fails both times.
+
+    AN IMPORT APPENDS TO NOTES, NEVER REPLACES, the same rule instructions
+    already followed, and the e2e test that used to assert "never touches the
+    notes" now asserts "never overwrites" — losing "Mum's version, do not
+    change" to a storage tip off a website is the one outcome that would make
+    importing over a draft not worth doing. It also checks the page's note did
+    not ALSO land in the method.
+
+    A URL IMPORT STILL WON'T FILL IT, and that is honest rather than a gap.
+    Allowlisted sites come back as JSON-LD, and schema.org has no notes field,
+    so recipeFromJsonLd has nothing to read. `description` is the tempting
+    candidate and is wrong: it is the page's marketing blurb, not the cook's
+    remark. Left empty rather than guessed at.
+
+    ONE FIDELITY LOSS, RECORDED: averiecooks marks its footnotes with *, **,
+    *** tying them to ingredients, and the bullet strip removes them along
+    with real bullets. The text survives, the link to the ingredient does not.
+    Kept anyway — `*` is a bullet on these pages far more often than it is a
+    footnote marker, and INGREDIENT_BULLET_RE already treats it as one.
+
+    Also extracted BULLET_PREFIX_RE: the steps stripped bullets with the
+    character class written out inline, and two copies of it is two places to
+    get it wrong.
+
+    TESTED: 386 unit tests, 312 e2e, and the real babyfoode page pasted into
+    the real app in a browser — 5 steps into Instructions, 8 lines into Notes,
+    nothing crossed over.

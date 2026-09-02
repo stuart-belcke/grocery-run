@@ -1335,6 +1335,17 @@ const CODE_LINE_RE = /\{[^}]*\}|^[.#][\w-]+[\s,{]/;
 // the same pages, in front of every instruction step, where it used to be
 // left in place ("1. \u2022\tPreheat oven to 400 degrees F").
 const INGREDIENT_BULLET_RE = /^[\s]*[\u25a2\u2610\u2611\u2713\u2022\u25cf\u25cb\u25e6\u2023*\u00b7]/;
+// The bullet a line was drawn with, for stripping rather than detecting. Was
+// written out inline where the steps are numbered; item 119 gave the notes
+// section the same treatment, and two copies of a character class this long
+// is two places to get it wrong.
+const BULLET_PREFIX_RE = /^[\s]*[\u25a2\u2610\u2611\u2713\u2022\u25cf\u25cb\u25e6\u2023*\u00b7]+[\s]*/;
+/* The heading a page puts over its own notes. Deliberately the same shape as
+   the notes half of END_OF_STEPS_RE — "Notes", "Cook's Note", "Recipe Notes",
+   straight or curly apostrophe — because it has to match exactly what that
+   stops the method at, or the section would end up half read and half
+   dropped. */
+const NOTES_HEADING_RE = /^([A-Za-z\u0027\u2019]+\s+)?notes?\s*[:.]?\s*$/i;
 // A short, punctuation-free, ALL-CAPS line reads as a method sub-heading
 // (CROCKPOT / INSTANT POT / STOVE-TOP) rather than an instruction step.
 // Six words, not four: the cap was set by CROCKPOT / INSTANT POT / STOVE-TOP,
@@ -1535,17 +1546,45 @@ export function parseRecipeText(text) {
     // The credit strip runs LAST, after the wrapped-line join above, so a
     // credit that arrived on the continuation line is caught too.
     instructions = steps
-      .map((s) => s.replace(TRAILING_CREDIT_RE, "").replace(/^[\s]*[\u25a2\u2610\u2611\u2713\u2022\u25cf\u25cb\u25e6\u2023*\u00b7]+[\s]*/, "").trim())
+      .map((s) => s.replace(TRAILING_CREDIT_RE, "").replace(BULLET_PREFIX_RE, "").trim())
       .filter(Boolean)
       .map((s, i) => `${i + 1}. ${s}`)
       .join("\n");
   }
 
-  /* NO `notes` KEY HERE, AND THAT IS THE POINT (item 118). What a page gives
-     up is the METHOD; the cook's own remarks are something only a person can
-     write, so a parser has nothing to put in that field and must not invent
-     one. fillDraft leaves the draft's own notes alone for the same reason. */
-  return { name, servings, instructions, ingredients };
+  /* THE PAGE'S OWN NOTES SECTION (item 119). Item 118 said a parser had
+     nothing to put in this field. That was wrong, and the fixtures say so:
+     four of the five captured pages carry a "Notes" or "Cook's Note" section,
+     and every one of them was being thrown away — storage times, substitution
+     ideas, serving suggestions, the footnotes explaining why a cut of chicken
+     was chosen. Real content, and exactly what this field is for.
+
+     IT WAS ONLY EVER FOUND IN ORDER TO STOP AT IT. END_OF_STEPS_RE treats
+     that heading as the end of the method, which is right and stays — the
+     change is that what follows is now READ instead of dropped. While a
+     recipe had one text field there was nowhere to put it that was not the
+     method, so dropping it was the better of two bad answers.
+
+     WHERE IT STOPS is the same junk the steps already know how to end at,
+     because the same junk follows both: a nutrition table, a comment count,
+     "Did you make this recipe?", a Save/Print/Rate strip. Measured against
+     all four pages rather than assumed — babyfoode ends at a bare
+     "Serving: 1meatball, Calories: …" line, which is why BOILERPLATE_RE is in
+     the stop set alongside END_OF_STEPS_RE and not just the two headings. */
+  let notes = "";
+  const notesStart = lines.findIndex((l) => NOTES_HEADING_RE.test(l));
+  if (notesStart !== -1) {
+    const kept = [];
+    for (let i = notesStart + 1; i < lines.length; i++) {
+      const l = lines[i];
+      if (!l) continue;
+      if (END_OF_STEPS_RE.test(l) || BOILERPLATE_RE.test(l) || SECTION_HEADING_RE.test(l)) break;
+      kept.push(l.replace(BULLET_PREFIX_RE, "").trim());
+    }
+    notes = kept.filter(Boolean).join("\n");
+  }
+
+  return { name, servings, instructions, notes, ingredients };
 }
 
 /* -------------------- recipe JSON-LD (item 106) -------------------- */
