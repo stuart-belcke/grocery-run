@@ -7,7 +7,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { C, fontBody, inputStyle, syncTone } from "../theme";
 import { Btn, ConfirmDialog, AlertDialog, Section, Seg, HelpText, useUnsavedWork } from "../ui";
-import { formatCatalog, compactCfg, normalizeLocal, validLocal, seedCatalog, remapStateIngredientIds, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, inviteLive, newInviteToken, searchHelp, writeErrorAdvice, householdLabel, hasHouseholdName, cleanHouseholdName, exampleHouseholdName, HOUSEHOLD_NAME_MAX } from "../lib";
+import { formatCatalog, recipeForCatalogFile, compactCfg, normalizeLocal, validLocal, seedCatalog, remapStateIngredientIds, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, inviteLive, newInviteToken, searchHelp, writeErrorAdvice, householdLabel, hasHouseholdName, cleanHouseholdName, exampleHouseholdName, HOUSEHOLD_NAME_MAX } from "../lib";
 import { syncEnabled } from "../sync";
 import { HOW_IT_WORKS, FAQS } from "../help";
 import { UnitConverter } from "../UnitConverter";
@@ -425,27 +425,13 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
     // EXPORT only — the app never reads it back — so it stays a git-versioned,
     // diffable history and a restorable backup without being a second source
     // of truth to reconcile against.
-    const recipes = data.recipes.map((r) => ({
-      id: r.id,
-      name: r.name,
-      mealTypes: r.mealTypes || [],
-      easy: !!r.easy,
-      servings: r.servings || 4,
-      instructions: r.instructions || "",
-      // Only when there is one, matching how the recipe itself is stored — an
-      // empty `notes` on all 23 shipped recipes would be 23 lines of noise in
-      // a file whose whole job is to diff cleanly in git.
-      ...(r.notes ? { notes: r.notes } : {}),
-      // r.ingredients already carries the resolved name (App fills it in when
-      // it assembles `data`), so the export drops the id and keeps the name.
-      // note is carried through when present. Dropping it here would quietly
-      // discard "15 oz", "rinsed", "or turkey" on every export — the file is
-      // the backup and the git history, so a field the export forgets is a
-      // field that does not really exist.
-      ingredients: (r.ingredients || []).map((i) =>
-        i.note ? { name: i.name, qty: i.qty, unit: i.unit, note: i.note } : { name: i.name, qty: i.qty, unit: i.unit }
-      ),
-    }));
+    /* The projection moved to lib.js (item 118) so a test can reach it without
+       a browser — it was silently dropping `source` from twelve of the
+       twenty-three shipped recipes on every export, and would have dropped
+       `side` from any recipe marked as one. r.ingredients already carries the
+       resolved name (App fills it in when it assembles `data`), which is why
+       this can hand recipes straight over. */
+    const recipes = data.recipes.map(recipeForCatalogFile);
     // The FILE stays name-keyed: it's hand-edited and diffed in git, and ids
     // in it would mean inventing one and matching it across two sections just
     // to add a recipe. So ids are resolved back to names on the way out, and

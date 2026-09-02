@@ -2915,7 +2915,28 @@ into the details panel and the name grew.
     that is hand-edited and diffed in git, so it was reverted for a
     line-anchored rename).
 
-    TESTED: 379 unit tests including six on the migration, 312 e2e including
+    AND THE EXPORT WAS ALREADY LOSING TWO FIELDS, found while answering "will
+    my next export diff look atrocious" by RUNNING an export and diffing it
+    against public/catalog.json rather than reading the code. `source` was
+    never written by catalogJson — twelve of the twenty-three shipped recipes
+    carry one, and every one of them disappeared the moment anybody pressed
+    Export. `side` had never been written either, so marking a recipe as a
+    side dish survived until the next export and then did not. Both are
+    written by saveDraft, so the round trip was lossy in the one file that is
+    the backup AND the git history — exactly the fault the comment sitting
+    above that code warns about, four lines from the bug.
+    THE PROJECTION MOVED TO lib.js AS recipeForCatalogFile, because a
+    projection living in a React component is one no test can reach without a
+    browser, which is why nothing caught this. Three tests now: every field
+    saveDraft writes survives the trip, absent fields stay absent rather than
+    being written as "", and the whole shipped file rebuilds BYTE-FOR-BYTE
+    through the real projection and the real formatter. Mutation-tested by
+    deleting the two lines again — two of the three fail.
+    THE ANSWER TO THE QUESTION, for the record: after this, exporting the
+    shipped catalog differs from the file on ONE line, the catalogVersion the
+    export deliberately bumps.
+
+    TESTED: 382 unit tests including six on the migration, 312 e2e including
     two new ones that assert what was PERSISTED after a round trip rather
     than what the form shows. Both new fields walked by hand in a real browser
     at 390px — the editor's two sections, and the recipe card printing

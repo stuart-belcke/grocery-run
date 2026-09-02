@@ -782,6 +782,43 @@ export const inlineJson = (v) => {
    Sorting either of those would silently rewrite meaning to tidy a diff. */
 const byName = (a, b) => String(a.name || "").localeCompare(String(b.name || ""));
 
+/* One recipe as catalog.json holds it. Pure, and HERE rather than inside the
+   Settings tab, because what this drops is the difference between a backup and
+   a lossy copy — and a projection that lives in a React component is one no
+   test can reach without a browser.
+
+   IT DROPS EXACTLY ONE THING ON PURPOSE: `ingredientId`. The file is
+   name-keyed, hand-edited and diffed in git, so ids in it would mean inventing
+   one and matching it across two sections just to add a recipe; seedCatalog
+   mints them again on the way back in. Every OTHER field saveDraft writes has
+   to survive, which is what the test beside this asserts.
+
+   IT DROPPED `source` AND `side` FOR REAL, until item 118 (found by running an
+   export and diffing it against the shipped file, not by reading the code):
+   twelve of the twenty-three shipped recipes carry a source and every one
+   disappeared the moment anybody pressed Export.
+
+   Empty values are omitted rather than written as "" — the file is read by
+   people, and `"source": ""` on eleven recipes is eleven lines saying nothing.
+   `instructions` is the exception and is always written, because a recipe
+   without a method is worth seeing as blank rather than absent. */
+export function recipeForCatalogFile(r) {
+  return {
+    id: r.id,
+    name: r.name,
+    mealTypes: r.mealTypes || [],
+    easy: !!r.easy,
+    servings: r.servings || 4,
+    ...(r.source ? { source: r.source } : {}),
+    ...(r.side ? { side: true } : {}),
+    instructions: r.instructions || "",
+    ...(r.notes ? { notes: r.notes } : {}),
+    ingredients: asArray(r.ingredients).map((i) =>
+      i.note ? { name: i.name, qty: i.qty, unit: i.unit, note: i.note } : { name: i.name, qty: i.qty, unit: i.unit }
+    ),
+  };
+}
+
 export function formatCatalog(out) {
   const lines = ["{"];
   lines.push(`  "catalogVersion": ${JSON.stringify(out.catalogVersion)},`);

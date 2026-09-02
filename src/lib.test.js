@@ -102,6 +102,9 @@ import {
   needsUnitNotes,
   withInstructions,
   needsInstructions,
+  recipeForCatalogFile,
+  ingredientIndex,
+  compactCfg,
   parseTabMarkup,
   TABS,
   keyboardIsOpen,
@@ -2522,6 +2525,73 @@ test("needsInstructions says no for a catalog with nothing to move, so nothing i
   // A recipe that never had a method at all is not something to move.
   assert.equal(needsInstructions({ recipes: { r: { id: "r", notes: "   " } } }), false);
   assert.equal(needsInstructions({ recipes: { r: { id: "r", notes: "1. Cook." } } }), true);
+});
+
+/* THE EXPORT IS THE BACKUP AND THE GIT HISTORY, so a field it forgets is a
+   field that does not really exist. It forgot two: `source` on twelve of the
+   twenty-three shipped recipes, and `side` on any recipe marked as one. This
+   is the test that would have caught it — every field saveDraft writes, put
+   through the projection, and checked out the other side. */
+test("the catalog export carries every field the recipe editor can save", () => {
+  const saved = {
+    id: "r1",
+    name: "Beef stew",
+    mealTypes: ["Dinner"],
+    easy: true,
+    side: true,
+    servings: 6,
+    source: "https://example.com/stew",
+    instructions: "1. Brown the beef.",
+    notes: "I halve the sugar.",
+    ingredients: [
+      { ingredientId: "ing_1", name: "Beef chuck", qty: 2, unit: "lb", note: "diced" },
+      { ingredientId: "ing_2", name: "Onion", qty: 1, unit: "" },
+    ],
+  };
+  const out = recipeForCatalogFile(saved);
+  for (const k of ["id", "name", "easy", "side", "servings", "source", "instructions", "notes"]) {
+    assert.deepEqual(out[k], saved[k], `the export dropped or changed "${k}"`);
+  }
+  assert.deepEqual(out.mealTypes, ["Dinner"]);
+  assert.deepEqual(out.ingredients, [
+    { name: "Beef chuck", qty: 2, unit: "lb", note: "diced" },
+    { name: "Onion", qty: 1, unit: "" },
+  ]);
+  // The one intentional loss: the file is name-keyed, so ids are resolved back
+  // to names on the way out and minted again by seedCatalog on the way in.
+  assert.equal("ingredientId" in out.ingredients[0], false, "the file should stay name-keyed");
+});
+
+test("the catalog export leaves out what a recipe does not have, rather than writing it empty", () => {
+  // The file is read by people. `"source": ""` on eleven recipes is eleven
+  // lines saying nothing, and eleven lines of noise in every future diff.
+  const bare = { id: "r2", name: "Toast", mealTypes: [], servings: 2, ingredients: [] };
+  const out = recipeForCatalogFile(bare);
+  for (const k of ["source", "side", "notes"]) assert.equal(k in out, false, `"${k}" should be absent, not empty`);
+  // ...except the method, which is worth seeing as blank rather than missing.
+  assert.equal(out.instructions, "");
+});
+
+test("exporting the shipped catalog reproduces it, so pressing Export is not a diff full of noise", () => {
+  /* The whole file, through the real projection and the real formatter, back
+     to bytes — the check that answers "will my next export look sane in git".
+     catalogVersion is the one intended difference: exporting bumps it. */
+  const file = JSON.parse(fs.readFileSync("public/catalog.json", "utf8"));
+  const cat = seedCatalog(file);
+  const index = ingredientIndex(cat.ingredients);
+  const recipes = Object.values(cat.recipes).map((r) =>
+    recipeForCatalogFile({
+      ...r,
+      ingredients: (r.ingredients || []).map((line) => {
+        const ing = line.ingredientId ? index.byId[line.ingredientId] : null;
+        return ing ? { ...line, name: normalizeIngredient(ing, line.ingredientId).name } : line;
+      }),
+    }),
+  );
+  const config = {};
+  for (const [id, cfg] of Object.entries(cat.ingredients)) config[catalogConfigKey(cfg, id)] = compactCfg(cfg);
+  const rebuilt = formatCatalog({ catalogVersion: file.catalogVersion, stores: cat.stores, recipes, config });
+  assert.equal(rebuilt, fs.readFileSync("public/catalog.json", "utf8"));
 });
 
 test("the shipped catalog carries no recipe still holding its method in notes", () => {
