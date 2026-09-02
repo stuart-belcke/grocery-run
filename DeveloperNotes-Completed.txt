@@ -3020,3 +3020,60 @@ into the details panel and the name grew.
     TESTED: 389 unit tests, 312 e2e, and the real babyfoode page pasted into
     the real app in a browser — 5 steps into Instructions, 8 lines into Notes,
     nothing crossed over.
+120. A DEPLOY WHITE-SCREENED AN APP THAT WAS ALREADY OPEN.
+    Reported from a real phone, minutes after item 118 shipped: the app went
+    blank and only came back after a force-close and reopen.
+
+    NOT THE BUILD, AND NOT THE DATA. Both were checked first — CI had run 312
+    e2e specs against a real production build in a real browser, and the
+    exported catalog was verified field by field. The failure was in the
+    handover BETWEEN builds, which is the one thing none of that covers.
+
+    WHAT ACTUALLY HAPPENED, reproduced rather than reasoned about (see below):
+      1. sw.js called skipWaiting() at the end of install, so a new build took
+         over the open page the moment it finished downloading.
+      2. `activate` deletes the previous build's cache — correct on its own,
+         and the eviction that stops a phone hoarding every bundle it has
+         seen.
+      3. The reload onto the new build is DELIBERATELY DEFERRED while the tab
+         is busy (canReloadForUpdate; a half-typed recipe outranks being
+         current). App.jsx's own appBuild reload is once-per-build via
+         sessionStorage, so it does not retry either.
+      4. So the old page kept running with its cache deleted underneath it.
+         sync.js loads Firebase through dynamic import(), and the next one
+         asked for a hashed chunk this build's cache had never held and the
+         site no longer serves. 404, the import rejects, white screen.
+    A CACHE-FIRST WORKER MUST NOT ADOPT A PAGE IT CANNOT FEED. That is the
+    whole rule, and skipWaiting() on install broke it.
+
+    THE FIX IS THAT THE PAGE SAYS WHEN. install() now only precaches and then
+    waits; main.jsx posts SKIP_WAITING at a moment it is actually willing to
+    reload. Takeover and reload happen together instead of minutes apart, and
+    until then the old page keeps the old worker AND the old worker's cache.
+    A first install is promoted immediately and without asking — nothing is
+    running that the new cache cannot serve, and holding back would leave the
+    very first visit uncontrolled and so not offline-capable.
+    THE PAGE DECIDES, NOT THE WORKER, because the worker cannot tell a first
+    install from an update without guessing at its client list: during install
+    it controls nobody, and counting uncontrolled windows calls the first
+    visit an update. The page already knows exactly, from hadController.
+    IF THE MESSAGE NEVER COMES nothing is broken — the worker sits in
+    `waiting`, the previous one keeps serving its intact cache, and closing
+    every tab activates it normally. Same place a failed addAll leaves things.
+    The offline guarantee is untouched: addAll still gates everything, so a
+    complete copy is stored before this worker is eligible to take over.
+
+    PROVED BOTH WAYS, WHICH IS THE POINT. npm run test:sw makes two real
+    builds with different hashed filenames, serves one, swaps in the other
+    underneath a running Chromium, and asserts the running page can still
+    fetch its OWN chunk. On the old code that fetch is a 404 and the test
+    fails on the assertion above it; on the fixed code it is a 200. The bug
+    was reproduced before the fix was written.
+
+    IT IS NOT IN `npm run check`, AND THAT IS THE TRADE. Two production builds
+    cost ~40s on a gate that already takes four minutes. It is also the only
+    test in the repo that can see the worker at all: test:e2e builds with
+    VITE_LOCAL_ONLY=1 and main.jsx skips registration there on purpose, so
+    every other test is blind to this whole file. CLAUDE.md now says so, and
+    says to run it when touching sw.js, the update path, or
+    canReloadForUpdate.
