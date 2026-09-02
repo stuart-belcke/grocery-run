@@ -217,10 +217,15 @@ export function RecipeDetail({ recipe, servings, mult, onMult }) {
           )}
         </div>
       )}
-      {recipe.notes && (
+      {/* THE HEADING USED TO SAY "NOTES" OVER THE COOKING METHOD, while the
+          editor's own heading for the same field said "Instructions" — one
+          field, two names, depending on which screen you were looking at.
+          Item 118 gave the method the name both screens now use, and gave the
+          cook's remarks a field of their own below. */}
+      {recipe.instructions && (
         <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${C.line}` }}>
           <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 4 }}>
-            Notes{scale !== 1 ? ` · ×${r2(scale)}` : ""}
+            Instructions{scale !== 1 ? ` · ×${r2(scale)}` : ""}
           </div>
           {/* AMOUNTS IN THE STEPS MOVE WITH THE BATCH; times and temperatures
               do not, and the heading says so rather than leaving you to
@@ -242,7 +247,27 @@ export function RecipeDetail({ recipe, servings, mult, onMult }) {
               gives way once a normal wrap point can't be found, so ordinary
               prose is untouched. */}
           <div style={{ fontSize: 15, lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "break-word", wordBreak: "break-word" }}>
-            {scaleRecipeText(recipe.notes, scale, ingredients.map((i) => i.name))}
+            {scaleRecipeText(recipe.instructions, scale, ingredients.map((i) => i.name))}
+          </div>
+        </div>
+      )}
+      {/* NOT PUT THROUGH scaleRecipeText, AND NOT MARKED "×2" EITHER. The
+          method is the app's own restatement of the recipe, so scaling its
+          amounts keeps it honest against the ingredient list above. A note is
+          something a person wrote about their own cooking — "I halve the
+          sugar", "the kids won't eat the peppers" — and doubling the numbers
+          inside it would be putting words in their mouth. Under-scaling is
+          safe and over-scaling is not, which is the same rule scaleRecipeText
+          itself is built on; here the safe answer is to scale none of it.
+          No "×2" marker for the same reason: the marker exists to say the
+          amounts moved, and here nothing did. */}
+      {recipe.notes && (
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${C.line}` }}>
+          <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 4 }}>
+            Notes
+          </div>
+          <div style={{ fontSize: 15, lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "break-word", wordBreak: "break-word" }}>
+            {recipe.notes}
           </div>
         </div>
       )}

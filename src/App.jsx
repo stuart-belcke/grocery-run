@@ -91,6 +91,8 @@ import {
   classifyJoinInput,
   needsUnitNotes,
   withUnitNotes,
+  needsInstructions,
+  withInstructions,
   syncIndicator,
   guestBlockedFields,
 } from "./lib";
@@ -489,6 +491,23 @@ export default function App() {
     updateCatalog((c) => withUnitNotes(c));
   };
 
+  /* Item 118: the method moves out of `notes` into `instructions`.
+
+     Same three guards as migrateUnitNotes, for the same three reasons — gated
+     so a settled catalog writes nothing and doesn't bump updatedAt on every
+     launch of both phones, idempotent because withInstructions leaves an
+     already-moved recipe alone, and skipped for a guest, whose catalog writes
+     the rules refuse anyway.
+
+     SAFE TO RUN BEFORE THE OTHER PHONE UPDATES, which is the part worth
+     stating: APP_DATA_VERSION 4 stops that phone WRITING, so it cannot
+     re-save a recipe from its old editor and put the method back into
+     `notes`. Reading keeps working, so the list still opens in a shop. */
+  const migrateInstructions = (adopted) => {
+    if (isGuestRef.current || !needsInstructions(adopted)) return;
+    updateCatalog((c) => withInstructions(c));
+  };
+
   // The debounced push dies with the page, so force it out when the app is
   // backgrounded or closed — otherwise the last edit before you swipe away is
   // never sent, and the next launch reads the older state back.
@@ -746,6 +765,15 @@ export default function App() {
         // rather than a half-converted one.
         if (needsIngredientIds(adopted)) migrateToIngredientIds(adopted);
         else migrateUnitNotes(adopted);
+        // Item 118's move is a DIFFERENT FIELD from either of those two, so it
+        // runs on its own terms rather than as another link in that either/or
+        // chain. Chained, it would sit behind whichever of them went first and
+        // wait for a second adopt that may never come — updateCatalog makes
+        // this device's copy the newer one, so the next listener report can
+        // just as easily be decided the other way. Sequential calls are safe:
+        // updateCatalog sets hCatalogRef synchronously, so this reads the
+        // result of the migration above rather than the copy it started from.
+        migrateInstructions(hCatalogRef.current || adopted);
         return;
       }
       // Our copy wins, which means one of two things:

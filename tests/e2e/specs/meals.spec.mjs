@@ -422,7 +422,7 @@ test("SHOULD: scale the amounts written into the instructions, but NOT times or 
     await openDetail(page, "Baked Cod");
 
     const before = await page.textContent("body");
-    assert.ok(/2\s*tbsp olive oil/.test(before), "fixture check: the notes should start at 2 tbsp olive oil");
+    assert.ok(/2\s*tbsp olive oil/.test(before), "fixture check: the instructions should start at 2 tbsp olive oil");
 
     await page.getByLabel(/^Scale Baked Cod with Lemon and Garlic up$/).click();
     await page.waitForTimeout(400);
@@ -451,7 +451,7 @@ test("SHOULD: scale a count of an ingredient that carries no unit, and still not
     await openDetail(page, "Crockpot Greek");
 
     const before = await page.textContent("body");
-    assert.ok(before.includes("6 whole garlic cloves"), "fixture check: the notes should start at 6 whole garlic cloves");
+    assert.ok(before.includes("6 whole garlic cloves"), "fixture check: the instructions should start at 6 whole garlic cloves");
 
     await page.getByLabel(/ up$/).first().click();
     await page.waitForTimeout(400);
@@ -786,12 +786,12 @@ test("SHOULD: both Adds and Edit share one row on the phone this app is used on"
 
 /* ---------------- a recipe's source link ---------------- */
 
-test("SHOULD: a long link in a recipe's notes wraps instead of pushing the card off screen", async () => {
+test("SHOULD: a long link in a recipe's instructions wraps instead of pushing the card off screen", async () => {
   // Before the fix, whiteSpace: pre-wrap alone didn't break a single
   // unbroken run of characters — exactly what a pasted URL is — so it
   // widened the card past the edge of the screen instead of wrapping.
   const catalog = smallCatalog();
-  catalog.recipes["r-stirfry"].notes =
+  catalog.recipes["r-stirfry"].instructions =
     "https://www.example.com/recipes/a-really-quite-long-slug-that-keeps-going-and-going-past-a-phone-screen-width-for-sure";
   const page = await openApp(BASE, { catalog });
   try {
@@ -803,14 +803,14 @@ test("SHOULD: a long link in a recipe's notes wraps instead of pushing the card 
       vw: document.documentElement.clientWidth,
       pageWidth: document.body.scrollWidth,
     }));
-    assert.equal(m.pageWidth, m.vw, `a long URL in Notes pushed the page to ${m.pageWidth}px on a ${m.vw}px screen`);
+    assert.equal(m.pageWidth, m.vw, `a long URL in Instructions pushed the page to ${m.pageWidth}px on a ${m.vw}px screen`);
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
   }
 });
 
-test("SHOULD: a recipe's source is its own field, saved and shown as a link rather than buried in Notes", async () => {
+test("SHOULD: a recipe's source is its own field, saved and shown as a link rather than buried in Instructions", async () => {
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
     await page.tab("Recipes");
@@ -824,13 +824,81 @@ test("SHOULD: a recipe's source is its own field, saved and shown as a link rath
 
     const cat = await page.readCatalog();
     assert.equal(cat.recipes["r-stirfry"].source, "https://example.com/stir-fry", "the source should be its own field on the recipe, not folded into notes");
-    assert.equal(cat.recipes["r-stirfry"].notes, "", "saving a source must not write it into notes");
+    assert.equal(cat.recipes["r-stirfry"].instructions, "", "saving a source must not write it into the instructions");
 
     await page.tab("Recipes");
     await openDetail(page, "Stir-fry");
     const link = page.getByRole("link", { name: "https://example.com/stir-fry" });
     assert.equal(await link.count(), 1, "the source should render as a tappable link on the card");
     assert.equal(await link.getAttribute("href"), "https://example.com/stir-fry");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* Item 118. The unit tests cover the migration; what they cannot cover is the
+   wiring — two textareas, two draft keys, two fields on the saved recipe, and
+   four chances to cross them over on the way through. So this asserts on what
+   was PERSISTED, after a round trip, rather than on what the form shows. */
+test("SHOULD: the method and the cook's own notes are saved as two separate fields", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await page.tab("Recipes");
+    await cardAction(page, "Stir-fry", "Edit");
+    await page.waitForTimeout(300);
+
+    await page.getByPlaceholder(/^Instructions/).fill("1. Heat the wok.\n2. Fry everything.");
+    await page.getByPlaceholder(/^Optional notes/).fill("Halve the chilli for the kids.");
+    await page.getByRole("button", { name: /^Save meal$/ }).click();
+    await page.waitForTimeout(500);
+    await page.roundTrip();
+
+    const r = (await page.readCatalog()).recipes["r-stirfry"];
+    assert.equal(r.instructions, "1. Heat the wok.\n2. Fry everything.", "the method landed somewhere other than instructions");
+    assert.equal(r.notes, "Halve the chilli for the kids.", "the cook's note landed somewhere other than notes");
+
+    // Both on the card, under their own headings, and the note NOT folded in
+    // with the steps.
+    await page.tab("Recipes");
+    await openDetail(page, "Stir-fry");
+    const body = await page.textContent("body");
+    assert.ok(body.includes("1. Heat the wok."), "the method is missing from the recipe card");
+    assert.ok(body.includes("Halve the chilli for the kids."), "the note is missing from the recipe card");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* The half of the split that a crossed wire would silently undo: an import
+   fills the METHOD, and must leave a note the cook already typed alone. A
+   parser reads a web page, and a web page knows nothing about this kitchen. */
+test("SHOULD: importing a recipe fills the instructions and never touches the notes", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await page.tab("Recipes");
+    await cardAction(page, "Stir-fry", "Edit");
+    await page.waitForTimeout(300);
+
+    await page.getByPlaceholder(/^Optional notes/).fill("Mum's version, do not change.");
+
+    await page.getByRole("button", { name: /Start from a recipe or link/ }).click();
+    await page.getByLabel("Pasted recipe text").fill(
+      ["Pasta", "Ingredients", "1 lb spaghetti", "Instructions", "1. Boil the water.", "2. Drain."].join("\n"),
+    );
+    await page.getByRole("button", { name: /^Parse into fields$/ }).click();
+    await page.waitForTimeout(300);
+
+    assert.equal(
+      await page.getByPlaceholder(/^Optional notes/).inputValue(),
+      "Mum's version, do not change.",
+      "the import overwrote the cook's own note",
+    );
+    assert.ok(
+      (await page.getByPlaceholder(/^Instructions/).inputValue()).includes("1. Boil the water."),
+      "the imported method did not reach the instructions box",
+    );
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

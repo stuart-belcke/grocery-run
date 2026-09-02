@@ -100,6 +100,11 @@ import {
   splitUnitNote,
   withUnitNotes,
   needsUnitNotes,
+  withInstructions,
+  needsInstructions,
+  recipeForCatalogFile,
+  ingredientIndex,
+  compactCfg,
   parseTabMarkup,
   TABS,
   keyboardIsOpen,
@@ -2472,6 +2477,131 @@ test("needsUnitNotes says no for a catalog with nothing to move, so nothing is r
   assert.equal(needsUnitNotes({ recipes: { r: { ingredients: [{ ingredientId: "x", qty: 1, unit: "cup, diced" }] } } }), true);
 });
 
+/* ---- item 118: the method moves out of `notes` into `instructions` ---- */
+
+const preSplit = () => ({ recipes: { r1: { id: "r1", name: "Stew", notes: "1. Brown the beef.\n2. Simmer." } } });
+
+test("withInstructions moves the cooking method into instructions and empties notes", () => {
+  const out = withInstructions(preSplit());
+  assert.equal(out.recipes.r1.instructions, "1. Brown the beef.\n2. Simmer.");
+  // Left behind, it would print the whole method a second time, labelled as
+  // the cook's own remarks.
+  assert.equal("notes" in out.recipes.r1, false);
+});
+
+test("withInstructions leaves a recipe alone once it has an instructions key", () => {
+  const already = { recipes: { r1: { id: "r1", instructions: "1. Brown the beef.", notes: "I use less salt." } } };
+  assert.equal(needsInstructions(already), false);
+  assert.deepEqual(withInstructions(already), already);
+});
+
+/* THE ONE THAT WOULD HAVE COST SOMEBODY THEIR NOTE. A recipe saved by this
+   build with a remark and NO method looks identical to unmigrated data if you
+   only ask "has notes, has no method" — and moving it would relabel "I halve
+   the sugar" as the way to cook the dish. The key existing is what tells them
+   apart, which is why saveDraft writes `instructions` even when it is "". */
+test("withInstructions does NOT touch a recipe whose instructions key is present but empty", () => {
+  const noteOnly = { recipes: { r1: { id: "r1", instructions: "", notes: "I halve the sugar." } } };
+  assert.equal(needsInstructions(noteOnly), false);
+  assert.deepEqual(withInstructions(noteOnly), noteOnly);
+});
+
+test("withInstructions carries fields it has never heard of straight through", () => {
+  const src = { recipes: { r1: { id: "r1", notes: "1. Cook.", futureField: { a: 1 } } }, futureTop: "x" };
+  const out = withInstructions(src);
+  assert.deepEqual(out.recipes.r1.futureField, { a: 1 });
+  assert.equal(out.futureTop, "x");
+});
+
+test("withInstructions is idempotent, which is what makes it safe to run on every load", () => {
+  const once = withInstructions(preSplit());
+  assert.equal(needsInstructions(once), false);
+  assert.deepEqual(withInstructions(once), once);
+});
+
+test("needsInstructions says no for a catalog with nothing to move, so nothing is rewritten", () => {
+  assert.equal(needsInstructions({}), false);
+  assert.equal(needsInstructions({ recipes: {} }), false);
+  // A recipe that never had a method at all is not something to move.
+  assert.equal(needsInstructions({ recipes: { r: { id: "r", notes: "   " } } }), false);
+  assert.equal(needsInstructions({ recipes: { r: { id: "r", notes: "1. Cook." } } }), true);
+});
+
+/* THE EXPORT IS THE BACKUP AND THE GIT HISTORY, so a field it forgets is a
+   field that does not really exist. It forgot two: `source` on twelve of the
+   twenty-three shipped recipes, and `side` on any recipe marked as one. This
+   is the test that would have caught it — every field saveDraft writes, put
+   through the projection, and checked out the other side. */
+test("the catalog export carries every field the recipe editor can save", () => {
+  const saved = {
+    id: "r1",
+    name: "Beef stew",
+    mealTypes: ["Dinner"],
+    easy: true,
+    side: true,
+    servings: 6,
+    source: "https://example.com/stew",
+    instructions: "1. Brown the beef.",
+    notes: "I halve the sugar.",
+    ingredients: [
+      { ingredientId: "ing_1", name: "Beef chuck", qty: 2, unit: "lb", note: "diced" },
+      { ingredientId: "ing_2", name: "Onion", qty: 1, unit: "" },
+    ],
+  };
+  const out = recipeForCatalogFile(saved);
+  for (const k of ["id", "name", "easy", "side", "servings", "source", "instructions", "notes"]) {
+    assert.deepEqual(out[k], saved[k], `the export dropped or changed "${k}"`);
+  }
+  assert.deepEqual(out.mealTypes, ["Dinner"]);
+  assert.deepEqual(out.ingredients, [
+    { name: "Beef chuck", qty: 2, unit: "lb", note: "diced" },
+    { name: "Onion", qty: 1, unit: "" },
+  ]);
+  // The one intentional loss: the file is name-keyed, so ids are resolved back
+  // to names on the way out and minted again by seedCatalog on the way in.
+  assert.equal("ingredientId" in out.ingredients[0], false, "the file should stay name-keyed");
+});
+
+test("the catalog export leaves out what a recipe does not have, rather than writing it empty", () => {
+  // The file is read by people. `"source": ""` on eleven recipes is eleven
+  // lines saying nothing, and eleven lines of noise in every future diff.
+  const bare = { id: "r2", name: "Toast", mealTypes: [], servings: 2, ingredients: [] };
+  const out = recipeForCatalogFile(bare);
+  for (const k of ["source", "side", "notes"]) assert.equal(k in out, false, `"${k}" should be absent, not empty`);
+  // ...except the method, which is worth seeing as blank rather than missing.
+  assert.equal(out.instructions, "");
+});
+
+test("exporting the shipped catalog reproduces it, so pressing Export is not a diff full of noise", () => {
+  /* The whole file, through the real projection and the real formatter, back
+     to bytes — the check that answers "will my next export look sane in git".
+     catalogVersion is the one intended difference: exporting bumps it. */
+  const file = JSON.parse(fs.readFileSync("public/catalog.json", "utf8"));
+  const cat = seedCatalog(file);
+  const index = ingredientIndex(cat.ingredients);
+  const recipes = Object.values(cat.recipes).map((r) =>
+    recipeForCatalogFile({
+      ...r,
+      ingredients: (r.ingredients || []).map((line) => {
+        const ing = line.ingredientId ? index.byId[line.ingredientId] : null;
+        return ing ? { ...line, name: normalizeIngredient(ing, line.ingredientId).name } : line;
+      }),
+    }),
+  );
+  const config = {};
+  for (const [id, cfg] of Object.entries(cat.ingredients)) config[catalogConfigKey(cfg, id)] = compactCfg(cfg);
+  const rebuilt = formatCatalog({ catalogVersion: file.catalogVersion, stores: cat.stores, recipes, config });
+  assert.equal(rebuilt, fs.readFileSync("public/catalog.json", "utf8"));
+});
+
+test("the shipped catalog carries no recipe still holding its method in notes", () => {
+  // The seed a brand-new household starts from. If this file still used the
+  // old key, every new household would be born needing a migration.
+  const seeded = seedCatalog(JSON.parse(fs.readFileSync("public/catalog.json", "utf8")));
+  assert.equal(needsInstructions(seeded), false);
+  assert.ok(Object.values(seeded.recipes).some((r) => (r.instructions || "").trim()), "no recipe has instructions at all");
+});
+
 test("a migrated catalog totals garlic on ONE shopping-list row", () => {
   // The reported symptom, end to end:
   //   Garlic   16 cloves (2 chopped, 6 whole) + 11 cloves
@@ -3290,7 +3420,7 @@ test("parseRecipeText pulls name, servings, and ingredients from a real food-blo
 test("parseRecipeText keeps the cooking steps numbered, one per line", () => {
   // They arrive numbered on the blog and were being joined into one paragraph,
   // so following them at the stove meant finding your place in a wall of text.
-  const lines = parseRecipeText(PASTED_RECIPE).notes.split("\n");
+  const lines = parseRecipeText(PASTED_RECIPE).instructions.split("\n");
   assert.equal(lines.length, 6);
   assert.match(lines[0], /^1\. Add the chicken, parmesan/);
   assert.match(lines[1], /^2\. Add the tomatoes/);
@@ -3301,20 +3431,39 @@ test("parseRecipeText renumbers from 1 and rejoins a step that wrapped onto more
   // Source numbers are boundaries, not labels: this paste starts at 4 (it is
   // the tail of a longer list) and its second step wrapped across two lines.
   const result = parseRecipeText(["Soup", "Instructions", "4. Boil the water.", "5. Add the noodles.", "Stir until they soften.", "6. Serve."].join("\n"));
-  assert.deepEqual(result.notes.split("\n"), ["1. Boil the water.", "2. Add the noodles. Stir until they soften.", "3. Serve."]);
+  assert.deepEqual(result.instructions.split("\n"), ["1. Boil the water.", "2. Add the noodles. Stir until they soften.", "3. Serve."]);
 });
 
 test("parseRecipeText still numbers steps that arrived with no numbers of their own", () => {
   const result = parseRecipeText(["Toast", "Instructions", "Put the bread in.", "Take the bread out."].join("\n"));
-  assert.deepEqual(result.notes.split("\n"), ["1. Put the bread in.", "2. Take the bread out."]);
+  assert.deepEqual(result.instructions.split("\n"), ["1. Put the bread in.", "2. Take the bread out."]);
 });
 
 test("parseRecipeText keeps only the first method's steps when a recipe lists several", () => {
   const result = parseRecipeText(PASTED_RECIPE);
-  assert.ok(result.notes.includes("Drizzle with olive oil and place the meatballs"), "kept the crockpot steps");
-  assert.ok(result.notes.includes("Serve the meatballs over the orzo with feta cheese"), "kept the crockpot's final step");
-  assert.ok(!result.notes.includes("Set the instant pot to sauté"), "dropped the Instant Pot method");
-  assert.ok(!result.notes.includes("INSTANT POT"), "the method heading itself isn't left in the notes");
+  assert.ok(result.instructions.includes("Drizzle with olive oil and place the meatballs"), "kept the crockpot steps");
+  assert.ok(result.instructions.includes("Serve the meatballs over the orzo with feta cheese"), "kept the crockpot's final step");
+  assert.ok(!result.instructions.includes("Set the instant pot to sauté"), "dropped the Instant Pot method");
+  assert.ok(!result.instructions.includes("INSTANT POT"), "the method heading itself isn't left in the instructions");
+});
+
+// item 117: found on a real wholefoodsmarket.com paste. "Method" wasn't
+// recognized as an instructions heading at all, so the ingredient-section
+// scan (which stops only at a recognized heading) never stopped — every
+// step AND the nutrition table below them came back as fake ingredients,
+// and notes stayed empty because no instructions section was ever found.
+test("parseRecipeText reads a \"Method\" heading as the instructions section", () => {
+  const result = parseRecipeText(["Toast", "Ingredients", "2 slices bread", "Method", "Put the bread in.", "Take the bread out."].join("\n"));
+  assert.deepEqual(result.ingredients.map((i) => i.name), ["Bread"]);
+  assert.deepEqual(result.instructions.split("\n"), ["1. Put the bread in.", "2. Take the bread out."]);
+});
+
+// item 117, same paste: "Nutritional Info" matched neither "nutrition" nor
+// "facts" in END_OF_STEPS_RE, so the whole nutrition table ("Total Fat",
+// "220mg", "Protein"...) ran on as fake steps past the real last one.
+test("parseRecipeText stops steps at a \"Nutritional Info\" heading", () => {
+  const result = parseRecipeText(["Toast", "Method", "Put the bread in.", "Take the bread out.", "Nutritional Info", "Calories", "120"].join("\n"));
+  assert.deepEqual(result.instructions.split("\n"), ["1. Put the bread in.", "2. Take the bread out."]);
 });
 
 test("parseRecipeText leaves the name blank rather than guessing when the paste starts mid-boilerplate", () => {
@@ -3333,10 +3482,10 @@ test("parseRecipeText falls back to scanning bulleted lines with no Ingredients 
   ]);
 });
 
-test("parseRecipeText returns empty ingredients and blank notes for text with neither", () => {
+test("parseRecipeText returns empty ingredients and blank instructions for text with neither", () => {
   const result = parseRecipeText("just a name, no ingredient list at all");
   assert.deepEqual(result.ingredients, []);
-  assert.equal(result.notes, "");
+  assert.equal(result.instructions, "");
 });
 
 /* ---------------- A WHOLE FETCHED PAGE, not a paste ----------------
@@ -3457,7 +3606,7 @@ test("a fetched page yields exactly its nine steps, un-doubled and credit-free",
        - the scan ran past "Cook's Note", which /^(nutrition|notes?)$/ does
          not match, taking the cook's note and "10,316 home cooks made it!"
          as steps 10 to 13 */
-  const steps = parseRecipeText(FETCHED_PAGE).notes.split("\n").filter(Boolean);
+  const steps = parseRecipeText(FETCHED_PAGE).instructions.split("\n").filter(Boolean);
   assert.equal(steps.length, 9, JSON.stringify(steps));
   assert.match(steps[0], /^1\. Gather all ingredients\./);
   assert.match(steps[8], /^9\. Bake in the preheated oven/);
@@ -3496,7 +3645,7 @@ test("a page whose scaler buttons run together does not import 1x2x3x as food", 
   // "Serving: 1meatball" is a nutrition label, not a serving count. Nothing is
   // better than one — a wrong number silently scales every amount on the list.
   assert.equal(r.servings, null);
-  assert.equal(r.notes.split("\n").filter(Boolean).length, 5);
+  assert.equal(r.instructions.split("\n").filter(Boolean).length, 5);
 });
 
 test("a run-together scaler is dropped even from a list with no bullets to sort by", () => {
@@ -3525,7 +3674,7 @@ test("sub-headings inside an ingredient list are structure, not ingredients", ()
   // "SERVES – 5 PEOPLE (UP TO)" separates with an en dash rather than a colon.
   assert.equal(r.servings, 5);
   // The steps used to run on into the "Video" section below them.
-  assert.equal(r.notes.split("\n").filter(Boolean).length, 7);
+  assert.equal(r.instructions.split("\n").filter(Boolean).length, 7);
 });
 
 test("steps stop at the end of the recipe even with no Notes or Nutrition heading", () => {
@@ -3534,12 +3683,12 @@ test("steps stop at the end of the recipe even with no Notes or Nutrition headin
      "Post navigation", the comment form and four reader comments all became
      things to do while cooking. */
   const r = parseRecipeText(PAGE("olivetomato-page.txt"));
-  const steps = r.notes.split("\n").filter(Boolean);
+  const steps = r.instructions.split("\n").filter(Boolean);
   assert.equal(steps.length, 11, JSON.stringify(steps));
   assert.match(steps[0], /^1\. Preheat oven at 425/);
   assert.match(steps[10], /^11\. If chicken is done/);
   for (const junk of ["Post navigation", "Leave a Reply", "Comments", "says:", "Rights Reserved", "Email"]) {
-    assert.ok(!r.notes.includes(junk), `"${junk}" was taken as a cooking step`);
+    assert.ok(!r.instructions.includes(junk), `"${junk}" was taken as a cooking step`);
   }
   assert.equal(r.ingredients.length, 9);
   assert.equal(r.servings, 4);
@@ -3558,7 +3707,7 @@ test("steps grouped into PHASES are all kept, not truncated at the second headin
      A RESTART marks an alternative, not a heading: both methods are numbered
      from 1, phases keep counting. See the note in lib.js. */
   const r = parseRecipeText(PAGE("averiecooks-page.txt"));
-  const steps = r.notes.split("\n").filter(Boolean);
+  const steps = r.instructions.split("\n").filter(Boolean);
   assert.equal(steps.length, 20, JSON.stringify(steps.map((s) => s.slice(0, 30))));
   assert.match(steps[0], /^1\. To a small bowl/);
   assert.match(steps[19], /^20\. Optionally \(but recommended\), garnish/);
@@ -3577,8 +3726,8 @@ test("two ALTERNATIVE methods still keep only the first", () => {
   // The other side of the rule above, and the reason it is numbering rather
   // than headings: this must not regress while the phase case is fixed.
   const r = parseRecipeText(PASTED_RECIPE);
-  assert.ok(r.notes.includes("Drizzle with olive oil and place the meatballs"), "the crockpot steps were dropped");
-  assert.ok(!r.notes.includes("Set the instant pot to sauté"), "the second method's steps came back");
+  assert.ok(r.instructions.includes("Drizzle with olive oil and place the meatballs"), "the crockpot steps were dropped");
+  assert.ok(!r.instructions.includes("Set the instant pot to sauté"), "the second method's steps came back");
 });
 
 test("no step keeps the bullet the page drew it with", () => {
@@ -3586,7 +3735,7 @@ test("no step keeps the bullet the page drew it with", () => {
   // pages bullets its steps, and the marker was being kept and then numbered
   // on top of — "1. • Preheat oven to 400 degrees F".
   for (const f of ["allrecipes-page.txt", "babyfoode-page.txt", "mediterraneandish-page.txt", "olivetomato-page.txt", "averiecooks-page.txt"]) {
-    for (const s of parseRecipeText(PAGE(f)).notes.split("\n").filter(Boolean)) {
+    for (const s of parseRecipeText(PAGE(f)).instructions.split("\n").filter(Boolean)) {
       assert.ok(!/^\d+\.\s*[▢☐☑✓•●○‣*·]/.test(s), `${f} kept a bullet: ${s.slice(0, 40)}`);
     }
   }
@@ -3712,14 +3861,14 @@ test("parseRecipeText reads servings from a scaler's \"yields N servings\" line"
 
 test("parseRecipeText drops the duplicated ingredient card and photo credits from the steps", () => {
   const result = parseRecipeText(ALLRECIPES_PASTE);
-  const lines = result.notes.split("\n");
+  const lines = result.instructions.split("\n");
   assert.equal(lines.length, 9, JSON.stringify(lines));
   assert.match(lines[0], /^1\. Gather all ingredients/);
   assert.match(lines[8], /^9\. Bake in the preheated oven/);
-  assert.ok(!result.notes.includes("Dotdash Meredith"), "a photo credit line became a step");
-  assert.ok(!result.notes.includes("Keep Screen Awake"), "the screen-lock checkbox became a step");
-  assert.ok(!/^\d+\.\s*(1\/2X|1X|2X)$/m.test(result.notes), "a scaler button became a step");
-  assert.ok(!result.notes.includes("yields 4 servings"), "the yields line became a step");
+  assert.ok(!result.instructions.includes("Dotdash Meredith"), "a photo credit line became a step");
+  assert.ok(!result.instructions.includes("Keep Screen Awake"), "the screen-lock checkbox became a step");
+  assert.ok(!/^\d+\.\s*(1\/2X|1X|2X)$/m.test(result.instructions), "a scaler button became a step");
+  assert.ok(!result.instructions.includes("yields 4 servings"), "the yields line became a step");
 });
 
 /* -------------- recipe JSON-LD (item 106) --------------
@@ -3771,7 +3920,7 @@ test("recipeFromJsonLd: babyfoode.com — name unescaped, recipeYield NOT read a
   assert.equal(r.servings, null);
   assert.equal(r.ingredients.length, 10, JSON.stringify(r.ingredients.map((i) => i.name)));
   assert.deepEqual(r.ingredients[0], { name: "Ground chicken", qty: 1, unit: "lb", note: "or ground turkey" });
-  const steps = r.notes.split("\n");
+  const steps = r.instructions.split("\n");
   assert.equal(steps.length, 5, JSON.stringify(steps));
   assert.equal(steps[0], "1. Pre-heat the oven to 400 degrees F. Line a baking sheet with parchment paper, silicone mat or tin foil.");
   assert.equal(steps[4], "5. Let cool and serve.");
@@ -3785,15 +3934,15 @@ test("recipeFromJsonLd: averiecooks.com — recipeYield IS servings here, sectio
   // unlike babyfoode, this one is trusted.
   assert.equal(r.servings, 4);
   assert.equal(r.ingredients.length, 22, JSON.stringify(r.ingredients.map((i) => i.name)));
-  const steps = r.notes.split("\n");
+  const steps = r.instructions.split("\n");
   assert.equal(steps.length, 20, JSON.stringify(steps));
   assert.equal(steps[0], "1. To a small bowl, add the salt, pepper, chili powder, smoked paprika, and stir to combine.");
   assert.equal(steps[19], "20. Optionally (but recommended), garnish with fresh herbs and serve immediately. Leftovers will keep airtight for up to 5 days in the fridge or up to 4 months in the freezer. Tip - The pasta may continue to absorb some of the sauce so it may appear you have less sauce when you open your container of leftovers. Pasta has a way of doing this. And if it happens, the pasta will be on the softer side, rather than al dente.");
   // Entities inside a step's own text, not just the title — a decoder that
   // only ran on `name` would leave these as literal "&#x27;" in the saved
   // notes.
-  assert.ok(r.notes.includes("don't move it"), "an apostrophe stayed escaped inside a step");
-  assert.ok(r.notes.includes("you're not caught off guard"), "an apostrophe stayed escaped inside a step");
+  assert.ok(r.instructions.includes("don't move it"), "an apostrophe stayed escaped inside a step");
+  assert.ok(r.instructions.includes("you're not caught off guard"), "an apostrophe stayed escaped inside a step");
 });
 
 /* ---------------- the catalog export is sorted ----------------
@@ -3906,13 +4055,13 @@ test("scaleRecipeText changes NOTHING it should not across the whole shipped cat
   const cat = JSON.parse(fs.readFileSync(new URL("../public/catalog.json", import.meta.url)));
   let changed = 0;
   for (const r of cat.recipes) {
-    if (!r.notes) continue;
-    const out = scaleRecipeText(r.notes, 2);
-    if (out === r.notes) continue;
+    if (!r.instructions) continue;
+    const out = scaleRecipeText(r.instructions, 2);
+    if (out === r.instructions) continue;
     changed++;
     // Nothing that looks like a temperature, time or size may have moved.
     for (const re of [/\d+\s*F\b/g, /\d+\s*[-\u2013]?\s*\d*\s*min\b/g, /\d+\s*hr\b/g, /\d+\s*sec\b/g, /\d+\s*inch/g, /\d+x\d+/g, /\d+\s*degrees/g, /\d+\s*months/g, /\d+\s*days/g]) {
-      assert.deepEqual(out.match(re), r.notes.match(re), `a temperature/time/size moved in ${r.name}`);
+      assert.deepEqual(out.match(re), r.instructions.match(re), `a temperature/time/size moved in ${r.name}`);
     }
   }
   assert.ok(changed > 0, "the sweep proved nothing — no recipe's notes scaled at all");
@@ -3983,12 +4132,12 @@ test("rule 2 changes NOTHING it should not across the whole shipped catalog", ()
   const cat = JSON.parse(fs.readFileSync(new URL("../public/catalog.json", import.meta.url)));
   let changed = 0;
   for (const r of cat.recipes) {
-    if (!r.notes) continue;
-    const out = scaleRecipeText(r.notes, 2, r.ingredients.map((i) => i.name));
-    if (out === r.notes) continue;
+    if (!r.instructions) continue;
+    const out = scaleRecipeText(r.instructions, 2, r.ingredients.map((i) => i.name));
+    if (out === r.instructions) continue;
     changed++;
     for (const re of [/\d+\s*F\b/g, /\d+\s*[-\u2013]?\s*\d*\s*min\b/g, /\d+\s*hr\b/g, /\d+\s*sec\b/g, /\d+\s*inch/g, /\d+x\d+/g, /\d+\s*degrees/g, /\d+\s*months/g, /\d+\s*days/g]) {
-      assert.deepEqual(out.match(re), r.notes.match(re), `a temperature/time/size moved in ${r.name}`);
+      assert.deepEqual(out.match(re), r.instructions.match(re), `a temperature/time/size moved in ${r.name}`);
     }
   }
   assert.ok(changed > 0, "the sweep proved nothing — no recipe's notes scaled at all");

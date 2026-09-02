@@ -244,7 +244,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
     setUrlImportState(null);
   };
 
-  const blankDraft = () => ({ id: null, name: "", mealTypes: [], easy: false, side: false, servings: "4", source: "", notes: "", ingredients: [{ name: "", qty: "1", unit: "", note: "" }] });
+  const blankDraft = () => ({ id: null, name: "", mealTypes: [], easy: false, side: false, servings: "4", source: "", instructions: "", notes: "", ingredients: [{ name: "", qty: "1", unit: "", note: "" }] });
   const startNew = () => {
     setDraft(blankDraft());
     setFieldsOpen(false);
@@ -264,6 +264,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
       side: !!r.side,
       servings: String(r.servings || 4),
       source: r.source || "",
+      instructions: r.instructions || "",
       notes: r.notes || "",
       ingredients: r.ingredients.map((i) => ({ ...i, qty: String(i.qty), note: i.note || "" })),
     });
@@ -275,9 +276,13 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
      item 106), and a Shortcut handing the app a whole page. They must agree
      — a recipe that imports differently depending on how it arrived is
      three parsers to keep in step instead of one. Takes the ALREADY-PARSED
-     {name, servings, notes, ingredients} shape — parseRecipeText's own
+     {name, servings, instructions, ingredients} shape — parseRecipeText's own
      return value, and recipeFromJsonLd's — rather than raw text, so the
-     caller decides which parser produced it. */
+     caller decides which parser produced it.
+     IT NEVER TOUCHES draft.notes (item 118): a parser reads a web page, and a
+     web page has no opinion about what THIS cook wants to change. Whatever is
+     in Notes was typed by a person, so an import appends to Instructions and
+     leaves Notes exactly as it found it. */
   const fillDraft = (d, parsed) => {
     const isBlankIngredientRow = (i) => !i.name.trim() && i.qty === "1" && !i.unit.trim() && !(i.note || "").trim();
     const parsedIngredients = parsed.ingredients.map((i) => ({ name: i.name, qty: String(i.qty), unit: i.unit, note: i.note || "" }));
@@ -286,7 +291,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
       ...d,
       name: d.name.trim() ? d.name : parsed.name || d.name,
       servings: d.servings === "4" && parsed.servings ? String(parsed.servings) : d.servings,
-      notes: !parsed.notes ? d.notes : d.notes.trim() ? `${d.notes}\n\n${parsed.notes}` : parsed.notes,
+      instructions: !parsed.instructions ? d.instructions : d.instructions.trim() ? `${d.instructions}\n\n${parsed.instructions}` : parsed.instructions,
       ingredients: !parsedIngredients.length ? d.ingredients : startsBlank ? parsedIngredients : [...d.ingredients, ...parsedIngredients],
     };
   };
@@ -393,7 +398,13 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
       side: !!draft.side,
       servings: Math.max(1, Number(draft.servings) || 4),
       source: draft.source.trim(),
-      notes: draft.notes.trim(),
+      /* ALWAYS WRITTEN, EVEN EMPTY, and that is deliberate rather than sloppy
+         (item 118). needsInstructions decides whether a recipe still holds its
+         method in the old `notes` field by asking whether an `instructions`
+         KEY EXISTS — so every recipe this build saves must have one, or the
+         migration would come back for it later and promote the cook's notes
+         to the method. See the comment on withInstructions in lib.js. */
+      instructions: draft.instructions.trim(),
       ingredients: draft.ingredients
         .filter((i) => i.name.trim())
         // Absent, not empty — a recipe with no notes keeps exactly the shape it
@@ -404,6 +415,12 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
           return note ? { ...line, note } : line;
         }),
     };
+    /* The COOK'S OWN remarks, and absent when empty — the opposite choice from
+       `instructions` two fields up, for the opposite reason. Nothing keys off
+       whether this one exists, and most recipes will never have one, so the
+       shape stays exactly as it was for every recipe that doesn't. */
+    const recipeNotes = draft.notes.trim();
+    if (recipeNotes) clean.notes = recipeNotes;
     // One layer now: a recipe is just written, with no catalog-vs-local split
     // and nothing shadowing anything. New ingredients get an entry so they show
     // up on the Pantry tab ready to have a store set.
@@ -1377,9 +1394,34 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                  (optional)" went for a real reason though — 306px against
                  236 of room at 320, cut off. */
               placeholder="Instructions (e.g. brown the meat first)"
+              value={draft.instructions}
+              onChange={(e) => setDraft({ ...draft, instructions: e.target.value })}
+              rows={4}
+              style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 8 }}
+            />
+            {/* NOTES IS A SECOND FIELD, NOT A SECOND HALF OF THE FIRST ONE
+                (item 118). The two hold different things and are treated
+                differently downstream: the method is SCALED when a meal is
+                planned for a different number of people ("2 tbsp" doubles),
+                and a remark is left exactly as written, because "I halve the
+                sugar" doubled is nonsense. Sharing one box would have meant
+                scaling both or neither.
+                "OPTIONAL" IS ACCURATE HERE, unlike on the instructions box
+                above, and for the same reason the ingredient note keeps it:
+                most recipes genuinely have nothing to add, so the hint is
+                describing the normal case rather than inviting you to skip
+                half the recipe.
+                THREE ROWS, not the instructions box's four — a remark is a
+                line or two, and a box that opens taller than its content
+                looks like a field you have left unfinished. */}
+            <div style={{ ...groupRule, marginBottom: 8 }}>
+              <span style={{ ...groupLabel, display: "block" }}>Notes</span>
+            </div>
+            <textarea
+              placeholder="Optional notes (e.g. I halve the sugar)"
               value={draft.notes}
               onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
-              rows={4}
+              rows={3}
               style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 8 }}
             />
           </Section>

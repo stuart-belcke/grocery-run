@@ -35,4 +35,19 @@
 //    week's plan") overwrites a slot wholesale rather than merging into it, so
 //    it would silently drop another device's sides the moment it re-picked
 //    that slot's main. The gate buys the same certainty item 23 used it for.
-export const APP_DATA_VERSION = 3;
+// 4: a recipe's cooking method moved from `notes` to `instructions`, and
+//    `notes` now means the cook's own remarks ("I halve the sugar"). This is
+//    the one thing the comment above actually asks for: not a NEW field, but
+//    an existing one whose MEANING changed. An older build reads `notes` and
+//    prints it as the method, so after the migration it would show a recipe's
+//    method as empty, or — once somebody writes a real note — show "I halve
+//    the sugar" as the entire method. Adding `instructions` alone would not
+//    have needed a bump; repurposing `notes` is what does.
+//    Deliberately NOT done as expand-then-contract (write the method to both
+//    fields for a release, drop `notes` later). That keeps old builds correct
+//    right up until an old build EDITS a recipe: it writes `notes` and carries
+//    `instructions` through stale, and the two copies of the method disagree
+//    with no way to tell which is current. A brief forced update beats two
+//    disagreeing methods. The shopping list is untouched either way — it is
+//    built from `ingredients`, so nothing here can cost a trip.
+export const APP_DATA_VERSION = 4;

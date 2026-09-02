@@ -2792,3 +2792,152 @@ into the details panel and the name grew.
     succeed() landing, which the suite caught as three real failures rather
     than test churn — a filled draft behind collapsed fields is a card
     claiming to hold a recipe and showing none of it.
+
+117. TWO RECIPE LINKS PASTED IN REAL USE — ONE ADDED, ONE REFUSED ON PURPOSE.
+
+    theleangreenbean.com/lentil-banana-muffins — ADDED, 28th host. Probed the
+    item 113 way (findRecipeNode lifted verbatim, run from a GitHub runner
+    since this sandbox's egress proxy 403s recipe sites outright). A real
+    Recipe node came back: 11 ingredients, recipeYield ["12","Makes 12 large
+    muffins"]. recipeFromJsonLd reads all 11 correctly; three ("1/4 c sugar",
+    "2/3 c oats", "2/3 c white whole wheat flour") keep a bare "c" in the name
+    instead of resolving to the "cup" unit, because "c" is not in
+    UNIT_ALIASES. NOT ADDED as an alias: unitInfo also drives the notes-
+    scaling rule (the "2 tbsp -> 4 tbsp on a double batch" one), and a bare
+    "c" is the standard abbreviation for degrees Celsius in oven temperatures
+    — "180 C" in a step would start scaling as if it were 180 cups. The
+    quantities themselves (0.25, 0.667) are still exactly right; only the
+    label is imperfect, which is the same "good enough" gap item 110 already
+    catalogs, not a reason to add ambiguity to a table that also drives
+    scaling.
+
+    wholefoodsmarket.com/recipes/fluffy-cottage-cheese-pancakes — CHECKED,
+    LEFT OFF. Zero <script type="application/ld+json"> blocks on the page at
+    all — confirmed by counting, not by findRecipeNode returning null alone.
+    Same shape as smittenkitchen.com above: a real recipe, no JSON-LD. WORSE
+    THAN SMITTENKITCHEN, THOUGH: the ingredient lines are two adjacent spans
+    with no whitespace between them in the source ("<b>1 cup</b><span>all-
+    purpose flour</span>"), so even the Worker's own pageText fallback (and a
+    real person copying the visible page) reads "1 cupall-purpose flour" —
+    no separating space. Fed through parseRecipeText as a paste, this comes
+    back "Cupall-purpose flour" with no unit, and the page's own "Shop recipe
+    on Amazon" / "Exclusively for Prime members…" upsell lines get pulled in
+    as fake ingredients too. Adding this host would only route a broken parse
+    through the Worker instead of a manual paste; it buys nothing over
+    today's message telling someone to paste the recipe text by hand.
+
+    THE OWNER THEN PASTED THE ACTUAL PAGE TEXT, AND IT WAS WORSE THAN THE
+    PROBE FOUND: this page's heading is "Method", not "Instructions" or
+    "Directions" — neither SECTION_HEADING_RE nor the insStart search
+    recognized it, so the ingredient-section scan (which stops only at a
+    recognized heading) never stopped at all. It ran straight through the six
+    real steps AND the "Nutritional Info" table below them ("Total Fat",
+    "220mg", "Protein"…) as 30 fake ingredients, and notes came back empty —
+    no instructions section was ever found to fill it. A SECOND MISS
+    COMPOUNDED IT: "Nutritional Info" itself matched neither "nutrition" nor
+    "facts" in END_OF_STEPS_RE, so even once "Method" was recognized, the
+    steps loop still ran past the real last step into the nutrition table.
+    FIXED, BOTH GENERAL RATHER THAN SITE-SPECIFIC: "method" added to
+    SECTION_HEADING_RE and the insStart search (a common heading on plenty of
+    sites, not just this one); END_OF_STEPS_RE widened from
+    "nutrition(\s+facts)?" to "nutrition(al)?(\s+(facts|information|info))?".
+    Mutation-tested — each reverted alone, the paired test failed, restored.
+    Confirmed by actually running parseRecipeText against real pasted text
+    (twice — the probe's extraction, then the owner's own paste), not by
+    reasoning about the markup either time.
+    STILL LEFT: the run-together "Cupall-purpose flour" text and the two
+    upsell lines are unchanged. Those are wholefoodsmarket.com's own markup
+    quirks, not a general parser gap, and are why this host stays off the
+    allowlist regardless of the two fixes above.
+
+118. THE COOKING METHOD GETS ITS OWN FIELD, AND `notes` FINALLY MEANS NOTES.
+    Asked for as "rename Notes to Instructions, then add a Notes section".
+    One field was doing two jobs and was named for the smaller one.
+
+    IT WAS ALREADY HALF-RENAMED, WHICH IS WHAT MADE IT CONFUSING. Item 116
+    changed the EDITOR's heading and placeholder to "Instructions"; the stored
+    field stayed `notes`, and RecipeDetail still printed the heading "Notes"
+    over the same text. One field, two names, depending on which screen you
+    were on. Now: `instructions` is the method, `notes` is the cook's own
+    remarks, and all three places agree.
+
+    APP_DATA_VERSION 3 -> 4, WHICH IS THE PART TO CHECK BEFORE BELIEVING THE
+    REST. version.js says to spend it only when an older build would get
+    things WRONG rather than merely miss something, and this is that case and
+    not the usual one: `notes` did not go away, it changed MEANING. An older
+    build prints `notes` as the method, so after this it would show a recipe's
+    method as empty, and — the moment somebody writes a real note — show
+    "I halve the sugar" as the entire way to cook the dish. Adding
+    `instructions` alone would NOT have earned a bump; repurposing `notes` is
+    what does. The gate stops WRITES only, so the other phone still opens and
+    still shops while it waits to update, and the shopping list is built from
+    `ingredients` and never touched either way.
+
+    EXPAND-THEN-CONTRACT WAS CONSIDERED AND REJECTED, against the usual rule.
+    Writing the method into BOTH fields for a release keeps old builds correct
+    right up until an old build EDITS a recipe: it writes `notes`, carries
+    `instructions` through untouched and stale, and then two copies of the
+    method disagree with nothing to say which is current. A brief forced
+    update beats two disagreeing methods.
+
+    THE MIGRATION'S GATE IS A KEY, NOT A SHAPE, and this is the whole safety
+    argument. needsInstructions asks whether an `instructions` KEY EXISTS —
+    never whether it is empty, never whether `notes` looks like steps. The
+    tempting version ("has notes, has no method") cannot tell unmigrated data
+    from a recipe saved LAST WEEK by a cook who wrote a note and no method,
+    and would file their "I halve the sugar" as the method. saveDraft
+    therefore writes `instructions` unconditionally, empty string included:
+    that is what makes "no key" mean "written before this release", and it is
+    load-bearing rather than untidy. Mutation-tested — the shape-based gate
+    was written deliberately and fails exactly the test that guards it.
+
+    NOTES IS NOT SCALED AND THE METHOD IS. Planning a meal for eight doubles
+    "2 tbsp" inside the instructions, because those amounts have to stay
+    honest against the ingredient list. A remark is a person's own words about
+    their own cooking, so doubling the numbers in it would be putting words in
+    their mouth — "I halve the sugar" scaled is nonsense. No "x2" marker on
+    Notes either: the marker exists to say amounts moved, and none did. That
+    difference is also why these are two fields rather than one box with a
+    blank line in it — sharing one would have meant scaling both or neither.
+
+    AN IMPORT FILLS INSTRUCTIONS AND NEVER TOUCHES NOTES. parseRecipeText and
+    recipeFromJsonLd return no `notes` key at all now: a parser reads a web
+    page, and a web page has no opinion about what THIS kitchen wants to
+    change. Covered by an e2e test that types a note, then imports over it.
+
+    CHANGED: version.js, lib.js (both parsers' return shape, needsInstructions
+    /withInstructions), App.jsx (migrateInstructions, run independently of the
+    other two migrations rather than chained behind them — chained, it would
+    wait for a second adopt that may never come), MealsTab (draft, fillDraft,
+    saveDraft, a second textarea), RecipeDetail (two blocks), SettingsTab
+    (the export carries both), public/catalog.json (23 keys renamed, and
+    nothing else — a re-serialisation reformatted all 2,565 lines of a file
+    that is hand-edited and diffed in git, so it was reverted for a
+    line-anchored rename).
+
+    AND THE EXPORT WAS ALREADY LOSING TWO FIELDS, found while answering "will
+    my next export diff look atrocious" by RUNNING an export and diffing it
+    against public/catalog.json rather than reading the code. `source` was
+    never written by catalogJson — twelve of the twenty-three shipped recipes
+    carry one, and every one of them disappeared the moment anybody pressed
+    Export. `side` had never been written either, so marking a recipe as a
+    side dish survived until the next export and then did not. Both are
+    written by saveDraft, so the round trip was lossy in the one file that is
+    the backup AND the git history — exactly the fault the comment sitting
+    above that code warns about, four lines from the bug.
+    THE PROJECTION MOVED TO lib.js AS recipeForCatalogFile, because a
+    projection living in a React component is one no test can reach without a
+    browser, which is why nothing caught this. Three tests now: every field
+    saveDraft writes survives the trip, absent fields stay absent rather than
+    being written as "", and the whole shipped file rebuilds BYTE-FOR-BYTE
+    through the real projection and the real formatter. Mutation-tested by
+    deleting the two lines again — two of the three fail.
+    THE ANSWER TO THE QUESTION, for the record: after this, exporting the
+    shipped catalog differs from the file on ONE line, the catalogVersion the
+    export deliberately bumps.
+
+    TESTED: 382 unit tests including six on the migration, 312 e2e including
+    two new ones that assert what was PERSISTED after a round trip rather
+    than what the form shows. Both new fields walked by hand in a real browser
+    at 390px — the editor's two sections, and the recipe card printing
+    INSTRUCTIONS and NOTES as separate blocks.

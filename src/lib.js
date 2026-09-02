@@ -782,6 +782,43 @@ export const inlineJson = (v) => {
    Sorting either of those would silently rewrite meaning to tidy a diff. */
 const byName = (a, b) => String(a.name || "").localeCompare(String(b.name || ""));
 
+/* One recipe as catalog.json holds it. Pure, and HERE rather than inside the
+   Settings tab, because what this drops is the difference between a backup and
+   a lossy copy — and a projection that lives in a React component is one no
+   test can reach without a browser.
+
+   IT DROPS EXACTLY ONE THING ON PURPOSE: `ingredientId`. The file is
+   name-keyed, hand-edited and diffed in git, so ids in it would mean inventing
+   one and matching it across two sections just to add a recipe; seedCatalog
+   mints them again on the way back in. Every OTHER field saveDraft writes has
+   to survive, which is what the test beside this asserts.
+
+   IT DROPPED `source` AND `side` FOR REAL, until item 118 (found by running an
+   export and diffing it against the shipped file, not by reading the code):
+   twelve of the twenty-three shipped recipes carry a source and every one
+   disappeared the moment anybody pressed Export.
+
+   Empty values are omitted rather than written as "" — the file is read by
+   people, and `"source": ""` on eleven recipes is eleven lines saying nothing.
+   `instructions` is the exception and is always written, because a recipe
+   without a method is worth seeing as blank rather than absent. */
+export function recipeForCatalogFile(r) {
+  return {
+    id: r.id,
+    name: r.name,
+    mealTypes: r.mealTypes || [],
+    easy: !!r.easy,
+    servings: r.servings || 4,
+    ...(r.source ? { source: r.source } : {}),
+    ...(r.side ? { side: true } : {}),
+    instructions: r.instructions || "",
+    ...(r.notes ? { notes: r.notes } : {}),
+    ingredients: asArray(r.ingredients).map((i) =>
+      i.note ? { name: i.name, qty: i.qty, unit: i.unit, note: i.note } : { name: i.name, qty: i.qty, unit: i.unit }
+    ),
+  };
+}
+
 export function formatCatalog(out) {
   const lines = ["{"];
   lines.push(`  "catalogVersion": ${JSON.stringify(out.catalogVersion)},`);
@@ -1009,7 +1046,7 @@ export const normalizeRecipe = (r) => ({ ...r, mealTypes: asArray(r.mealTypes), 
 
 /* --------------------------- recipe paste --------------------------
    Turns text copied from a recipe site (or typed free-form) into a best-guess
-   { name, servings, notes, ingredients }. Assistive, not authoritative: every
+   { name, servings, instructions, ingredients }. Assistive, not authoritative: every
    field it returns lands in the draft editor's normal, editable inputs — this
    never writes a recipe on its own, so a wrong guess costs a correction, not
    corrupted data.
@@ -1255,7 +1292,7 @@ const YIELDS_RE = /yields\s+(\d+(?:\.\d+)?)\s*servings?/i;
 // "Servings:" and "4 servings" land on separate lines on some cards, so the
 // number leads its word instead of following it.
 const SERVINGS_FIRST_RE = /^(\d+(?:\.\d+)?)\s+servings?\b/i;
-const SECTION_HEADING_RE = /^(ingredients?|instructions?|directions?)\s*$/i;
+const SECTION_HEADING_RE = /^(ingredients?|instructions?|directions?|method)\s*$/i;
 
 /* Where the steps stop. Used to say /^(nutrition|notes?)$/ and therefore ran
    straight past "Cook's Note" — the heading this page actually uses — taking
@@ -1264,7 +1301,15 @@ const SECTION_HEADING_RE = /^(ingredients?|instructions?|directions?)\s*$/i;
    ("Recipe Notes" and "Chef's Notes" are the same shape), and the apostrophe
    has to be allowed in both its straight and curly forms, because a page
    typesets one and a keyboard produces the other. */
-const END_OF_STEPS_RE = /^(nutrition(\s+facts)?|([A-Za-z'’]+\s+)?notes?|video|post navigation|leave a (reply|comment)|\d+\s+comments?\b|comments?|more comments|did you make this recipe|tried this recipe)\s*[:.]?\s*$|all rights reserved/i;
+// "nutrition(al)? (facts|information|info)?" — wholefoodsmarket.com's own
+// "Nutritional Info" (item 117) matched neither "nutrition" nor "facts", so
+// its whole nutrition table (12 lines: "Total Fat", "220mg", "Protein"...)
+// ran on as fake instruction steps past the real last one.
+// "nutrition(al)? (facts|information|info)?" — wholefoodsmarket.com's own
+// "Nutritional Info" (item 117) matched neither "nutrition" nor "facts", so
+// its whole nutrition table (12 lines: "Total Fat", "220mg", "Protein"...)
+// ran on as fake instruction steps past the real last one.
+const END_OF_STEPS_RE = /^(nutrition(al)?(\s+(facts|information|info))?|([A-Za-z'’]+\s+)?notes?|video|post navigation|leave a (reply|comment)|\d+\s+comments?\b|comments?|more comments|did you make this recipe|tried this recipe)\s*[:.]?\s*$|all rights reserved/i;
 
 /* What starts a numbered step. `[.)]` alone missed this page entirely, where
    the number is separated from its text by a TAB rather than punctuation
@@ -1432,8 +1477,13 @@ export function parseRecipeText(text) {
     }
   }
 
-  let notes = "";
-  const insStart = lines.findIndex((l) => /^(instructions?|directions?)\s*$/i.test(l));
+  let instructions = "";
+  /* "Method" — wholefoodsmarket.com's own heading (item 117) — was missing
+     here, so a real paste of that recipe never found an instructions
+     section at all: every step AND every nutrition-facts line ("Total Fat",
+     "220mg", "Protein"...) fell through to the no-heading ingredient
+     fallback below and came back as fake ingredients instead. */
+  const insStart = lines.findIndex((l) => /^(instructions?|directions?|method)\s*$/i.test(l));
   if (insStart !== -1) {
     const steps = [];
     let numbered = false;
@@ -1484,14 +1534,18 @@ export function parseRecipeText(text) {
     // starts at "5.", and a paste with no numbers at all still cooks in order.
     // The credit strip runs LAST, after the wrapped-line join above, so a
     // credit that arrived on the continuation line is caught too.
-    notes = steps
+    instructions = steps
       .map((s) => s.replace(TRAILING_CREDIT_RE, "").replace(/^[\s]*[\u25a2\u2610\u2611\u2713\u2022\u25cf\u25cb\u25e6\u2023*\u00b7]+[\s]*/, "").trim())
       .filter(Boolean)
       .map((s, i) => `${i + 1}. ${s}`)
       .join("\n");
   }
 
-  return { name, servings, notes, ingredients };
+  /* NO `notes` KEY HERE, AND THAT IS THE POINT (item 118). What a page gives
+     up is the METHOD; the cook's own remarks are something only a person can
+     write, so a parser has nothing to put in that field and must not invent
+     one. fillDraft leaves the draft's own notes alone for the same reason. */
+  return { name, servings, instructions, ingredients };
 }
 
 /* -------------------- recipe JSON-LD (item 106) -------------------- */
@@ -1565,11 +1619,11 @@ export function recipeFromJsonLd(node) {
   const ingredients = listOf(node?.recipeIngredient)
     .map((l) => parseIngredientLine(decodeHtmlEntities(String(l))))
     .filter(Boolean);
-  const notes = stepsFromRecipeInstructions(node?.recipeInstructions)
+  const instructions = stepsFromRecipeInstructions(node?.recipeInstructions)
     .map((s) => decodeHtmlEntities(s))
     .map((s, i) => `${i + 1}. ${s}`)
     .join("\n");
-  return { name, servings, notes, ingredients };
+  return { name, servings, instructions, ingredients };
 }
 
 export function normalizeLocal(raw) {
@@ -2136,6 +2190,47 @@ export function withUnitNotes(catalog) {
         return out;
       }),
     };
+  }
+  return { ...catalog, recipes };
+}
+
+/* Item 118: the cooking method moves from `notes` to `instructions`, freeing
+   `notes` to mean what its name has always suggested — the cook's own remarks.
+
+   HOW A RECIPE THAT STILL NEEDS MOVING IS TOLD APART FROM ONE THAT DOESN'T,
+   because getting this wrong would file somebody's "I halve the sugar" as the
+   method: the test is whether an `instructions` KEY EXISTS AT ALL, never
+   whether it is empty and never whether `notes` looks like steps. saveDraft
+   always writes the key, empty string included, so "no key" can only mean a
+   recipe last written by a build from before this release. A recipe written
+   since then has the key, so a cook who fills in Notes and leaves
+   Instructions blank is never touched — which the shape test would have got
+   wrong, since that recipe looks exactly like unmigrated data.
+
+   That invariant is the whole safety argument, so saveDraft's unconditional
+   write of `instructions` is load-bearing rather than untidy. It is also why
+   this is a real migration rather than a read-time fallback: a fallback would
+   have to make the same guess on every read, forever, instead of once.
+
+   The empty string is not written back, and no key is invented for a recipe
+   that never had a method — `{...r}` first, so a field this build has never
+   heard of survives, which is the rule withUnitNotes above is written to. */
+const recipeNeedsInstructions = (r) => !!r && !("instructions" in r) && typeof r.notes === "string" && !!r.notes.trim();
+
+export function needsInstructions(catalog) {
+  return Object.values(asObject(catalog && catalog.recipes)).some(recipeNeedsInstructions);
+}
+
+export function withInstructions(catalog) {
+  if (!needsInstructions(catalog)) return catalog;
+  const recipes = {};
+  for (const [id, r] of Object.entries(asObject(catalog.recipes))) {
+    if (!recipeNeedsInstructions(r)) { recipes[id] = r; continue; }
+    const out = { ...r, instructions: r.notes.trim() };
+    // `notes` is emptied rather than left alongside: leaving it would print
+    // the whole method a second time, now labelled as the cook's remarks.
+    delete out.notes;
+    recipes[id] = out;
   }
   return { ...catalog, recipes };
 }
