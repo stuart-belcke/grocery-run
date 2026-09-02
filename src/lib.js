@@ -1095,6 +1095,29 @@ const EXTRA_UNIT_WORDS = new Set([
   "head", "heads", "loaf", "loaves", "dozen",
 ]);
 
+/* Shorthand that is only ever a unit ON AN INGREDIENT LINE, which is the
+   whole reason it lives here and NOT in UNIT_ALIASES (item 119).
+
+   "1/4 c sugar" is three of the eleven ingredients on the lentil banana
+   muffins recipe, and they came out as an ingredient literally named
+   "C sugar" with no unit — so they could never add up with another recipe's
+   cups on the shopping list, which is the arithmetic this app exists to do.
+
+   PUTTING `c` IN UNIT_ALIASES WOULD HAVE BEEN WRONG, and that was the reason
+   for leaving it alone at first. Aliases feed unitInfo, and unitInfo is also
+   what scaleRecipeText asks before it doubles a number in the written
+   method — so "bake at 180 C" on a double batch would become 360 C. That is
+   the over-scaling scaleRecipeText is explicitly built never to do.
+   THE TWO LOOKUPS ARE SEPARATE, which is what makes this safe: unitInfo is
+   the conversion vocabulary (and the scaler's), unitWordCanonical is only
+   ever asked "does the line's quantity end here?" by parseIngredientLine.
+   An oven temperature does not appear in an ingredient list, and an
+   ingredient never starts with a bare "c" as its name. So the shorthand is
+   taught to the reader of ingredient lines and to nothing else.
+   It resolves to "cup" rather than to "c" so the amount aggregates with
+   every other recipe's cups instead of sitting on a row of its own. */
+const INGREDIENT_ONLY_UNITS = { c: "cup" };
+
 // The canonical unit a word names, or null if it isn't recognizable as one —
 // used only to find where a line's quantity ends and its name begins.
 function unitWordCanonical(word) {
@@ -1102,6 +1125,7 @@ function unitWordCanonical(word) {
   if (!w) return null;
   const known = unitInfo(w);
   if (known) return known.unit;
+  if (INGREDIENT_ONLY_UNITS[w]) return INGREDIENT_ONLY_UNITS[w];
   return EXTRA_UNIT_WORDS.has(w) ? w : null;
 }
 

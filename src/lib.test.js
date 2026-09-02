@@ -3730,6 +3730,36 @@ test("two ALTERNATIVE methods still keep only the first", () => {
   assert.ok(!r.instructions.includes("Set the instant pot to sauté"), "the second method's steps came back");
 });
 
+/* ---- item 119: "1/4 c sugar" is a cup, but "180 C" is not ---- */
+
+test("a bare c on an ingredient line is read as a cup", () => {
+  // Three of the eleven ingredients on the lentil banana muffins recipe the
+  // owner asked for. They came back named "C sugar" with NO unit, so they
+  // could never add up with another recipe's cups on the shopping list.
+  assert.deepEqual(parseIngredientLine("1/4 c sugar"), { name: "Sugar", qty: 0.25, unit: "cup" });
+  assert.deepEqual(parseIngredientLine("1 c. milk"), { name: "Milk", qty: 1, unit: "cup" });
+  // It resolves to "cup", not "c", so it aggregates with everything else.
+  assert.equal(parseIngredientLine("2/3 c oats").unit, parseIngredientLine("2/3 cup oats").unit);
+});
+
+test("a bare C in the written method is a TEMPERATURE and must never be scaled", () => {
+  /* The reason `c` is taught to unitWordCanonical and NOT to UNIT_ALIASES.
+     Aliases feed unitInfo, which is what scaleRecipeText asks before it
+     doubles a number — so an alias would turn "bake at 180 C" into 360 C on
+     a double batch. Over-scaling a temperature is the exact failure
+     scaleRecipeText is built to refuse. */
+  assert.equal(scaleRecipeText("Bake at 180 C for 20 min.", 2), "Bake at 180 C for 20 min.");
+  assert.equal(scaleRecipeText("Bake at 180C.", 2), "Bake at 180C.");
+  // ...while a real unit in the same sentence still moves.
+  assert.equal(scaleRecipeText("Heat 2 tbsp oil.", 2), "Heat 4 tbsp oil.");
+});
+
+test("an ingredient whose name merely begins with c is untouched", () => {
+  assert.equal(parseIngredientLine("1 carrot").name, "Carrot");
+  assert.equal(parseIngredientLine("1 carrot").unit, "");
+  assert.equal(parseIngredientLine("2 cans tomatoes").unit, "cans");
+});
+
 /* ---- item 119: a page's own Notes section reaches the notes field ---- */
 
 test("a page's Notes section is captured instead of thrown away", () => {

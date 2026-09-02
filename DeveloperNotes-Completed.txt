@@ -2994,6 +2994,29 @@ into the details panel and the name grew.
     character class written out inline, and two copies of it is two places to
     get it wrong.
 
-    TESTED: 386 unit tests, 312 e2e, and the real babyfoode page pasted into
+    AND "1/4 c sugar" IS A CUP NOW, which came out of actually finishing the
+    check on theleangreenbean.com. Item 117 verified its INGREDIENTS and
+    nothing else, then put it on the live allowlist and called it "parsing
+    correctly" — the recipeInstructions were never captured or run. Re-probed
+    for the whole Recipe node: the five steps import perfectly, and servings
+    correctly comes back null (recipeYield is ["12","Makes 12 large muffins"],
+    which is muffins, not servings — the babyfoode meatball trap the code
+    already refuses).
+    THREE OF ITS ELEVEN INGREDIENTS WERE WRONG THOUGH: "1/4 c sugar" parsed
+    to an ingredient NAMED "C sugar" with no unit, so it could never add up
+    with another recipe's cups on the shopping list.
+    ITEM 118 REFUSED TO FIX THIS AND THE REASONING WAS TOO COARSE. It said a
+    bare `c` could not be taught because unitInfo also drives scaleRecipeText,
+    which would double "bake at 180 C" to 360 C. That is true OF unitInfo —
+    but parseIngredientLine does not use unitInfo directly, it uses
+    unitWordCanonical, and the scaler uses unitInfo. Two separate lookups, so
+    the shorthand goes to the reader of INGREDIENT LINES only
+    (INGREDIENT_ONLY_UNITS) and the scaler never learns it. An oven
+    temperature does not appear in an ingredient list.
+    MUTATION-TESTED THE WRONG FIX: putting `c` in UNIT_ALIASES instead makes
+    the temperature test fail, which is exactly the bug item 118 was afraid of
+    and now cannot reach production unnoticed.
+
+    TESTED: 389 unit tests, 312 e2e, and the real babyfoode page pasted into
     the real app in a browser — 5 steps into Instructions, 8 lines into Notes,
     nothing crossed over.
