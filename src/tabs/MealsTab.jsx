@@ -279,10 +279,21 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
      {name, servings, instructions, ingredients} shape — parseRecipeText's own
      return value, and recipeFromJsonLd's — rather than raw text, so the
      caller decides which parser produced it.
-     IT NEVER TOUCHES draft.notes (item 118): a parser reads a web page, and a
-     web page has no opinion about what THIS cook wants to change. Whatever is
-     in Notes was typed by a person, so an import appends to Instructions and
-     leaves Notes exactly as it found it. */
+
+     NOTES ARRIVE FROM A PASTE NOW (item 119) — a page's own "Notes" /
+     "Cook's Note" section, which item 118 assumed a parser could never
+     supply. So this APPENDS, exactly as instructions does, and never
+     replaces: what is already in the box was typed by a person, and losing
+     "Mum's version, do not change" to a storage tip off a website is the one
+     outcome that would make importing over a draft not worth doing.
+     A URL IMPORT FROM AN ALLOWLISTED SITE STILL WON'T FILL IT, and that is
+     honest rather than a gap: those come back as JSON-LD, and schema.org has
+     no notes field, so recipeFromJsonLd has nothing to read. Guessing at one
+     — description is the tempting candidate — would file a page's marketing
+     blurb as the cook's own remark. */
+  const appendText = (existing, added) =>
+    !added ? existing : existing.trim() ? `${existing}\n\n${added}` : added;
+
   const fillDraft = (d, parsed) => {
     const isBlankIngredientRow = (i) => !i.name.trim() && i.qty === "1" && !i.unit.trim() && !(i.note || "").trim();
     const parsedIngredients = parsed.ingredients.map((i) => ({ name: i.name, qty: String(i.qty), unit: i.unit, note: i.note || "" }));
@@ -291,7 +302,8 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
       ...d,
       name: d.name.trim() ? d.name : parsed.name || d.name,
       servings: d.servings === "4" && parsed.servings ? String(parsed.servings) : d.servings,
-      instructions: !parsed.instructions ? d.instructions : d.instructions.trim() ? `${d.instructions}\n\n${parsed.instructions}` : parsed.instructions,
+      instructions: appendText(d.instructions, parsed.instructions),
+      notes: appendText(d.notes, parsed.notes),
       ingredients: !parsedIngredients.length ? d.ingredients : startsBlank ? parsedIngredients : [...d.ingredients, ...parsedIngredients],
     };
   };

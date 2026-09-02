@@ -874,7 +874,13 @@ test("SHOULD: the method and the cook's own notes are saved as two separate fiel
 /* The half of the split that a crossed wire would silently undo: an import
    fills the METHOD, and must leave a note the cook already typed alone. A
    parser reads a web page, and a web page knows nothing about this kitchen. */
-test("SHOULD: importing a recipe fills the instructions and never touches the notes", async () => {
+/* Item 119 changed what this is guarding. An import CAN now fill the notes
+   box — a page's own "Notes" section goes there — so the invariant is no
+   longer "never touches it" but "never OVERWRITES it": what a person typed
+   survives, and what the page said is added below it. Losing "Mum's version,
+   do not change" to a storage tip off a website is the one outcome that
+   would make importing over a draft not worth doing. */
+test("SHOULD: an import adds to the notes and never overwrites what was typed", async () => {
   const page = await openApp(BASE, { catalog: smallCatalog() });
   try {
     await page.tab("Recipes");
@@ -885,19 +891,22 @@ test("SHOULD: importing a recipe fills the instructions and never touches the no
 
     await page.getByRole("button", { name: /Start from a recipe or link/ }).click();
     await page.getByLabel("Pasted recipe text").fill(
-      ["Pasta", "Ingredients", "1 lb spaghetti", "Instructions", "1. Boil the water.", "2. Drain."].join("\n"),
+      ["Pasta", "Ingredients", "1 lb spaghetti", "Instructions", "1. Boil the water.", "2. Drain.", "Notes", "Keeps for three days."].join("\n"),
     );
     await page.getByRole("button", { name: /^Parse into fields$/ }).click();
     await page.waitForTimeout(300);
 
-    assert.equal(
-      await page.getByPlaceholder(/^Optional notes/).inputValue(),
-      "Mum's version, do not change.",
-      "the import overwrote the cook's own note",
-    );
+    const notes = await page.getByPlaceholder(/^Optional notes/).inputValue();
+    assert.ok(notes.includes("Mum's version, do not change."), "the import overwrote the cook's own note");
+    assert.ok(notes.includes("Keeps for three days."), "the page's own note did not reach the notes box");
     assert.ok(
       (await page.getByPlaceholder(/^Instructions/).inputValue()).includes("1. Boil the water."),
       "the imported method did not reach the instructions box",
+    );
+    // And the page's note must not ALSO have been filed as a cooking step.
+    assert.ok(
+      !(await page.getByPlaceholder(/^Instructions/).inputValue()).includes("Keeps for three days."),
+      "the page's note was filed as a cooking step as well",
     );
     assertNoPageErrors(page, assert);
   } finally {
