@@ -391,6 +391,11 @@ export function InfoDot({ label, children }) {
   const [open, setOpen] = useState(false);
   return (
     <>
+      {/* THE DOT IS 18px AND THE BUTTON IS 34px. They are separated on purpose:
+          the mark should be quiet next to the thing it annotates, but a 18px
+          tap target on a phone is a target you miss. The padding that makes
+          the button big is cancelled by an equal negative margin, so the small
+          dot is what the layout sees and nothing shifts. */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -398,20 +403,35 @@ export function InfoDot({ label, children }) {
         aria-label={open ? `Hide more about ${label}` : `More about ${label}`}
         style={{
           flexShrink: 0,
-          width: 30,
-          height: 30,
-          borderRadius: "50%",
-          border: `1px solid ${C.line}`,
-          background: open ? C.greenSoft : "#fff",
-          color: C.faint,
-          fontFamily: fontDisplay,
-          fontWeight: 700,
-          fontSize: 14,
-          lineHeight: 1,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 8,
+          margin: -8,
+          border: "none",
+          background: "none",
           cursor: "pointer",
         }}
       >
-        i
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 18,
+            height: 18,
+            borderRadius: "50%",
+            border: `1px solid ${C.line}`,
+            background: open ? C.greenSoft : "#fff",
+            color: C.faint,
+            fontFamily: fontDisplay,
+            fontWeight: 700,
+            fontSize: 11,
+            lineHeight: 1,
+          }}
+        >
+          i
+        </span>
       </button>
       {open && (
         <p style={{ flexBasis: "100%", margin: "6px 0 0", fontSize: 13, lineHeight: 1.45, color: C.faint }}>{children}</p>
