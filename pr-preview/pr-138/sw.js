@@ -17,8 +17,8 @@
         cache is touched — so going offline mid-update leaves the previous
         app working instead of nothing at all                                */
 
-const BUILD = "a6ceebbc";
-const PRECACHE = ["./","./catalog.json","./manifest.webmanifest","./icon.svg","./icon-192.png","./icon-512.png","./icon-maskable-512.png","./apple-touch-icon.png","./assets/index-FzxTRBPb.js","./assets/index.esm-DSysC4yv.js","./assets/index.esm-BHAHWwh0.js","./assets/index.esm-K83wNhdl.js","./assets/index.esm2017-ClIYgWP-.js"];
+const BUILD = "a6f016ff";
+const PRECACHE = ["./","./catalog.json","./manifest.webmanifest","./icon.svg","./icon-192.png","./icon-512.png","./icon-maskable-512.png","./apple-touch-icon.png","./assets/index-CIfq-9Ox.js","./assets/index.esm-DSysC4yv.js","./assets/index.esm-BHAHWwh0.js","./assets/index.esm-K83wNhdl.js","./assets/index.esm2017-ClIYgWP-.js"];
 
 /* CACHE STORAGE IS PER-ORIGIN, NOT PER-WORKER, and this origin runs more than
    one copy of the app. The real one lives at /grocery-run/; every open pull
