@@ -294,6 +294,19 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
     await page.waitForTimeout(350);
   };
 
+  /* Adding an item now asks which store it goes to (item 121). Leaving that
+     picker empty is allowed — the item lands under Unassigned — so a spec
+     that adds an item and cares WHERE it ended up has to answer the picker
+     first. Here rather than in each spec because three of them add items and
+     none of them are about stores. No-ops when the picker isn't on screen, so
+     it is safe to call unconditionally after an add. */
+  page.chooseStoreInDialog = async (store) => {
+    const picker = page.locator('[role="dialog"] select').first();
+    if (!(await picker.count())) return;
+    await picker.selectOption(store);
+    await page.waitForTimeout(200);
+  };
+
   // Rows are one button per ingredient, labelled "NameStore · aisle N⚙".
   page.ingredientRows = async (re) =>
     (await page.getByRole("button").allTextContents()).filter((t) => re.test(t));

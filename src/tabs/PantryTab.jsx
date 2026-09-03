@@ -694,7 +694,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                             {recipesUsing.length > 0 ? (
                               <>
                                 Used in <b style={{ color: C.ink }}>{recipesUsing.join(", ")}</b>
-                                {onListQty > 0 ? " · also hand-added to today's shopping list" : ""}.
+                                {onListQty > 0 ? " · also added straight to today’s shopping list" : ""}.
                               </>
                             ) : onListQty > 0 ? (
                               <>Hand-added to today's shopping list — not used by any recipe.</>

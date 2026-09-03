@@ -5,8 +5,8 @@
 
 import { useState, useMemo, useRef } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
-import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop, SuggestInput, useSticky } from "../ui";
-import { UNASSIGNED, keyForName, aisleKey, unitKeyFor, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg } from "../lib";
+import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, InfoDot, StickyBar, BackToTop, SuggestInput, useSticky } from "../ui";
+import { ADDED_SOURCE, UNASSIGNED, keyForName, aisleKey, unitKeyFor, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg } from "../lib";
 
 export function ListTab({ data, update, updateCatalog, isGuest }) {
   const [view, setView] = useSticky("list.view", "store");
@@ -22,8 +22,15 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
   const [showSug, setShowSug] = useState(false); // add-item name field: is the suggestion list open
   const [sugIdx, setSugIdx] = useState(-1); // keyboard-highlighted suggestion, -1 = none
   const [confirmDone, setConfirmDone] = useState(false); // "Done shopping" confirmation
-  const [askSave, setAskSave] = useState(null); // name of a new item, pending remember-or-not
-  const [confirmRemove, setConfirmRemove] = useState(null); // hand-added item pending removal
+  const [askSave, setAskSave] = useState(null); // { name, known } of an item pending a store, and remember-or-not
+  /* NO DEFAULT, ON PURPOSE (item 121). The obvious default is the store you
+     use most, and it is wrong here: the whole complaint was items landing
+     somewhere nobody chose, and a pre-filled picker is the same failure with a
+     better-looking value in it. So it starts empty and stays empty until
+     somebody picks. It does NOT block: leaving it empty is a real answer,
+     and the dialog says what that answer means. */
+  const [pendingStore, setPendingStore] = useState("");
+  const [confirmRemove, setConfirmRemove] = useState(null); // added-by-you item pending removal
   const [showBought, setShowBought] = useSticky("list.showBought", false); // "already bought" review panel
   const [askStore, setAskStore] = useState(null); // { key, name, store } pending "this trip or always?"
 
@@ -226,18 +233,37 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
 
   // An unknown item first asks whether to remember it (see askSave); a known
   // one commits straight away.
+  /* ASKED WHENEVER THE ITEM WOULD OTHERWISE LAND IN "UNASSIGNED" (item 121),
+     which is two cases, not one: a name this household has never used, and an
+     ingredient it HAS used but never gave a store to. Both used to go
+     straight onto the list under Unassigned, which is a heading you then have
+     to go and fix on another tab — and the second case did it silently, with
+     no dialog at all.
+     An ingredient that already has a store is untouched: the question has an
+     answer, so asking again would be a tap for nothing on the common path. */
   const addExtra = () => {
     const name = extra.name.trim();
     if (!name) return;
     // config is id-keyed, so looking it up by the normalized name never matched — every
     // add asked "remember this?" even for an ingredient you already have.
-    if (!ingredientIdByName(data.config, name)) return setAskSave(name);
+    const id = ingredientIdByName(data.config, name);
+    if (!id) return setAskSave({ name, known: false });
+    if ((data.config[id]?.store ?? UNASSIGNED) === UNASSIGNED) return setAskSave({ name, known: true });
     commitExtra(false);
   };
 
+  /* `saveToIngredients` carries BOTH halves of the answer, because for a new
+     name they are the same decision: keeping the item is what gives its store
+     somewhere to live. "Just this trip" writes a per-trip reroute that goes
+     away when the trip is finished; "Set as default" mints the ingredient and
+     sets its store. Both labels read the same whether or not the name is
+     already in the Pantry — the underlying pair of writes never differed, and
+     the two old wordings ("Save to Pantry" / "Always") made one question look
+     like two. */
   const commitExtra = (saveToIngredients) => {
     const name = extra.name.trim();
     if (!name) return;
+    const store = pendingStore;
     // Key by the ingredient's ID whenever we can name one. A name-keyed entry
     // does not match the id-keyed catalog, so it renders as a SECOND,
     // store-less row beside the real ingredient instead of attaching to it.
@@ -257,19 +283,34 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
     // keyForName, not norm: a name with `.` `#` `$` `[` `]` or `/` in it
     // makes a key the database refuses, and every write after it fails too.
     if (!key) key = keyForName(name);
+    /* WHERE IT GOES (item 121). Nothing is written when no store was chosen:
+       leaving the picker empty is a real answer, and pressing Add on an
+       ingredient that already has a store never opens the dialog at all, so
+       `store` is empty there too and its existing store stands.
+       PERMANENT ONLY WHEN THE ITEM IS BEING KEPT. An ad-hoc entry has no
+       catalog row to hold a default, so its answer can only ever be a reroute
+       for this trip — which is also the honest reading of "just this trip". */
+    if (store && saveToIngredients) setDefaultStore(key, store);
+    /* ONE update() CALL, not two. update() reads localRef.current, which is
+       only refreshed by an effect, so a second call in the same handler starts
+       from the same snapshot as the first and silently drops it — the item
+       went on the list and the override write then took it straight back off.
+       (updateCatalog is different: it assigns its own ref synchronously, so
+       ensureIngredientId and setDefaultStore above do compose.) */
     update((d) => {
       d.list.extras[key] = { name, qty: Number(extra.qty) || 1, unit: extra.unit.trim() };
-      // "Save to Ingredients" only means "remember this name so it's suggested
-      // next time". Where it lives is the Pantry tab's job, and the
-      // store control in the item's panel handles a reroute — this used to
-      // write the same `store` value to a default, an override, or an aisle
-      // map depending on invisible state.
+      if (store && !saveToIngredients) {
+        const def = data.config[key]?.store ?? UNASSIGNED;
+        if (store === def) delete d.list.overrides[key];
+        else d.list.overrides[key] = store;
+      }
       return d;
     });
     // The catalog write happens above, through ensureIngredientId, so that the
     // entry gets an id and a name rather than being keyed by its name.
     setExtra({ name: "", qty: "1", unit: "" });
     setAskSave(null);
+    setPendingStore("");
   };
 
   // Remove an item's hand-added entries from the current list. Recipe
@@ -530,13 +571,13 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
                 )}
                 {!cfg && (
                   <>
-                    Added by hand as <b style={{ color: C.ink }}>"{item.name}"</b> and matched by that spelling, so a different one becomes a separate line
+                    Added straight to the list as <b style={{ color: C.ink }}>"{item.name}"</b> and matched by that spelling, so a different one becomes a separate line
                     {isGuest ? "." : " — save it to Ingredients to give it a usual store and aisle."}
                   </>
                 )}
               </div>
             )}
-            {item.sources.includes("Added by hand") && (
+            {item.sources.includes(ADDED_SOURCE) && (
               <div style={{ marginTop: 8 }}>
                 {editExtra && editExtra.key === item.key ? (
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
@@ -563,9 +604,9 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
                   </div>
                 ) : (
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    <Btn small onClick={() => startExtraEdit(item)}>Edit hand-added entry</Btn>
+                    <Btn small onClick={() => startExtraEdit(item)}>Edit this entry</Btn>
                     <Btn kind="danger" small onClick={() => setConfirmRemove(item)}>
-                      Remove hand-added entry
+                      Remove from this list
                     </Btn>
                   </div>
                 )}
@@ -901,18 +942,83 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
         </p>
       </ConfirmDialog>
 
-      {/* Two real options, so both get a button — the native confirm had to
-          hide "one-time buy" behind Cancel, which read as doing nothing. */}
+      {/* WHERE TO BUY IT, ASKED WHILE THE ITEM IS BEING ADDED (item 121).
+          The old copy pointed at the Pantry tab instead; sending someone to
+          another screen to finish adding an item is what made "Unassigned"
+          the resting place for eleven real ingredients.
+
+          The two answers are the whole dialog, so they are rendered here as
+          stacked rows rather than passed as `choices` — DialogShell puts its
+          actions in one right-aligned row, which reads as a single control
+          with a highlighted half. Cancel is the only action left.
+
+          NOTHING IS PRESELECTED and nothing is required. An empty store is a
+          real answer (the item lands under Unassigned, as it always did), so
+          the buttons stay live; what the dialog will not do is quietly pick a
+          store on your behalf. */}
       <ChoiceDialog
         open={!!askSave}
-        title="Remember this item?"
-        onCancel={() => setAskSave(null)}
-        choices={[
-          { label: "Just this list", kind: "ghost", onClick: () => commitExtra(false) },
-          { label: "Save to Pantry", kind: "primary", onClick: () => commitExtra(true) },
-        ]}
+        title={askSave?.known ? "Where would you like to buy this item?" : "Where would you like to buy this new item?"}
+        onCancel={() => { setAskSave(null); setPendingStore(""); }}
+        choices={[]}
       >
-        <b style={{ color: C.ink }}>{askSave}</b> isn't in your Ingredients yet. Saving it means it's suggested next time you type — set its store and aisle on the Pantry tab. Otherwise it's a one-time buy.
+        <div style={{ color: C.ink, fontSize: 15, fontWeight: 600, marginBottom: 10 }}>{askSave?.name}</div>
+
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+          <span style={{ flex: 1 }}>Store</span>
+          <InfoDot label="leaving the store blank">
+            The store will be unassigned without a selection. The item still goes on the list — it just sits
+            under Unassigned until you give it a store here or on the Pantry tab.
+          </InfoDot>
+          <select
+            value={pendingStore}
+            onChange={(e) => setPendingStore(e.target.value)}
+            aria-label={`Store for ${askSave?.name || "this item"}`}
+            style={{ ...inputStyle, display: "block", width: "100%", boxSizing: "border-box", marginTop: 4 }}
+          >
+            {/* The empty option IS the no-default, and it stays in the list
+                rather than vanishing once something is picked, so changing
+                your mind back to "not chosen" is possible and the control
+                never silently rewrites itself.
+
+                data.stores, not storeOptions: that list appends "Unassigned"
+                for the row control, where it is how you UNDO a store. Here it
+                would be a second way of saying what the empty option already
+                says, on the one screen whose whole point is not landing in
+                Unassigned by accident. */}
+            <option value="">Choose a store…</option>
+            {data.stores.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* STACKED, ONE PER ROW. Side by side they read as a single control
+            with a highlighted half — the two answers have to look like two
+            answers. Each row is the button and its own info button, and the
+            explanation opens underneath the row it belongs to. */}
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 16 }}>
+          <Btn kind="ghost" onClick={() => commitExtra(false)} style={{ flex: 1, textAlign: "left" }}>
+            Just this trip…
+          </Btn>
+          <InfoDot label="Just this trip">
+            Puts the item at that store on today’s list only. Nothing is remembered: the list is cleared when you
+            finish shopping, and adding the item again asks this same question.
+          </InfoDot>
+        </div>
+
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 8 }}>
+          <Btn kind="primary" onClick={() => commitExtra(true)} style={{ flex: 1, textAlign: "left" }}>
+            Set as default…
+          </Btn>
+          <InfoDot label="Set as default">
+            {askSave?.known
+              ? "Makes that the store this item comes from on every list from now on. You can still move it for a single trip later."
+              : "Keeps the item in your Ingredients with that store, so it is suggested next time you type it and lands at that store on every future list."}
+          </InfoDot>
+        </div>
       </ChoiceDialog>
 
       {/* The question that replaced the second dropdown. Asked because the app
@@ -931,7 +1037,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
       >
         <b style={{ color: C.ink }}>Just this trip</b> moves it for today only and it goes back afterwards.{" "}
         <b style={{ color: C.ink }}>Always</b> makes {askStore ? askStore.store : "it"} the store you
-        buy this from now on, for everyone in the household.
+        buy this from now on.
       </ChoiceDialog>
 
       <ConfirmDialog
@@ -941,7 +1047,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
         onConfirm={() => removeExtra(confirmRemove)}
         onCancel={() => setConfirmRemove(null)}
       >
-        Removes the hand-added <b style={{ color: C.ink }}>{confirmRemove?.name}</b> from this list. Any amount a meal calls for stays.
+        Removes <b style={{ color: C.ink }}>{confirmRemove?.name}</b> from this list. Any amount a meal calls for stays.
       </ConfirmDialog>
 
       <BackToTop />

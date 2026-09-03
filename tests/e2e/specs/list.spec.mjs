@@ -24,7 +24,7 @@ test("adding an ingredient you already have doesn't ask to remember it", async (
   try {
     await addFromList(page, "Orzo");
     const prompts = (await page.getByRole("button").allTextContents()).filter((t) =>
-      /Save to Pantry/i.test(t)
+      /Set as default/i.test(t)
     );
     assert.deepEqual(prompts, [], "Orzo is already an ingredient — nothing to remember");
     assertNoPageErrors(page, assert);
@@ -59,8 +59,10 @@ test("remembering a brand-new item mints an id, and it appears once", async () =
   const page = await openApp(BASE, { catalog: cleanCatalog() });
   try {
     await addFromList(page, "Sparklers");
-    const save = page.locator("button").filter({ hasText: /Save to Pantry/i }).first();
+    const save = page.locator("button").filter({ hasText: /^Set as default/ }).first();
     assert.ok(await save.count(), "an unknown item should offer to be remembered");
+    // Item 121: neither answer works until a store is chosen.
+    await page.chooseStoreInDialog("Aldi");
     await save.click();
     await page.waitForTimeout(500);
     await page.roundTrip();
@@ -82,8 +84,9 @@ test("an ad-hoc item can still be added without being remembered", async () => {
   const page = await openApp(BASE, { catalog: cleanCatalog() });
   try {
     await addFromList(page, "Birthday candles");
-    const decline = page.locator("button").filter({ hasText: /^Just this list$/ }).first();
-    assert.equal(await decline.count(), 1, "an unknown item should offer 'Just this list'");
+    const decline = page.locator("button").filter({ hasText: /^Just this trip/ }).first();
+    assert.equal(await decline.count(), 1, "an unknown item should offer 'Just this trip'");
+    await page.chooseStoreInDialog("Aldi");
     await decline.click();
     await page.waitForTimeout(500);
     await page.roundTrip();
@@ -96,6 +99,166 @@ test("an ad-hoc item can still be added without being remembered", async () => {
       Object.values(state.list.extras).some((e) => /birthday candles/i.test(e.name || "")),
       "the item should still be on the list"
     );
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* ---- item 121: an item never lands in a store nobody chose ---- */
+
+test("adding an item asks where to buy it, with nothing preselected", async () => {
+  /* The point of the whole change: the old flow put every new item under
+     "Unassigned" and told you to go and fix it on the Pantry tab. A default
+     store would be the same failure with a nicer value in it, so the picker
+     starts empty — but it does not BLOCK, because "no store" is a real
+     answer and the item still has to be able to reach the list. */
+  const page = await openApp(BASE, { catalog: cleanCatalog() });
+  try {
+    await addFromList(page, "Sparklers");
+    const picker = page.locator('[role="dialog"] select').first();
+    assert.equal(await picker.count(), 1, "adding an item should offer a store");
+    assert.equal(await picker.inputValue(), "", "no store may be preselected");
+
+    const save = page.locator("button").filter({ hasText: /^Set as default/ }).first();
+    const adhoc = page.locator("button").filter({ hasText: /^Just this trip/ }).first();
+    assert.equal(await save.count(), 1, "the dialog should offer 'Set as default'");
+    assert.equal(await adhoc.count(), 1, "the dialog should offer 'Just this trip'");
+    assert.equal(await save.isDisabled(), false, "an empty store is an answer, so the buttons stay live");
+    assert.equal(await adhoc.isDisabled(), false, "an empty store is an answer, so the buttons stay live");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("the explanations are hidden until the info button is pressed", async () => {
+  /* Two sentences of small print on a dialog you meet every time you add an
+     item is how a dialog stops being read at all. They are behind the round
+     i, and the test is that they are genuinely ABSENT beforehand rather than
+     merely small. */
+  const page = await openApp(BASE, { catalog: cleanCatalog() });
+  try {
+    await addFromList(page, "Sparklers");
+    const dialog = page.locator('[role="dialog"]').first();
+    assert.ok(!/nothing is remembered/i.test(await dialog.innerText()),
+      "the 'Just this trip' explanation should start hidden");
+
+    await page.getByRole("button", { name: /^More about Just this trip$/ }).click();
+    await page.waitForTimeout(200);
+    assert.ok(/nothing is remembered/i.test(await dialog.innerText()),
+      "pressing the info button should reveal the explanation");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("adding an item with no store picked still reaches the list, under Unassigned", async () => {
+  /* The dialog says the store will be unassigned without a selection, so it
+     has to actually be true: the item goes on, with no store written and no
+     catalog entry invented. */
+  const page = await openApp(BASE, { catalog: cleanCatalog() });
+  try {
+    await addFromList(page, "Birthday candles");
+    await page.locator("button").filter({ hasText: /^Just this trip/ }).first().click();
+    await page.waitForTimeout(500);
+    await page.roundTrip();
+
+    const state = await page.readState();
+    const key = Object.keys(state.list.extras).find((k) => /birthday candles/i.test(state.list.extras[k].name || ""));
+    assert.ok(key, "the item should still be on the list");
+    assert.equal(state.list.overrides[key], undefined, "no store was chosen, so none may be written");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("Set as default keeps the store for good, not just for this trip", async () => {
+  const page = await openApp(BASE, { catalog: cleanCatalog() });
+  try {
+    await addFromList(page, "Sparklers");
+    await page.chooseStoreInDialog("Aldi");
+    await page.locator("button").filter({ hasText: /^Set as default/ }).first().click();
+    await page.waitForTimeout(500);
+    await page.roundTrip();
+
+    const cat = await page.readCatalog();
+    const entry = Object.entries(cat.ingredients).find(([, v]) => /sparklers/i.test(v.name || ""));
+    assert.ok(entry, "the item should have been remembered");
+    assert.equal(entry[1].store, "Aldi", "the chosen store should be the ingredient's own, not Unassigned");
+    // A permanent answer is the DEFAULT, so it must not also leave a per-trip
+    // reroute behind — two records of the same decision drift apart.
+    const state = await page.readState();
+    assert.equal(state.list.overrides[entry[0]], undefined, "a permanent store should not also write a trip override");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("Just this trip routes the item for today without inventing an ingredient", async () => {
+  const page = await openApp(BASE, { catalog: cleanCatalog() });
+  try {
+    await addFromList(page, "Birthday candles");
+    await page.chooseStoreInDialog("Costco");
+    await page.locator("button").filter({ hasText: /^Just this trip/ }).first().click();
+    await page.waitForTimeout(500);
+    await page.roundTrip();
+
+    const cat = await page.readCatalog();
+    assert.equal(
+      Object.values(cat.ingredients).filter((v) => /birthday candles/i.test(v.name || "")).length,
+      0,
+      "a one-time buy must not become a catalog ingredient",
+    );
+    const state = await page.readState();
+    const key = Object.keys(state.list.extras).find((k) => /birthday candles/i.test(state.list.extras[k].name || ""));
+    assert.ok(key, "the item should still be on the list");
+    assert.equal(state.list.overrides[key], "Costco", "the chosen store should be a reroute for this trip");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("an ingredient that already has a store is added without being asked", async () => {
+  // The common path, and it must stay one tap. Orzo is Aldi in the fixture.
+  const page = await openApp(BASE, { catalog: cleanCatalog() });
+  try {
+    await addFromList(page, "Orzo");
+    assert.equal(await page.locator('[role="dialog"]').count(), 0, "a known, placed ingredient should not ask anything");
+    const state = await page.readState();
+    assert.ok(Object.keys(state.list.extras).length > 0, "it should have gone straight onto the list");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("an ingredient with no store IS asked, rather than landing in Unassigned silently", async () => {
+  /* The half that used to have no dialog at all. Six real ingredients in the
+     shipped catalog have no store, and every one went quietly under
+     "Unassigned" — the case the owner actually reported. */
+  const catalog = cleanCatalog();
+  const id = idOf(catalog, "Shrimp");
+  assert.equal(catalog.ingredients[id].store, "Unassigned", "fixture check: Shrimp should start with no store");
+  const page = await openApp(BASE, { catalog });
+  try {
+    await addFromList(page, "Shrimp");
+    assert.equal(await page.locator('[role="dialog"]').count(), 1, "a store-less ingredient should be asked about");
+    // It is already in the Pantry, so the title drops the word "new" — the
+    // two answers themselves are the same pair of writes either way.
+    assert.ok(/buy this item/i.test(await page.locator('[role="dialog"]').first().innerText()),
+      "an ingredient already kept should not be called a new item");
+    await page.chooseStoreInDialog("Schnucks");
+    await page.locator("button").filter({ hasText: /^Set as default/ }).first().click();
+    await page.waitForTimeout(500);
+    await page.roundTrip();
+
+    const cat = await page.readCatalog();
+    assert.equal(cat.ingredients[id].store, "Schnucks", "Set as default should set the ingredient's own store");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

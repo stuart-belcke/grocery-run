@@ -372,6 +372,54 @@ export function HelpText({ children }) {
   );
 }
 
+/* An explanation that is THERE but not in the way (item 121).
+
+   The store dialog needs to say what "Just this trip" and "Set as default"
+   actually do, and what happens if you pick no store at all. Written out, that
+   is three sentences of small print above two buttons — read once, in the way
+   forever, on a dialog you meet every time you add an item. Deleted, the
+   buttons are a guess.
+
+   So it is a real button that reveals a real sentence, and it starts closed.
+   NOT a `title` tooltip: there is no hover on a phone, which is the only
+   device this app is used on.
+
+   The panel is rendered INLINE rather than floating, so it pushes the dialog
+   taller instead of covering the choice it is explaining — a popover over the
+   two buttons would hide the thing you opened it to understand. */
+export function InfoDot({ label, children }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-label={open ? `Hide more about ${label}` : `More about ${label}`}
+        style={{
+          flexShrink: 0,
+          width: 30,
+          height: 30,
+          borderRadius: "50%",
+          border: `1px solid ${C.line}`,
+          background: open ? C.greenSoft : "#fff",
+          color: C.faint,
+          fontFamily: fontDisplay,
+          fontWeight: 700,
+          fontSize: 14,
+          lineHeight: 1,
+          cursor: "pointer",
+        }}
+      >
+        i
+      </button>
+      {open && (
+        <p style={{ flexBasis: "100%", margin: "6px 0 0", fontSize: 13, lineHeight: 1.45, color: C.faint }}>{children}</p>
+      )}
+    </>
+  );
+}
+
 /* A text input with a suggestion list under it.
 
    NOT <datalist>. That is what the unit fields used, and it renders

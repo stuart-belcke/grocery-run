@@ -100,7 +100,7 @@ test("the panel never shows the raw ingredient id", async () => {
   }
 });
 
-test("a hand-added entry with no catalog record still explains itself, by name", async () => {
+test("an entry added straight to the list with no catalog record still explains itself, by name", async () => {
   // The other direction: an ad-hoc entry IS matched by its spelling, so it
   // still says so — and says it with the name, never the key.
   const state = stateWith({ list: { ...emptyState().list, extras: { "crushed tomatoes": { name: "Crushed tomatoes", qty: 2, unit: "can" } } } });
@@ -108,7 +108,7 @@ test("a hand-added entry with no catalog record still explains itself, by name",
   try {
     await openRow(page, "Crushed tomatoes");
     const body = await page.textContent("body");
-    assert.match(body, /Added by hand as\s+"Crushed tomatoes"/, "a hand-added entry should say what spelling it is matched by");
+    assert.match(body, /Added straight to the list as\s+"Crushed tomatoes"/, "an added entry should say what spelling it is matched by");
     // It still gets a store control — a reroute is a list write and works for
     // anything on the list — but no aisle, which is a catalog field.
     assert.equal(await page.getByLabel("Aisle for Crushed tomatoes at Unassigned").count(), 0, "an entry with no catalog record was offered an aisle");
