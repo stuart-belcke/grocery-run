@@ -372,6 +372,82 @@ export function HelpText({ children }) {
   );
 }
 
+/* An explanation that is THERE but not in the way (item 121).
+
+   The store dialog needs to say what "Just this trip" and "Set as default"
+   actually do, and what happens if you pick no store at all. Written out, that
+   is three sentences of small print above two buttons — read once, in the way
+   forever, on a dialog you meet every time you add an item. Deleted, the
+   buttons are a guess.
+
+   So it is a real button that reveals a real sentence, and it starts closed.
+   NOT a `title` tooltip: there is no hover on a phone, which is the only
+   device this app is used on.
+
+   The panel is rendered INLINE rather than floating, so it pushes the dialog
+   taller instead of covering the choice it is explaining — a popover over the
+   two buttons would hide the thing you opened it to understand. */
+export function InfoDot({ label, children }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      {/* THE DOT IS 14px AND THE BUTTON AROUND IT IS 30px. They are separated
+          on purpose: the mark should be quiet beside the thing it annotates,
+          but a 14px tap target on a phone is one you miss. The padding that
+          makes the button big is cancelled by an equal negative margin, so the
+          layout only ever sees the small dot and nothing shifts.
+
+          IT RIDES AT THE TOP OF ITS ROW, not the middle — alignSelf plus a
+          small lift, which reads as a mark ON the label rather than a second
+          control sitting beside it. Set here rather than by each caller so
+          every dot in the app sits the same way. */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-label={open ? `Hide more about ${label}` : `More about ${label}`}
+        style={{
+          flexShrink: 0,
+          alignSelf: "flex-start",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 8,
+          margin: -8,
+          marginTop: -9,
+          marginLeft: -12,
+          border: "none",
+          background: "none",
+          cursor: "pointer",
+        }}
+      >
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 14,
+            height: 14,
+            borderRadius: "50%",
+            border: `1px solid ${C.line}`,
+            background: open ? C.greenSoft : "#fff",
+            color: C.faint,
+            fontFamily: fontDisplay,
+            fontWeight: 700,
+            fontSize: 11,
+            lineHeight: 1,
+          }}
+        >
+          i
+        </span>
+      </button>
+      {open && (
+        <p style={{ flexBasis: "100%", margin: "6px 0 0", fontSize: 13, lineHeight: 1.45, color: C.faint }}>{children}</p>
+      )}
+    </>
+  );
+}
+
 /* A text input with a suggestion list under it.
 
    NOT <datalist>. That is what the unit fields used, and it renders
@@ -693,16 +769,22 @@ export function Seg({ options, value, onChange }) {
 
 const dismissBtn = { fontFamily: fontBody, fontWeight: 500, fontSize: 14, padding: "8px 14px", borderRadius: 8, cursor: "pointer", background: "transparent", color: C.ink, border: `1px solid ${C.line}` };
 
-function DialogShell({ open, title, children, onDismiss, dismissLabel, actions, focusRef }) {
+function DialogShell({ open, title, children, onDismiss, dismissLabel, actions, focusRef, initialFocusRef }) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e) => {
       if (e.key === "Escape") onDismiss();
     };
     window.addEventListener("keydown", onKey);
-    focusRef.current?.focus();
+    /* FOCUS LANDS ON CANCEL UNLESS THE DIALOG NAMES SOMEWHERE BETTER. Cancel
+       is the safe default for a dialog that only confirms — the destructive
+       answer should never be one stray Enter away. It is the WRONG default
+       for a dialog you have to fill in: you press Enter to add an item, the
+       dialog opens on Cancel, and pressing Enter again out of habit throws
+       away what you just typed. Those dialogs pass initialFocusRef. */
+    (initialFocusRef?.current || focusRef.current)?.focus();
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onDismiss, focusRef]);
+  }, [open, onDismiss, focusRef, initialFocusRef]);
 
   if (!open) return null;
   return (
@@ -748,10 +830,10 @@ export function ConfirmDialog({ open, title, children, confirmLabel = "Confirm",
 // Cancel + several named actions. For the places a native confirm had to
 // smuggle a second action into "Cancel" ("OK — rename everywhere / Cancel —
 // save as new"), which read as if cancelling did nothing.
-export function ChoiceDialog({ open, title, children, choices = [], cancelLabel = "Cancel", onCancel }) {
+export function ChoiceDialog({ open, title, children, choices = [], cancelLabel = "Cancel", onCancel, initialFocusRef }) {
   const focusRef = useRef(null);
   return (
-    <DialogShell open={open} title={title} onDismiss={onCancel} dismissLabel={cancelLabel} focusRef={focusRef} actions={choices}>
+    <DialogShell open={open} title={title} onDismiss={onCancel} dismissLabel={cancelLabel} focusRef={focusRef} initialFocusRef={initialFocusRef} actions={choices}>
       {children}
     </DialogShell>
   );

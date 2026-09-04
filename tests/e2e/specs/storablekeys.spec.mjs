@@ -45,7 +45,8 @@ const addAdHoc = async (page, name) => {
   await page.waitForTimeout(400);
   // Unknown items ask whether to remember them; an ad-hoc one is the case
   // that keys by its name, which is the case this spec is about.
-  const decline = page.locator("button").filter({ hasText: /^Just this list$/ }).first();
+  await page.chooseStoreInDialog("Aldi"); // item 121: adding an item now asks where to buy it
+  const decline = page.locator("button").filter({ hasText: /^Just this trip/ }).first();
   if (await decline.count()) await decline.click();
   await page.waitForTimeout(500);
 };

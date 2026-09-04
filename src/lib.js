@@ -3084,6 +3084,17 @@ export function unplannedMeals(data) {
     .sort((a, b) => a.recipe.name.localeCompare(b.recipe.name));
 }
 
+/* WHY A ROW IS ON THE LIST, in the same list as the recipe names ("Chili",
+   "Pancakes"). This one means nobody's meal asked for it — somebody typed it
+   into the Add box. It was "Added by hand" until item 121: on a list two
+   phones share, "by hand" invites the question "whose hand?", and the honest
+   answer the app can actually give is just that it was added to the list.
+
+   COMPUTED, NEVER STORED. aggregateItems builds `sources` from list.extras on
+   every render, so changing this string cannot strand data written by an
+   older build. */
+export const ADDED_SOURCE = "Added to the list";
+
 export function aggregateItems(data) {
   const map = new Map();
   // Items are keyed by INGREDIENT ID now, with the name carried alongside for
@@ -3097,7 +3108,7 @@ export function aggregateItems(data) {
     item.parts[u] = (item.parts[u] || 0) + qty;
     // Tracked separately so an already-bought amount can't cancel out an
     // explicit "buy this" typed onto the list.
-    if (sourceName === "Added by hand") item.handParts[u] = (item.handParts[u] || 0) + qty;
+    if (sourceName === ADDED_SOURCE) item.handParts[u] = (item.handParts[u] || 0) + qty;
     if (sourceName && !item.sources.includes(sourceName)) item.sources.push(sourceName);
     item.contribs.push({ label: detail, qty, unit: u });
   };
@@ -3136,7 +3147,7 @@ export function aggregateItems(data) {
   // Only visible when a hand-added entry is the item's SOLE source — if a
   // recipe wants it too, addRecipe runs first (above) and its resolved name
   // wins, which is what hid this.
-  for (const [key, ex] of Object.entries(data.list.extras)) addPart(key, ingredientNameFor(data, key), Number(ex.qty) || 0, ex.unit, "Added by hand", "Added by hand on the shopping list");
+  for (const [key, ex] of Object.entries(data.list.extras)) addPart(key, ingredientNameFor(data, key), Number(ex.qty) || 0, ex.unit, ADDED_SOURCE, "Added straight to the shopping list");
 
   // Home staples. A staple you have is dropped even when a recipe calls for
   // it — that's the whole point: you already own the olive oil, so it shouldn't
@@ -3162,7 +3173,7 @@ export function aggregateItems(data) {
   const needs = asObject(data.stapleNeeds);
   for (const [key, item] of [...map.entries()]) {
     if (!normalizeCfg(data.config[key]).staple) continue;
-    if (item.sources.includes("Added by hand")) continue;
+    if (item.sources.includes(ADDED_SOURCE)) continue;
     if (!needs[key]) {
       map.delete(key);
       continue;

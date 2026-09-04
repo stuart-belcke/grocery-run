@@ -55,6 +55,11 @@ export const FAQS = [
     keywords: ["store", "shop", "supermarket", "reroute", "override", "aisle", "permanent", "today", "dropdown"],
   },
   {
+    q: "What does Just this trip or Set as default do?",
+    a: "They are the two answers to \u201cwhere would you like to buy this?\u201d when you type something into the Add box on {List}. Just this trip puts it at that store on today\u2019s list only \u2014 nothing is remembered, so adding it again asks again. Set as default keeps it on {Pantry} with that store, so it is suggested next time you type it and lands at that store on every future list. Picking no store is allowed: the item goes on the list under Unassigned, and you can give it a store later from the {List} row or on {Pantry}.",
+    keywords: ["just this trip", "set as default", "add item", "hand", "typed", "unassigned", "no store", "remember", "one-time", "permanent", "always"],
+  },
+  {
     q: "Where do the aisle numbers come from?",
     a: "You set them, per store. Easiest while you are actually standing in the aisle: tap the round i on a {List} row, then set the aisle beside the store. You can also set them on {Pantry}. Switch {List} to Store flow to walk the shop in aisle order.",
     keywords: ["aisle", "shop", "supermarket", "store flow", "order", "walk", "number", "layout"],

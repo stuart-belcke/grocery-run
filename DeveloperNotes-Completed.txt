@@ -3077,3 +3077,90 @@ into the details panel and the name grew.
     every other test is blind to this whole file. CLAUDE.md now says so, and
     says to run it when touching sw.js, the update path, or
     canReloadForUpdate.
+121. AN ITEM YOU TYPE ONTO THE LIST NOW ASKS WHERE TO BUY IT.
+    Reported by the owner: adding an item defaults it to "Unassigned", which
+    is not helpful. It was worse than a bad default — it was no question at
+    all. The Add box wrote the item and the app then told you, in the row's
+    panel, to go to the Pantry tab and give it a store. Eleven ingredients in
+    the real catalog had no store, which is what that instruction is worth.
+
+    TWO CASES, AND ONE OF THEM HAD NO DIALOG AT ALL. A name the household has
+    never used got "Remember this item?" and no store question. A name it HAS
+    used but never gave a store to got nothing — straight onto the list, under
+    Unassigned, silently. That second case was the one actually reported.
+    An ingredient that already has a store is untouched and still one tap: the
+    question has an answer, so asking would be a tap for nothing on the path
+    everybody uses every week.
+    THE LOOKUP WAS ALSO WRONG, which is why the first case fired at all often:
+    config is keyed by ingredient id, and the old code looked the typed name
+    up as a key. It never matched, so every add — including things already in
+    the Pantry — asked "remember this?". ingredientIdByName fixes it, and that
+    is also what makes "already has a store, don't ask" possible.
+
+    NO DEFAULT STORE, ON PURPOSE. The obvious default is the store you use
+    most. That is the same failure with a better-looking value in it: items
+    landing somewhere nobody chose. The picker starts empty.
+    IT DOES NOT BLOCK, and it was built blocking first — both answers disabled
+    until a store was picked. Wrong: "no store" is a real answer, the item
+    still has to be able to reach the list, and a dialog that traps you is a
+    worse bug than a wrong aisle. So the buttons stay live and the dialog says
+    what an empty picker means. The empty option also stays in the list after
+    a pick, so changing your mind back to "not chosen" is possible.
+    "Unassigned" is NOT offered in this picker even though the row control
+    offers it. There it is how you UNDO a store; here it would be a second way
+    of saying what the empty option already says, on the one screen whose
+    entire point is not landing in Unassigned by accident.
+
+    THE TWO ANSWERS ARE STACKED, NOT SIDE BY SIDE. DialogShell puts its
+    actions in one right-aligned row, which reads as a single control with a
+    highlighted half rather than as two choices. They are rendered in the
+    dialog's children instead, one per row; `choices` is empty and Cancel is
+    the only action left. Nothing about DialogShell changed, so every other
+    dialog keeps the row.
+    LABELS ARE THE SAME IN BOTH CASES: "Just this trip" and "Set as default".
+    They were "Just this list"/"Save to Pantry" for a new name and "Just this
+    trip"/"Always" for a known one — four words for one question with two
+    answers. The pair of writes underneath never differed.
+
+    THE EXPLANATIONS ARE BEHIND AN INFO BUTTON (InfoDot in ui.jsx). Two
+    sentences of small print on a dialog you meet every time you add something
+    is how a dialog stops being read. NOT a `title` tooltip: there is no hover
+    on a phone, which is the only device this app runs on. The panel is inline
+    rather than floating, so it pushes the dialog taller instead of covering
+    the button it is explaining. The same content is in the FAQ, under "What
+    does Just this trip or Set as default do?", because a thing you only see
+    while a dialog is open is a thing you cannot go back and look up.
+
+    "ADDED BY HAND" IS NOW "ADDED TO THE LIST" (ADDED_SOURCE in lib.js). The
+    old label sat in the same list as recipe names, and on a list two phones
+    share it invites "whose hand?" — a question the app cannot answer. Safe to
+    rename because it is computed by aggregateItems from list.extras on every
+    render and never stored, so no older build's data depends on the string.
+    The two buttons went with it: "Edit hand-added entry" / "Remove hand-added
+    entry" are "Edit this entry" / "Remove from this list".
+
+    FOCUS LANDED ON CANCEL, which DialogShell does for every dialog and which
+    is right for one that only confirms — the destructive answer should not be
+    one stray Enter away. It is wrong for a dialog you have to fill in: you
+    press Enter to add the item, the dialog opens on Cancel, and pressing
+    Enter again out of habit throws away what you just typed. DialogShell
+    takes an optional initialFocusRef now; this dialog points it at the store
+    picker and every other dialog is unchanged.
+
+    THE ITEM IS IN THE TITLE — "Where do you buy Sparklers?". It was a bare
+    line under the title, which read as a second heading and left the question
+    pointing at "this new item", a phrase the reader resolves against a name
+    sitting directly below it. One title serves both cases now; the old pair
+    differed only in the word "new", which sorted the item into a category the
+    reader has no use for while adding it. Where that distinction does matter
+    — what "Set as default" will do — it is in that button's own explanation.
+
+    TESTED: 389 unit tests and 320 e2e, with six new specs in list.spec.mjs —
+    nothing preselected and neither button dead; the explanations absent until
+    the info button is pressed; focus landing on the store picker rather than
+    Cancel; no store picked still reaching the list with no store written;
+    "Set as default" writing the catalog store and NOT also a trip override;
+    "Just this trip" writing the override and not inventing an ingredient.
+    The focus spec was mutation-tested: with initialFocusRef ignored it fails
+    and nothing else does. The dialog was also driven in a real browser at
+    320px wide, open and closed.
