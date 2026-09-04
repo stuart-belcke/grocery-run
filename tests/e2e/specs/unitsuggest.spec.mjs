@@ -109,7 +109,7 @@ test("a unit nobody has ever used can still be typed and kept", async () => {
     // A name the catalog has never seen asks whether to remember it. "Just
     // this list" is the answer that keeps this test about the UNIT.
     await page.chooseStoreInDialog("Aldi"); // item 121: adding an item now asks where to buy it
-    const justThis = page.getByRole("button", { name: /^Just this trip…$/ });
+    const justThis = page.getByRole("button", { name: /^Just this trip$/ });
     if (await justThis.count()) {
       await justThis.click();
       await page.waitForTimeout(400);

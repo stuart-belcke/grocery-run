@@ -964,16 +964,21 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
       >
         <div style={{ color: C.ink, fontSize: 15, fontWeight: 600, marginBottom: 10 }}>{askSave?.name}</div>
 
-        <div style={{ marginBottom: 4 }}>Store</div>
-        {/* THE DOT SITS BESIDE THE CONTROL, not beside the word above it, so
-            all three in this dialog attach to the thing they explain rather
-            than one of them explaining a label. */}
+        {/* NO "Store" LABEL. The title asks where you would like to buy this,
+            and the control's own first option says "Choose a store…" — a
+            third word for the same thing is one the reader has to check
+            against the other two. The screen-reader name is on the select
+            itself (aria-label), which is where it was always doing the work.
+
+            THE DOT SITS BESIDE THE CONTROL so all three in this dialog attach
+            to the thing they explain rather than to a label. The select takes
+            whatever the dot leaves, which is the full width bar 14px. */}
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
           <select
             value={pendingStore}
             onChange={(e) => setPendingStore(e.target.value)}
             aria-label={`Store for ${askSave?.name || "this item"}`}
-            style={{ ...inputStyle, maxWidth: "100%", boxSizing: "border-box" }}
+            style={{ ...inputStyle, flex: 1, minWidth: 0, boxSizing: "border-box" }}
           >
             {/* The empty option IS the no-default, and it stays in the list
                 rather than vanishing once something is picked, so changing
@@ -998,16 +1003,16 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
           </InfoDot>
         </div>
 
-        {/* STACKED, ONE PER ROW. Side by side they read as a single control
-            with a highlighted half — the two answers have to look like two
-            answers. Each row is the button and its own info button, and the
-            explanation opens underneath the row it belongs to.
-            The buttons are as wide as their own words. Stretched across the
-            dialog they were reading as banners rather than as two things to
-            choose between, and it is the stacking that separates them. */}
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 16 }}>
+        {/* STACKED AND RIGHT-ALIGNED, one answer per row, directly above the
+            Cancel that DialogShell renders — so all three things you can press
+            line up on the same edge. Side by side they read as a single
+            control with a highlighted half, and squeezed onto Cancel's row
+            there is nothing left for the info dots. Each row is the button and
+            its own dot, and the explanation opens under the row it belongs
+            to. The buttons are as wide as their own words. */}
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", alignItems: "center", gap: 8, marginTop: 16 }}>
           <Btn kind="ghost" onClick={() => commitExtra(false)}>
-            Just this trip…
+            Just this trip
           </Btn>
           <InfoDot label="Just this trip">
             Puts the item at that store on today’s list only. Nothing is remembered: the list is cleared when you
@@ -1015,9 +1020,9 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
           </InfoDot>
         </div>
 
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 8 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", alignItems: "center", gap: 8, marginTop: 8 }}>
           <Btn kind="primary" onClick={() => commitExtra(true)}>
-            Set as default…
+            Set as default
           </Btn>
           <InfoDot label="Set as default">
             {askSave?.known
