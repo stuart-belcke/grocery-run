@@ -30,6 +30,8 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
      somebody picks. It does NOT block: leaving it empty is a real answer,
      and the dialog says what that answer means. */
   const [pendingStore, setPendingStore] = useState("");
+  // Focused when the dialog opens, instead of Cancel — see DialogShell.
+  const storeRef = useRef(null);
   const [confirmRemove, setConfirmRemove] = useState(null); // added-by-you item pending removal
   const [showBought, setShowBought] = useSticky("list.showBought", false); // "already bought" review panel
   const [askStore, setAskStore] = useState(null); // { key, name, store } pending "this trip or always?"
@@ -956,14 +958,22 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
           real answer (the item lands under Unassigned, as it always did), so
           the buttons stay live; what the dialog will not do is quietly pick a
           store on your behalf. */}
+      {/* THE ITEM IS IN THE TITLE. It was a bare line under it, which read as a
+          second heading and left the question pointing at "this new item" —
+          a phrase the reader has to resolve against a name sitting directly
+          below it. One line, and it names the thing.
+          ONE TITLE FOR BOTH CASES, too. The old pair differed only in the word
+          "new", which sorted the item into a category ("already in your
+          Ingredients" or not) that the reader has no use for at the moment of
+          adding it. Where the distinction does matter — what "Set as default"
+          will actually do — it is in that button's own explanation. */}
       <ChoiceDialog
         open={!!askSave}
-        title={askSave?.known ? "Where would you like to buy this item?" : "Where would you like to buy this new item?"}
+        title={`Where do you buy ${askSave?.name || "this"}?`}
         onCancel={() => { setAskSave(null); setPendingStore(""); }}
         choices={[]}
+        initialFocusRef={storeRef}
       >
-        <div style={{ color: C.ink, fontSize: 15, fontWeight: 600, marginBottom: 10 }}>{askSave?.name}</div>
-
         {/* NO "Store" LABEL. The title asks where you would like to buy this,
             and the control's own first option says "Choose a store…" — a
             third word for the same thing is one the reader has to check
@@ -975,6 +985,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
             whatever the dot leaves, which is the full width bar 14px. */}
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
           <select
+            ref={storeRef}
             value={pendingStore}
             onChange={(e) => setPendingStore(e.target.value)}
             aria-label={`Store for ${askSave?.name || "this item"}`}

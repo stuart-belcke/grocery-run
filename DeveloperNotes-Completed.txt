@@ -3139,10 +3139,28 @@ into the details panel and the name grew.
     The two buttons went with it: "Edit hand-added entry" / "Remove hand-added
     entry" are "Edit this entry" / "Remove from this list".
 
-    TESTED: 389 unit tests and the full e2e suite, with five new specs in
-    list.spec.mjs — nothing preselected and neither button dead; the
-    explanations absent until the info button is pressed; no store picked
-    still reaching the list with no store written; "Set as default" writing
-    the catalog store and NOT also a trip override; "Just this trip" writing
-    the override and not inventing an ingredient. The dialog was also driven
-    in a real browser at 320px wide, open and closed.
+    FOCUS LANDED ON CANCEL, which DialogShell does for every dialog and which
+    is right for one that only confirms — the destructive answer should not be
+    one stray Enter away. It is wrong for a dialog you have to fill in: you
+    press Enter to add the item, the dialog opens on Cancel, and pressing
+    Enter again out of habit throws away what you just typed. DialogShell
+    takes an optional initialFocusRef now; this dialog points it at the store
+    picker and every other dialog is unchanged.
+
+    THE ITEM IS IN THE TITLE — "Where do you buy Sparklers?". It was a bare
+    line under the title, which read as a second heading and left the question
+    pointing at "this new item", a phrase the reader resolves against a name
+    sitting directly below it. One title serves both cases now; the old pair
+    differed only in the word "new", which sorted the item into a category the
+    reader has no use for while adding it. Where that distinction does matter
+    — what "Set as default" will do — it is in that button's own explanation.
+
+    TESTED: 389 unit tests and 320 e2e, with six new specs in list.spec.mjs —
+    nothing preselected and neither button dead; the explanations absent until
+    the info button is pressed; focus landing on the store picker rather than
+    Cancel; no store picked still reaching the list with no store written;
+    "Set as default" writing the catalog store and NOT also a trip override;
+    "Just this trip" writing the override and not inventing an ingredient.
+    The focus spec was mutation-tested: with initialFocusRef ignored it fails
+    and nothing else does. The dialog was also driven in a real browser at
+    320px wide, open and closed.

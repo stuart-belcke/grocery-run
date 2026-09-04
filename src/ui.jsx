@@ -769,16 +769,22 @@ export function Seg({ options, value, onChange }) {
 
 const dismissBtn = { fontFamily: fontBody, fontWeight: 500, fontSize: 14, padding: "8px 14px", borderRadius: 8, cursor: "pointer", background: "transparent", color: C.ink, border: `1px solid ${C.line}` };
 
-function DialogShell({ open, title, children, onDismiss, dismissLabel, actions, focusRef }) {
+function DialogShell({ open, title, children, onDismiss, dismissLabel, actions, focusRef, initialFocusRef }) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e) => {
       if (e.key === "Escape") onDismiss();
     };
     window.addEventListener("keydown", onKey);
-    focusRef.current?.focus();
+    /* FOCUS LANDS ON CANCEL UNLESS THE DIALOG NAMES SOMEWHERE BETTER. Cancel
+       is the safe default for a dialog that only confirms — the destructive
+       answer should never be one stray Enter away. It is the WRONG default
+       for a dialog you have to fill in: you press Enter to add an item, the
+       dialog opens on Cancel, and pressing Enter again out of habit throws
+       away what you just typed. Those dialogs pass initialFocusRef. */
+    (initialFocusRef?.current || focusRef.current)?.focus();
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onDismiss, focusRef]);
+  }, [open, onDismiss, focusRef, initialFocusRef]);
 
   if (!open) return null;
   return (
@@ -824,10 +830,10 @@ export function ConfirmDialog({ open, title, children, confirmLabel = "Confirm",
 // Cancel + several named actions. For the places a native confirm had to
 // smuggle a second action into "Cancel" ("OK — rename everywhere / Cancel —
 // save as new"), which read as if cancelling did nothing.
-export function ChoiceDialog({ open, title, children, choices = [], cancelLabel = "Cancel", onCancel }) {
+export function ChoiceDialog({ open, title, children, choices = [], cancelLabel = "Cancel", onCancel, initialFocusRef }) {
   const focusRef = useRef(null);
   return (
-    <DialogShell open={open} title={title} onDismiss={onCancel} dismissLabel={cancelLabel} focusRef={focusRef} actions={choices}>
+    <DialogShell open={open} title={title} onDismiss={onCancel} dismissLabel={cancelLabel} focusRef={focusRef} initialFocusRef={initialFocusRef} actions={choices}>
       {children}
     </DialogShell>
   );

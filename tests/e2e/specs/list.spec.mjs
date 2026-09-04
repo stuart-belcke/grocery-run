@@ -132,6 +132,25 @@ test("adding an item asks where to buy it, with nothing preselected", async () =
   }
 });
 
+test("the dialog opens on the store picker, not on Cancel", async () => {
+  /* You press Enter to add an item. If the dialog then opens with Cancel
+     focused, pressing Enter again — which is what a keyboard does next —
+     throws away what you just typed. */
+  const page = await openApp(BASE, { catalog: cleanCatalog() });
+  try {
+    await addFromList(page, "Sparklers");
+    const focused = await page.evaluate(() => {
+      const el = document.activeElement;
+      return { tag: el?.tagName, label: el?.getAttribute("aria-label") };
+    });
+    assert.equal(focused.tag, "SELECT", `focus landed on ${focused.tag}, not the store picker`);
+    assert.equal(focused.label, "Store for Sparklers");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
 test("the explanations are hidden until the info button is pressed", async () => {
   /* Two sentences of small print on a dialog you meet every time you add an
      item is how a dialog stops being read at all. They are behind the round
@@ -248,10 +267,9 @@ test("an ingredient with no store IS asked, rather than landing in Unassigned si
   try {
     await addFromList(page, "Shrimp");
     assert.equal(await page.locator('[role="dialog"]').count(), 1, "a store-less ingredient should be asked about");
-    // It is already in the Pantry, so the title drops the word "new" — the
-    // two answers themselves are the same pair of writes either way.
-    assert.ok(/buy this item/i.test(await page.locator('[role="dialog"]').first().innerText()),
-      "an ingredient already kept should not be called a new item");
+    // Same dialog, same two answers — the title names the item either way.
+    assert.ok(/Where do you buy Shrimp\?/i.test(await page.locator('[role="dialog"]').first().innerText()),
+      "the dialog should name the item it is asking about");
     await page.chooseStoreInDialog("Schnucks");
     await page.locator("button").filter({ hasText: /^Set as default/ }).first().click();
     await page.waitForTimeout(500);
