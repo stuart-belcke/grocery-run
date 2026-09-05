@@ -51,15 +51,44 @@ const addAdHoc = async (page, name) => {
   await page.waitForTimeout(500);
 };
 
-// Every key in every item-keyed map, which is every key that could ever have
-// come from something a person typed.
-const allKeys = (state) => [
-  ...Object.keys(state.list.extras || {}),
-  ...Object.keys(state.list.checked || {}),
-  ...Object.keys(state.list.overrides || {}),
-  ...Object.keys(state.list.bought || {}),
-  ...Object.keys(state.stapleNeeds || {}),
-];
+/* EVERY key at EVERY depth, rather than a list of the maps that key by
+   something a person typed (item 122). That list was hand-maintained, and so
+   it was only ever correct for the maps that existed when it was written — a
+   new item-keyed map added later escaped the guard in silence, which is the
+   same shape of mistake as the bug this file exists for. Walking the tree
+   costs nothing and cannot go stale.
+
+   Every key in the state IS a database path segment, so the assertion is not
+   narrowed to the ones a person can influence: a field name the code chose is
+   held to the same rule, and holding it costs nothing because it already
+   passes.
+
+   THIS SUBSUMES ITEM 55's SEPARATE VALUE WALK. `bought` nests unit keys one
+   level inside the ingredient key, so the old flat helper never saw them and
+   a unitless item ("" as a key) broke every write after Done shopping.
+   Recursion reaches them because they are path segments too, just deeper. */
+const allKeys = (node, out = []) => {
+  if (!node || typeof node !== "object") return out;
+  for (const [k, v] of Object.entries(node)) {
+    out.push(k);
+    allKeys(v, out);
+  }
+  return out;
+};
+
+/* ALL THREE REFUSALS, AT EVERY CALL SITE. They were checked unevenly: the
+   first test asserted the refused characters AND `/`, the ticking and Done
+   shopping ones only the characters, and the empty key lived in a separate
+   helper of its own. A `/` appearing only after Done shopping would have
+   passed. One function, so a new call site cannot check less than the others. */
+const assertStorable = (node, assert, where) => {
+  for (const k of allKeys(node)) {
+    assert.doesNotMatch(k, REFUSED, `${where}: keyed "${k}", which the database refuses — every write after this one fails too`);
+    assert.doesNotMatch(k, /\//, `${where}: the key "${k}" would be written as a nested path, not as one item`);
+    assert.notEqual(k, "", `${where}: an empty string is not a legal key, and every write after it fails too`);
+  }
+};
+
 
 test("an item whose name has a full stop in it is stored under a key the database accepts", async () => {
   const page = await openApp(BASE, { catalog: cleanCatalog() });
@@ -68,10 +97,7 @@ test("an item whose name has a full stop in it is stored under a key the databas
     await page.roundTrip();
 
     const state = await page.readState();
-    for (const k of allKeys(state)) {
-      assert.doesNotMatch(k, REFUSED, `the state is keyed "${k}", which the database refuses — every write after this one fails too`);
-      assert.doesNotMatch(k, /\//, `the key "${k}" would be written as a nested path, not as one item`);
-    }
+    assertStorable(state, assert, "the state");
     // The other half: the punctuation belongs in the NAME, which is what is
     // shown. A fix that stored the item under a clean key and also renamed it
     // on screen would pass the loop above and be its own bug.
@@ -95,7 +121,7 @@ test("ticking and banking a punctuated item keeps every key storable", async () 
     await page.waitForTimeout(400);
 
     const ticked = await page.readState();
-    for (const k of allKeys(ticked)) assert.doesNotMatch(k, REFUSED, `after ticking, the state is keyed "${k}"`);
+    assertStorable(ticked, assert, "after ticking");
 
     await page.clickText(/^Done shopping$/);
     const dialog = page.locator("button").filter({ hasText: /^Done shopping$/ }).last();
@@ -104,7 +130,7 @@ test("ticking and banking a punctuated item keeps every key storable", async () 
     await page.roundTrip();
 
     const after = await page.readState();
-    for (const k of allKeys(after)) assert.doesNotMatch(k, REFUSED, `after Done shopping, the state is keyed "${k}"`);
+    assertStorable(after, assert, "after Done shopping");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
@@ -203,10 +229,13 @@ test("an aisle at a store whose name the database can't key is still saved and s
     await page.waitForTimeout(600);
     await page.roundTrip();
 
-    const entry = (await page.readCatalog()).ingredients[id];
-    for (const k of Object.keys(entry.aisles || {})) {
-      assert.doesNotMatch(k, REFUSED, `the catalog is keyed "${k}", which the database refuses — the whole catalog stops saving`);
-    }
+    const catalogAfter = await page.readCatalog();
+    /* THE WHOLE CATALOG, not just this ingredient's aisles (item 122). The
+       failure mode is the same on either node — one refused key and every
+       write of that node stops — so the state and the catalog get the same
+       walk rather than the catalog getting a hand-picked corner of itself. */
+    assertStorable(catalogAfter, assert, "the catalog");
+    const entry = catalogAfter.ingredients[id];
     /* LOOKED UP BY ITS OWN KEY, not taken positionally. This read
        Object.values(...)[0] and so quietly assumed Bananas has exactly one
        aisle — true only while the shipped catalog happened to give it none.
@@ -281,7 +310,7 @@ test("a device that already holds a refused key heals itself on the next read", 
     await page.waitForTimeout(500);
 
     const after = await page.readState();
-    for (const k of allKeys(after)) assert.doesNotMatch(k, REFUSED, `a refused key survived a reload: "${k}"`);
+    assertStorable(after, assert, "after a reload");
     // Healing must not cost the tick or the override — the item was already
     // in the trolley.
     const key = Object.keys(after.list.extras)[0];

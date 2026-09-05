@@ -210,6 +210,49 @@ this way.
 **Narrow writes.** `diffPaths` computes the smallest path set; arrays are atomic
 because an index is not an identity. Never write the whole node.
 
+**One refused key breaks every write after it, permanently.** The database
+rejects `.` `#` `$` `[` `]` and an empty string in a key, and accepts `/` while
+silently writing a nested node instead of one item. A failed write deliberately
+keeps its baseline so nothing is dropped from a later diff — so the bad path is
+re-sent on every write from then on, and reopening the app doesn't help because
+the key is in the cached state. Two things stop it, and both are needed.
+
+BEFORE A WRITE: `keyForName`, `aisleKey` and `unitKeyFor` each call `safeKey`,
+which strips the refused characters out, so anything built from text somebody
+typed is already safe by the time it becomes a key.
+
+AFTER A READ: `withSafeKeys`, called from `normalizeLocal` when saved data is
+loaded, looks at each key in the map it is given, renames any that still has a
+refused character, and combines the two values if a rename makes two keys
+identical. That is the only thing that gets a phone writing again once its
+saved copy already contains a bad key.
+
+`storablekeys.spec.mjs` checks the result. Its `allKeys` collects every key in
+the saved state and in the catalog, including keys nested inside other keys —
+`bought` → an ingredient id → a unit contributes all three — and
+`assertStorable` fails on any key that has a refused character, contains `/`,
+or is empty. It no longer keeps its own list of maps to look at, but it only
+sees maps that some spec actually writes to, so a new map still needs a spec
+that puts data in it.
+
+`withSafeKeys` is applied to each map BY NAME on purpose, and stays that way.
+Renaming a key means writing it, and rewriting a field this build doesn't
+recognise breaks the forward-compatibility rule above — so only maps we
+understand get it. Adding an item-keyed map means adding both the
+`withSafeKeys` call and a spec that exercises it.
+
+**Fix the trap, don't document it.** A hazard you can remove in code is not a
+hazard to write a comment about — a comment needs the next person to read it,
+and twice now the same one wasn't. `update()` carried four lines telling you to
+call it once per handler; the fix was one line assigning its ref, which
+`updateCatalog` had been doing all along. Documentation is for judgment that no
+code change can enforce, not for defects.
+
+**`git diff origin/main HEAD` is not "my work" once main has moved** — it is
+your work plus undoing everybody else's, and it silently deleted a completed
+item once (66). Diff against the merge base, or format-patch the specific
+commits and check the result against main before pushing.
+
 ## Numbers that already exist — don't repurpose them
 
 | Number | Means | Moves when |
@@ -244,6 +287,13 @@ use", not "guest affordances". Spell out an acronym or unfamiliar term in
 parentheses the first few times it appears. If a plain word exists, the jargon
 is not worth the reader's time. Don't reach for analogies or sideways parallels
 — explain the thing itself.
+
+**Use the name AND the description, not one or the other.** Explaining how
+something works by listing function and variable names says nothing to anybody
+who hasn't read the file; stripping the names out leaves nothing to go and
+look at. Write "`normalizeLocal`, which runs when the state is read back and
+fills in anything missing" — the name so it can be found, the description so
+the sentence stands on its own. Assume the reader has never opened the code.
 
 **Name the thing, not the category.** "Run `npm run test:rules`", not "run the
 test suite". "Firebase Console → Build → Authentication → Sign-in method", not

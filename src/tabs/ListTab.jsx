@@ -171,15 +171,6 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
       delete d.list.bought[key];
       return d;
     });
-  /* ONE update() call, not one per key. update() snapshots localRef.current,
-     which only refreshes on the next render, so a forEach over unbuy() would
-     rebuild from the same stale base every time and clear exactly one of
-     them — with the button looking like it worked. */
-  const clearKeys = (keys) =>
-    update((d) => {
-      for (const k of keys) delete d.list.bought[k];
-      return d;
-    });
   const unbuyAll = () =>
     update((d) => {
       d.list.bought = {};
@@ -756,7 +747,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
                   <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: C.faint }}>
                     {boughtOrphans.length} of these {boughtOrphans.length === 1 ? "was" : "were"} bought before the ingredients were replaced, so there is no longer a name to show. They are not keeping anything off the list — clearing them changes nothing.
                   </span>
-                  <Btn small onClick={() => clearKeys(boughtOrphans.map((r) => r.key))}>Clear</Btn>
+                  <Btn small onClick={() => boughtOrphans.forEach((r) => unbuy(r.key))}>Clear</Btn>
                 </div>
               )}
               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
