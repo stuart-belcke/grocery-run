@@ -3220,17 +3220,17 @@ into the details panel and the name grew.
     pass. The catalog gets the same walk as the state; it had one hand-picked
     corner of itself checked.
 
-    WHAT WAS NOT FIXED, AND WHY: normalizeLocal heals keys by wrapping six
-    maps INDIVIDUALLY, which is the same hand-maintained list this item just
-    removed from the spec — and it stays. Healing a map means rewriting its
-    keys, and rewriting the keys of a field this build does not recognise
-    breaks forward compatibility, so only maps we understand can be healed.
-    The spec's walk is detection and can be total; the healing is a write and
-    cannot. Adding an item-keyed map therefore means adding BOTH a
-    withSafeKeys wrapper and a spec that puts data in it — the walk only sees
-    maps something actually writes to. Said plainly because the first draft of
-    the CLAUDE.md entry claimed the walk covered a new map on its own, which
-    is coverage this does not have.
+    WHAT WAS NOT FIXED, AND WHY: normalizeLocal passes six maps to
+    withSafeKeys ONE BY ONE, naming each — the same hand-maintained list this
+    item just removed from the spec, and it stays. withSafeKeys RENAMES keys,
+    which means writing them, and rewriting a field this build does not
+    recognise breaks forward compatibility; so only maps we understand can be
+    given to it. Reading every key and complaining is safe to do blindly;
+    renaming every key is not. Adding an item-keyed map therefore means
+    adding BOTH the withSafeKeys call and a spec that puts data in it, since
+    allKeys only sees maps something actually writes to. Said plainly because
+    the first draft of the CLAUDE.md entry claimed allKeys covered a new map
+    on its own, which is coverage this does not have.
 
     WHAT WENT INTO CLAUDE.md: four things, not the list this started as.
     Why one refused key poisons every later write (the reason the guard is

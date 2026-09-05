@@ -215,16 +215,31 @@ rejects `.` `#` `$` `[` `]` and an empty string in a key, and accepts `/` while
 silently writing a nested node instead of one item. A failed write deliberately
 keeps its baseline so nothing is dropped from a later diff — so the bad path is
 re-sent on every write from then on, and reopening the app doesn't help because
-the key is in the cached state. Anything that becomes a key goes through
-`keyForName`, `aisleKey` or `unitKeyFor` (all of which call `safeKey`);
-`withSafeKeys` in `normalizeLocal` heals a device already holding one.
-`storablekeys.spec.mjs` walks every key at every depth in both the state and
-the catalog, so it no longer has its own list of maps to keep up to date —
-but it only sees maps the specs actually write to, so a new one still needs a
-spec that exercises it. The healing in `normalizeLocal` is per-map on purpose
-and stays that way: rewriting the keys of a field this build doesn't recognise
-would break the forward-compatibility rule above, so only maps we understand
-are healed. Adding a map means adding both.
+the key is in the cached state. Two things stop it, and both are needed.
+
+BEFORE A WRITE: `keyForName`, `aisleKey` and `unitKeyFor` each call `safeKey`,
+which strips the refused characters out, so anything built from text somebody
+typed is already safe by the time it becomes a key.
+
+AFTER A READ: `withSafeKeys`, called from `normalizeLocal` when saved data is
+loaded, looks at each key in the map it is given, renames any that still has a
+refused character, and combines the two values if a rename makes two keys
+identical. That is the only thing that gets a phone writing again once its
+saved copy already contains a bad key.
+
+`storablekeys.spec.mjs` checks the result. Its `allKeys` collects every key in
+the saved state and in the catalog, including keys nested inside other keys —
+`bought` → an ingredient id → a unit contributes all three — and
+`assertStorable` fails on any key that has a refused character, contains `/`,
+or is empty. It no longer keeps its own list of maps to look at, but it only
+sees maps that some spec actually writes to, so a new map still needs a spec
+that puts data in it.
+
+`withSafeKeys` is applied to each map BY NAME on purpose, and stays that way.
+Renaming a key means writing it, and rewriting a field this build doesn't
+recognise breaks the forward-compatibility rule above — so only maps we
+understand get it. Adding an item-keyed map means adding both the
+`withSafeKeys` call and a spec that exercises it.
 
 **Fix the trap, don't document it.** A hazard you can remove in code is not a
 hazard to write a comment about — a comment needs the next person to read it,
