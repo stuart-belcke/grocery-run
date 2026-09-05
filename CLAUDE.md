@@ -219,7 +219,12 @@ the key is in the cached state. Anything that becomes a key goes through
 `keyForName`, `aisleKey` or `unitKeyFor` (all of which call `safeKey`);
 `withSafeKeys` in `normalizeLocal` heals a device already holding one.
 `storablekeys.spec.mjs` walks every key at every depth in both the state and
-the catalog, so a new map is covered without anyone remembering to add it.
+the catalog, so it no longer has its own list of maps to keep up to date —
+but it only sees maps the specs actually write to, so a new one still needs a
+spec that exercises it. The healing in `normalizeLocal` is per-map on purpose
+and stays that way: rewriting the keys of a field this build doesn't recognise
+would break the forward-compatibility rule above, so only maps we understand
+are healed. Adding a map means adding both.
 
 **Fix the trap, don't document it.** A hazard you can remove in code is not a
 hazard to write a comment about — a comment needs the next person to read it,
