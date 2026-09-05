@@ -395,13 +395,27 @@ export default function App() {
     // Stamped so a lost push can't let an older remote copy win on next launch.
     next.updatedAt = Date.now();
     setLocalState(next);
+    /* AND THE REF, NOW, RATHER THAN WAITING FOR THE RENDER (item 122).
+       localRef.current is otherwise assigned during render (above), so two
+       update() calls in one handler both rebuilt from the same base and the
+       second silently discarded the first. That cost the same bug twice —
+       item 54's Clear button cleared exactly one of several entries while
+       looking like it worked, and item 121's new item went onto the list and
+       came straight back off — and both times the answer was a comment
+       telling the next person not to do it.
+       updateCatalog has always assigned hCatalogRef here for the same reason;
+       this is the two of them finally agreeing.
+       The bare setLocalState calls elsewhere (cached load, adopting a remote
+       copy, resetting on leave) deliberately do NOT do this: none of them run
+       twice in a handler, and item 17's leave-then-reseed fix depends on the
+       reset and setCode landing together at render. */
+    localRef.current = next;
     saveCache(code, next);
     if (syncEnabled) writeHousehold(code, next);
   };
-  // Call this at most ONCE per event handler. It snapshots localRef.current,
-  // which only refreshes on the next render, so a second call in the same
-  // handler would rebuild from the same stale base and discard the first
-  // update's changes. Make several edits in one fn instead.
+  // Several calls in one event handler are fine — setLocal keeps localRef
+  // current, so each one builds on the last. Prefer one call where the edits
+  // are one thought; the sequencer in sync.js coalesces the writes either way.
   const update = (fn) => {
     if (tooOldRef.current) return; // a newer build owns this data — see the banner
     const next = fn(structuredClone(localRef.current));
@@ -419,9 +433,10 @@ export default function App() {
     setLocal(next);
   };
 
-  // Edit the household catalog. Same one-call-per-handler rule as update() and
-  // for the same reason, but a separate ref — a handler that changes both a
-  // recipe and the shopping list calls each of these once.
+  // Edit the household catalog. A separate ref from update()'s, so a handler
+  // that changes both a recipe and the shopping list calls each of these.
+  // Like update(), it assigns its ref below rather than waiting for the
+  // render, so several calls in one handler compose.
   const updateCatalog = (fn) => {
     if (tooOldRef.current) return; // as update(): writing would mean writing a shape we don't know
     // The catalog is recipes, ingredients, stores and preferences — all of it

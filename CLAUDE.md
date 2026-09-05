@@ -210,6 +210,29 @@ this way.
 **Narrow writes.** `diffPaths` computes the smallest path set; arrays are atomic
 because an index is not an identity. Never write the whole node.
 
+**One refused key breaks every write after it, permanently.** The database
+rejects `.` `#` `$` `[` `]` and an empty string in a key, and accepts `/` while
+silently writing a nested node instead of one item. A failed write deliberately
+keeps its baseline so nothing is dropped from a later diff — so the bad path is
+re-sent on every write from then on, and reopening the app doesn't help because
+the key is in the cached state. Anything that becomes a key goes through
+`keyForName`, `aisleKey` or `unitKeyFor` (all of which call `safeKey`);
+`withSafeKeys` in `normalizeLocal` heals a device already holding one.
+`storablekeys.spec.mjs` walks every key at every depth in both the state and
+the catalog, so a new map is covered without anyone remembering to add it.
+
+**Fix the trap, don't document it.** A hazard you can remove in code is not a
+hazard to write a comment about — a comment needs the next person to read it,
+and twice now the same one wasn't. `update()` carried four lines telling you to
+call it once per handler; the fix was one line assigning its ref, which
+`updateCatalog` had been doing all along. Documentation is for judgment that no
+code change can enforce, not for defects.
+
+**`git diff origin/main HEAD` is not "my work" once main has moved** — it is
+your work plus undoing everybody else's, and it silently deleted a completed
+item once (66). Diff against the merge base, or format-patch the specific
+commits and check the result against main before pushing.
+
 ## Numbers that already exist — don't repurpose them
 
 | Number | Means | Moves when |
@@ -244,6 +267,13 @@ use", not "guest affordances". Spell out an acronym or unfamiliar term in
 parentheses the first few times it appears. If a plain word exists, the jargon
 is not worth the reader's time. Don't reach for analogies or sideways parallels
 — explain the thing itself.
+
+**Use the name AND the description, not one or the other.** Explaining how
+something works by listing function and variable names says nothing to anybody
+who hasn't read the file; stripping the names out leaves nothing to go and
+look at. Write "`normalizeLocal`, which runs when the state is read back and
+fills in anything missing" — the name so it can be found, the description so
+the sentence stands on its own. Assume the reader has never opened the code.
 
 **Name the thing, not the category.** "Run `npm run test:rules`", not "run the
 test suite". "Firebase Console → Build → Authentication → Sign-in method", not

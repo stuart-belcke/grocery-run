@@ -3164,3 +3164,70 @@ into the details panel and the name grew.
     The focus spec was mutation-tested: with initialFocusRef ignored it fails
     and nothing else does. The dialog was also driven in a real browser at
     320px wide, open and closed.
+122. A TRIAGE OF THIS FILE'S TRAPS, AND THE ONE THAT KEPT BITING.
+    Asked after item 121 shipped with a bug this file already described:
+    "how do we keep running into these traps? Are the methods not defined
+    well?" The answer is that they are three different things wearing one
+    label, and only one of them belongs in a document.
+
+    THE TRIAGE, over all 112 entries:
+      CATEGORY 1, A DEFECT SOMEBODY WROTE DOWN INSTEAD OF FIXING. One found,
+      and it is the one that has now cost three bugs. See below.
+      CATEGORY 2, A CONSTRAINT THAT CANNOT BE REMOVED, left as a rule to
+      remember rather than a guard. The database's refused key characters are
+      the whole of this category, and they were already better defended than
+      expected — prevention at the write sites, healing in normalizeLocal, and
+      seven specs. One hole, fixed below.
+      CATEGORY 3, JUDGMENT NO CODE CHANGE CAN ENFORCE. "Don't add a notice
+      about something that already happens automatically." "Nothing may change
+      height when it sticks." These are correctly documented and stay.
+    WORTH RECORDING: the traps cluster in items 17-55, the era when the data
+    layer was being built. Items 68-121 contain almost none. The rate fell on
+    its own as the shapes settled; this was not a discipline problem.
+
+    THE DEFECT: update() SNAPSHOTTED A REF IT NEVER UPDATED. localRef.current
+    is assigned during render, so two update() calls in one event handler both
+    rebuilt from the same base and the second silently discarded the first.
+    updateCatalog has always assigned hCatalogRef.current the moment it
+    computes the next catalog, so it never had the problem — two sibling
+    functions in one file, one safe and one not, with a comment on each
+    claiming they shared a rule.
+    IT COST THE SAME BUG THREE TIMES. Item 54: a Clear button that cleared
+    exactly one of several entries while looking like it worked. Item 121: a
+    new item that went onto the list and came straight back off. And the
+    comment on update() itself, written after the first one, which is what
+    the third had to be found by seven failing tests instead.
+    THE FIX IS ONE LINE — setLocal assigns localRef.current alongside
+    setLocalState, exactly as updateCatalog does. The bare setLocalState calls
+    (cached load, adopting a remote copy, resetting on leave) deliberately do
+    NOT: none runs twice in a handler, and item 17's leave-then-reseed fix
+    depends on the reset and setCode landing together at render.
+    PROVED BY DELETING THE WORKAROUND. ListTab's clearKeys existed only
+    because a forEach over unbuy() could not work; the call site is that
+    forEach again, and restorestate.spec.mjs already asserted that Clear
+    removes every unnameable entry and nothing else. Mutation-tested: without
+    the ref assignment that spec fails, and it fails for the right reason.
+
+    THE HOLE IN CATEGORY 2: the key guard walked a HAND-MAINTAINED LIST of
+    five maps. Correct for the maps that existed when it was written, and
+    silently blind to any added later — the same shape of mistake as the bug
+    it was guarding. It now walks every key at every depth. That also
+    subsumes item 55's separate value walk for free: `bought` nests unit keys
+    one level inside the ingredient key, so recursion reaches them, and
+    breaking unitKeyFor now fails a spec that the flat helper let through.
+    Three refusals are checked at every call site through one assertStorable
+    rather than unevenly — a `/` appearing only after Done shopping used to
+    pass. The catalog gets the same walk as the state; it had one hand-picked
+    corner of itself checked.
+
+    WHAT WENT INTO CLAUDE.md: four things, not the list this started as.
+    Why one refused key poisons every later write (the reason the guard is
+    strict). "Fix the trap, don't document it" — the meta-lesson, since
+    reaching for a comment first is what made update() permanent. The
+    `git diff origin/main HEAD` hazard from item 66, which deleted a
+    completed entry once. And one communication rule: use the name AND the
+    description, never one alone.
+
+    TESTED: 389 unit tests and 320 e2e. Two mutation tests, both red before
+    green: removing the ref assignment fails the orphan-clearing spec, and
+    breaking unitKeyFor fails a key spec that the old flat walker passed.
