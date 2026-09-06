@@ -294,3 +294,110 @@ SEAM      Weakest one here, and worth being honest about: a wrapper keeps the
           React app but changes deployment, updates and storage assumptions all
           at once. Nothing about the current code prevents it; nothing helps
           either.
+
+
+7. TESTING AGAINST A DATABASE — THE EMULATOR NOW, A TEST HOUSEHOLD LATER
+------------------------------------------------------------------------
+DECISION  Two things, in this order, and they answer different questions.
+          (a) THE FIREBASE DATABASE EMULATOR — a JAR Google publishes that
+              behaves like the database while running on this machine and
+              storing nothing. tests/rules/ already drives it for the
+              security rules; the plan extends it to sync.js, so the four
+              household writes and the saving machinery underneath them can
+              be run for real. Roadmap 98a and 98b.
+          (b) A PERMANENT TEST HOUSEHOLD in the real database, owned by a
+              test-only account, for the one thing an emulator cannot
+              answer: whether this works against Google's actual service,
+              with real sign-in.
+
+PHASE 1   (a) COSTS NOTHING AND TOUCHES NO NETWORK. It starts empty every
+              run, which is what makes a test say the same thing on the
+              tenth run as the first. Already proven here: 79 rules tests in
+              11 seconds.
+          (b) COSTS NOTHING EITHER, and does not need a second Firebase
+              project. Storage and bandwidth are not close to binding at
+              kilobytes per household (entry 2); the limit that binds is
+              simultaneous connections, and a test run adds one for a few
+              seconds.
+              THE ISOLATION IS ENFORCED BY THE RULES, NOT BY BEING CAREFUL.
+              households/$code/.read and .write both require a membership
+              record for the signed-in account. A test account that is a
+              member of only the test household is refused by Google's
+              servers on any other one — a wrong code is a failed test, not
+              lost data. That is the whole reason this is safe enough to
+              write down.
+
+WHAT EACH IS FOR
+          THE EMULATOR answers "does our code do the right thing to a
+          database" — writes landing on the right paths, the debounce, the
+          retry, the sequencer, and what leaveHousehold actually deletes.
+          THE TEST HOUSEHOLD answers "does this work against the real
+          thing" — most of all REAL SIGN-IN, which the emulator cannot
+          test: tests/rules/harness.mjs authenticates by minting unsigned
+          ("alg":"none") tokens, which the emulator accepts and the real
+          service rejects outright.
+
+THE RESET, and it reuses machinery that already exists: write
+          seedCatalog(public/catalog.json) into the household's catalog and
+          an empty shopping state beside it. That is the same function the
+          "Restore starter catalog" button calls and the same one
+          tests/e2e/fixtures.mjs already builds every fixture from, so the
+          starting point cannot drift from what the app really produces.
+          A SIDE EFFECT WORTH HAVING: restore is one of the least-tested
+          paths in the app, and a reset shaped this way exercises it on
+          every run for free.
+          RUN IT BEFORE A RUN, NOT AFTER. A run that dies halfway leaves
+          the household mid-mess, so the reset has to be safe to apply to
+          whatever it finds rather than assume a clean finish.
+
+TWO TRAPS, both already recorded elsewhere in this repo:
+          THE RESET MUST NOT TOUCH `members`. Access requires a record at
+          households/$code/members/$uid, and writing that record requires
+          already being a member — so a reset that clears it locks the test
+          account out permanently, with no way back in. Catalog and state
+          are reset; members is left alone. It looks like an oversight and
+          is not, so the script has to say so.
+          NO TEST MAY HARDCODE AN INGREDIENT ID. seedCatalog mints a fresh
+          id for every ingredient on every call, so "Orzo" is a different
+          id after each reset. That behaviour caused a real bug (completed
+          item 54: rows reading "Ing_05jz04l4 · 1" among the groceries).
+          The existing suite already handles it — idOf(catalog, "Orzo")
+          looks an id up by name and throws if the name is gone — and
+          anything written against the test household does the same.
+
+CEILING   (a) The emulator is a different program from Google's service.
+              Passing against it is strong evidence, not proof.
+          (b) Not a quota. It is that the tests stop being hermetic: they
+              need the network, they take real latency, and they leave
+              state behind. That is precisely what (a) gives away for free,
+              which is why (a) comes first and stays the default.
+
+PHASE 2   A second Firebase project used only for testing, if the test
+          household ever needs to do something that would be unsafe beside
+          real households — load testing, or deliberately corrupting data to
+          prove recovery. Free on its own quota. Not needed for anything
+          wanted today, and it doubles the number of projects to keep in
+          step, which is the real cost.
+
+TRIGGER   (a) Now — 98a and 98b are the costliest untested paths in the app
+              and this is what unblocks them.
+          (b) When something must be verified against the real service.
+              Real sign-in is the likely first one.
+
+SEAM      THE BLOCKER IS NOT THE EMULATOR, and the roadmap said otherwise
+          until item 123 corrected it. sync.js cannot be loaded outside a
+          Vite build at all: src/firebase-config.js reads
+          import.meta.env.VITE_LOCAL_ONLY, which Vite replaces at build time
+          and node does not provide, so importing sync.js in node throws
+          before any code runs. Measured with a real import, not reasoned
+          about.
+          SO THE FIRST TASK IS A SEAM IN firebase-config.js — an environment
+          variable naming a different database, read only under node. Safe
+          for the same reason VITE_LOCAL_ONLY is: `process` does not exist
+          in a browser, so the branch is unreachable in a built app.
+          Verified by grepping both builds — `process.env` appears nowhere
+          in the built app, and the real database URL is present in the
+          normal build and completely absent from the local-only one.
+          That file is the one deciding whether the app talks to the
+          database two people shop with, so it changes on its own, in a
+          change small enough to read in full.
