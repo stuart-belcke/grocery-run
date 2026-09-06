@@ -183,6 +183,19 @@ export const INVITES_PREVIEW_KEY = "grocery-run-e2e-invites-preview";
    "synced", "signedOut"); App turns it back into a label through the real
    syncIndicator, so no test can assert on wording the app doesn't show. */
 export const STATUS_PREVIEW_KEY = "grocery-run-e2e-status-preview";
+
+/* The household's NAME, faked, for local-only builds only — same seam and
+   same rule as STATUS_PREVIEW_KEY above: a production build never reads it.
+   IT EXISTS BECAUSE THE NAME IS ALWAYS "" IN A TEST (item 98d). It arrives
+   through subscribeHouseholdName, a database read, so a build with sync
+   compiled out never gets a callback and the value stays empty forever.
+   householdLabel falls back to the CODE when the name is empty, so every
+   string built from it — the joined heading, the switcher, the invite
+   offer, the leave confirmation — renders "home-e2etest" in every test and
+   the named half of each has never been on screen. A name is also the only
+   one of these that a person chooses, so it is the half most likely to be
+   long, punctuated, or empty-after-trimming. */
+export const HOUSEHOLD_NAME_PREVIEW_KEY = "grocery-run-e2e-household-name-preview";
 export const CATALOG_KEY = "grocery-run-catalog-cache-v1";
 // The household's own catalog, cached so the app opens offline before the
 // database listener has said anything.

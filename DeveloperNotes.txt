@@ -94,8 +94,20 @@ file reached 5,886 lines with ten live items in it.
         anything, because getDb() answers null with no database.
         COST: highest here. Leaving deletes a household for everyone. Item
         85's bug lived exactly here and was found by a person, not a test.
-        NEEDS: the emulator, or the by-hand walk — delete a household, run
-        the sweep dry, press Restore.
+        NEEDS, corrected in item 123: not just the emulator. THE EMULATOR IS
+        NOT THE BLOCKER — it runs here, 79 rules tests in 11 seconds, once
+        `npm run emulator:fetch` has pulled the jar. The blocker is that
+        sync.js CANNOT BE LOADED OUTSIDE A VITE BUILD AT ALL: firebase-
+        config.js reads import.meta.env.VITE_LOCAL_ONLY, which Vite replaces
+        at build time and node does not provide, so `import("./src/sync.js")`
+        in node throws before anything runs. Measured, not assumed.
+        And `firebaseConfig` is a hardcoded constant naming the REAL shared
+        database, so there is nowhere else to point it.
+        SO THE FIRST TASK IS A SEAM in firebase-config.js, guarded the way
+        VITE_LOCAL_ONLY already is so a production build cannot see it. That
+        file is the one that decides whether the app talks to production;
+        getting it wrong writes junk into the household two people use,
+        which is the accident its own comment already records.
 
     98b. sync.js's WRITE PATH — the 250ms debounce, the lastWritten retry,
         the sequencer, auth, invites.
@@ -104,13 +116,7 @@ file reached 5,886 lines with ten live items in it.
         NEEDS: the real emulator. Stubbing Firebase to reach it tests the
         stub. tests/rules already drives the emulator jar and is the model.
 
-    98c. THE accessDenied SEAM. The member list has two empty states and only
-        one is reachable; the other is the screen somebody opens WHEN ACCESS
-        IS BROKEN, so its broken-case text is the half that matters.
-        NEEDS: an ACCESS_DENIED-shaped preview seam. Small.
-
-    98d. THE householdName SEAM — permanently "" in a test, so every name-
-        dependent string renders its fallback.
+    98c, 98d. DONE (item 123) — see DeveloperNotes-Completed.txt.
 
     98e. PROSE HELD TO CODE. help.js describes behaviour; nothing checks the
         description still matches. Item 72 found three that had drifted.

@@ -65,6 +65,7 @@ import {
   USER_PREVIEW_KEY,
   MEMBERS_PREVIEW_KEY,
   INVITES_PREVIEW_KEY,
+  HOUSEHOLD_NAME_PREVIEW_KEY,
   STATUS_PREVIEW_KEY,
   CATALOG_KEY,
   storageOk,
@@ -981,11 +982,22 @@ export default function App() {
      read it — including a guest, who sees the name but cannot change it.
      Cleared the instant the code changes so a stale name from the household
      you just left can never be shown over the one you just opened. */
-  const [householdName, setHouseholdNameState] = useState("");
+  /* local-only builds only: see HOUSEHOLD_NAME_PREVIEW_KEY in lib.js. The
+     name normally arrives from a database read this build compiles out, so
+     without it every test renders the code fallback and the named branch of
+     each string is never drawn. Empty in a production build, which is the
+     same value the reset below used to hardcode. */
+  const namePreview = syncEnabled ? "" : loadJSON(HOUSEHOLD_NAME_PREVIEW_KEY) || "";
+  const [householdName, setHouseholdNameState] = useState(namePreview);
   useEffect(() => {
-    setHouseholdNameState("");
-    return subscribeHouseholdName(code, user, (n) => setHouseholdNameState(n || ""));
-  }, [code, user]);
+    setHouseholdNameState(namePreview);
+    /* FALLS BACK TO THE PREVIEW, NOT TO "". Without a database
+       subscribeHouseholdName answers cb(null) immediately rather than
+       staying silent, so seeding the initial state was not enough — the
+       subscription wiped it on the same tick. In a production build
+       namePreview is "", so this is the line it always was. */
+    return subscribeHouseholdName(code, user, (n) => setHouseholdNameState(n || namePreview));
+  }, [code, user, namePreview]);
 
   /* Signing in on a device that has not committed to a household yet should
      land on one the ACCOUNT already has, not on the code this browser
@@ -1067,6 +1079,22 @@ export default function App() {
         syncStatus: statusPreview,
       })
     : syncIndicator({ syncEnabled, authReady, signedIn: !!user, accessDenied, writeError, syncStatus });
+
+  /* accessDenied IS A SCREEN, NOT ONLY A STATUS LINE (item 98c). The status
+     preview above already turned it into a label, but everything ELSE that
+     branches on access being refused kept reading the real state variable —
+     which a local-only build leaves false forever, because it is only ever
+     set by a database read being rejected.
+     So the member list had two empty states and the reachable one was
+     "Nobody yet.". The other is what somebody sees WHEN ACCESS IS BROKEN,
+     which is the half that has to be right: it is the screen you open to
+     find out why nothing works. Same for the Leave/Invite buttons, which
+     hide behind !accessDenied, and the explanation at the bottom of the
+     Household section.
+     Same seam and same rule as STATUS_PREVIEW_KEY itself — a production
+     build has statusPreview null and takes the real value, so this grants
+     nothing and hides nothing that access actually allows. */
+  const accessDeniedNow = statusPreview ? statusPreview === "accessDenied" : accessDenied;
 
   /* Redeem an invite from the first-run screen. A GUEST link signs the
      browser in anonymously first — that is the whole point of the choice: you
@@ -1320,7 +1348,7 @@ export default function App() {
           signedIn: !!user,
           onboarded,
           currentCode: code,
-          accessDenied,
+          accessDenied: accessDeniedNow,
           dismissed: dismissedInvite,
         }) && (() => {
           const offer = invitePrompt({
@@ -1329,7 +1357,7 @@ export default function App() {
             signedIn: !!user,
             onboarded,
             currentCode: code,
-            accessDenied,
+            accessDenied: accessDeniedNow,
             dismissed: dismissedInvite,
           });
           const named = householdLabel(myHouseholds?.[offer.code]?.name, offer.code);
@@ -1452,7 +1480,7 @@ export default function App() {
             sync={sync}
             writeError={writeError}
             user={user}
-            accessDenied={accessDenied}
+            accessDenied={accessDeniedNow}
             myHouseholds={myHouseholds}
             members={members}
             invites={invites}

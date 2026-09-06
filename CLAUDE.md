@@ -90,8 +90,14 @@ The parts, if you need one on its own:
 One caveat on a local green: `test:rules` SKIPS without a JVM and the emulator
 jar, so `npm run check` can pass on a machine that never tested the rules at
 all. It is only a skip locally — in CI the suite fails outright rather than
-reporting a green step it hasn't earned. Run `npm run emulator:fetch` once if
-you are changing `database.rules.json`.
+reporting a green step it hasn't earned.
+
+**RUN `npm run emulator:fetch` ONCE AT THE START OF A SESSION**, not only when
+changing `database.rules.json`. It takes about 20 seconds, and a fresh
+container has the JVM but not the jar — so the rules step reports `# pass 0`
+and `npm run check` still says green. That is easy to read as "no rules tests
+ran because nothing changed" and it means 79 tests did not run. With the jar
+present they take 11 seconds.
 
 `npm run test:e2e` is self-contained — it builds, serves `dist/`, runs every
 spec in `tests/e2e/`, and deletes the local-only build afterwards. Nothing to
