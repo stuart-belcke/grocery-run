@@ -3243,3 +3243,61 @@ into the details panel and the name grew.
     TESTED: 389 unit tests and 320 e2e. Two mutation tests, both red before
     green: removing the ref assignment fails the orphan-clearing spec, and
     breaking unitKeyFor fails a key spec that the old flat walker passed.
+123. TWO OF THE FIVE TEST GAPS CLOSED (98c AND 98d), AND THE OTHER THREE
+     RE-DESCRIBED BECAUSE ONE OF THEM WAS WRONG.
+
+     98c: THE MEMBER LIST HAD TWO EMPTY STATES AND ONLY ONE WAS REACHABLE.
+     "Nobody yet." means a household waiting for people. "Can't read the
+     member list from here" means a household you cannot read. They look
+     alike and mean opposite things, and only the first had ever been on
+     screen in a test — while the second is the screen somebody opens
+     precisely when nothing works.
+     THE FIX WAS ONE LINE, NOT A NEW SEAM. The spec file said this "would
+     need its own preview seam ... left for whoever adds it rather than faked
+     through a key that does not actually drive this state", and that was
+     true only because STATUS_PREVIEW_KEY fed the sync-status LABEL and
+     stopped there. App.jsx now derives the accessDenied it passes DOWN from
+     the same preview, so one key drives the screen as well as the label. A
+     production build has no preview and reads the real state, so this grants
+     nothing — same rule as every other preview key.
+     WHAT IT REACHED: the refused-access empty state, the explanation naming
+     the account and household (in the ACCOUNT section, not Household —
+     it is about which account you are signed in as), and the half that
+     matters most, which is what is NOT drawn: Invite and Leave both write,
+     both would be refused, and both are hidden rather than offered.
+
+     98d: THE HOUSEHOLD NAME WAS "" IN EVERY TEST. It arrives through
+     subscribeHouseholdName, a database read this build compiles out, so
+     householdLabel fell back to the CODE everywhere and the named half of
+     every string built on it had never been drawn.
+     SEEDING THE INITIAL STATE WAS NOT ENOUGH, and this is the part worth
+     keeping: without a database subscribeHouseholdName answers cb(null)
+     IMMEDIATELY rather than staying silent, so the subscription wiped the
+     seeded value on the same tick. The callback now falls back to the
+     preview instead of to "", which in a production build is the line it
+     always was. Found by probing the real built app, not by reading the
+     code — the seam looked correct and did nothing.
+     TWO TEST BUGS OF MY OWN, both the same shape: the name and the code are
+     input VALUES, and textContent cannot see an input's value, so asserting
+     on the body text passed against a build showing neither.
+
+     98a's ENTRY WAS WRONG AND IS CORRECTED. It said this needs "the
+     emulator, or the by-hand walk". The emulator is not the blocker: it runs
+     here, 79 rules tests in 11 seconds, once npm run emulator:fetch has
+     pulled the jar. What blocks it is that sync.js cannot be loaded outside
+     a Vite build at all — firebase-config.js reads
+     import.meta.env.VITE_LOCAL_ONLY, which node does not provide, so
+     importing sync.js in node throws before anything runs. Measured with a
+     real import, not reasoned about. The first task there is a seam in
+     firebase-config.js, and that is the file deciding whether the app talks
+     to the real shared database, so it gets its own change and its own
+     review rather than riding along with these two.
+
+     ALSO WORTH RECORDING: npm run check has been reporting a GREEN rules
+     step all along while running zero rules tests, because the jar was
+     missing and the suite skips rather than fails without it. CLAUDE.md says
+     this can happen; nobody had noticed it WAS happening.
+
+     TESTED: 389 unit tests and 324 e2e, four of them new. Mutation-tested
+     both seams — reverting the accessDenied derivation fails two specs and
+     reverting the name fallback fails a third, each for the right reason.

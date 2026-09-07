@@ -118,6 +118,7 @@ const MEMBERS_PREVIEW_KEY = "grocery-run-e2e-members-preview";
 const INVITES_PREVIEW_KEY = "grocery-run-e2e-invites-preview";
 const INSTALL_PREVIEW_KEY = "grocery-run-e2e-install-preview";
 const HOUSEHOLDS_PREVIEW_KEY = "grocery-run-e2e-households-preview";
+const HOUSEHOLD_NAME_PREVIEW_KEY = "grocery-run-e2e-household-name-preview";
 const KNOWN_HOUSEHOLDS_KEY = "grocery-run-known-households-v1";
 
 /* Opens the app with a known household already in place.
@@ -126,7 +127,7 @@ const KNOWN_HOUSEHOLDS_KEY = "grocery-run-known-households-v1";
    pins the ingredient IDS. Without a seeded catalog the app mints fresh
    random ids on first edit, so a test's ids don't match the rendered rows
    and the run proves nothing. */
-export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, onboarded = true, guest = false, hash = "", status = null, user = null, members = null, invites = null, mustChoose = false, justJoined = false, userAgent = null, households = null, knownHouseholds = null } = {}) {
+export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, onboarded = true, guest = false, hash = "", status = null, user = null, members = null, invites = null, mustChoose = false, justJoined = false, userAgent = null, households = null, knownHouseholds = null, householdName = null } = {}) {
   /* A CONTEXT, not a browser — see the setup/teardown block above. Each one
      starts with empty localStorage and cookies, which is the whole of what
      this app persists, so a test is as isolated as it was when every test
@@ -171,7 +172,7 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
      fixture. That looked exactly like "the edit didn't persist", and it is
      the sort of harness bug that makes a suite untrustworthy rather than
      merely failing. */
-  await page.addInitScript(([c, cat, st, kD, kC, kS, kO, onb, kG, gst, kSt, sts, kU, usr, kMem, mem, kInv, inv, kM, must, kI, joined, kH, idx, kK, kn]) => {
+  await page.addInitScript(([c, cat, st, kD, kC, kS, kO, onb, kG, gst, kSt, sts, kU, usr, kMem, mem, kInv, inv, kM, must, kI, joined, kH, idx, kK, kn, kHN, hName]) => {
     if (!localStorage.getItem(kD)) localStorage.setItem(kD, JSON.stringify({ code: c }));
     if (cat && !localStorage.getItem(kC + c)) localStorage.setItem(kC + c, cat);
     if (st && !localStorage.getItem(kS + c)) localStorage.setItem(kS + c, st);
@@ -220,6 +221,11 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
        already been shown. Item 92 announces a household joined SOMEWHERE
        ELSE, which nothing this browser does could ever produce. */
     if (idx) localStorage.setItem(kH, JSON.stringify(idx));
+    /* The household's NAME — see HOUSEHOLD_NAME_PREVIEW_KEY in lib.js. It
+       arrives from a database read this build compiles out, so without this
+       every test renders householdLabel's CODE fallback and the named half
+       of every string that uses it has never been drawn. */
+    if (hName) localStorage.setItem(kHN, JSON.stringify(hName));
     /* Keyed by uid, matching the app — see KNOWN_HOUSEHOLDS_KEY. A test that
        seeds a set without an account to hang it on is seeding nothing, which
        is exactly the signed-out case and should stay that way. */
@@ -231,7 +237,7 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
       STATUS_PREVIEW_KEY, status, USER_PREVIEW_KEY, user, MEMBERS_PREVIEW_KEY, members,
       INVITES_PREVIEW_KEY, invites, MUST_CHOOSE_KEY, mustChoose,
       INSTALL_PREVIEW_KEY, justJoined, HOUSEHOLDS_PREVIEW_KEY, households,
-      KNOWN_HOUSEHOLDS_KEY, knownHouseholds]);
+      KNOWN_HOUSEHOLDS_KEY, knownHouseholds, HOUSEHOLD_NAME_PREVIEW_KEY, householdName]);
 
   // domcontentloaded, not networkidle: with external requests aborted there
   // is no "idle" to wait for, and the tab bar rendering is the real signal

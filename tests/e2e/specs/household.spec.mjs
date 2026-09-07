@@ -154,14 +154,96 @@ test("with nobody seeded, the list reads as empty rather than broken", async () 
   }
 });
 
-/* NOT COVERED: the member list's OTHER empty message — "Can't read the
-   member list from here" when accessDenied is true. STATUS_PREVIEW_KEY only
-   feeds the sync-status LABEL (syncIndicator's own display text); the real
-   `accessDenied` state SettingsTab reads is set solely by subscribeHousehold's
-   error callback, which — like subscribeMembers — never fires without a
-   database. Reaching that branch honestly would need its own preview seam,
-   the same shape as the ones above; left for whoever adds it rather than
-   faked through a key that does not actually drive this state. */
+/* ---- item 98c: the member list's OTHER empty message ----
+
+   It used to say here that STATUS_PREVIEW_KEY fed only the sync-status
+   LABEL, and that reaching this branch honestly needed its own seam. It
+   needed one line, not a seam: App.jsx now derives the accessDenied it
+   passes DOWN from the same preview, so the status key drives the screen as
+   well as the label. Nothing is faked that was not already faked — a
+   production build has no preview and reads the real state. */
+
+test("when access is refused, the member list says so instead of reading empty", async () => {
+  /* The two empty states look alike and mean opposite things. "Nobody yet."
+     is a household waiting for people; this one is a household you cannot
+     read. Somebody seeing the wrong one goes looking for the wrong problem,
+     and this is the screen you open precisely when nothing is working. */
+  const page = await openSettings({ user: ME, status: "accessDenied" });
+  try {
+    const body = await page.textContent("body");
+    assert.match(body, /Can't read the member list from here/, "the refused-access empty state should be the one shown");
+    assert.doesNotMatch(body, /Nobody yet\./, "the waiting-for-people message must not appear when the list is unreadable");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("access refused also names the account, and hides what it cannot do", async () => {
+  /* The half that matters most is what is NOT on screen: inviting and
+     leaving both write, and both would be refused. Hidden rather than
+     offered-and-failing, the same choice the guest view makes.
+     The account's email is shown because signing in with the wrong one of
+     two is the likeliest way to arrive here, and it is what the other
+     person needs in order to send an invite. */
+  /* The explanation lives in the ACCOUNT section, not Household — it is
+     about which account you are signed in as, which is the thing to change. */
+  const page = await openApp(BASE, { user: ME, status: "accessDenied" });
+  try {
+    await page.tab("Settings");
+    await page.openSection(/^Account/);
+    const body = await page.textContent("body");
+    assert.match(body, new RegExp(`This account isn't in household ${HERE}`), "the explanation should name the household it cannot read");
+    assert.match(body, /me@example\.com/, "it should name the account, which is what an invite has to be sent to");
+    assert.equal(await page.locator("button").filter({ hasText: /^Invite another phone$/ }).count(), 0,
+      "inviting writes, and the write would be refused — it should not be offered");
+    assert.equal(await page.locator("button").filter({ hasText: /^Leave household$/ }).count(), 0,
+      "leaving writes, and the write would be refused — it should not be offered");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* ---- item 98d: the household's name, which was "" in every test ---- */
+
+test("a household with a name shows the name, not the code", async () => {
+  /* householdLabel falls back to the CODE when the name is empty, and the
+     name only ever arrived from a database read this build compiles out —
+     so every test until now rendered the fallback and the named branch of
+     each string had never been drawn. */
+  const page = await openSettings({ user: ME, householdName: "The Belckes" });
+  try {
+    /* The name is an input VALUE, which textContent cannot see — asserting on
+       the body text passed on a build showing nothing. */
+    const values = await page.locator("input").evaluateAll((els) => els.map((e) => e.value));
+    assert.ok(values.includes("The Belckes"), `the name field should hold the household's name, got ${JSON.stringify(values)}`);
+    const body = await page.textContent("body");
+    assert.match(body, /Everyone in the household sees this name/,
+      "the has-a-name half of the hint should be shown, not the give-it-a-name half");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("a name that is only spaces is not a name, and the code still shows", async () => {
+  /* cleanHouseholdName trims, so "   " is empty — and the fallback has to
+     hold, or a household renames itself to blank and becomes unidentifiable
+     in the switcher. The one input to this that a person chooses freely is
+     the one most likely to arrive like this. */
+  const page = await openSettings({ user: ME, householdName: "   " });
+  try {
+    const values = await page.locator("input").evaluateAll((els) => els.map((e) => e.value));
+    assert.ok(values.includes(HERE), `the code must still be shown when the name is blank, got ${JSON.stringify(values)}`);
+    assert.ok(!values.some((v) => v.trim() === "" && v.length > 0), `a whitespace-only name reached a field as-is: ${JSON.stringify(values)}`);
+    const body = await page.textContent("body");
+    assert.match(body, /Give it a name/, "a blank name should read as no name at all");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
 
 test("removing someone confirms with their identity, and Cancel touches nothing", async () => {
   const page = await openSettings({
