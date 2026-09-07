@@ -12,8 +12,9 @@
     "test:e2e": "node tests/e2e/run.mjs",
     "test:rules": "node --test --test-concurrency=1 tests/rules/rules.test.mjs tests/rules/sweep.test.mjs",
     "test:sw": "node scripts/test-sw-update.mjs",
-    "check": "npm run lint && npm test && npm run test:rules && npm run test:e2e && npm run build",
-    "emulator:fetch": "firebase setup:emulators:database"
+    "check": "npm run lint && npm test && npm run test:rules && npm run test:db && npm run test:e2e && npm run build",
+    "emulator:fetch": "firebase setup:emulators:database",
+    "test:db": "node --test --test-concurrency=1 --test-force-exit tests/db/writes.test.mjs"
   },
   "dependencies": {
     "firebase": "^11.0.0",

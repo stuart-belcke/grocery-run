@@ -83,6 +83,7 @@ The parts, if you need one on its own:
 | `npm run lint` | eslint |
 | `npm test` | unit tests, `node --test` over `src/**/*.test.js` |
 | `npm run test:rules` | `database.rules.json` against the real emulator |
+| `npm run test:db` | `sync.js`'s household writes, against the real emulator |
 | `npm run test:sw` | a real deploy landing on a running app (NOT in `check`) |
 | `npm run test:e2e` | the real build in a real browser |
 | `npm run build` | the production bundle |
@@ -133,11 +134,27 @@ four-minute gate. Run it when you touch `public/sw.js`, the update path in
 `src/main.jsx`, or `canReloadForUpdate` — item 120 was a white screen on a
 real phone that every other test in this repo was blind to.
 
-**Leaving and restoring a household cannot be tested here** — both need the
-database the e2e build compiles out. The rules under them are covered
-(`tests/rules/`), and the whole path was walked once by hand on the real
-database (item 86). Anything you change there is unverified until somebody
-repeats that walk: delete a household, run the sweep dry, press Restore.
+**`npm run test:db` runs `sync.js`'s household writes for real** (item 124),
+against the same emulator `test:rules` uses with the same real rules file
+loaded — so a write refused there is one the real service would refuse too.
+`leaveHousehold`, `restoreHousehold`, `removeMember` and `createInvite` had
+never been executed by anything before it; item 85's bug lived exactly there
+and was found by a person on a phone.
+
+It works WITHOUT EDITING `src/firebase-config.js`, which matters: making that
+file readable by node costs the build-time constant that lets Vite delete the
+real database URL from the local-only bundle, and that deletion is what stops
+a browser test reaching real data. Instead `tests/db/redirects.mjs` uses
+node's own import redirection — when `sync.js` asks for `firebase-config.js`
+it is handed a test copy naming the emulator. Nothing in `src/` changes, so
+every guarantee it already had still holds. See `Architecture.txt` entry 7.
+
+**What `test:db` still cannot answer** is whether any of it works against
+Google's real service. The identity it signs in with (`mockUserToken`) is one
+only an emulator accepts, so REAL SIGN-IN is untestable here — that is roadmap
+98f, a permanent test household. And the whole leave-and-restore path was
+walked by hand once on the real database (item 86); that walk is still the only
+evidence for the service itself.
 
 **Two scripts delete or overwrite production and run unattended** —
 `scripts/reclaim-households.mjs` (weekly sweep) and `scripts/deploy-rules.mjs`.

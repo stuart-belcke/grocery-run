@@ -88,33 +88,20 @@ file reached 5,886 lines with ten live items in it.
     Gathered here because they were scattered across seven items and you had
     to already know where to look. Ranked by what a failure would cost.
 
-    98a. THE FOUR WRITES BEHIND A SIGNED-IN USER — leaveHousehold,
-        restoreHousehold, removeMember, createInvite. The RENDERING around
-        them is covered; the mutations themselves have never been run by
-        anything, because getDb() answers null with no database.
-        COST: highest here. Leaving deletes a household for everyone. Item
-        85's bug lived exactly here and was found by a person, not a test.
-        NEEDS, corrected in item 123: not just the emulator. THE EMULATOR IS
-        NOT THE BLOCKER — it runs here, 79 rules tests in 11 seconds, once
-        `npm run emulator:fetch` has pulled the jar. The blocker is that
-        sync.js CANNOT BE LOADED OUTSIDE A VITE BUILD AT ALL: firebase-
-        config.js reads import.meta.env.VITE_LOCAL_ONLY, which Vite replaces
-        at build time and node does not provide, so `import("./src/sync.js")`
-        in node throws before anything runs. Measured, not assumed.
-        And `firebaseConfig` is a hardcoded constant naming the REAL shared
-        database, so there is nowhere else to point it.
-        SO THE FIRST TASK IS A SEAM in firebase-config.js, guarded the way
-        VITE_LOCAL_ONLY already is so a production build cannot see it. That
-        file is the one that decides whether the app talks to production;
-        getting it wrong writes junk into the household two people use,
-        which is the accident its own comment already records.
+    98a. DONE (item 124) — see DeveloperNotes-Completed.txt. npm run test:db.
 
     98b. sync.js's WRITE PATH — the 250ms debounce, the lastWritten retry,
         the sequencer, auth, invites.
         COST: silent data loss between two phones. The failure this app
         cannot afford and the hardest to notice.
-        NEEDS: the real emulator. Stubbing Firebase to reach it tests the
-        stub. tests/rules already drives the emulator jar and is the model.
+        NO LONGER BLOCKED. Item 124 built the way in — tests/db/ loads
+        sync.js against the emulator with node's own import redirection, so
+        writeHousehold and writeCatalog can be driven directly and what
+        landed can be read back. What is left is writing the tests: rapid
+        successive edits arriving intact, a refused write keeping its
+        baseline and re-sending, two overlapping flushes not losing the
+        older one. AUTH IS STILL OUT — the identity tests/db uses is one
+        only an emulator accepts (98f).
 
     98c, 98d. DONE (item 123) — see DeveloperNotes-Completed.txt.
 

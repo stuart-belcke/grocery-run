@@ -3301,3 +3301,86 @@ into the details panel and the name grew.
      TESTED: 389 unit tests and 324 e2e, four of them new. Mutation-tested
      both seams — reverting the accessDenied derivation fails two specs and
      reverting the name fallback fails a third, each for the right reason.
+124. THE FOUR HOUSEHOLD WRITES NOW RUN. Roadmap 98a, the costliest gap in
+     the register: leaveHousehold, restoreHousehold, removeMember and
+     createInvite had never been executed by anything. The screens around
+     them were covered; what the buttons DO was not, because the browser
+     build compiles sync out and getDb() answers null. Item 85's bug lived
+     exactly there and was found by a person on a phone.
+
+     THE BLOCKER WAS NOT THE EMULATOR, and the roadmap said it was until
+     item 123 corrected it. sync.js could not be loaded outside a Vite build
+     at all: firebase-config.js reads import.meta.env.VITE_LOCAL_ONLY, which
+     node does not provide.
+
+     THE FIRST FIX WAS BUILT AND THROWN AWAY, and this is the part worth
+     keeping. Putting an environment variable in firebase-config.js means
+     `localOnly` stops being a build-time constant — and that constant is
+     exactly what lets Vite delete the whole config from the local-only
+     bundle. With the guard in, the REAL database URL was present in the
+     build the browser suite runs, which is the guarantee stopping a test
+     from reaching real data. Measured, not predicted; optional chaining
+     does not fold either. It was worse still: importing sync.js in node
+     used to THROW, which was accidentally protective, and with the throw
+     gone a plain import came back with sync ENABLED AND POINTED AT THE REAL
+     DATABASE. A convenience for tests must not cost the app a protection it
+     already had.
+
+     WHAT SHIPPED TOUCHES NOTHING IN src/. tests/db/redirects.mjs uses
+     node's own import redirection (module.register): when sync.js asks for
+     firebase-config.js it is handed a test copy naming the emulator, and
+     when it asks for firebase/database it is handed a wrapper that points
+     the connection at the emulator and states who is asking. sync.js is
+     unchanged and unaware. firebase-config.js is byte-identical to what
+     ships, so there is nothing new to verify about it.
+     THE IDENTITY IS connectDatabaseEmulator's mockUserToken — a stated user
+     id the emulator trusts and Google's real service refuses outright.
+     That refusal is the safety property: this cannot be aimed at production
+     and work. The four functions take no credential (leaveHousehold(code,
+     user, isGuest) reads user.uid for path logic only), so without it every
+     write is refused by the rules, correctly, and nothing is testable.
+
+     TWO MISTAKES OF MINE WORTH THE RETELLING. The wrapper imported
+     "firebase/database" while the redirect pointed that name AT the
+     wrapper, so it imported itself forever — which surfaces as "Maximum
+     call stack size exceeded" from inside a test with no useful stack. The
+     redirect now skips the wrapper by name rather than the wrapper reaching
+     into node_modules by path. And the rules upload needs
+     `Authorization: Bearer owner`, which tests/rules/harness.mjs has always
+     done and I did not copy; without it every test failed on a 403 that
+     said nothing about rules.
+
+     THE FOUR REPORT SUCCESS IN THREE SHAPES, found by writing the tests
+     rather than by reading the code: leaveHousehold and restoreHousehold
+     answer {ok, ...}, removeMember answers a bare true/false, createInvite
+     answers {token, role} or null. Every caller handles its own correctly,
+     so this is NOT a bug and was deliberately not "fixed" — changing a
+     return shape to tidy it is how a working call site breaks. Recorded
+     because a fifth function will copy whichever neighbour it sits next to.
+
+     WHAT THE SIX TESTS PIN: the last member out leaves a TOMBSTONE and not
+     a hole (item 86's rule, never before run — deletedAt, deletedBy,
+     members cleared, catalog kept); leaving with somebody else still in it
+     removes only your own record and marks nothing; restoring inside the
+     grace period clears the stamp AND puts you back in, or you cannot read
+     what you restored; removing somebody takes exactly their record;
+     an invite is written with an expiry in the future and records who made
+     it. And the one the whole test-household plan rests on: A MEMBER OF ONE
+     HOUSEHOLD IS REFUSED BY ANOTHER — aimed at a household this account is
+     not in, the write is refused by the rules, so a wrong code is a red
+     test rather than somebody's lost recipes.
+
+     MUTATION-TESTED, both red before green and each failing only its own
+     test: making leaving delete outright instead of stamping fails the
+     tombstone test; making removeMember delete the whole member list
+     instead of one record fails the removal test.
+
+     IN npm run check, between test:rules and test:e2e, and it SKIPS without
+     a JVM or the jar exactly as test:rules does. Needs --test-force-exit:
+     the Firebase SDK keeps its connection open and node will not exit on
+     its own.
+
+     WHAT IT STILL CANNOT ANSWER: whether any of this works against Google's
+     real service. The emulator is a faithful stand-in, not the thing, and
+     real sign-in is untestable here by construction. That is 98f.
+     TESTED: 389 unit, 79 rules, 6 database, 324 browser, lint and build.
