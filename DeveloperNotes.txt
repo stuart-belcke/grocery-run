@@ -121,6 +121,35 @@ file reached 5,886 lines with ten live items in it.
     98e. PROSE HELD TO CODE. help.js describes behaviour; nothing checks the
         description still matches. Item 72 found three that had drifted.
 
+    98f. A PERMANENT TEST HOUSEHOLD, the layer ABOVE 98a/98b rather than a
+        substitute for it. THE EMULATOR CANNOT TEST REAL SIGN-IN:
+        tests/rules/harness.mjs authenticates by minting unsigned tokens
+        that only an emulator accepts, and Google's real service rejects
+        them. So the four writes in 98a can be proven correct without ever
+        being proven to work against the real thing.
+        A test-only account, a member of one test household and nothing
+        else, closes that. THE ISOLATION IS ENFORCED, NOT PROMISED:
+        households/$code/.read and .write in database.rules.json both
+        require a membership record for the signed-in account, so a wrong
+        code is a REFUSED write rather than a wrong one — the failure mode
+        is a red test, not lost data. No second Firebase project needed.
+        RESET BY WRITING seedCatalog(public/catalog.json) into it — the
+        same function "Restore starter catalog" calls and every e2e fixture
+        is already built from, so the starting point cannot drift from what
+        the app really produces. Restore is itself one of the least-tested
+        paths in the app, so a reset shaped this way exercises it free.
+        TWO TRAPS: do NOT reset `members` (writing that record requires
+        already being a member, so clearing it locks the account out for
+        good), and do NOT hardcode an ingredient id anywhere — seedCatalog
+        mints fresh ones every call, which is completed item 54's bug.
+        Use idOf(catalog, name), as the existing suite already does.
+        THE COST, which is why it is second: the tests stop being hermetic.
+        Network, real latency, and state left behind between runs — exactly
+        what the emulator gives away for free.
+        WRITTEN UP IN FULL at Architecture.txt entry 7, together with the
+        emulator work and what each of the two is actually good for.
+        TRIGGER: 98a and 98b landing first.
+
     NOT LISTED BECAUSE THEY ARE FINE: the pure layer (345 unit tests), the
     rules (on the real emulator), the sweep scripts, the rendered UI (273
     e2e). Every gap above is one of two shapes — needs a database, or needs
