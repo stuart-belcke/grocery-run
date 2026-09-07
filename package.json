@@ -14,7 +14,7 @@
     "test:sw": "node scripts/test-sw-update.mjs",
     "check": "npm run lint && npm test && npm run test:rules && npm run test:db && npm run test:e2e && npm run build",
     "emulator:fetch": "firebase setup:emulators:database",
-    "test:db": "node --test --test-concurrency=1 --test-force-exit tests/db/writes.test.mjs"
+    "test:db": "node --test --test-concurrency=1 --test-force-exit tests/db/writes.test.mjs tests/db/writepath.test.mjs"
   },
   "dependencies": {
     "firebase": "^11.0.0",

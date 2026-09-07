@@ -3380,7 +3380,38 @@ into the details panel and the name grew.
      the Firebase SDK keeps its connection open and node will not exit on
      its own.
 
+     AND THEN 98b, THE MACHINERY UNDER A SAVE, in the same suite: the 250ms
+     wait before saving sends only the last of several quick edits; a field
+     written by a LATER build survives an unrelated edit from this one (the
+     forward-compatibility rule, proved against a database rather than
+     reasoned about — this is what stops two phones on different builds
+     erasing each other); a refused write keeps its baseline so the refused
+     edit reaches the database on the next save instead of being missing
+     from every diff after it; and the catalog saves to its own node without
+     disturbing the shopping list.
+     THE FIRST SAVE IS SLOWER THAN EVERY LATER ONE — the SDK builds its
+     connection first — and two tests failed on measuring that rather than
+     the code. One throwaway write in test.before pays it once.
+
+     A TEST WAS WRITTEN, PASSED, AND WAS DELETED. The queue that stops two
+     saves overlapping (item 33's fix) had a test that passed just as
+     happily with the queue removed, which is worse than no test because it
+     reads as coverage. The window it guards cannot be opened from outside
+     the module: the bug is two saves reading the baseline before either
+     updates it, and holding one open mid-flight is not something a caller
+     can do. Recorded as still open in 98b, with the fix that would make it
+     testable — move `sequencer` into lib.js, where it belongs anyway, being
+     eight lines of pure logic with no Firebase in it.
+
+     MUTATION-TESTED, five in total, each failing only what it should:
+     leaving deleting outright instead of stamping; removeMember clearing
+     the whole member list; always sending the whole node instead of the
+     changed paths (fails the unknown-field test AND the catalog one); a
+     refused write moving the baseline forward. The fifth — deleting the
+     queue — failed NOTHING, which is how the test above was found to be
+     worthless.
+
      WHAT IT STILL CANNOT ANSWER: whether any of this works against Google's
      real service. The emulator is a faithful stand-in, not the thing, and
      real sign-in is untestable here by construction. That is 98f.
-     TESTED: 389 unit, 79 rules, 6 database, 324 browser, lint and build.
+     TESTED: 389 unit, 79 rules, 10 database, 324 browser, lint and build.
