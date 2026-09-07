@@ -301,6 +301,26 @@ look at. Write "`normalizeLocal`, which runs when the state is read back and
 fills in anything missing" — the name so it can be found, the description so
 the sentence stands on its own. Assume the reader has never opened the code.
 
+**PLAIN ENGLISH, AND DEFINE EVERY TERM AT FIRST USE — EVERY TIME.** A word
+that names something without describing it says nothing to the reader: "the
+walk", "healing", "the loader", "the seam", "the gate". Most of them are
+borrowed from this repo's own comments, where the word sits directly beside
+the thing it describes and is fine; lifted into a message it stands alone and
+carries no meaning. Give the plain description first, then the name, and do it
+again next time even if it was explained last week.
+
+  NOT  "the loader redirects the import"
+  BUT  "Node lets a test supply its own function that answers 'when you see
+       this file name, read this other file instead' — so sync.js asks for
+       the same file it always does and gets a test copy. That redirect is
+       the loader, and it exists only while the test runs."
+
+START FROM THE THING ITSELF, not from the code's structure: what it is, what
+it does, what it is for. Say what each part is GOOD FOR and what it cannot do.
+A comparison of several things belongs in a table. Real names and real numbers
+throughout — `npm run emulator:fetch`, 79 tests, 11 seconds — because a reader
+cannot act on a category. Finish by saying what is still uncertain or untested.
+
 **Name the thing, not the category.** "Run `npm run test:rules`", not "run the
 test suite". "Firebase Console → Build → Authentication → Sign-in method", not
 "enable it in the console". A step the reader has to translate is not finished.

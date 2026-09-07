@@ -391,13 +391,39 @@ SEAM      THE BLOCKER IS NOT THE EMULATOR, and the roadmap said otherwise
           and node does not provide, so importing sync.js in node throws
           before any code runs. Measured with a real import, not reasoned
           about.
-          SO THE FIRST TASK IS A SEAM IN firebase-config.js — an environment
-          variable naming a different database, read only under node. Safe
-          for the same reason VITE_LOCAL_ONLY is: `process` does not exist
-          in a browser, so the branch is unreachable in a built app.
-          Verified by grepping both builds — `process.env` appears nowhere
-          in the built app, and the real database URL is present in the
-          normal build and completely absent from the local-only one.
-          That file is the one deciding whether the app talks to the
-          database two people shop with, so it changes on its own, in a
-          change small enough to read in full.
+          AN ENVIRONMENT VARIABLE IN firebase-config.js WAS THE FIRST PLAN,
+          AND IT WAS BUILT AND THROWN AWAY. Recorded so nobody tries it
+          again. To let node load that file, `localOnly` has to stop being a
+          build-time constant — and that constant is exactly what lets Vite
+          DELETE the whole config from the local-only bundle. With the guard
+          in, the real database URL was PRESENT in the local-only build,
+          which is the guarantee stopping a browser test from reaching real
+          data. Measured, not predicted. Optional chaining
+          (`import.meta.env?.VITE_LOCAL_ONLY`) does not fold either; also
+          tried, also leaked.
+          IT WAS WORSE THAN THAT. Before the change, importing sync.js in
+          node THREW, which was accidentally protective. With the throw gone,
+          a plain `node -e 'import("./src/sync.js")'` came back with sync
+          ENABLED AND POINTED AT THE REAL DATABASE. Caught by probing it, not
+          by reading it. A convenience for tests must not cost the app a
+          protection it already had.
+
+          WHAT REPLACES IT: DO NOT TOUCH THAT FILE AT ALL. Node can redirect
+          one import while a test runs — module.register() installs a
+          function answering "when you see this file name, read this other
+          one instead" — so sync.js asks for firebase-config.js exactly as it
+          always does and receives a test copy naming the emulator.
+          src/firebase-config.js then stays byte-identical to what ships, so
+          its build-time deletion still works and there is nothing new to
+          verify. The redirect lives in tests/, is installed by a test's
+          first line, dies with the process, and has no browser equivalent to
+          leak into.
+          CONFIRMED: sync.js imports under it, and leaveHousehold,
+          restoreHousehold, removeMember and createInvite are all reachable.
+          STILL UNPROVEN AT THE TIME OF WRITING: those four authenticate
+          through the Firebase sign-in state rather than through anything
+          passed in — leaveHousehold(code, user, isGuest) reads user.uid for
+          path logic only — so an unauthenticated node connection is refused
+          by the rules, correctly. connectDatabaseEmulator's `mockUserToken`
+          option is the likely answer, and it is not yet proven against the
+          way sync.js builds its connection.
