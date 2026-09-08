@@ -3546,8 +3546,24 @@ into the details panel and the name grew.
      of catalog and state fails the members test; making --apply the default
      fails the dry-run test.
 
-     WHAT IS NOT DONE, AND CANNOT BE FROM HERE: nothing has run against
-     Google's real service. That needs a test-only account, a household
+     AND THEN IT WAS RUN AGAINST THE REAL DATABASE, by the owner, on a
+     household created by hand for it (home-testonly1, one member
+     "grocery-run-test", marker set in the Firebase Console). Dry run first,
+     then --apply. It read 24 recipes and 164 ingredients and wrote them
+     back, and reported done.
+     THAT VERIFIED THREE THINGS NO TEST COVERS, because tests/db only ever
+     takes the emulator branch: the service-account token exchange with
+     Google actually works from this script; the marker guard passes on a
+     real node; and a member record written BY HAND in the console is a
+     shape the script reads correctly.
+     WHAT IT DID NOT PROVE, said plainly because the output looks like it
+     did: the "members — LEFT UNTOUCHED" line is printed BEFORE the write,
+     so it is a statement of intent, not an observation. That members
+     actually survive is proved by the emulator test, and the real run is
+     consistent with it — nobody has read the node afterwards to confirm.
+
+     WHAT IS NOT DONE, AND CANNOT BE FROM HERE: no TEST has run against
+     Google's real service, and real sign-in is still the point of 98f. That needs a test-only account, a household
      created with it, the marker set on that node once by hand, and a
      service-account key where CI can read it. Real sign-in — the entire
      reason 98f exists — is still untested. Left open in 98f with the trigger
