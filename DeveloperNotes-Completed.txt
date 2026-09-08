@@ -3497,3 +3497,59 @@ into the details panel and the name grew.
      TESTED: 390 unit and 325 browser, one new in each. Both mutation-tested
      — renaming a real button fails the unit test, and rendering a question
      without HelpText fails the browser one.
+127. THE TEST HOUSEHOLD'S RESET, WHICH IS THE HALF THAT COULD BE BUILT.
+     Roadmap 98f. The emulator answers "does our code do the right thing to
+     a database"; it cannot answer "does this work against Google's real
+     service", because the identity tests/db signs in with is one only an
+     emulator accepts. A real household, owned by a test-only account, is
+     what closes that — and a run starting from whatever the last one left
+     behind is a run that says different things on different days.
+
+     WHAT IT WRITES is exactly what a brand-new household holds: seedCatalog
+     over the shipped public/catalog.json, and emptyLocal for the shopping
+     state. Both from src/lib.js — the same functions "Restore starter
+     catalog" and every e2e fixture already use, so the starting point
+     cannot drift from what the app really produces. Restore is itself one
+     of the least-tested paths in the app, so this exercises it every run.
+
+     THE GUARD IS A MARKER IN THE DATA, NOT A NAMING CONVENTION. The script
+     refuses any household whose node does not carry `testHousehold: true`.
+     A code is thirteen characters of [a-z0-9-], so a typo in one is
+     somebody else's real household; a marker cannot be mistyped because it
+     is not typed at all — it is set once, deliberately, on the one node
+     meant for this.
+
+     IT NEVER TOUCHES `members`, which is the trap the script is built
+     around: access requires a record at households/$code/members/$uid and
+     WRITING that record requires already being a member, so a reset that
+     cleared it would lock the test account out of its own household
+     permanently. Catalog and state are replaced; everything else is left
+     as found.
+
+     FIREBASE DELETES AN EMPTY OBJECT rather than storing one, so what
+     actually lands as the state is {version, updatedAt} and none of
+     emptyLocal's empty maps. Correct rather than short: the app's own first
+     write drops them identically, so this IS the shape a new household has,
+     and normalizeLocal puts them back with asObject on read. The first
+     draft of the test asserted the maps were empty and failed against a
+     shape this database will never hold. Same family as item 55 — Firebase's
+     treatment of empty values surprising somebody.
+
+     POINTED AT 127.0.0.1 IT SKIPS THE GOOGLE TOKEN EXCHANGE and uses the
+     emulator's own owner credential, copied deliberately from
+     reclaim-households.mjs rather than invented: that is the trick that
+     makes a script which overwrites production testable at all. Dry run is
+     the default; --apply writes.
+
+     FIVE TESTS, three mutations, each failing only its own: dropping the
+     marker check fails the refusal test; resetting the whole node instead
+     of catalog and state fails the members test; making --apply the default
+     fails the dry-run test.
+
+     WHAT IS NOT DONE, AND CANNOT BE FROM HERE: nothing has run against
+     Google's real service. That needs a test-only account, a household
+     created with it, the marker set on that node once by hand, and a
+     service-account key where CI can read it. Real sign-in — the entire
+     reason 98f exists — is still untested. Left open in 98f with the trigger
+     being the account existing.
+     TESTED: 395 unit, 79 rules, 15 database, 325 browser, lint and build.
