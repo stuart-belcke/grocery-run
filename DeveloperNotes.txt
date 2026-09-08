@@ -112,34 +112,23 @@ file reached 5,886 lines with ten live items in it.
         instruction actually misleads somebody; item 72's three drifts were
         all renames, which are now caught.
 
-    98f. A PERMANENT TEST HOUSEHOLD, the layer ABOVE 98a/98b rather than a
-        substitute for it. THE EMULATOR CANNOT TEST REAL SIGN-IN:
-        tests/rules/harness.mjs authenticates by minting unsigned tokens
-        that only an emulator accepts, and Google's real service rejects
-        them. So the four writes in 98a can be proven correct without ever
-        being proven to work against the real thing.
-        A test-only account, a member of one test household and nothing
-        else, closes that. THE ISOLATION IS ENFORCED, NOT PROMISED:
-        households/$code/.read and .write in database.rules.json both
-        require a membership record for the signed-in account, so a wrong
-        code is a REFUSED write rather than a wrong one — the failure mode
-        is a red test, not lost data. No second Firebase project needed.
-        RESET BY WRITING seedCatalog(public/catalog.json) into it — the
-        same function "Restore starter catalog" calls and every e2e fixture
-        is already built from, so the starting point cannot drift from what
-        the app really produces. Restore is itself one of the least-tested
-        paths in the app, so a reset shaped this way exercises it free.
-        TWO TRAPS: do NOT reset `members` (writing that record requires
-        already being a member, so clearing it locks the account out for
-        good), and do NOT hardcode an ingredient id anywhere — seedCatalog
-        mints fresh ones every call, which is completed item 54's bug.
-        Use idOf(catalog, name), as the existing suite already does.
-        THE COST, which is why it is second: the tests stop being hermetic.
-        Network, real latency, and state left behind between runs — exactly
-        what the emulator gives away for free.
-        WRITTEN UP IN FULL at Architecture.txt entry 7, together with the
-        emulator work and what each of the two is actually good for.
-        TRIGGER: 98a and 98b landing first.
+    98f. THE MECHANICAL HALF IS DONE (item 127); the half that needs a real
+        account is not, and cannot be done from here.
+        BUILT AND TESTED: scripts/reset-test-household.mjs puts a household
+        back to what a brand-new one holds — seedCatalog over
+        public/catalog.json and emptyLocal — driven as a real child process
+        against the emulator by tests/db/reset.test.mjs. It refuses any
+        household not carrying `testHousehold: true`, leaves `members`
+        alone, and dry-runs by default. All three mutation-tested.
+        WHAT IS LEFT NEEDS YOU, not code. Somebody has to make a test-only
+        Google account, create a household with it, set testHousehold: true
+        on that node once, and put the code and a service-account key where
+        CI can read them. Until then nothing has ever run against Google's
+        real service and REAL SIGN-IN remains untested — which is the whole
+        reason this item exists.
+        THEN the tests are the same ones tests/db already has, pointed at the
+        real database instead of the emulator, with the reset run first.
+        TRIGGER: the account existing.
 
     NOT LISTED BECAUSE THEY ARE FINE: the pure layer (345 unit tests), the
     rules (on the real emulator), the sweep scripts, the rendered UI (273
