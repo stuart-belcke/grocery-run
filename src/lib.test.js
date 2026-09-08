@@ -106,7 +106,7 @@ import {
   recipeForCatalogFile,
   ingredientIndex,
   compactCfg,
-  parseTabMarkup,
+  parseHelpMarkup,
   TABS,
   keyboardIsOpen,
   KEYBOARD_MIN_INSET,
@@ -3024,21 +3024,53 @@ test("every {name} in the help text is a real tab label", () => {
      spellings match. Rename a tab without following it through here and the
      map is wrong; this is the only thing that would notice. */
   const all = [...HOW_IT_WORKS, ...FAQS.map((f) => f.a), ...FAQS.map((f) => f.q)];
-  const named = all.flatMap((t) => parseTabMarkup(t).filter((p) => p.tab).map((p) => p.tab));
+  const named = all.flatMap((t) => parseHelpMarkup(t).filter((p) => p.tab).map((p) => p.tab));
   assert.ok(named.length >= 8, `only ${named.length} tab references — the markup is probably not being parsed`);
   for (const n of named) assert.ok(TAB_LABELS.includes(n), `"${n}" is marked up as a tab but no tab is called that`);
 });
 
-test("parseTabMarkup keeps the text around the names, in order", () => {
-  assert.deepEqual(parseTabMarkup("go to {Meals} then {List}."), [
+test("every [[Control name]] in the help text is really on a control", () => {
+  /* Item 126. The help text tells people which button to press, and nothing
+     noticed when one was renamed — the FAQ said "Paste a recipe" for a
+     section actually called "Start from a recipe or link". Marked up, the
+     promise is checkable: every name in double brackets has to appear as a
+     literal string somewhere the app renders.
+
+     SEARCHED ACROSS src/, not one file, because a control moves between
+     files without changing its label and the help text does not care where
+     it lives — only that it still says that. */
+  const files = ["App.jsx", "ui.jsx", "tabs/ListTab.jsx", "tabs/MealsTab.jsx", "tabs/PantryTab.jsx", "tabs/WeekTab.jsx", "tabs/SettingsTab.jsx"];
+  /* COMMENTS ARE STRIPPED FIRST, and finding that out is the reason this
+     line exists. Renaming the "Done shopping" button did NOT fail this test,
+     because those words also appear in four comments ABOUT the button — so
+     the check was satisfied by prose describing a control that no longer
+     existed, which is the exact failure it is meant to catch.
+     `//` is only treated as a comment when it does not follow a colon, so
+     an address like https://example.com inside a string survives. */
+  const src = files
+    .map((f) => readFileSync(new URL(`./${f}`, import.meta.url), "utf8"))
+    .join("\n")
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/(^|[^:/])\/\/.*$/gm, "$1");
+
+  const all = [...HOW_IT_WORKS, ...FAQS.map((f) => f.a), ...FAQS.map((f) => f.q)];
+  const named = [...new Set(all.flatMap((t) => parseHelpMarkup(t).filter((p) => p.control).map((p) => p.control)))];
+  assert.ok(named.length >= 8, `only ${named.length} controls are marked up — the markup is probably not being parsed`);
+  for (const n of named) {
+    assert.ok(src.includes(n), `the help text tells people to use "${n}", and no control in the app is called that`);
+  }
+});
+
+test("parseHelpMarkup keeps the text around the names, in order", () => {
+  assert.deepEqual(parseHelpMarkup("go to {Meals} then {List}."), [
     { text: "go to " },
     { tab: "Meals" },
     { text: " then " },
     { tab: "List" },
     { text: "." },
   ]);
-  assert.deepEqual(parseTabMarkup("no names here"), [{ text: "no names here" }]);
-  assert.deepEqual(parseTabMarkup(""), []);
+  assert.deepEqual(parseHelpMarkup("no names here"), [{ text: "no names here" }]);
+  assert.deepEqual(parseHelpMarkup(""), []);
 });
 
 test("no brace survives into what gets rendered", () => {
@@ -3046,7 +3078,7 @@ test("no brace survives into what gets rendered", () => {
   // failure as the back-to-top button showing \u2191, and equally invisible
   // to every behaviour test.
   for (const t of [...HOW_IT_WORKS, ...FAQS.map((f) => f.a), ...FAQS.map((f) => f.q)]) {
-    const rendered = parseTabMarkup(t).map((p) => p.tab || p.text).join("");
+    const rendered = parseHelpMarkup(t).map((p) => p.tab || p.control || p.text).join("");
     assert.doesNotMatch(rendered, /[{}]/, `stray brace in: ${t}`);
   }
 });
@@ -3147,7 +3179,7 @@ test("searchHelp ignores the tab markup, so a tab name is searchable", () => {
      went stale the moment the tab was renamed, and a test that has to be
      edited alongside a rename is a test that can be edited WRONG alongside
      one. Every braced name actually present has to be findable. */
-  const braced = [...new Set(FAQS.flatMap((f) => parseTabMarkup(f.a).filter((x) => x.tab).map((x) => x.tab)))];
+  const braced = [...new Set(FAQS.flatMap((f) => parseHelpMarkup(f.a).filter((x) => x.tab).map((x) => x.tab)))];
   assert.ok(braced.length >= 3, `only ${braced.length} tab names in the FAQs — the markup is probably not being parsed`);
   for (const name of braced) {
     assert.ok(searchHelp(FAQS, name.toLowerCase()).length > 0, `"${name}" is marked up as a tab but a search for it finds nothing`);

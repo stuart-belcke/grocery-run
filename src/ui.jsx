@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { C, fontBody, fontDisplay, inputStyle, BOTTOM_NAV_H } from "./theme";
-import { parseTabMarkup, keyboardIsOpen } from "./lib";
+import { parseHelpMarkup, keyboardIsOpen } from "./lib";
 
 /* ------------------------------------------------------------------ *
  *  useSticky — useState that survives its tab being unmounted.
@@ -353,23 +353,36 @@ export function useKeyboardOpen() {
   return open;
 }
 
-/* Help text with {Tab} names in it, rendered with the names in bold and
-   spelled exactly as the tab bar spells them.
+/* Help text with {Tab} names and [[Control names]] in it, rendered in bold
+   and spelled exactly as the app spells them.
+
+   A TAB NAME NEVER WRAPS and a control name may. Tab names are one short
+   word, so holding them on one line costs nothing and reads better; a
+   control name runs to "Restore starter catalog", which at 320px would push
+   the line off the screen if it could not break.
 
    Here rather than in either screen because BOTH screens show the same
    sentences — the first-run explanation and the Settings help read one copy
    in help.js. Written twice, they drifted inside a day, and the copy somebody
    goes looking for later is the one that had gone stale. */
 export function HelpText({ children }) {
-  return parseTabMarkup(children).map((part, i) =>
-    part.tab ? (
-      <b key={i} style={{ color: C.ink, fontWeight: 700, whiteSpace: "nowrap" }}>
-        {part.tab}
-      </b>
-    ) : (
-      <span key={i}>{part.text}</span>
-    )
-  );
+  return parseHelpMarkup(children).map((part, i) => {
+    if (part.tab) {
+      return (
+        <b key={i} style={{ color: C.ink, fontWeight: 700, whiteSpace: "nowrap" }}>
+          {part.tab}
+        </b>
+      );
+    }
+    if (part.control) {
+      return (
+        <b key={i} style={{ color: C.ink, fontWeight: 700 }}>
+          {part.control}
+        </b>
+      );
+    }
+    return <span key={i}>{part.text}</span>;
+  });
 }
 
 /* An explanation that is THERE but not in the way (item 121).

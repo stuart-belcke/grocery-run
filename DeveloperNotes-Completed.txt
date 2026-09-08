@@ -3453,3 +3453,47 @@ into the details panel and the name grew.
      it lives, ask whether it lives in the right place. The untestability was
      the symptom; the wrong file was the cause.
      TESTED: 394 unit, 79 rules, 10 database, 324 browser, lint and build.
+126. THE HELP TEXT NAMES BUTTONS, AND ONE OF THEM DID NOT EXIST.
+     Roadmap 98e, the checkable half. help.js tells people which control to
+     press — "press Add unplanned on a recipe" — and nothing noticed when one
+     was renamed. Item 72 found three that had drifted, by reading.
+
+     FOUND IMMEDIATELY, BEFORE ANY TEST WAS WRITTEN: two FAQ answers told
+     people to press "Paste a recipe to fill this in". That section is called
+     "Start from a recipe or link". One of the two is the long iPhone
+     shortcut answer, which is the one somebody follows step by step.
+
+     THE MARKUP IS WHAT MAKES IT CHECKABLE. A test cannot pick control names
+     out of ordinary prose without guessing in both directions, so they are
+     marked the way tab names already are: {Plan} for a tab, [[Done shopping]]
+     for a button or section heading. 12 names marked across 17 entries;
+     parseTabMarkup became parseHelpMarkup and handles both.
+     THE ALTERNATIVE, REJECTED: a list of names kept in the test instead of
+     markup in the file. It needs no change to help.js and it is the same
+     hand-maintained list that item 122 removed from the key-safety spec —
+     correct when written, quietly wrong later.
+
+     TWO THINGS THE MUTATION TESTS FOUND, both real:
+     COMMENTS COUNTED AS CONTROLS. Renaming the "Done shopping" button did
+     NOT fail the test, because those words also appear in four comments
+     ABOUT the button — so the check was satisfied by prose describing a
+     control that no longer existed, which is precisely the failure it
+     exists to catch. Comments are stripped before searching now; `//` is
+     only a comment when it does not follow a colon, so an https:// address
+     inside a string survives.
+     AND THE MARKUP LEAKED ONTO THE SCREEN. Answers render through HelpText
+     and QUESTIONS DID NOT, so three questions showed literal brackets the
+     moment any markup went in one. The unit test could not see it — it
+     checks the parser, and the parser was fine. Only the browser showed it,
+     which is the rule about verifying in a browser earning its place again.
+     Latent before this item too: the tab-name test has always allowed {Plan}
+     in a question, and it would have leaked the same way.
+
+     WHAT THIS DOES NOT DO, and the name makes it easy to assume otherwise:
+     it checks the name still exists, NOT that the sentence around it is
+     still true. "Tap the round i, then pick a store" keeps passing if the
+     picker moves. Renames are caught; rearrangements are not. Left open in
+     98e with what closing it would cost.
+     TESTED: 390 unit and 325 browser, one new in each. Both mutation-tested
+     — renaming a real button fails the unit test, and rendering a question
+     without HelpText fails the browser one.
