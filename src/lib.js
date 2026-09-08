@@ -2570,14 +2570,32 @@ export function importUrl(href, text) {
    them owning the wording. The test that every {name} IS a real tab label is
    what keeps the explanation a map rather than a guess — rename a tab and
    this is what notices. */
-export function parseTabMarkup(text) {
+/* TWO KINDS OF MARKED-UP NAME, both meaning "these exact words are on the
+   screen": {Plan} is a tab along the bottom, [[Done shopping]] is a button
+   or a section heading somewhere in the app.
+
+   THE MARKUP IS WHAT MAKES THE PROMISE CHECKABLE (item 126). Help text names
+   controls in ordinary prose — "press Add unplanned on a recipe" — and
+   nothing noticed when one of them was renamed. A test cannot pick those
+   names out of a sentence without guessing in both directions; marked, it
+   can assert every one of them still exists as a literal string in src/.
+   That found a live one: the FAQ told people to press "Paste a recipe",
+   which is called "Start from a recipe or link".
+
+   WHAT IT DOES NOT CHECK, said plainly because the name is easy to mistake
+   for the whole job: that the SENTENCE around the name is still true. "Tap
+   the round i, then pick a store" keeps passing if the store picker moves
+   somewhere else entirely. This catches renames, not rearrangements. */
+export function parseHelpMarkup(text) {
   const out = [];
-  const re = /\{([^{}]+)\}/g;
+  // [[...]] first in the alternation, so a control name is never mistaken
+  // for two stray brackets around something else.
+  const re = /\[\[([^\]]+)\]\]|\{([^{}]+)\}/g;
   let last = 0;
   let m;
   while ((m = re.exec(String(text || ""))) !== null) {
     if (m.index > last) out.push({ text: String(text).slice(last, m.index) });
-    out.push({ tab: m[1] });
+    out.push(m[1] !== undefined ? { control: m[1] } : { tab: m[2] });
     last = m.index + m[0].length;
   }
   const tail = String(text || "").slice(last);

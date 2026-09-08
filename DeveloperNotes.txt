@@ -115,8 +115,21 @@ file reached 5,886 lines with ten live items in it.
 
     98c, 98d. DONE (item 123) — see DeveloperNotes-Completed.txt.
 
-    98e. PROSE HELD TO CODE. help.js describes behaviour; nothing checks the
-        description still matches. Item 72 found three that had drifted.
+    98e. PARTLY DONE (item 126). The BUTTON NAMES the help text promises are
+        marked up and checked — [[Done shopping]] alongside the existing
+        {Plan}, and a test asserting every marked name is still a literal
+        string in src/. It found a live one on the first run.
+        WHAT IS STILL OPEN is the harder half, and it was never going to be
+        closed by this: whether the SENTENCE around the name is still true.
+        "Tap the round i, then pick a store" keeps passing if the store
+        picker moves somewhere else entirely. This catches renames, not
+        rearrangements.
+        WHAT WOULD CHANGE THE ANSWER: nothing cheap. Holding a sentence to
+        behaviour means driving the described steps in a browser, which is
+        writing an e2e spec per FAQ answer — 17 of them, most re-testing
+        something already covered elsewhere. Worth it only if a rearranged
+        instruction actually misleads somebody; item 72's three drifts were
+        all renames, which are now caught.
 
     98f. A PERMANENT TEST HOUSEHOLD, the layer ABOVE 98a/98b rather than a
         substitute for it. THE EMULATOR CANNOT TEST REAL SIGN-IN:

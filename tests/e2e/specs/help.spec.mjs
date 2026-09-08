@@ -66,6 +66,33 @@ test("the tab names render as names, not as {braces}", async () => {
   }
 });
 
+test("control names render as names, not as [[brackets]], in questions too", async () => {
+  /* Item 126. The FAQ marks the buttons it tells people to press, so a test
+     can check they still exist. Marked-up text that reaches the screen
+     unparsed is the cost of that, and it happened immediately: the ANSWERS
+     went through the renderer and the QUESTIONS did not, so three questions
+     showed literal brackets the moment any markup was put in one.
+     The unit test could not catch it — it checks the parser, and the parser
+     was fine. Only the rendered page shows this. */
+  const page = await openApp(BASE);
+  try {
+    await openHelp(page);
+    // Open every question, since a leak in an answer only shows when it is.
+    const questions = page.locator("ol li button");
+    const n = await questions.count();
+    for (let i = 0; i < n; i++) await questions.nth(i).click();
+    await page.waitForTimeout(300);
+
+    const body = await page.textContent("body");
+    assert.ok(!body.includes("[["), "control markup is being rendered literally");
+    assert.ok(!body.includes("]]"), "control markup is being rendered literally");
+    assert.doesNotMatch(body, /\{[A-Za-z]/, "tab markup is being rendered literally");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
 test("searching narrows the questions, and clearing brings them back", async () => {
   const page = await openApp(BASE);
   try {

@@ -579,7 +579,13 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                       color: C.ink,
                     }}
                   >
-                    <span style={{ flex: 1, minWidth: 0 }}>{f.q}</span>
+                    {/* THROUGH HelpText, like the answer below it. A question
+                        names controls too — "What does Done shopping do?" —
+                        and rendered raw its markup reaches the screen as
+                        literal brackets. Nothing had put markup in a question
+                        before item 126, so this had never shown; the
+                        rendering test in help.spec.mjs now watches for it. */}
+                    <span style={{ flex: 1, minWidth: 0 }}><HelpText>{f.q}</HelpText></span>
                     <span aria-hidden style={{ color: C.faint, fontSize: 12, flexShrink: 0 }}>{open ? "\u25b2" : "\u25be"}</span>
                   </button>
                   {open && (
