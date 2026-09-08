@@ -54,6 +54,7 @@ import {
   emptyLocal,
   diffPaths,
   planWrite,
+  sequencer,
   asKeyed,
   ingredientNames,
   needsKeyMigration,
@@ -4713,4 +4714,97 @@ test("invitePrompt never throws, whatever it is handed", () => {
   for (const args of [undefined, {}, { invite: null }, { invite: 42 }, { invite: {} }]) {
     assert.doesNotThrow(() => invitePrompt(args));
   }
+});
+
+
+/* ------------------------------------------------------------------ */
+/*  sequencer — the queue that stops two saves overlapping (item 125)   */
+/* ------------------------------------------------------------------ */
+
+/* THESE COULD NOT BE WRITTEN WHILE IT LIVED IN sync.js. The bug it guards
+   needs one piece of work held open in the middle while a second starts,
+   and nothing outside that module could hold a write open. Deleting the
+   queue there failed NOTHING in the entire suite — 389 unit, 79 rules, 10
+   database, 324 browser — so a fix protecting real data loss between two
+   phones had been unprotected since the day it shipped.
+   Here the work is promises this file resolves by hand, so the interleaving
+   is stated rather than hoped for. */
+
+// A promise plus the handle to settle it, so a test decides when work ends.
+function deferred() {
+  let resolve, reject;
+  const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+}
+
+test("the second piece of work does not start until the first has finished", async () => {
+  /* The whole point. Without this, both saves read the baseline before
+     either updated it, and the one finishing last set it — even carrying
+     older data. */
+  const run = sequencer();
+  const first = deferred();
+  const order = [];
+
+  const a = run(() => { order.push("a-start"); return first.promise.then(() => order.push("a-end")); });
+  const b = run(() => { order.push("b-start"); return Promise.resolve(); });
+
+  await Promise.resolve();
+  assert.deepEqual(order, ["a-start"], `b started while a was still running: ${order.join(", ")}`);
+
+  first.resolve();
+  await Promise.all([a, b]);
+  assert.deepEqual(order, ["a-start", "a-end", "b-start"], `wrong order: ${order.join(", ")}`);
+});
+
+test("work runs in the order it was handed over, not the order it finishes", async () => {
+  // Three at once, the first slowest. Order must still be 1, 2, 3.
+  const run = sequencer();
+  const gate = deferred();
+  const done = [];
+  const all = [
+    run(() => gate.promise.then(() => done.push(1))),
+    run(() => Promise.resolve().then(() => done.push(2))),
+    run(() => Promise.resolve().then(() => done.push(3))),
+  ];
+  gate.resolve();
+  await Promise.all(all);
+  assert.deepEqual(done, [1, 2, 3], `finished out of order: ${done.join(", ")}`);
+});
+
+test("a failure does not wedge the queue", async () => {
+  /* A refused write must not stop every save after it. sync.js keeps its
+     baseline on failure precisely so the refused edit is retried, and that
+     retry never happens if the queue stops. */
+  const run = sequencer();
+  const done = [];
+  const failed = run(() => Promise.reject(new Error("refused")));
+  const after = run(() => { done.push("ran anyway"); return Promise.resolve("ok"); });
+
+  await failed.catch(() => {});
+  assert.equal(await after, "ok", "the work after a failure never ran");
+  assert.deepEqual(done, ["ran anyway"]);
+});
+
+test("each caller gets a promise for its own turn, not for the whole queue", async () => {
+  // sync.js awaits its own flush; if that resolved only when everything
+  // queued behind it had also finished, closing the app would wait on work
+  // it never asked about.
+  const run = sequencer();
+  const slow = deferred();
+  const a = run(() => Promise.resolve("first"));
+  run(() => slow.promise);
+
+  assert.equal(await a, "first", "the first caller waited on work queued after it");
+  slow.resolve();
+});
+
+test("two sequencers are independent", async () => {
+  // sync.js keeps one for the shopping list and one for the catalog: a save
+  // to one node must not wait on a save to the other.
+  const runA = sequencer();
+  const runB = sequencer();
+  const held = deferred();
+  runA(() => held.promise);
+  assert.equal(await runB(() => Promise.resolve("through")), "through", "a second queue was blocked by the first");
+  held.resolve();
 });

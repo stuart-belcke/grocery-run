@@ -90,28 +90,9 @@ file reached 5,886 lines with ten live items in it.
 
     98a. DONE (item 124) — see DeveloperNotes-Completed.txt. npm run test:db.
 
-    98b. MOSTLY DONE (item 124) — npm run test:db covers the 250ms wait
-        before saving, the narrow write leaving an unknown field alone, and
-        a refused write being retried rather than dropped from every later
-        save. What is left is ONE thing:
-        THE QUEUE THAT STOPS TWO SAVES OVERLAPPING is still uncovered
-        (`sequencer` in sync.js, item 33's fix). A test for it was written,
-        passed, and passed just as happily with the queue deleted — so it
-        was removed rather than kept as false coverage. The bug is not a
-        wrong value arriving: it is two saves both reading the baseline
-        before either updates it, so the LAST to finish sets it even when it
-        carried older data, and the damage appears in the NEXT save's diff.
-        Opening that window from outside the module needs one save held open
-        in the middle, which nothing can currently do.
-        WHAT WOULD CHANGE THE ANSWER: move `sequencer` into lib.js. It is
-        eight lines of pure logic with no Firebase in it, it is the only
-        part of sync.js that could live there, and lib.js is where pure
-        logic is already driven directly with fake promises. Doing that
-        makes the test easy and removes a reason for sync.js to be
-        untestable. Deliberately not done in item 124, which was already
-        touching enough.
-        AUTH IS STILL OUT either way — the identity tests/db uses is one
-        only an emulator accepts (98f).
+    98b. DONE (items 124 and 125) — npm run test:db covers the 250ms wait,
+        the narrow write, and the refused-write retry; the queue moved to
+        lib.js and is covered by npm test.
 
     98c, 98d. DONE (item 123) — see DeveloperNotes-Completed.txt.
 

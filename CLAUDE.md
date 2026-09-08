@@ -233,6 +233,16 @@ this way.
 **Narrow writes.** `diffPaths` computes the smallest path set; arrays are atomic
 because an index is not an identity. Never write the whole node.
 
+**If a thing cannot be tested where it lives, ask whether it lives in the right
+place.** `sequencer` — eight lines that run saves one at a time so two cannot
+overlap and lose each other — sat in `sync.js`, where a test could not hold a
+save open mid-flight to create the race it guards. Deleting it outright failed
+NOTHING across 805 tests, so a fix protecting real data loss had been
+unprotected since it shipped. It is pure logic with no Firebase in it, so it
+belongs in `lib.js`, and there it is driven directly with promises a test
+settles by hand. Moving it was the fix; a testing seam bolted into `sync.js`
+would have been the workaround.
+
 **One refused key breaks every write after it, permanently.** The database
 rejects `.` `#` `$` `[` `]` and an empty string in a key, and accepts `/` while
 silently writing a nested node instead of one item. A failed write deliberately
