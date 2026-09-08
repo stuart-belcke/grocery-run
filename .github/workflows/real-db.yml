@@ -1,0 +1,110 @@
+# The only thing here that talks to Google's real database (roadmap 98f).
+#
+# WHY IT EXISTS. Every other database test runs against the emulator — a
+# program Google publishes that behaves like the database while running on
+# the same runner. It is a faithful stand-in and it answers almost
+# everything, but not this: whether SIGNING IN really works. The emulator
+# accepts a stated user id and asks no questions, so the four household
+# writes could be proved correct without ever being proved to work for a
+# real person.
+#
+# WHY IT IS NOT IN `npm run check`. Three reasons, in order of how much they
+# would cost:
+#   IT WOULD MAKE EVERY DEPLOY DEPEND ON GOOGLE BEING UP. A network blip
+#   would turn a green pull request red, and this repo's own rule is that
+#   "flake" is never a root cause — so each one buys an investigation.
+#   TWO RUNS AT ONCE WOULD FIGHT over the one test household. Hence the
+#   concurrency group below: the second waits rather than racing.
+#   IT WRITES TO THE REAL DATABASE. Contained to one household by the
+#   membership rules, but it belongs in the same category as the sweep and
+#   the rules deploy — things that touch production without a person
+#   watching.
+#
+# WHEN IT RUNS: a pull request that touches the database seam or its tests,
+# and never otherwise. The paths below are the trigger rather than a label,
+# because a label is a thing somebody has to remember and a path is not.
+# Plus a button, for running it on demand.
+
+name: Real database
+
+on:
+  pull_request:
+    paths:
+      - "src/sync.js"
+      - "src/firebase-config.js"
+      - "database.rules.json"
+      - "tests/db/**"
+      - "scripts/reset-test-household.mjs"
+      - ".github/workflows/real-db.yml"
+  workflow_dispatch:
+
+# ONE AT A TIME, ACROSS EVERY BRANCH. Two pull requests both touching
+# sync.js would otherwise reset and write the same household simultaneously,
+# and each would see the other's changes as its own failure.
+# cancel-in-progress is false on purpose: a half-finished run leaves the
+# household mid-reset, which is worse than making the next one wait.
+concurrency:
+  group: real-test-household
+  cancel-in-progress: false
+
+jobs:
+  real-db:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install
+        run: npm install
+
+      # SAME PATTERN AS deploy.yml's RULES DEPLOY: no secret, no run, said
+      # out loud. A fork's pull request cannot see repository secrets, so
+      # this has to degrade to a clear message rather than a confusing
+      # authentication failure.
+      - name: Is there a key and a household to test against?
+        id: have
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GROCERY_RUN_TEST_HOUSEHOLD: ${{ vars.GROCERY_RUN_TEST_HOUSEHOLD }}
+        run: |
+          if [ -n "$FIREBASE_SERVICE_ACCOUNT" ] && [ -n "$GROCERY_RUN_TEST_HOUSEHOLD" ]; then
+            echo "ready=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=no" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipped — needs the FIREBASE_SERVICE_ACCOUNT secret and the GROCERY_RUN_TEST_HOUSEHOLD variable. A pull request from a fork cannot see either."
+          fi
+
+      # PUT THE HOUSEHOLD BACK FIRST, not afterwards. A run that dies halfway
+      # leaves it mid-change, so the next run has to be able to start from
+      # whatever it finds rather than assume a clean finish.
+      - name: Reset the test household
+        if: steps.have.outputs.ready == 'yes'
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GROCERY_RUN_TEST_HOUSEHOLD: ${{ vars.GROCERY_RUN_TEST_HOUSEHOLD }}
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/key.json"
+          node scripts/reset-test-household.mjs \
+            --code="$GROCERY_RUN_TEST_HOUSEHOLD" \
+            --db=https://grocery-run-d5e06-default-rtdb.firebaseio.com \
+            --key="$RUNNER_TEMP/key.json" \
+            --apply
+
+      - name: Real database tests
+        if: steps.have.outputs.ready == 'yes'
+        env:
+          GROCERY_RUN_REAL_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GROCERY_RUN_TEST_HOUSEHOLD: ${{ vars.GROCERY_RUN_TEST_HOUSEHOLD }}
+          # Fail rather than skip once we have said we can run: a silent skip
+          # here would report a green step that tested nothing, which is the
+          # exact trap CLAUDE.md records for test:rules without a JVM.
+          GROCERY_RUN_REQUIRE_REAL_DB: "1"
+        run: npm run test:realdb
+
+      # The key bypasses every rule in database.rules.json. It should not
+      # outlive the job even by the few seconds before the runner is torn
+      # down, and `always()` means a failure above does not leave it behind.
+      - name: Remove the key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/key.json"

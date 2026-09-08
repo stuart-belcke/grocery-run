@@ -84,6 +84,7 @@ The parts, if you need one on its own:
 | `npm test` | unit tests, `node --test` over `src/**/*.test.js` |
 | `npm run test:rules` | `database.rules.json` against the real emulator |
 | `npm run test:db` | `sync.js`'s household writes, against the real emulator |
+| `npm run test:realdb` | real sign-in against Google's database (NOT in `check`) |
 | `npm run test:sw` | a real deploy landing on a running app (NOT in `check`) |
 | `npm run test:e2e` | the real build in a real browser |
 | `npm run build` | the production bundle |
@@ -149,12 +150,43 @@ node's own import redirection — when `sync.js` asks for `firebase-config.js`
 it is handed a test copy naming the emulator. Nothing in `src/` changes, so
 every guarantee it already had still holds. See `Architecture.txt` entry 7.
 
-**What `test:db` still cannot answer** is whether any of it works against
-Google's real service. The identity it signs in with (`mockUserToken`) is one
-only an emulator accepts, so REAL SIGN-IN is untestable here — that is roadmap
-98f, a permanent test household. And the whole leave-and-restore path was
-walked by hand once on the real database (item 86); that walk is still the only
-evidence for the service itself.
+**`npm run test:realdb` is the only thing that talks to Google's real
+service** (item 128), and it is NOT in `npm run check`. `test:db` next door
+signs in with an identity only an emulator accepts (`mockUserToken`), so real
+sign-in was untestable — the four household writes could be proved correct
+without ever being proved to work for a person. This mints a custom token
+with the service-account key, exchanges it with Google for a real ID token,
+and makes ordinary authenticated requests to the real database.
+
+It asserts only what the emulator CANNOT answer: that signing in works, that
+the test account can read and write its own household, that it is refused on
+one it is not a member of, that an unauthenticated request is refused, and
+that Google's rules engine agrees with the emulator's copy. Everything about
+our own code stays in `test:db`, where it runs in 17 seconds and cannot fail
+because a network did.
+
+It SKIPS without a service-account key, so it is invisible to anybody without
+one. `.github/workflows/real-db.yml` runs it on pull requests that touch
+`src/sync.js`, `src/firebase-config.js`, `database.rules.json`, `tests/db/**`
+or the reset script — a path filter rather than a label, because a label is a
+thing somebody has to remember. One at a time across all branches
+(`concurrency`), since two runs would fight over the single test household.
+
+**Run it by hand when you change the database seam and cannot wait for CI:**
+`GROCERY_RUN_REAL_KEY=/path/to/key.json GROCERY_RUN_TEST_HOUSEHOLD=home-xxxx
+npm run test:realdb`. Delete the key afterwards — it bypasses every rule in
+`database.rules.json`.
+
+**The test household is reset before every run**, not after: a run that dies
+halfway leaves it mid-change, so the next one has to start from whatever it
+finds. `scripts/reset-test-household.mjs` refuses any household not carrying
+`testHousehold: true` and never touches `members` — writing a membership
+record requires already being a member, so clearing it locks the test account
+out permanently.
+
+**Still true and worth keeping:** the whole leave-and-restore path was walked
+by hand once on the real database (item 86), and that walk is still the only
+evidence for those two flows against the real service.
 
 **Two scripts delete or overwrite production and run unattended** —
 `scripts/reclaim-households.mjs` (weekly sweep) and `scripts/deploy-rules.mjs`.

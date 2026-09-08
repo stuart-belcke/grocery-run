@@ -3553,3 +3553,68 @@ into the details panel and the name grew.
      reason 98f exists — is still untested. Left open in 98f with the trigger
      being the account existing.
      TESTED: 395 unit, 79 rules, 15 database, 325 browser, lint and build.
+128. REAL SIGN-IN, TESTED AT LAST. Roadmap 98f, closed. npm run test:realdb
+     is the only thing in this repo that talks to Google's real service.
+
+     WHAT IT CLOSES: tests/db signs in with mockUserToken, an identity the
+     emulator accepts and Google refuses outright — so the four household
+     writes were proved correct against something that cannot say no. This
+     mints a CUSTOM TOKEN with the service-account key, exchanges it with
+     Google's identity service for a genuine ID token, and makes ordinary
+     authenticated requests to the real database. That exchange IS the sign
+     in, and it is the step no emulator can stand in for.
+
+     DELIBERATELY NARROW. Seven tests, only on what the emulator cannot
+     answer: signing in works and returns the account asked for; the test
+     account reads its own household; it is REFUSED on one it is not a
+     member of; an unauthenticated request is refused; a full member may
+     write both the shopping state and the catalog; and the key belongs to
+     the same project the app talks to. Everything about our own code stays
+     in test:db, where it runs in 17 seconds and cannot fail because a
+     network did.
+     THE REFUSAL TEST IS THE LOAD-BEARING ONE. Every claim made in items 124
+     and 127 about isolation rests on the rules refusing an account outside
+     its household, and until now that was checked only against the
+     emulator's copy of the rules engine. If it ever passes, a mistyped
+     household code stops being a red test and becomes lost recipes.
+
+     NOT IN npm run check, for three reasons in order of cost: it would make
+     every deploy depend on Google being up, and a blip would turn a green
+     PR red on a repo whose own rule is that "flake" is never a root cause;
+     two runs at once would fight over the single test household; and it
+     writes to the real database, which belongs in the same category as the
+     sweep and the rules deploy rather than in a gate.
+
+     THE TRIGGER IS A PATH FILTER, NOT A LABEL — pull requests touching
+     src/sync.js, src/firebase-config.js, database.rules.json, tests/db/**
+     or the reset script. A label is a thing somebody has to remember; a
+     path is not. Plus workflow_dispatch, for running it on demand. One at a
+     time across all branches (concurrency, cancel-in-progress false: a
+     half-finished run leaves the household mid-reset, which is worse than
+     making the next one wait). The household is reset BEFORE the run, not
+     after, so a run that died halfway does not poison the next one.
+     SKIPS WITHOUT A KEY, so it is invisible to anybody without one and to
+     any pull request from a fork, which cannot see repository secrets. But
+     once the workflow has said it CAN run, GROCERY_RUN_REQUIRE_REAL_DB
+     makes it FAIL rather than skip — a silent skip there would report a
+     green step that tested nothing, which is the exact trap CLAUDE.md
+     already records for test:rules without a JVM.
+
+     THE FIREBASE VALUES ARE READ OUT OF src/firebase-config.js AS TEXT
+     (tests/db/realconfig.mjs) rather than copied into the workflow. That
+     file cannot be imported in node — the import.meta.env wall from item
+     124 — and a copy in a workflow is a second thing to keep in step, which
+     would be the stale one. None of those values are secret; every one
+     ships in the public bundle. The service-account key is the secret and
+     it is not there.
+
+     WRITTEN WITHOUT BEING ABLE TO RUN IT, said plainly because it is the
+     weakest thing here: this container's network policy refuses
+     *.firebaseio.com outright (CONNECT tunnel failed, 403), so CI is the
+     first thing that will ever execute these tests. What WAS verified
+     locally: the suite skips cleanly with no key; it fails rather than
+     skips when told it is required and cannot run; and the custom token is
+     well-formed with a signature that verifies. The exchange with Google,
+     and every assertion after it, is unproven until CI runs it once.
+     TESTED: 395 unit, 79 rules, 15 database, 325 browser, lint and build —
+     none of which touch this suite, by design.

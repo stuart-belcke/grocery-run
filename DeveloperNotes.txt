@@ -112,23 +112,9 @@ file reached 5,886 lines with ten live items in it.
         instruction actually misleads somebody; item 72's three drifts were
         all renames, which are now caught.
 
-    98f. THE MECHANICAL HALF IS DONE (item 127); the half that needs a real
-        account is not, and cannot be done from here.
-        BUILT AND TESTED: scripts/reset-test-household.mjs puts a household
-        back to what a brand-new one holds — seedCatalog over
-        public/catalog.json and emptyLocal — driven as a real child process
-        against the emulator by tests/db/reset.test.mjs. It refuses any
-        household not carrying `testHousehold: true`, leaves `members`
-        alone, and dry-runs by default. All three mutation-tested.
-        WHAT IS LEFT NEEDS YOU, not code. Somebody has to make a test-only
-        Google account, create a household with it, set testHousehold: true
-        on that node once, and put the code and a service-account key where
-        CI can read them. Until then nothing has ever run against Google's
-        real service and REAL SIGN-IN remains untested — which is the whole
-        reason this item exists.
-        THEN the tests are the same ones tests/db already has, pointed at the
-        real database instead of the emulator, with the reset run first.
-        TRIGGER: the account existing.
+    98f. DONE (items 127 and 128) — npm run test:realdb, run by
+        .github/workflows/real-db.yml on pull requests that touch the
+        database seam. See DeveloperNotes-Completed.txt.
 
     NOT LISTED BECAUSE THEY ARE FINE: the pure layer (345 unit tests), the
     rules (on the real emulator), the sweep scripts, the rendered UI (273
