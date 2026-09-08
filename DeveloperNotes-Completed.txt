@@ -3415,3 +3415,41 @@ into the details panel and the name grew.
      real service. The emulator is a faithful stand-in, not the thing, and
      real sign-in is untestable here by construction. That is 98f.
      TESTED: 389 unit, 79 rules, 10 database, 324 browser, lint and build.
+125. THE QUEUE THAT GUARDS AGAINST LOSING A SAVE WAS ITSELF UNGUARDED.
+     Found by mutation-testing item 124's new suite, not by a failure:
+     deleting `sequencer` from sync.js — both call sites — broke NOTHING.
+     389 unit, 79 rules, 10 database, 324 browser, lint and build, all green
+     without it. Item 33's fix against silent data loss between two phones
+     had been unprotected since the day it shipped, and nobody knew.
+
+     A TEST HAD BEEN WRITTEN FOR IT IN ITEM 124 AND WAS DELETED, because it
+     passed just as happily with the queue removed. That is worse than no
+     test: it reads as coverage. The reason it could not work is the shape
+     of the bug — not a wrong value arriving, but two saves both reading the
+     baseline before either updates it, so the one finishing LAST sets it
+     even carrying older data, and the damage appears in the NEXT save's
+     diff. Reproducing that needs one save held open mid-flight, and nothing
+     outside sync.js can hold a write open.
+
+     THE FIX WAS TO MOVE IT, NOT TO BUILD A SEAM. `sequencer` is eight lines
+     with no Firebase in it — the one part of sync.js that could live in the
+     pure layer, where lib.js already drives everything directly. In lib.js
+     the work is promises the test settles by hand, so the interleaving is
+     STATED rather than hoped for. Building a "wait here for tests" hook into
+     sync.js would have been the workaround; this is the repo's own rule
+     about fixing the trap rather than documenting it, applied to structure.
+     sync.js already imported from lib.js, so the direction is unchanged.
+
+     FIVE TESTS, and three mutations that each fail only what they should:
+     running everything immediately instead of in turn fails the ordering
+     pair; `then(fn)` instead of `then(fn, fn)` — a failure wedging the queue
+     — fails the one about a refused write not stopping every save after it,
+     which is exactly why sync.js keeps its baseline on failure; and making
+     every caller wait for the whole queue rather than its own turn fails
+     both the own-turn test and the one proving the shopping list and the
+     catalog do not block each other.
+
+     THE GENERAL LESSON, now in CLAUDE.md: if a thing cannot be tested where
+     it lives, ask whether it lives in the right place. The untestability was
+     the symptom; the wrong file was the cause.
+     TESTED: 394 unit, 79 rules, 10 database, 324 browser, lint and build.
