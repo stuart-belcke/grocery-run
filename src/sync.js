@@ -12,7 +12,7 @@
  * ------------------------------------------------------------------ */
 
 import { firebaseConfig, syncEnabled } from "./firebase-config.js";
-import { planWrite, cleanCode, newInviteToken, newHouseholdCode, cleanHouseholdName } from "./lib.js";
+import { planWrite, cleanCode, newInviteToken, newHouseholdCode, cleanHouseholdName, sequencer } from "./lib.js";
 
 /* ------------------------- write failure signal ---------------------
    A rejected write (security rules, quota, a malformed payload) used to be
@@ -51,21 +51,6 @@ function reportWriteOk() {
   for (const cb of writeErrorListeners) cb(null);
 }
 
-// Runs write() calls to the same database node one at a time. Two flushes
-// overlapping (e.g. a rapid second edit while the first is still awaiting the
-// network) used to both read the SAME stale baseline before either had
-// updated it — so whichever await happened to resolve LAST won the baseline
-// assignment, even when it represented the OLDER write. The next diff was
-// then computed against that wrong base and could silently omit changes.
-// Sequencing removes the ambiguity by construction: a write's baseline read
-// can never happen until the previous write has fully landed (or failed).
-function sequencer() {
-  let tail = Promise.resolve();
-  return (fn) => {
-    tail = tail.then(fn, fn);
-    return tail;
-  };
-}
 
 // Shared by getDb() and getAuthInstance() — Firebase throws if you call
 // initializeApp() twice for the same config, so both derive from this one

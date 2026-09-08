@@ -1788,6 +1788,38 @@ const isPlainObject = (v) => v !== null && typeof v === "object" && !Array.isArr
 //     changed) -> seed the whole node, and diff from there on
 //   - baseline matches and nothing differs -> send nothing at all
 //   - otherwise -> a narrow multi-path update
+/* RUNS ASYNC WORK ONE AT A TIME, in the order it was handed over. Each call
+   returns a promise for its own turn; the next one does not start until this
+   one has finished.
+
+   WHY sync.js NEEDS IT, which is the only reason it exists (item 33). A save
+   is computed as the difference between the state being saved and the last
+   one known to have landed. Two saves overlapping both read that baseline
+   before either had updated it — so whichever finished LAST set it, even when
+   it carried the older data, and the NEXT save's difference was then computed
+   against the wrong starting point and could silently leave changes out. That
+   is data loss between two phones with nothing on screen to show for it.
+   Sequencing removes the race by construction rather than by timing: the
+   second save's baseline read cannot happen until the first has finished.
+
+   A FAILURE DOES NOT STOP THE QUEUE — `then(fn, fn)` runs the next piece of
+   work whether the previous one resolved or rejected. A refused write must
+   not wedge every save after it, and sync.js deliberately keeps its baseline
+   on failure so the refused edit is retried rather than dropped.
+
+   IT LIVES HERE, in the pure layer, because it is the one part of sync.js
+   with no Firebase in it — and because in sync.js it was untestable. Deleting
+   it there broke NOTHING in the entire suite (item 125), which is how a fix
+   guarding real data loss turned out to have been unprotected since the day
+   it shipped. */
+export function sequencer() {
+  let tail = Promise.resolve();
+  return (fn) => {
+    tail = tail.then(fn, fn);
+    return tail;
+  };
+}
+
 export function planWrite(baseline, code, state) {
   if (!baseline || baseline.code !== code) return { kind: "set", state };
   const paths = diffPaths(baseline.state, state);
