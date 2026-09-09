@@ -61,6 +61,20 @@ function customToken(sa, uid) {
   return `${unsigned}.${createSign("RSA-SHA256").update(unsigned).sign(sa.private_key).toString("base64url")}`;
 }
 
+/* WHO THE ID TOKEN SAYS YOU ARE, read out of the token itself. The sign-in
+   response does NOT carry the account id: accounts:signInWithCustomToken
+   answers with idToken, refreshToken, expiresIn and isNewUser and nothing
+   else — `localId` comes back from password sign-in, not this one. An ID
+   token is three base64url pieces separated by dots; the middle piece is
+   plain JSON, and Firebase puts the account id in it twice, as `user_id`
+   and as `sub`. Reading it here is not a security check — the database
+   verifies the signature on every request, and that is the check that
+   counts — it only lets the first test below say WHICH account signed in. */
+function uidOf(idToken) {
+  const claims = JSON.parse(Buffer.from(idToken.split(".")[1], "base64url").toString("utf8"));
+  return claims.user_id || claims.sub;
+}
+
 async function signIn(sa, uid) {
   const res = await fetch(
     `https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${API_KEY}`,
@@ -72,7 +86,8 @@ async function signIn(sa, uid) {
   );
   const body = await res.json();
   if (!res.ok) throw new Error(`sign-in failed (${res.status}): ${JSON.stringify(body)}`);
-  return body; // { idToken, refreshToken, expiresIn, ... }
+  if (!body.idToken) throw new Error(`no ID token came back: ${JSON.stringify(body)}`);
+  return { idToken: body.idToken, uid: uidOf(body.idToken) };
 }
 
 // An ordinary authenticated request, exactly as a signed-in client makes it.
@@ -97,20 +112,32 @@ if (!ready) {
   test("SKIPPED: no service-account key or no test household named", { skip: true }, () => {});
 } else {
   const sa = JSON.parse(KEY.trim().startsWith("{") ? KEY : fs.readFileSync(KEY, "utf8"));
-  let idToken = null;
+
+  /* SIGN IN ONCE, AND LET EVERY TEST ASK FOR THE SAME ANSWER. `session()`
+     starts the sign-in the first time it is called and hands every later
+     caller the same result, so the network is used once.
+
+     NO TEST STORES ANYTHING FOR THE NEXT ONE, and that is the point rather
+     than tidiness. This file first ran in CI with the sign-in in test 1 and
+     the token in a shared variable, and test 1 failed one line before it
+     filled the variable in — so the five tests after it sent requests with
+     no token at all and reported "permission denied" five times over. One
+     wrong field name read as a rules failure. A test that fails here now
+     fails with the sign-in error that actually happened. */
+  let pending = null;
+  const session = () => (pending ||= signIn(sa, UID));
 
   test("signing in with a real identity works, and it is the account we expect", async () => {
     /* THE WHOLE REASON 98f EXISTS. Nothing before this had ever exchanged a
        credential with Google — the emulator accepts a stated user id and
        asks no questions, so every earlier test proved our code correct
        against something that cannot refuse. */
-    const session = await signIn(sa, UID);
-    assert.ok(session.idToken, `no ID token came back: ${JSON.stringify(session)}`);
-    assert.equal(session.localId, UID, "signed in as a different account than asked for");
-    idToken = session.idToken;
+    const { uid } = await session();
+    assert.equal(uid, UID, "signed in as a different account than asked for");
   });
 
   test("the test account can read its own household", async () => {
+    const { idToken } = await session();
     const { status, body } = await db(`households/${HOUSEHOLD}`, { token: idToken });
     assert.equal(status, 200, `read refused: ${body}`);
     assert.ok(body && body.members && body.members[UID], `not a member of ${HOUSEHOLD}: ${JSON.stringify(body && body.members)}`);
@@ -122,6 +149,7 @@ if (!ready) {
        engine rather than the emulator's copy of it. If this ever passes,
        a mistyped household code stops being a red test and starts being
        somebody's lost recipes. */
+    const { idToken } = await session();
     const { status } = await db("households/home-notamember", { token: idToken });
     assert.notEqual(status, 200, "a non-member was allowed to READ another household");
   });
@@ -136,6 +164,7 @@ if (!ready) {
     /* An ordinary member write, which is what the app does all day. Written
        under a key of its own so it cannot disturb anything the reset put
        there, and removed again afterwards. */
+    const { idToken } = await session();
     const marker = `realdbtest-${Date.now()}`;
     const path = `households/${HOUSEHOLD}/state/${marker}`;
 
@@ -156,6 +185,7 @@ if (!ready) {
        no role field, which means full — so it must be ALLOWED here. The
        emulator says the same in tests/rules; if the two ever disagree,
        every conclusion drawn from the emulator needs re-checking. */
+    const { idToken } = await session();
     const marker = `realdbtest-${Date.now()}`;
     const path = `households/${HOUSEHOLD}/catalog/${marker}`;
     const put = await db(path, { method: "PUT", token: idToken, body: true });
