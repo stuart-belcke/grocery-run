@@ -3687,3 +3687,81 @@ into the details panel and the name grew.
      STILL UNPROVEN: nobody has read the test household back after a run to
      confirm members survived. The emulator test in item 127 remains the
      only evidence for that.
+
+129. MAKING A HOUSEHOLD, FROM SETTINGS. Roadmap 101, closed. Settings could
+     already SWITCH between households, RESTORE a deleted one and JOIN one by
+     invite, but not make one — so an account gained households only by being
+     invited to them, which is backwards and was left over from when a device
+     had exactly one. Asked as "if you can get invited to multiple, why not be
+     able to make new ones?"
+
+     BUILT BEFORE ITS OWN TRIGGER FIRED, said plainly: the entry's trigger was
+     "a second real household existing to want", and there is still one
+     household and two phones. The owner asked for it anyway. Nothing below is
+     weaker for that, but the feature has not been used in anger.
+
+     CLAIMING IS THE DANGEROUS PART and items 83, 84 and 85 are three rounds
+     of "the app made me a household I did not ask for". So it is a button,
+     then a dialog you have to fill in, and it LANDS YOU IN THE NEW ONE — the
+     result of pressing Create is somewhere you are standing, never a
+     household seeded quietly in the background.
+
+     A NAME IS REQUIRED, not optional with a default. A second and third
+     household both called home-xxxxxxxx are indistinguishable in the very
+     switcher this feature exists to fill. Pressing Create with an empty name
+     SAYS SO rather than doing nothing: ChoiceDialog's actions have no
+     disabled state, and a button that silently ignores you reads as the app
+     being broken.
+
+     WHAT IT STARTS WITH IS ASKED, not decided. Both answers are defensible
+     and they are different products, so the dialog offers the starter catalog
+     (24 recipes, 164 ingredients — what a first run gives you) or nothing at
+     all, and says what each means. emptyCatalog() in lib.js is BUILT FROM
+     seedCatalog with an empty catalog rather than written out again, so the
+     two shapes cannot drift; a unit test compares their field lists for
+     exactly that. An empty household has no stores either, which is
+     recoverable — the Ingredients tab adds them — and a better starting guess
+     than five shops somebody else goes to.
+
+     TWO WRITES, IN THIS ORDER, AND IT CANNOT BE ONE (sync.js). The rules let
+     an account claim a household with no members, and let a MEMBER write the
+     name. A single multi-path update cannot do both: `root` in a rule is the
+     tree as it stands BEFORE the write, so the name would be judged against a
+     household this account is not yet in. Membership first, name second. The
+     mutation that swaps them fails against the real rules, so this is
+     measured rather than argued.
+
+     THE CHECK I WROTE THAT COULD NOT WORK, kept here because it is the more
+     useful half. To refuse a code somebody already has, read
+     households/{code}/members and stop if it has any — except reading a
+     household REQUIRES a membership record in it, so a household you are not
+     in is unreadable. That is the isolation property the whole rules file is
+     built on, and it makes the client-side guard impossible in principle, not
+     merely awkward. Two tests failed against the real rules before this was
+     obvious. The rules are the guard; the code attempts the claim and reports
+     the refusal.
+
+     THE ORDERING LESSON FROM leaveHousehold APPLIES UNCHANGED. A brand-new
+     household has no remote state, so the subscribe effect seeds it from
+     localRef.current — which, left alone, is the household you were just in.
+     The state reset and the code change land together. Leaving got this wrong
+     once and rebuilt the household it had just deleted under a fresh code.
+
+     THE OLD HOUSEHOLD IS UNTOUCHED — its cache, its members and its place in
+     the switcher. Creating is not leaving, and the dialog says so, because
+     the neighbouring fear to item 83's is that making a new one loses the old.
+
+     TESTED. Three database tests against the real database.rules.json on the
+     emulator (claims and names it, does not touch the household you are in,
+     is refused on an occupied code), each mutation-tested and each failing
+     only its own. Five browser tests for everything up to the write — the
+     button, the dialog, the cursor landing in the name field rather than on
+     Cancel, the required name, both starting choices, and the honest failure
+     when a local-only build cannot reach a database — three of them
+     mutation-tested. Two unit tests on emptyCatalog's shape. A FAQ entry,
+     with the button marked [[Create a household]] so item 126's check holds
+     the help text to it.
+
+     WHAT NO TEST COVERS: the write landing against Google's real service.
+     tests/db proves it against the emulator with the real rules, which is as
+     far as items 124 and 127 go for every other household write.

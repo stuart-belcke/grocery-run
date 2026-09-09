@@ -100,6 +100,11 @@ export const FAQS = [
     keywords: ["name", "rename", "household name", "call", "label", "title"],
   },
   {
+    q: "Can I have more than one household?",
+    a: "Yes. Settings, under Household, [[Create a household]]. Give it a name and choose whether it starts with the recipes the app ships with or with nothing at all, and this phone moves into it — the one you were in keeps its list and recipes and stays in the list above, to switch back to whenever you like. Each household is completely separate: its own shopping list, week plan, recipes, ingredients and stores, and its own people. Useful for a second home or a trip you shop for separately. Only full members can make one, not guests.",
+    keywords: ["create", "new household", "second household", "another household", "more than one", "separate list", "trip", "second home"],
+  },
+  {
     q: "How do I get the app onto my home screen?",
     a: "On iPhone: tap Share, then Add to Home Screen. On Android: open the browser menu, then Install app — or use the button the app offers you, which opens the same dialog in one tap. It then opens without the browser bar, works offline, and stays signed in. The app offers this once after you join, and it is always available afterwards in Settings under Account. If you joined as a guest without an account, that access lives in this browser, so signing in is what carries it to the icon.",
     keywords: ["home screen", "install", "icon", "add to home screen", "app", "pwa", "shortcut", "standalone"],

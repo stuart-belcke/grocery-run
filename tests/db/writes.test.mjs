@@ -24,6 +24,63 @@ if (!haveEmulator()) {
   });
   test.after(() => stop());
 
+  test("creating a household claims it and names it, in that order", async () => {
+    /* ITEM 101. The claim is the write items 83, 84 and 85 are three rounds
+       of fixing, so it runs here against the REAL rules rather than being
+       reasoned about. */
+    await wipe();
+    const sync = await loadSync();
+    const NEW = "home-brandnew1";
+
+    const res = await sync.createHousehold(NEW, "Beach house", { uid: ME, email: "me@example.com" });
+    assert.equal(res.ok, true, `creating failed: ${JSON.stringify(res)}`);
+    assert.equal(res.name, "Beach house", "the name write is half the job — a household called home-xxxxxxxx is unreadable in the switcher");
+
+    const after = await read(`households/${NEW}`);
+    assert.ok(after && after.members && after.members[ME], "the creator has to end up a member, or they cannot read what they just made");
+    assert.equal(after.name, "Beach house", "the name must be on the household itself");
+
+    const index = await read(`users/${ME}/households/${NEW}`);
+    assert.ok(index, "it must reach this account's index, or it never appears in the switcher");
+    assert.equal(index.name, "Beach house", "the index carries its own copy of the name — see mirrorHouseholdName");
+  });
+
+  test("creating does not touch the household you are already in", async () => {
+    /* Creating is not leaving. The one you are in keeps its members and its
+       data — this is the difference between gaining a household and swapping
+       one, and item 83 is what happens when the app confuses them. */
+    await wipe();
+    await seedHousehold(HERE, { [ME]: MINE });
+    const sync = await loadSync();
+
+    await sync.createHousehold("home-second22", "Second", { uid: ME, email: "me@example.com" });
+
+    const old = await read(`households/${HERE}`);
+    assert.ok(old.members && old.members[ME], "the household you were in must still have you in it");
+    assert.ok(old.catalog, "and must still have its recipes");
+    assert.equal(old.deletedAt, undefined, "creating a household must never mark another one deleted");
+  });
+
+  test("creating is refused on a code somebody is already in, by the rules", async () => {
+    /* BY THE RULES, not by a check in our code — case 2 in
+       database.rules.json allows a first claim only when the member list is
+       empty. This cannot be guarded client-side even in principle: reading
+       households/{code}/members needs a membership record in that household,
+       so the check would be refused before it could refuse anything. */
+    await wipe();
+    await seedHousehold(HERE, { [THEM]: { role: "full", email: "them@example.com" } });
+    const sync = await loadSync();
+
+    const res = await sync.createHousehold(HERE, "Mine now", { uid: ME, email: "me@example.com" });
+    assert.equal(res.ok, false, "claiming an occupied household must fail");
+    assert.equal(res.reason, "refused", `expected the rules to refuse it, got ${JSON.stringify(res)}`);
+
+    const members = await read(`households/${HERE}/members`);
+    assert.deepEqual(Object.keys(members || {}), [THEM], "and must not have added the claimer to it");
+    const after = await read(`households/${HERE}`);
+    assert.notEqual(after.name, "Mine now", "nor renamed somebody else's household");
+  });
+
   test("leaving as the last member leaves a tombstone, not a hole", async () => {
     /* Item 86 changed this from a deletion to a marked-deleted household
        kept for a grace period, because the old behaviour made a mistake

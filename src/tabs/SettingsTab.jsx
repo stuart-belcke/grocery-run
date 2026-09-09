@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { C, fontBody, inputStyle, syncTone } from "../theme";
-import { Btn, ConfirmDialog, AlertDialog, Section, Seg, HelpText, useUnsavedWork } from "../ui";
+import { Btn, ConfirmDialog, ChoiceDialog, AlertDialog, Section, Seg, HelpText, useUnsavedWork } from "../ui";
 import { formatCatalog, recipeForCatalogFile, compactCfg, normalizeLocal, validLocal, seedCatalog, remapStateIngredientIds, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, inviteLive, newInviteToken, searchHelp, writeErrorAdvice, householdLabel, hasHouseholdName, cleanHouseholdName, exampleHouseholdName, HOUSEHOLD_NAME_MAX } from "../lib";
 import { syncEnabled } from "../sync";
 import { HOW_IT_WORKS, FAQS } from "../help";
@@ -53,7 +53,7 @@ function HouseholdLabel({ name, code, dim }) {
   );
 }
 
-export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, sync, writeError, user, accessDenied, myHouseholds, members, invites, isGuest, createInvite, revokeInvite, joinWithInvite, removeMember, leaveHousehold, restoreHousehold, graceDays = 30, authError, signInWithGoogle, sendEmailSignInLink, signOutUser, initialInvite = "", householdName = "", setHouseholdName, installPrompt }) {
+export function SettingsTab({ data, catalog, local, hCatalog, update, updateCatalog, setLocal, code, setCode, sync, writeError, user, accessDenied, myHouseholds, members, invites, isGuest, createInvite, revokeInvite, joinWithInvite, removeMember, leaveHousehold, restoreHousehold, createHousehold, graceDays = 30, authError, signInWithGoogle, sendEmailSignInLink, signOutUser, initialInvite = "", householdName = "", setHouseholdName, installPrompt }) {
   const prefs = data.prefs;
   const setPref = (patch) => updateCatalog((c) => ({ ...c, prefs: { ...c.prefs, ...patch } }));
   // The members node as written: { uid: { email, displayName, updatedAt } }.
@@ -140,6 +140,15 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
   const [codeInput, setCodeInput] = useState(initialInvite || code);
   const [codeMsg, setCodeMsg] = useState("");
   const [askJoin, setAskJoin] = useState(null);       // household code pending confirmation
+  /* ITEM 101's dialog. useState and not useSticky: this is work in progress,
+     not something you were looking at, so leaving Settings and coming back
+     should ask again rather than reopen a half-filled form (see CLAUDE.md). */
+  const [askCreate, setAskCreate] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newSeed, setNewSeed] = useState("starter");
+  const [creating, setCreating] = useState(false);
+  const [createMsg, setCreateMsg] = useState("");
+  const newNameRef = useRef(null);
   const [askImport, setAskImport] = useState(null);   // parsed backup pending confirmation
   const [askReset, setAskReset] = useState(false);    // reset-to-catalog confirmation
   const [copyFallback, setCopyFallback] = useState(null); // text to copy when the clipboard is blocked
@@ -311,6 +320,41 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         : res.switchedTo
           ? `You've left. This phone is on ${res.switchedTo} now.`
           : "You've left."
+    );
+  };
+
+  /* ITEM 101. Deliberate and confirmed, because items 83, 84 and 85 are three
+     rounds of "the app made me a household I did not ask for" — a button, a
+     name you have to type, and a choice about what is in it. And it LANDS YOU
+     IN THE NEW ONE rather than quietly seeding it in the background, so the
+     result of pressing Create is somewhere you are standing. */
+  const doCreate = async () => {
+    const name = cleanHouseholdName(newName);
+    /* SAY WHY NOTHING HAPPENED. ChoiceDialog's actions have no disabled
+       state, and a Create button that silently does nothing reads as the app
+       being broken rather than as a field being empty. */
+    if (!name) return setCreateMsg("Give it a name first — that is how you will tell it apart in the list.");
+    if (creating) return;
+    setCreateMsg("");
+    setCreating(true);
+    const res = await createHousehold({ name, seed: newSeed === "starter" });
+    setCreating(false);
+    if (!res || !res.ok) {
+      setCodeMsg(
+        res && res.reason === "offline"
+          ? "Couldn't create it — this phone may be offline. Try again when it reconnects."
+          : "Couldn't create it. Try again in a moment."
+      );
+      return;
+    }
+    setAskCreate(false);
+    setNewName("");
+    /* SAY WHICH ONE YOU ARE NOW IN. Creating changes what every other tab is
+       showing, and the switch is the part somebody could otherwise miss. */
+    setCodeMsg(
+      res.name
+        ? `${res.name} is ready, and this phone is now in it. The household you were in is still in the list above.`
+        : "Created, and this phone is now in it — but the name didn't save. Rename it above."
     );
   };
 
@@ -920,6 +964,20 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
               </div>
             )}
 
+            {/* ITEM 101: MAKE ONE, not only join one. Settings could already
+                SWITCH between households, RESTORE a deleted one and JOIN one
+                by invite — so an account accumulated households only by being
+                invited to them, which is backwards, and was left over from
+                when a device had exactly one.
+                ABOVE the code field on purpose: that field is how you reach a
+                household that already exists, and this is how one starts. */}
+            <div style={{ marginBottom: 14 }}>
+              <Btn onClick={() => { setNewName(""); setNewSeed("starter"); setCreateMsg(""); setAskCreate(true); }}>Create a household</Btn>
+              <p style={{ fontSize: 13, color: C.faint, margin: "6px 0 0" }}>
+                A separate list, plan and set of recipes — for a second home, or a trip. This phone moves to it, and the one you&apos;re in now stays where it is.
+              </p>
+            </div>
+
             <label htmlFor="household-code" style={{ fontSize: 13, color: C.faint, display: "block", marginBottom: 4 }}>Paste the invite link someone sent you — or a household code, to switch to one you&apos;re already in</label>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <input
@@ -1220,6 +1278,55 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
       <p style={{ fontSize: 12, color: C.faint, textAlign: "center", margin: "14px 0 4px", fontFamily: "ui-monospace, Menlo, monospace" }}>
         Build {__BUILD__}
       </p>
+
+      {/* ITEM 101's dialog. A ChoiceDialog rather than a ConfirmDialog because
+          this is a form you fill in: initialFocusRef puts the cursor in the
+          name field, so Enter out of habit does not land on Cancel and throw
+          away what was typed (see DialogShell). */}
+      <ChoiceDialog
+        open={askCreate}
+        title="Create a household"
+        initialFocusRef={newNameRef}
+        onCancel={() => setAskCreate(false)}
+        choices={[{ label: creating ? "Creating…" : "Create", kind: "primary", onClick: doCreate }]}
+      >
+        {/* A NAME IS REQUIRED, not optional-with-a-default. A second and third
+            household both called home-xxxxxxxx are indistinguishable in the
+            switcher, which is the list this feature exists to fill. */}
+        <label htmlFor="new-household-name" style={{ display: "block", marginBottom: 4 }}>
+          What should it be called?
+        </label>
+        <input
+          id="new-household-name"
+          ref={newNameRef}
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          maxLength={HOUSEHOLD_NAME_MAX}
+          placeholder={`e.g. ${exampleHouseholdName(user && user.displayName)}`}
+          style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
+        />
+
+        {createMsg && <p role="status" style={{ margin: "6px 0 0", color: C.ink }}>{createMsg}</p>}
+
+        <div style={{ marginTop: 14, marginBottom: 4 }}>What should be in it?</div>
+        <Seg
+          options={[
+            { value: "starter", label: "Starter recipes" },
+            { value: "empty", label: "Nothing" },
+          ]}
+          value={newSeed}
+          onChange={setNewSeed}
+        />
+        <p style={{ margin: "6px 0 0" }}>
+          {newSeed === "starter"
+            ? "The 24 recipes and 164 ingredients a first run starts with — the same as “Restore starter catalog”."
+            : "No recipes, ingredients or stores. You can add the starter ones later from Export & recover, and stores from the Ingredients tab."}
+        </p>
+
+        <p style={{ margin: "12px 0 0" }}>
+          This phone will move to the new household. <b style={{ color: C.ink }}>{householdLabel(householdName, code)}</b> keeps its list and recipes, and stays in the list above to switch back to.
+        </p>
+      </ChoiceDialog>
 
       <ConfirmDialog
         open={!!askJoin}
