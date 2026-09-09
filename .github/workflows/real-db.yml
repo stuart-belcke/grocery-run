@@ -62,17 +62,33 @@ jobs:
       # out loud. A fork's pull request cannot see repository secrets, so
       # this has to degrade to a clear message rather than a confusing
       # authentication failure.
+      #
+      # BUT A MISSING SETTING IS NOT THE SAME AS A FORK, and treating the two
+      # alike reported a green run that had tested nothing. That is exactly
+      # what happened the first time this workflow ran: the variable had not
+      # been created yet, both real steps skipped, and the job passed. The
+      # GROCERY_RUN_REQUIRE_REAL_DB flag on the test step below cannot catch
+      # it, because that step never runs.
+      #
+      # So the two cases are separated by whether the SECRET came through.
+      # A fork sees no secret at all — nothing is wrong, skip and say so. If
+      # the secret IS here, this is the repository's own branch, and a
+      # missing variable is a setting somebody has not made yet. FAIL, and
+      # say where to make it.
       - name: Is there a key and a household to test against?
         id: have
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           GROCERY_RUN_TEST_HOUSEHOLD: ${{ vars.GROCERY_RUN_TEST_HOUSEHOLD }}
         run: |
-          if [ -n "$FIREBASE_SERVICE_ACCOUNT" ] && [ -n "$GROCERY_RUN_TEST_HOUSEHOLD" ]; then
-            echo "ready=yes" >> "$GITHUB_OUTPUT"
-          else
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
             echo "ready=no" >> "$GITHUB_OUTPUT"
-            echo "::notice::Skipped — needs the FIREBASE_SERVICE_ACCOUNT secret and the GROCERY_RUN_TEST_HOUSEHOLD variable. A pull request from a fork cannot see either."
+            echo "::notice::Skipped — no FIREBASE_SERVICE_ACCOUNT secret. A pull request from a fork cannot see repository secrets, which is expected."
+          elif [ -z "$GROCERY_RUN_TEST_HOUSEHOLD" ]; then
+            echo "::error::The FIREBASE_SERVICE_ACCOUNT secret is here but GROCERY_RUN_TEST_HOUSEHOLD is not set, so these tests cannot run and passing would mean nothing. Set it at Settings -> Secrets and variables -> Actions -> Variables -> New repository variable, named GROCERY_RUN_TEST_HOUSEHOLD, holding the code of a household whose node carries testHousehold: true."
+            exit 1
+          else
+            echo "ready=yes" >> "$GITHUB_OUTPUT"
           fi
 
       # PUT THE HOUSEHOLD BACK FIRST, not afterwards. A run that dies halfway
