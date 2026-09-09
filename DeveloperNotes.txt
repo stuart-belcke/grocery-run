@@ -127,10 +127,12 @@ file reached 5,886 lines with ten live items in it.
         something already covered elsewhere. Worth it only if a rearranged
         instruction actually misleads somebody; item 72's three drifts were
         all renames, which are now caught.
-        AND THE RENAME CHECK IS WEAKER THAN IT SOUNDS, measured while adding
-        [[Create a household]] in item 129: it passes as long as the name
-        survives ANYWHERE in src/, so renaming the button while a dialog
-        titled the same thing still exists does not fail it. That is not a
+        AND THE RENAME CHECK IS WEAKER THAN IT SOUNDS. The check takes every
+        button name the help text promises and looks for those exact words
+        somewhere in the app's source. Measured while adding "Create a
+        household" to the help in item 129: it passes as long as the words
+        survive ANYWHERE, so renaming the button while a dialog TITLED the
+        same thing still exists does not fail it. That is not a
         bug to fix — a dialog titled after the button that opens it is right
         — but the check proves "some control is still called this", not
         "this control is".
