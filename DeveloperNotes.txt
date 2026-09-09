@@ -57,9 +57,25 @@ file reached 5,886 lines with ten live items in it.
     can currently measure.
     TRIGGER: a household big enough that a re-render is perceptible, or a
     move off RTDB. Measure before touching it.
-    ONE THING WORTH DOING SOONER, cheaply: an ESLint no-restricted-imports
-    rule banning `firebase/*` outside sync.js, so the seam cannot regress
-    silently. It is currently a convention held by attention alone.
+    THE CHEAP HALF IS DONE and this entry was wrong to say otherwise: the
+    ESLint no-restricted-imports rule banning `firebase` and `firebase/*`
+    outside sync.js and firebase-config.js has been in eslint.config.js for
+    some time. The seam is enforced, not a convention held by attention.
+    IT WAS NOT REACHING EVERY FILE, though. The block carrying it matched
+    src/**/*.{js,jsx}, and src/sync.test.mjs is the one file in src with a
+    different extension — so ESLint read it and applied NO RULES AT ALL,
+    the bare default with nothing configured. Not just this rule: `no-undef`
+    was missing too, which the config's own comment calls the one that
+    matters, because Vite does not type-check and a helper used but not
+    imported builds cleanly and blanks the screen at runtime.
+    Now src/**/*.{js,jsx,mjs}, with the node-globals block widened to
+    src/**/*.test.{js,mjs} to match. Nothing in that file was wrong; the
+    checks simply were not looking at it. Mutation-tested four ways: an
+    undefined variable errors, a Firebase import errors, its real
+    mock.module("firebase/app") STRINGS still pass (a string is not an
+    import), and the whole repo lints with the same three warnings it had.
+    A NEW EXTENSION UNDER src/ NEEDS ADDING HERE. That is the shape of the
+    defect and it can happen again.
 
 36. SPLIT lib.js WHEN IT MAKES A CHANGE HARD, not on principle.
     3,209 lines now, and a grab-bag: units, ingredient identity,

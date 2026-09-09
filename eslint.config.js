@@ -11,7 +11,13 @@ export default [
   { ignores: ["dist/**", "node_modules/**"] },
 
   {
-    files: ["src/**/*.{js,jsx}"],
+    // .mjs IS IN HERE ON PURPOSE. It was not, and the one file with that
+    // extension — src/sync.test.mjs — was linted with NO RULES AT ALL:
+    // ESLint read it, no block's `files` pattern matched, and it got the
+    // bare default. An undefined variable and a banned Firebase import both
+    // passed it silently. Nothing was wrong in the file; the checks below
+    // simply were not reaching it.
+    files: ["src/**/*.{js,jsx,mjs}"],
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: "module",
@@ -58,7 +64,7 @@ export default [
 
   // Tests and build config run in Node, not the browser.
   {
-    files: ["src/**/*.test.js", "vite.config.js", "eslint.config.js"],
+    files: ["src/**/*.test.{js,mjs}", "vite.config.js", "eslint.config.js"],
     languageOptions: { globals: { ...globals.node } },
   },
 
