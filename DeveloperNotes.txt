@@ -112,35 +112,9 @@ file reached 5,886 lines with ten live items in it.
         instruction actually misleads somebody; item 72's three drifts were
         all renames, which are now caught.
 
-    98f. THE MECHANICAL HALF IS DONE (item 127); the half that needs a real
-        account is not, and cannot be done from here.
-        BUILT AND TESTED: scripts/reset-test-household.mjs puts a household
-        back to what a brand-new one holds — seedCatalog over
-        public/catalog.json and emptyLocal — driven as a real child process
-        against the emulator by tests/db/reset.test.mjs. It refuses any
-        household not carrying `testHousehold: true`, leaves `members`
-        alone, and dry-runs by default. All three mutation-tested.
-        THE HOUSEHOLD NOW EXISTS: home-testonly1, one member
-        "grocery-run-test", testHousehold set in the console, reset run
-        against the real database for real. No Google account was needed —
-        the member record was written by hand and the tests will sign in
-        with a CUSTOM TOKEN, which the service-account key signs for any
-        user id. That is also why a personal account must never be used: it
-        is a member of a real household, so the rules would let a test reach
-        real recipes, and the isolation this whole item rests on disappears.
-        WHAT IS LEFT IS THE TESTS THEMSELVES — signing in as
-        grocery-run-test with a custom token and running tests/db's
-        assertions against the real database instead of the emulator, with
-        the reset run first. REAL SIGN-IN is still untested, which is the
-        whole reason this item exists.
-        AND A DECISION: where they run. CI has the key already
-        (FIREBASE_SERVICE_ACCOUNT, used by deploy-rules.mjs), but pointing
-        every push at the real service is a different risk and a slower
-        gate than the emulator. A separate command run by hand is the
-        cheaper start.
-        THEN the tests are the same ones tests/db already has, pointed at the
-        real database instead of the emulator, with the reset run first.
-        TRIGGER: the account existing.
+    98f. DONE (items 127 and 128) — npm run test:realdb, run by
+        .github/workflows/real-db.yml on pull requests that touch the
+        database seam. See DeveloperNotes-Completed.txt.
 
     NOT LISTED BECAUSE THEY ARE FINE: the pure layer (345 unit tests), the
     rules (on the real emulator), the sweep scripts, the rendered UI (273

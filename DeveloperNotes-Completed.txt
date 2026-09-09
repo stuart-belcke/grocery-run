@@ -3562,10 +3562,128 @@ into the details panel and the name grew.
      actually survive is proved by the emulator test, and the real run is
      consistent with it — nobody has read the node afterwards to confirm.
 
-     WHAT IS NOT DONE, AND CANNOT BE FROM HERE: no TEST has run against
-     Google's real service, and real sign-in is still the point of 98f. That needs a test-only account, a household
-     created with it, the marker set on that node once by hand, and a
-     service-account key where CI can read it. Real sign-in — the entire
-     reason 98f exists — is still untested. Left open in 98f with the trigger
-     being the account existing.
+     WHAT THIS ITEM LEFT UNDONE, closed by item 128 next: no TEST had run
+     against Google's real service, so real sign-in — the entire reason 98f
+     exists — was still unproven. It needed the household above, plus a
+     service-account key where CI could read it.
      TESTED: 395 unit, 79 rules, 15 database, 325 browser, lint and build.
+
+128. REAL SIGN-IN, TESTED AT LAST. Roadmap 98f, closed. npm run test:realdb
+     is the only thing in this repo that talks to Google's real service.
+
+     WHAT IT CLOSES: tests/db signs in with mockUserToken, an identity the
+     emulator accepts and Google refuses outright — so the four household
+     writes were proved correct against something that cannot say no. This
+     mints a CUSTOM TOKEN with the service-account key, exchanges it with
+     Google's identity service for a genuine ID token, and makes ordinary
+     authenticated requests to the real database. That exchange IS the sign
+     in, and it is the step no emulator can stand in for.
+
+     DELIBERATELY NARROW. Seven tests, only on what the emulator cannot
+     answer: signing in works and returns the account asked for; the test
+     account reads its own household; it is REFUSED on one it is not a
+     member of; an unauthenticated request is refused; a full member may
+     write both the shopping state and the catalog; and the key belongs to
+     the same project the app talks to. Everything about our own code stays
+     in test:db, where it runs in 17 seconds and cannot fail because a
+     network did.
+     THE REFUSAL TEST IS THE LOAD-BEARING ONE. Every claim made in items 124
+     and 127 about isolation rests on the rules refusing an account outside
+     its household, and until now that was checked only against the
+     emulator's copy of the rules engine. If it ever passes, a mistyped
+     household code stops being a red test and becomes lost recipes.
+
+     NOT IN npm run check, for three reasons in order of cost: it would make
+     every deploy depend on Google being up, and a blip would turn a green
+     PR red on a repo whose own rule is that "flake" is never a root cause;
+     two runs at once would fight over the single test household; and it
+     writes to the real database, which belongs in the same category as the
+     sweep and the rules deploy rather than in a gate.
+
+     THE TRIGGER IS A PATH FILTER, NOT A LABEL — pull requests touching
+     src/sync.js, src/firebase-config.js, database.rules.json, tests/db/**
+     or the reset script. A label is a thing somebody has to remember; a
+     path is not. Plus workflow_dispatch, for running it on demand. One at a
+     time across all branches (concurrency, cancel-in-progress false: a
+     half-finished run leaves the household mid-reset, which is worse than
+     making the next one wait). The household is reset BEFORE the run, not
+     after, so a run that died halfway does not poison the next one.
+     SKIPS WITHOUT A KEY, so it is invisible to anybody without one and to
+     any pull request from a fork, which cannot see repository secrets. Once
+     the workflow has said it CAN run, GROCERY_RUN_REQUIRE_REAL_DB makes it
+     FAIL rather than skip — a silent skip there would report a green step
+     that tested nothing, which is the exact trap CLAUDE.md already records
+     for test:rules without a JVM.
+     AND THAT FLAG WAS NOT ENOUGH, which the very first run proved by
+     PASSING WITHOUT RUNNING A SINGLE TEST. The repository variable naming
+     the household had not been created yet, so the step that decides
+     whether the suite can run at all said no, both real steps were skipped,
+     and the job reported success. GROCERY_RUN_REQUIRE_REAL_DB could not
+     catch it: it makes the test FILE fail rather than skip, and the test
+     file never ran.
+     THE FIX IS TO TELL TWO SITUATIONS APART that the gate was treating as
+     one, and the secret is what separates them. No secret at all means a
+     fork's pull request — nothing is wrong, skip and say so. The secret
+     present with no variable means THIS repository with a setting nobody
+     has made, so it fails and names the setting and where to make it. Three
+     branches, each checked by running the gate as shell: no secret exits 0
+     and writes ready=no; secret without the variable exits 1 and writes
+     nothing; both present exits 0 and writes ready=yes.
+
+     NO GOOGLE ACCOUNT WAS EVER NEEDED FOR THE TEST IDENTITY, and that is
+     not a shortcut — it is the isolation. A custom token is a short
+     document the service-account key signs saying "this is user X", and
+     Google's identity service will exchange one for any user id, whether or
+     not an account by that name exists. So the test signs in as
+     grocery-run-test, whose only membership record anywhere is the one
+     written by hand in home-testonly1.
+     A PERSONAL ACCOUNT MUST NEVER BE USED HERE. A real person's account is
+     a member of a real household, so the rules would let a test read and
+     write real recipes, and the one property every claim in items 124, 127
+     and 128 rests on — that the test identity belongs to exactly one
+     household — disappears.
+
+     THE FIREBASE VALUES ARE READ OUT OF src/firebase-config.js AS TEXT
+     (tests/db/realconfig.mjs) rather than copied into the workflow. That
+     file cannot be imported in node — the import.meta.env wall from item
+     124 — and a copy in a workflow is a second thing to keep in step, which
+     would be the stale one. None of those values are secret; every one
+     ships in the public bundle. The service-account key is the secret and
+     it is not there.
+
+     WRITTEN WITHOUT BEING ABLE TO RUN IT: this container's network policy
+     refuses *.firebaseio.com outright (CONNECT tunnel failed, 403), so CI
+     was the first thing that ever executed these tests. One round of
+     fixing was expected and one round is what it took.
+
+     WHAT THE FIRST REAL RUN FOUND: four of the seven failed, and all four
+     were one mistake. Google's accounts:signInWithCustomToken answers with
+     idToken, refreshToken, expiresIn and isNewUser — and NO account id.
+     localId comes back from password sign-in, not from this one, so the
+     check on it compared undefined against the user id and failed.
+     THE OTHER THREE FAILURES WERE NOT REAL, and that is the more useful
+     half. The token was assigned one line AFTER the check that threw, so it
+     stayed null and the next three tests sent requests with no identity at
+     all — three "permission denied" results that said nothing whatsoever
+     about the rules, on a suite whose whole subject is the rules.
+     TWO FIXES. uidOf() reads the account id out of the ID token itself: an
+     ID token is three base64url pieces separated by dots, the middle one is
+     plain JSON, and Firebase puts the id in it twice, as user_id and as
+     sub. That is not a security check — the database verifies the token's
+     signature on every request, and that is the check that counts — it only
+     lets the first test say WHICH account signed in.
+     AND NO TEST STORES ANYTHING FOR THE NEXT ONE NOW. session() starts the
+     sign-in on first use and hands every later caller the same result: one
+     network round trip, and a test that fails here fails with the sign-in
+     error that actually happened rather than a rules error that did not.
+     Same shape as the sequencer in item 125 — a fault in one place reading
+     as a fault somewhere else entirely.
+
+     TESTED: 7 pass, 0 fail, 0 skipped against Google's real service, in
+     0.66 seconds of test time, with the reset in the same job reporting
+     "members: grocery-run-test — LEFT UNTOUCHED" and writing 24 recipes and
+     164 ingredients. Plus 395 unit, 79 rules, 15 database, 325 browser,
+     lint and build — none of which touch this suite, by design.
+     STILL UNPROVEN: nobody has read the test household back after a run to
+     confirm members survived. The emulator test in item 127 remains the
+     only evidence for that.
