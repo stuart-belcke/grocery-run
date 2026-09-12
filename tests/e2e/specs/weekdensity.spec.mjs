@@ -222,3 +222,71 @@ test("a dessert-only day shows its dessert and reads as planned", async () => {
     await page.done();
   }
 });
+
+/* ── THE WEEK AT REST IS A LIST, NOT A FORM ────────────────────────────────
+   Planning needs the room: every slot open, servings, sides. Reading the week
+   does not, and it was wearing the form's clothes — a card per day with a
+   heading row, a decorative stripe and a full-width "Choose a meal" button on
+   all seven. A planned week ran about 1,230px, one and a half screens to
+   answer "what are we having".
+
+   THE RULE THIS HAD TO KEEP: a day with nothing on it stays fillable without
+   pressing Edit first. Gating that on edit mode was caught by three specs
+   once already, so the affordance MOVED — the empty day's whole row is now
+   the button — rather than going away. */
+
+test("a planned week fits on one screen without scrolling", async () => {
+  const page = await openWeek(planWith(fourDinners));
+  try {
+    const m = await measure(page);
+    assert.ok(
+      m.height <= m.viewport,
+      `the week is ${m.height}px against a ${m.viewport}px screen — reading it means scrolling`
+    );
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("an empty day is one row, and that row is how you fill it", async () => {
+  const page = await openWeek(planWith(fourDinners));
+  try {
+    // Tue has nothing on it in fourDinners.
+    const add = page.getByLabel("Choose a meal for Tue");
+    assert.equal(await add.count(), 1, "an empty day should offer exactly one way to fill it");
+
+    const box = await add.boundingBox();
+    assert.ok(box.height <= 44, `an empty day is ${Math.round(box.height)}px tall — it should be a single row`);
+    assert.ok(box.width > 200, `the row itself should be the target, and it is only ${Math.round(box.width)}px wide`);
+
+    /* WITHOUT PRESSING EDIT. This is the rule, checked from the resting
+       state — no Start planning, no Edit, just the tab as you find it. */
+    await add.click();
+    await page.waitForTimeout(400);
+    assert.equal(await page.getByRole("dialog", { name: "Choose a meal for Tue" }).count(), 1, "tapping an empty day should open the picker without going through Edit first");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("every day is still a heading, and still says which meal it is", async () => {
+  /* Two things condensing cost, both caught by other specs and both put back:
+     a screen reader navigates this tab by its day headings, and a day holding
+     only a DESSERT must not read like a day holding a dinner. */
+  const page = await openWeek(planWith({ ...fourDinners, Fri: { Dessert: { recipeId: "r-riceside", servings: 2 } } }));
+  try {
+    const seen = await page.evaluate(() =>
+      [...document.querySelectorAll("h2")].map((h) => h.textContent.trim().split("\n")[0])
+    );
+    for (const day of ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]) {
+      assert.ok(seen.some((t) => t.startsWith(day)), `${day} is not a heading — a screen reader cannot move through the week`);
+    }
+    const m = await measure(page);
+    assert.ok(m.typeLabels.includes("Dessert"), "a dessert-only day must say it is a dessert");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});

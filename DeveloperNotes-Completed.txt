@@ -3905,14 +3905,37 @@ into the details panel and the name grew.
         been called Pantry for a long time and the comments had not caught
         up, which is exactly how the wrong name reached a dialog in item 129.
 
-     WHAT WAS LOOKED AT AND DELIBERATELY NOT DONE: making the week fit on a
-     screen. A planned week is about 1,230px, and the obvious saving — not
-     offering "+ Choose a meal" on every day when you are not planning —
-     IS A CHANGE ALREADY TRIED AND REVERTED, recorded in WeekTab itself: an
-     empty slot has always been fillable in either mode, and gating it took
-     that away, which three specs caught. What remains is decorative trim
-     worth about 7% of the height, which is not worth the churn. Left open,
-     with that constraint written down so the next attempt starts from it.
+     K. THE WEEK NOW FITS ON ONE SCREEN, and this entry first said it could
+        not be done. That was wrong, and worth recording why. I read the
+        comment in WeekTab about gating "+ Choose a meal" on edit mode and
+        reported it as "condensing the plan tab was already tried and
+        rejected". It was not. Two different things had been run together:
+        the thing BUILT AND REJECTED was a 7x4 GRID for choosing meals (item
+        111) — 28 boxes, which won every measurement and lost on reading your
+        own week by counting rows and columns. The comment records something
+        narrower and different in kind: a REGRESSION caught by three specs,
+        which left behind a RULE — a day with nothing on it stays fillable
+        without pressing Edit. A rule about how, not a verdict on whether.
+        THE SHAPE, proposed by the owner: Edit expands the tab to the form it
+        has always been, and leaving Edit condenses it to what is planned.
+        AND THE ONE PLACE IT COLLIDED with that rule was empty days, which
+        the proposal would have shown as a bare day name. So the affordance
+        MOVED INSTEAD OF GOING: an empty day is one row and the ROW is the
+        button, a wider target than the bordered one it replaces. A test
+        taps it from the resting state, with no Edit first.
+        MEASURED: 1,228px to 844px at 390px — which is the viewport, so the
+        week no longer scrolls at all. The saving is the card chrome (12px of
+        padding, a heading row, a decorative stripe per day) and the
+        full-width button on all seven days.
+        TWO THINGS CONDENSING COST, both caught by specs already here and
+        both put back. Every day name had become a plain span, leaving a
+        screen reader one heading — the app's name — and no way to move
+        through the week; they are h2 again, with the empty day's heading
+        wrapping its button the way Section does. And dropping the meal type
+        as redundant made a day holding only a DESSERT read exactly like a
+        day holding a dinner; it is always shown, under the day name in the
+        same column, which costs no height. An 11px label also failed the
+        floor of 12px the app holds itself to.
 
      I. THE LIST TAB'S VIEW TOGGLES MOVED OFF THE PINNED BAR. They took a
         row of a bar that stays on screen for the whole shop. They are now
@@ -3946,7 +3969,7 @@ into the details panel and the name grew.
         and it takes currentColor so it turns green with the words when a
         filter is doing something.
 
-     TESTED: 402 unit, 12 sync, 79 rules, 18 database, 337 browser, lint and
+     TESTED: 402 unit, 12 sync, 79 rules, 18 database, 340 browser, lint and
      build. Six existing browser tests had to be updated because controls
      genuinely moved, and each was re-pointed rather than weakened — the
      store editors are opened first, delete is measured inside the editor,
