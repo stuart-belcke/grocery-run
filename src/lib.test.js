@@ -76,6 +76,7 @@ import {
   slotDishes,
   planSlotsFor,
   seedCatalog,
+  emptyCatalog,
   needsIngredientIds,
   ensureIngredientId,
   ingredientIdByName,
@@ -93,6 +94,8 @@ import {
   DAYS,
   isBuildTooOld,
   APP_DATA_VERSION,
+  CATALOG_SHAPE_VERSION,
+  DEFAULT_PREFS,
   pickState,
   FALLBACK_CATALOG,
   normalizeCatalog,
@@ -1112,6 +1115,34 @@ test("seedCatalog keys recipes by id and MINTS ingredient ids", () => {
       assert.ok(c.ingredients[line.ingredientId], `dangling line ${JSON.stringify(line)}`);
     }
   }
+});
+
+test("emptyCatalog has the shape of a catalog and none of the content", () => {
+  /* ITEM 101. A household created "empty" still has to be a valid catalog
+     node — a missing version or prefs means the first write lands in a shape
+     normalizeCatalog repairs on the way back, which is a household born
+     needing migration. */
+  const e = emptyCatalog();
+  assert.deepEqual(e.recipes, {}, "an empty household must start with no recipes");
+  assert.deepEqual(e.ingredients, {}, "an empty household must start with no ingredients");
+  assert.deepEqual(e.stores, [], "and no stores — the Ingredients tab adds them");
+  assert.equal(e.version, CATALOG_SHAPE_VERSION, "the shape version has to be there");
+  assert.equal(e.appDataVersion, APP_DATA_VERSION, "so an older build knows whether it may write here");
+  assert.deepEqual(e.prefs, DEFAULT_PREFS, "units and week start are the household's, so a new one needs them");
+  assert.equal(e.updatedAt, 0, "0 so a pristine household loses to anything the database already holds");
+});
+
+test("emptyCatalog stays in step with seedCatalog's shape", () => {
+  /* The mutation this is here to catch: a field added to seedCatalog and not
+     to the empty case. They cannot drift while emptyCatalog is BUILT from
+     seedCatalog, and this fails the moment somebody writes the object out by
+     hand instead. */
+  const seeded = seedCatalog(catalogJson());
+  assert.deepEqual(
+    Object.keys(emptyCatalog()).sort(),
+    Object.keys(seeded).sort(),
+    "an empty household and a seeded one must have the same fields — only the contents differ"
+  );
 });
 
 test("seedCatalog skips legacy hidden markers", () => {

@@ -534,3 +534,128 @@ test("restoring fails honestly in this build too", async () => {
     await page.done();
   }
 });
+
+/* ── ITEM 101: CREATING A HOUSEHOLD ────────────────────────────────────────
+   What these can and cannot reach, said plainly for the same reason the file
+   header says it: createHousehold WRITES to the database, and a local-only
+   build has none — getDb() answers null, so the write reports offline. So
+   everything up to the write is real code under test here (the button, the
+   dialog, the required name, the two starting choices, the failure message),
+   and whether the claim and the name actually land against real rules is
+   proved next door in tests/db/writes.test.mjs, against the real
+   database.rules.json on the emulator. Neither suite covers the other. */
+
+test("creating a household is offered, and asks for a name and a starting point", async () => {
+  const page = await openSettings({ user: ME });
+  try {
+    await page.clickText(/^Create a household$/);
+    const dialog = page.getByRole("dialog", { name: "Create a household" });
+    await dialog.waitFor({ state: "visible", timeout: 3000 });
+
+    const text = await dialog.innerText();
+    assert.match(text, /What should it be called\?/, "a name is required at birth — a second home-xxxxxxxx is unreadable in the switcher");
+    assert.match(text, /What should be in it\?/, "the starting contents are a choice, not a default nobody was told about");
+    assert.match(text, /Starter recipes/);
+    assert.match(text, /Nothing/);
+
+    /* THE CURSOR HAS TO BE IN THE NAME FIELD. DialogShell focuses Cancel by
+       default, which is right for a dialog that only confirms and wrong for
+       one you fill in: Enter out of habit would throw away what was typed. */
+    const focused = await page.evaluate(() => document.activeElement && document.activeElement.id);
+    assert.equal(focused, "new-household-name", "the name field should have the cursor, not Cancel");
+
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("creating without a name says why instead of doing nothing", async () => {
+  /* ChoiceDialog's actions have no disabled state, so an empty name would
+     otherwise make Create a button that silently does nothing — which reads
+     as the app being broken rather than as a field being empty. */
+  const page = await openSettings({ user: ME });
+  try {
+    await page.clickText(/^Create a household$/);
+    const dialog = page.getByRole("dialog", { name: "Create a household" });
+    await dialog.waitFor({ state: "visible", timeout: 3000 });
+
+    await dialog.getByRole("button", { name: "Create" }).click();
+    await page.waitForTimeout(300);
+
+    await dialog.waitFor({ state: "visible", timeout: 2000 });
+    assert.match(await dialog.innerText(), /Give it a name first/, "pressing Create with an empty name must say why");
+
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("the starting-point choice explains what each one means", async () => {
+  const page = await openSettings({ user: ME });
+  try {
+    await page.clickText(/^Create a household$/);
+    const dialog = page.getByRole("dialog", { name: "Create a household" });
+    await dialog.waitFor({ state: "visible", timeout: 3000 });
+
+    assert.match(await dialog.innerText(), /24 recipes/, "the default should say what the starter catalog actually contains");
+
+    await dialog.getByRole("button", { name: "Nothing" }).click();
+    await page.waitForTimeout(200);
+    const empty = await dialog.innerText();
+    assert.match(empty, /No recipes, ingredients or stores/, "choosing Nothing should say what you will not have");
+    assert.match(empty, /Ingredients tab/, "and where stores come back from, since an empty household has none");
+
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("the dialog says the household you are in survives it", async () => {
+  /* Items 83, 84 and 85 are three rounds of the app making a household
+     somebody did not ask for, and the fear this answers is the neighbouring
+     one: that making a new household loses the old one. */
+  const page = await openSettings({ user: ME, householdName: "Home" });
+  try {
+    await page.clickText(/^Create a household$/);
+    const dialog = page.getByRole("dialog", { name: "Create a household" });
+    await dialog.waitFor({ state: "visible", timeout: 3000 });
+
+    const text = await dialog.innerText();
+    assert.match(text, /This phone will move to the new household/, "creating lands you IN it — that is item 101's whole point");
+    assert.match(text, /keeps its list and recipes/, "and must say the one you are leaving is not lost");
+
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("a create that cannot reach the database says so rather than appearing to work", async () => {
+  /* The write itself, as far as this build can go: getDb() is null here, so
+     createHousehold reports offline and the app has to say it. The opposite —
+     a dialog that closes and a switcher that never gains a household — is the
+     failure worth catching. */
+  const page = await openSettings({ user: ME });
+  try {
+    await page.clickText(/^Create a household$/);
+    const dialog = page.getByRole("dialog", { name: "Create a household" });
+    await dialog.waitFor({ state: "visible", timeout: 3000 });
+
+    await dialog.getByRole("textbox").fill("Beach house");
+    await dialog.getByRole("button", { name: "Create" }).click();
+    await page.waitForTimeout(600);
+
+    assert.match(
+      await page.locator("body").innerText(),
+      /Couldn't create it/,
+      "a write that could not happen must be reported, not silently swallowed"
+    );
+
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});

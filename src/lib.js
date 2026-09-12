@@ -2750,6 +2750,28 @@ export function seedCatalog(catalogJson) {
   );
 }
 
+/* ITEM 101. A HOUSEHOLD BORN WITH NOTHING IN IT — one of the two things
+   Settings' Create offers, the other being a copy of the starter catalog.
+
+   THE SHAPE IS NOT EMPTY, only the content. version, appDataVersion, prefs
+   and updatedAt all have to be there or the first write lands in a shape
+   normalizeCatalog has to repair on the way back.
+
+   BUILT BY HANDING seedCatalog AN EMPTY CATALOG rather than writing the
+   object out a second time, so the two cannot drift: a field added to a
+   seeded household is added to an empty one on the same line. validCatalog
+   accepts this — two empty arrays and an empty object are a valid catalog
+   with nothing in it, which is exactly what is wanted.
+
+   NO STORES, deliberately, and it is recoverable: the Ingredients tab's
+   "Your stores" card adds them. The shipped list is five shops somebody
+   actually goes to, which is a worse starting guess for a second household
+   than none at all.
+*/
+export function emptyCatalog() {
+  return seedCatalog({ recipes: [], stores: [], config: {} });
+}
+
 // Rebuild the full shape from whatever the database hands back, same contract
 // as normalizeLocal: an absent field means empty, never undefined.
 export function normalizeCatalog(raw) {

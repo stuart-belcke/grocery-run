@@ -1008,6 +1008,68 @@ export async function joinWithInvite(code, token, user, role = "member", display
    few days more, never less. */
 export const GRACE_DAYS = 30;
 
+/* ── ITEM 101: MAKING A HOUSEHOLD ON PURPOSE ────────────────────────────────
+   Settings could already SWITCH between households, RESTORE a deleted one and
+   JOIN one by invite, but not make one. So an account gained households only
+   by being invited, which is backwards.
+
+   WHY THIS IS A FUNCTION HERE AND NOT TWO CALLS IN THE UI. Claiming a
+   household is the write items 83, 84 and 85 are three rounds of fixing —
+   "the app made me a household I did not ask for" — and the lesson each time
+   was that a claim must be something a person asked for, in one place that
+   can be read and tested. tests/db drives this against the real rules; a
+   sequence assembled in a component could not be.
+
+   TWO WRITES, IN THIS ORDER, AND IT CANNOT BE ONE. The rules let an account
+   claim a household with no members (case 2 in database.rules.json), and let
+   a MEMBER write the name. A single multi-path update cannot do both:
+   `root` in a rule is the tree as it stands BEFORE the write, so the name
+   would be judged against a household this account is not yet in, and
+   refused. Membership first, name second.
+
+   IF THE NAME WRITE FAILS you are left a member of a household with no name,
+   which the switcher shows by its code and Settings can rename. Recoverable
+   and visible — unlike the failure the order guards against, which would be
+   a named household nobody belongs to.
+
+   IT DOES NOT TOUCH THE CURRENT HOUSEHOLD. Creating is not leaving: the one
+   you are in keeps its data, its members and its place in the switcher. */
+export async function createHousehold(code, name, user) {
+  const db = await getDb();
+  if (!db) return { ok: false, reason: "offline" };
+  if (!user || !user.uid) return { ok: false, reason: "signed-out" };
+  try {
+    /* THE RULES ARE THE ONLY GUARD AGAINST CLAIMING SOMEBODY ELSE'S CODE, and
+       there is deliberately no check here first. The obvious one — read
+       households/{code}/members and refuse if it has any — CANNOT WORK:
+       reading a household requires a membership record in it, so a household
+       this account is not in is unreadable, which is the isolation property
+       the whole rules file is built on. I wrote that check and its two tests
+       failed against the real rules, which is why it is described here rather
+       than sitting above as dead code.
+       So the claim is simply attempted. Case 2 in database.rules.json allows
+       it only when the member list is empty, and an occupied household comes
+       back PERMISSION_DENIED, which recordHouseholdMembership reports as
+       false. A refusal cannot be told apart from any other denial and this
+       does not pretend otherwise — but the code being claimed comes from
+       newHouseholdCode(), 13 characters of base-36 minted a moment earlier,
+       so "already taken" is not a case a person is going to meet. */
+    const claimed = await recordHouseholdMembership(code, user);
+    if (!claimed) return { ok: false, reason: "refused" };
+
+    // Both writes above already report their own success or failure to the
+    // sync indicator, so there is nothing to report again here.
+    const named = await setHouseholdName(code, name, user);
+    // The CLEANED name comes back, not the one that was typed:
+    // cleanHouseholdName trims and caps it, and the caller shows what was
+    // actually stored rather than what was asked for.
+    return { ok: true, code, name: (named && named.ok && named.name) || "" };
+  } catch (e) {
+    reportWriteError(e, "creating the household");
+    return { ok: false };
+  }
+}
+
 export async function leaveHousehold(code, user, isGuest) {
   const db = await getDb();
   if (!db) return { ok: false, reason: "offline" };

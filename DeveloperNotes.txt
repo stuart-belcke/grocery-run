@@ -127,6 +127,15 @@ file reached 5,886 lines with ten live items in it.
         something already covered elsewhere. Worth it only if a rearranged
         instruction actually misleads somebody; item 72's three drifts were
         all renames, which are now caught.
+        AND THE RENAME CHECK IS WEAKER THAN IT SOUNDS. The check takes every
+        button name the help text promises and looks for those exact words
+        somewhere in the app's source. Measured while adding "Create a
+        household" to the help in item 129: it passes as long as the words
+        survive ANYWHERE, so renaming the button while a dialog TITLED the
+        same thing still exists does not fail it. That is not a
+        bug to fix — a dialog titled after the button that opens it is right
+        — but the check proves "some control is still called this", not
+        "this control is".
 
     98f. DONE (items 127 and 128) — npm run test:realdb, run by
         .github/workflows/real-db.yml on pull requests that touch the
@@ -137,25 +146,8 @@ file reached 5,886 lines with ten live items in it.
     e2e). Every gap above is one of two shapes — needs a database, or needs
     prose held to code.
 
-101. MAKING A HOUSEHOLD IS A FIRST-RUN-ONLY ACTION, AND THAT IS NOW ODD.
-    Asked while reading Settings: "if you can get invited to multiple, why
-    not be able to make new ones?" The asymmetry is real rather than
-    intended — left over from when a device had exactly one household.
-    Settings can SWITCH between households, RESTORE a deleted one and JOIN
-    one by invite, but cannot make one. So an account accumulates households
-    only by being invited, which is backwards.
-    WHY IT IS NOT A ONE-BUTTON JOB:
-      - CLAIMING IS THE DANGEROUS BIT. Items 83, 84 and 85 are three rounds
-        of "the app made me a household I did not ask for". A Create button
-        re-opens exactly that surface, so it has to be deliberate and
-        confirmed, landing you IN the new household rather than quietly
-        seeding one.
-      - IT NEEDS A NAME AT BIRTH. A second and third household called
-        home-xxxxxxxx is unreadable in the switcher.
-      - WHAT DOES IT START WITH? Empty, or a copy of the starter catalog?
-        Both are defensible and they are different products.
-    TRIGGER: a second real household existing to want. Two people, two
-    phones, one household today.
+101. DONE (item 129) — Settings, under Household, "Create a household".
+    See DeveloperNotes-Completed.txt.
 
 102. PER-DEVICE VERSUS PER-HOUSEHOLD SETTINGS, a distinction the app makes
     but never says out loud. Everything under Preferences is the
@@ -169,7 +161,15 @@ file reached 5,886 lines with ten live items in it.
     UNITS IS THE ARGUABLE ONE — one person reading metric while the other
     reads standard costs nothing, because it changes how a total is
     displayed and not what it means. Week start is not arguable.
-    TRIGGER: revisit alongside 101; they are the same conversation.
+    HELD, DELIBERATELY, WHEN 101 SHIPPED. Offered alongside item 129 and
+    turned down: "let's skip this until we have more settings". The reason
+    stands on its own — there are two household preferences and a handful of
+    unnamed per-device values, which is not enough of a list for a labelled
+    split to be telling anybody anything they cannot already see. Labelling
+    two things is ceremony.
+    TRIGGER: enough settings that where one lives is a real question — a
+    third or fourth household preference, or the first per-device value
+    somebody actually has to find and change.
 
 110. THE PARSER: STOPPED AT GOOD ENOUGH, and the list to resume from.
     Five real pages from five sites parse correctly — every ingredient list,

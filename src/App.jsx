@@ -20,6 +20,7 @@ import {
   revokeInvite,
   joinWithInvite,
   removeMember,
+  createHousehold,
   leaveHousehold,
   restoreHousehold,
   GRACE_DAYS,
@@ -43,6 +44,7 @@ import {
   LOCAL_KEY,
   TABS,
   newHouseholdCode,
+  emptyCatalog,
   ONBOARDED_KEY,
   MUST_CHOOSE_KEY,
   PENDING_INVITE_KEY,
@@ -1525,6 +1527,44 @@ export default function App() {
             setHouseholdName={async (name) => {
               const res = await setHouseholdName(code, name, user);
               if (res && res.ok) setHouseholdNameState(res.name || "");
+              return res;
+            }}
+            /* ITEM 101. THE ONLY HOUSEHOLD ACTION THAT ADDS ONE rather than
+               moving between them — Settings could already switch, restore
+               and join, so an account gained households only by being
+               invited, which is backwards.
+
+               THE ORDERING LESSON FROM leaveHousehold APPLIES UNCHANGED, and
+               it is the reason this is here rather than in the component: a
+               brand-new household has no remote state, so the subscribe
+               effect below takes the `push` branch and seeds it from
+               localRef.current — which, left alone, is the household you
+               were just in. Leaving got this wrong once and rebuilt the
+               household it had just deleted under a fresh code. The setters
+               and setCode land together, so the effect re-runs already
+               holding the new household's contents.
+
+               THE OLD HOUSEHOLD IS NOT TOUCHED. Its cache stays (switching
+               back should not have to re-download it), its members stay, and
+               it keeps its place in the list above. */
+            createHousehold={async ({ name, seed }) => {
+              if (!user) return { ok: false, reason: "signed-out" };
+              const c = newHouseholdCode();
+              const res = await createHousehold(c, name, user);
+              if (!res.ok) return res;
+              setLocalState(emptyLocal());
+              setHCatalog(seed ? seedCatalog(catalogRef.current) : emptyCatalog());
+              /* Show the stored name straight away rather than the code, for
+                 the moment before subscribeHouseholdName reports it. res.name
+                 is what the database actually holds — empty if the name write
+                 was refused — so this cannot claim a name that did not land. */
+              setHouseholdNameState(res.name || "");
+              setCode(c);
+              /* Creating IS committing to a household, the same as switching
+                 to one: without this the claim effect above would not treat
+                 the new code as chosen. */
+              finishOnboarding();
+              setMembershipTick((n) => n + 1);
               return res;
             }}
             graceDays={GRACE_DAYS}
