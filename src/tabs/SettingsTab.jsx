@@ -1320,7 +1320,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         <p style={{ margin: "6px 0 0" }}>
           {newSeed === "starter"
             ? "The 24 recipes and 164 ingredients a first run starts with — the same as “Restore starter catalog”."
-            : "No recipes, ingredients or stores. You can add the starter ones later from Export & recover, and stores from the Ingredients tab."}
+            : "No recipes, ingredients or stores. You can add the starter ones later from Export & recover, and stores from the Pantry tab."}
         </p>
 
         <p style={{ margin: "12px 0 0" }}>

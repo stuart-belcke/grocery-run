@@ -146,6 +146,25 @@ export default function App() {
   // only — pushing it could overwrite a real one with a fresh copy of the file.
   const [catalogReady, setCatalogReady] = useState(false);
   const [tab, setTab] = useState("list");
+  /* THE HEADING NAMES THE TAB YOU ARE ON, except on the first one, which
+     keeps the app's name. Borrowed from how phone apps with a bottom tab bar
+     usually behave: the bar tells you where you can go, and the heading tells
+     you where you are — and the home tab is the one that does not need
+     telling, because its heading is the app itself.
+
+     NOT STICKY, and nothing here changed that: this heading scrolls away with
+     the rest of the header exactly as the app's name did. The rule about
+     nothing changing height when it sticks is about StickyBar, the per-tab
+     bar that pins itself to the top mid-scroll. This is not that.
+
+     DERIVED FROM TABS rather than a second list of names. TABS is already the
+     one place a tab's wording lives — the help text is held to it by a test,
+     so a tab renamed in one place and not the other fails — and a copy here
+     would be a third thing to keep in step, which is how the help text
+     drifted in the first place. The first entry is the home tab BY POSITION,
+     so reordering the bar moves the exception with it. */
+  const APP_NAME = "Grocery Run";
+  const headerTitle = tab === TABS[0].id ? APP_NAME : (TABS.find((t) => t.id === tab)?.label ?? APP_NAME);
   /* EVERY TAB KEEPS ITS OWN SCROLL POSITION.
 
      The whole app is one document, so window.scrollY does survive a tab
@@ -1227,7 +1246,7 @@ export default function App() {
               auto, so it can't shrink past its longest word and nothing
               overflows; it just becomes two short lines. */}
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
-            <h1 style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 30, margin: 0, flexShrink: 0 }}>Grocery Run</h1>
+            <h1 style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 30, margin: 0, flexShrink: 0 }}>{headerTitle}</h1>
             {/* role="status" (polite): the sync state changes on its own, and a
                 screen reader had no way to learn that it had. Polite rather
                 than assertive — "Synced" must not interrupt what you are
