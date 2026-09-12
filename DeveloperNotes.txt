@@ -1,7 +1,7 @@
 Grocery Run — Roadmap
 =====================
 
-What is still open. Nine items, none of them urgent — this app does its job.
+What is still open. Ten items, none of them urgent — this app does its job.
 
 THE NUMBERS ARE IDs, NOT POSITIONS, AND ARE NEVER REUSED OR REASSIGNED. They
 were allocated chronologically, so a low number here means the item is OLD and
@@ -247,4 +247,37 @@ file reached 5,886 lines with ten live items in it.
     UNDERSTANDING — it can only agree with it. Capture the page, do not tidy
     it, and mutation-test every rule, because a green suite that was going to
     be green anyway is worse than no suite: it feels like evidence.
+
+129. STORE INTEGRATION — price comparison, or an actual cart at a real
+    store. Never started. Raised while asking what would make somebody pay
+    for this app: it is the one feature that ties directly to money, rather
+    than to convenience.
+    WHY NOT: every route runs through an external paid or partnered
+    service, which does not stretch PHASE 1 IS EVERYTHING THAT FITS IN A
+    FREE TIER (CLAUDE.md, Architecture.txt) — it breaks it outright. Kroger
+    and Walmart both publish product/price APIs, but each needs its own
+    developer registration and only covers that one chain. Instacart's
+    Developer Platform can turn an ingredient list into a shareable page
+    where the shopper builds a cart at their own local store, with no
+    partnership approval needed for that basic path — the only route found
+    so far that does not start with picking a retailer to negotiate with.
+    TRIGGER: somebody who would actually pay for it. It is the only item in
+    this file that both costs real engineering and adds a dependency
+    Architecture.txt does not yet record — so whichever provider gets
+    picked, it goes behind its own seam file, the way sync.js is the only
+    file allowed to import Firebase, so the provider is a swap later rather
+    than a rewrite.
+
+130. NUTRITION OR CALORIE INFORMATION, per ingredient or per planned meal.
+    Never started, never asked for. The parser already finds this on a
+    recipe page and throws it away: DeveloperNotes-Completed.txt records
+    "Nutritional Info" tables being actively skipped so the steps loop does
+    not run into them — so today the numbers this feature would need are
+    detected only well enough to be discarded, not kept.
+    WHY NOT: nobody has asked to track it, and doing it properly needs a
+    real per-ingredient nutrition source (USDA FoodData Central is the free
+    one) rather than whatever happens to be printed on a copied page — new
+    scope, not a reuse of the parser's existing skip rule.
+    TRIGGER: somebody wants to track nutrition, not just avoid it being
+    mis-parsed into the steps.
 
