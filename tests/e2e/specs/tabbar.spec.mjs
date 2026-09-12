@@ -281,3 +281,77 @@ test("the first-run screen has no tab bar", async () => {
     await page.done();
   }
 });
+
+/* ── THE HEADING NAMES THE TAB YOU ARE ON ──────────────────────────────────
+   The bar along the bottom says where you can go; the heading at the top says
+   where you are. The first tab is the exception and keeps the app's name,
+   because on the home tab the app IS where you are.
+
+   Worth a test rather than a screenshot for one reason: the heading and the
+   tab bar draw their wording from the same list (TABS in lib.js), and the
+   failure that matters is them disagreeing — a tab called one thing in the
+   bar and another at the top of the page. */
+
+test("the heading follows the tab, and the first tab keeps the app's name", async () => {
+  const page = await openApp(BASE);
+  try {
+    await page.setViewportSize({ width: 390, height: 780 });
+
+    await page.tab("List");
+    assert.equal(
+      (await page.locator("h1").innerText()).trim(),
+      "Grocery Run",
+      "the first tab is the app itself — its heading should not say 'List'"
+    );
+
+    for (const label of TABS.slice(1)) {
+      await page.tab(label);
+      assert.equal(
+        (await page.locator("h1").innerText()).trim(),
+        label,
+        `on ${label}, the heading should say ${label}`
+      );
+    }
+
+    // And back, so the exception is not a one-way trip.
+    await page.tab("List");
+    assert.equal((await page.locator("h1").innerText()).trim(), "Grocery Run");
+
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("the heading scrolls away with the header, exactly as the app name did", async () => {
+  /* The change is the WORDS only. Nothing here became sticky: this heading
+     leaves the screen on scroll like the rest of the header, and the bar that
+     does pin itself mid-tab is a different thing entirely. */
+  const page = await openApp(BASE, { state: longListState(40) });
+  try {
+    await page.setViewportSize({ width: 390, height: 780 });
+    await page.tab("Pantry");
+
+    const onScreen = () =>
+      page.evaluate(() => {
+        const h = document.querySelector("h1");
+        if (!h) return null;
+        const r = h.getBoundingClientRect();
+        return { bottom: Math.round(r.bottom), position: getComputedStyle(h).position };
+      });
+
+    const before = await onScreen();
+    assert.ok(before.bottom > 0, "the heading should be visible at the top before scrolling");
+    assert.equal(before.position, "static", "the heading must not have become sticky or fixed");
+
+    await page.evaluate(() => window.scrollTo(0, 2000));
+    await page.waitForTimeout(400);
+
+    const after = await onScreen();
+    assert.ok(after.bottom < 0, `the heading should have scrolled off the top, but its bottom is at ${after.bottom}`);
+
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
