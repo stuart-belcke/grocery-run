@@ -605,7 +605,7 @@ test("the starting-point choice explains what each one means", async () => {
     await page.waitForTimeout(200);
     const empty = await dialog.innerText();
     assert.match(empty, /No recipes, ingredients or stores/, "choosing Nothing should say what you will not have");
-    assert.match(empty, /Ingredients tab/, "and where stores come back from, since an empty household has none");
+    assert.match(empty, /Pantry tab/, "and where stores come back from, since an empty household has none — and it has to name the tab as the tab bar spells it");
 
     assertNoPageErrors(page, assert);
   } finally {

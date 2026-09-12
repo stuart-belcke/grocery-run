@@ -1125,7 +1125,7 @@ test("emptyCatalog has the shape of a catalog and none of the content", () => {
   const e = emptyCatalog();
   assert.deepEqual(e.recipes, {}, "an empty household must start with no recipes");
   assert.deepEqual(e.ingredients, {}, "an empty household must start with no ingredients");
-  assert.deepEqual(e.stores, [], "and no stores — the Ingredients tab adds them");
+  assert.deepEqual(e.stores, [], "and no stores — the Pantry tab adds them");
   assert.equal(e.version, CATALOG_SHAPE_VERSION, "the shape version has to be there");
   assert.equal(e.appDataVersion, APP_DATA_VERSION, "so an older build knows whether it may write here");
   assert.deepEqual(e.prefs, DEFAULT_PREFS, "units and week start are the household's, so a new one needs them");
@@ -3058,6 +3058,39 @@ test("every {name} in the help text is a real tab label", () => {
   const named = all.flatMap((t) => parseHelpMarkup(t).filter((p) => p.tab).map((p) => p.tab));
   assert.ok(named.length >= 8, `only ${named.length} tab references — the markup is probably not being parsed`);
   for (const n of named) assert.ok(TAB_LABELS.includes(n), `"${n}" is marked up as a tab but no tab is called that`);
+});
+
+test("no text the app shows sends you to a tab that does not exist", () => {
+  /* THE GAP THIS CLOSES, found by falling into it. The check below holds
+     {Braced} tab names and [[Bracketed]] button names to the real thing — but
+     only when somebody remembers the markup. Written as ordinary prose, "the
+     Ingredients tab" sailed through, and shipped in a dialog telling people to
+     visit a tab that has been called Pantry for a long time.
+
+     So this needs no markup: it finds the phrase "<Word> tab" anywhere the app
+     shows text, and insists the word is really a tab. Comments are stripped
+     first, for the same reason item 126 strips them — six comments in this
+     repo still say "the Ingredients tab", which is how the wrong name was in
+     the air to begin with. Those are notes to ourselves and cost nothing; a
+     sentence on screen costs somebody a hunt through five tabs.
+
+     LOWERCASE "tab" ONLY, so "the Pantry Tab" in a heading is not matched and
+     neither is a sentence that happens to end a clause with a capitalised
+     word. The false positives worth allowing for are words that are not tab
+     names at all — "a browser tab", "the same tab" — so only Capitalised
+     words are considered, which is how the app writes a tab's name. */
+  const files = ["help.js", "App.jsx", "Onboarding.jsx", "ui.jsx", "tabs/ListTab.jsx", "tabs/MealsTab.jsx", "tabs/PantryTab.jsx", "tabs/WeekTab.jsx", "tabs/SettingsTab.jsx"];
+  const labels = new Set(TAB_LABELS);
+  const bad = [];
+  for (const f of files) {
+    const src = readFileSync(new URL(`./${f}`, import.meta.url), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/(^|[^:/])\/\/.*$/gm, "$1");
+    for (const m of src.matchAll(/\b([A-Z][a-zA-Z]+) tab\b/g)) {
+      if (!labels.has(m[1])) bad.push(`${f}: "${m[1]} tab"`);
+    }
+  }
+  assert.deepEqual(bad, [], `text on screen names a tab the app does not have (the tabs are ${TAB_LABELS.join(", ")})`);
 });
 
 test("every [[Control name]] in the help text is really on a control", () => {

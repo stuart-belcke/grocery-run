@@ -2763,7 +2763,7 @@ export function seedCatalog(catalogJson) {
    accepts this — two empty arrays and an empty object are a valid catalog
    with nothing in it, which is exactly what is wanted.
 
-   NO STORES, deliberately, and it is recoverable: the Ingredients tab's
+   NO STORES, deliberately, and it is recoverable: the Pantry tab's
    "Your stores" card adds them. The shipped list is five shops somebody
    actually goes to, which is a worse starting guess for a second household
    than none at all.
