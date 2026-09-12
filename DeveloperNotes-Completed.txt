@@ -3777,3 +3777,51 @@ into the details panel and the name grew.
      WHAT NO TEST COVERS: the write landing against Google's real service.
      tests/db proves it against the emulator with the real rules, which is as
      far as items 124 and 127 go for every other household write.
+
+130. THE HEADING NAMES THE TAB YOU ARE ON. Asked for after noticing how phone
+     apps with a bar of tabs along the bottom usually behave: the bar tells
+     you where you can go, and a heading at the top tells you where you are —
+     except on the home tab, whose heading is the app's own name, because
+     there the app IS where you are.
+
+     THE WORDS ARE THE ONLY CHANGE. The heading still scrolls off the top with
+     the rest of the header, exactly as the app's name did. I initially raised
+     the rule that nothing may change height when it sticks to the top of the
+     screen, and that was WRONG HERE: that rule is about StickyBar, the
+     per-tab bar of filters that pins itself mid-scroll. The header is
+     ordinary page content and always has been. A test now measures both — the
+     heading's position stays `static`, and it really does leave the screen.
+
+     DERIVED FROM THE ONE LIST OF TAB NAMES (TABS in lib.js) rather than a
+     second copy. That list already has to agree with the help text, held
+     there by a test, and a copy in App.jsx would be a third thing to keep in
+     step. The home tab is the FIRST ENTRY by position, so reordering the bar
+     moves the exception with it rather than stranding it on a hard-coded id.
+
+     AND IT IMMEDIATELY CAUGHT SOMETHING, though not by the test — by me
+     reading the screenshots. The tab is labelled Pantry. Item 129's new
+     dialog, written by me days earlier, told people to add stores "from the
+     Ingredients tab", which is a tab this app does not have and has not had
+     for a long time. Six comments in the source still call it that, which is
+     where I picked the name up.
+
+     SO THE CHECK THAT WOULD HAVE CAUGHT IT NOW EXISTS. Item 126 added markup
+     that holds a tab or button name in the help text to the real thing — but
+     only when somebody remembers to write the markup. Plain prose slipped
+     past it. The new test needs no markup: it finds the phrase "<Word> tab"
+     anywhere the app shows text, and insists the word is really a tab.
+     Comments are stripped first, so the six that still say Ingredients cost
+     nothing — a note to ourselves is cheap, a sentence on screen costs
+     somebody a hunt through five tabs. Only Capitalised words count, so "a
+     browser tab" is not a false positive. It fails on the exact bug it was
+     written for, and on a fresh one planted in the help text.
+
+     TESTED: two browser tests (the heading follows the tab and back again;
+     it is not sticky and does scroll away), three deliberate breakages each
+     failing only its own, one new unit test with two breakages of its own,
+     and the four tabs looked at in a real browser at phone width.
+
+     NOT DONE, and worth knowing: the six source comments still say
+     "Ingredients tab". Renaming them is a separate tidy-up with no effect on
+     anything shown, and the guard above makes the only version that matters
+     — what is on screen — checkable.
