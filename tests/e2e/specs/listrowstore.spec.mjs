@@ -135,7 +135,12 @@ test("the store shows on the row only where no heading already says it", async (
       page.evaluate(() => document.querySelector('input[aria-label="Bought Broccoli"]').closest("li").firstElementChild.textContent);
     assert.doesNotMatch(await rowText(), /Aldi/, "the row repeats the store its own heading already gives");
 
-    await page.locator("button").filter({ hasText: /All items/ }).first().click();
+    /* "All items" was a toggle in the pinned bar; it is now one of three
+       options behind the single view control, so getting there is: open the
+       picker, choose it. */
+    await page.locator('button[aria-label="Change how the list is arranged"]').click();
+    await page.waitForTimeout(300);
+    await page.getByRole("group", { name: "How the list is arranged" }).getByRole("button", { name: "All items" }).click();
     await page.waitForTimeout(400);
     assert.match(await rowText(), /Aldi/, "in A-Z the store is invisible");
     assertNoPageErrors(page, assert);

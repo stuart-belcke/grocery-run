@@ -3914,14 +3914,39 @@ into the details panel and the name grew.
      worth about 7% of the height, which is not worth the churn. Left open,
      with that constraint written down so the next attempt starts from it.
 
-     ALSO OPEN, and the owner's to decide: the two view toggles on the List
-     tab keep a permanent row in the bar pinned while you shop. They are
-     really ONE choice of three — all items, by store A-Z, by store in
-     walking order — since the second only appears when the first is set.
-     Proposed: one control naming the current view, opening a three-way
-     picker, so the pinned bar becomes a single line.
+     I. THE LIST TAB'S VIEW TOGGLES MOVED OFF THE PINNED BAR. They took a
+        row of a bar that stays on screen for the whole shop. They are now
+        behind one button, in a popover — the pattern the Recipes and Pantry
+        tabs already use for their own filters.
+        THE TOGGLES THEMSELVES ARE UNCHANGED, and that was a correction. My
+        first attempt replaced them with a list of three options, each with a
+        sentence explaining it, on the reasoning that they were "really one
+        choice of three". The owner's answer was that the original options
+        were fine and should not need explaining — which is right, and the
+        reason is structural: the sort only exists once "By store" is chosen,
+        so "A-Z" and "Store flow" read as sorts WITHIN a shop rather than as
+        rivals to "All items". Take that nesting away and they need prose;
+        leave it and they do not.
+        THE COUNT READS "6 to buy" now, not "6 items left to buy" — the app's
+        own words, since every store subheading down the page already says it.
+        Those 60px are what put the whole bar on one line: 94px of pinned bar
+        before, 55px after at 390px, and 133 to 98 at 320px. Measured on a
+        real page, both before and after, because the first attempt made it
+        WORSE at 390 (110px) and only looked like a win at 320.
+        WHAT WRAPS AT 320 IS STILL THE SETTING, never the count or Done
+        shopping — the control sits last for exactly that reason, which is
+        what the original comment said and what a test holds.
 
-     TESTED: 401 unit, 12 sync, 79 rules, 18 database, 331 browser, lint and
+     J. A TAPERED FILTER MARK REPLACED THE MAGNIFYING GLASS on all three
+        tabs. ⌕ means SEARCH, and on two of them the button sat directly
+        beside a real search box with its own magnifier — the same mark a
+        centimetre apart meaning two different things. Three EQUAL bars were
+        tried first and read as settings. It is an inline SVG (FilterMark in
+        ui.jsx) because no dependable character exists for the tapered shape,
+        and it takes currentColor so it turns green with the words when a
+        filter is doing something.
+
+     TESTED: 402 unit, 12 sync, 79 rules, 18 database, 337 browser, lint and
      build. Six existing browser tests had to be updated because controls
      genuinely moved, and each was re-pointed rather than weakened — the
      store editors are opened first, delete is measured inside the editor,

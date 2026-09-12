@@ -5,7 +5,7 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
-import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop, SuggestInput, SearchField, Section, useSticky, useUnsavedWork } from "../ui";
+import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop, SuggestInput, SearchField, Section, useSticky, useUnsavedWork, FilterMark } from "../ui";
 import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, ingredientNames, normalizeCfg, ingredientMatches, existingIngredientSuggestions, splitSuggestion, unitMatches, ensureIngredientId, asArray, planSlotsFor, parseRecipeText } from "../lib";
 import { fetchRecipeFromUrl } from "../recipeImport";
 import { RecipeDetail } from "../RecipeDetail";
@@ -851,7 +851,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
               color: activeViews ? C.green : C.ink,
             }}
           >
-            <span aria-hidden>⌕</span> Filter
+            <FilterMark /> Filter
             {activeViews > 0 && (
               <span style={{ background: C.green, color: "#fff", borderRadius: 999, fontSize: 12, fontWeight: 700, minWidth: 16, textAlign: "center", padding: "1px 5px" }}>
                 {activeViews}

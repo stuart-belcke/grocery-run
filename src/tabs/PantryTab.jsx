@@ -6,7 +6,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
-import { Btn, ConfirmDialog, ChoiceDialog, Section, StickyBar, BackToTop, SearchField, SuggestInput, useSticky } from "../ui";
+import { Btn, ConfirmDialog, ChoiceDialog, Section, StickyBar, BackToTop, SearchField, SuggestInput, useSticky, FilterMark } from "../ui";
 import { UNASSIGNED, norm, cap, r2, aisleKey, aisleFor, normalizeCfg, ingredientNames, unitMatches, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient, ensureIngredientId, ingredientIdByName, mergeIngredients, setIngredientCfg, planIngredientRename } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Recipes tab's "unplanned" pill so
@@ -380,7 +380,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                     color: activeFilters ? C.green : C.ink,
                   }}
                 >
-                  <span aria-hidden>⌕</span> Filter
+                  <FilterMark /> Filter
                   {activeFilters > 0 && (
                     <span style={{ background: C.green, color: "#fff", borderRadius: 999, fontSize: 12, fontWeight: 700, minWidth: 16, textAlign: "center", padding: "1px 5px" }}>
                       {activeFilters}

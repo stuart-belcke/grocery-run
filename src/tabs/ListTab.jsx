@@ -4,8 +4,8 @@
 /* ------------------------------------------------------------------ */
 
 import { useState, useMemo, useRef } from "react";
-import { C, fontDisplay, inputStyle } from "../theme";
-import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, InfoDot, StickyBar, BackToTop, SuggestInput, useSticky } from "../ui";
+import { C, fontDisplay, fontBody, inputStyle } from "../theme";
+import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, InfoDot, StickyBar, BackToTop, SuggestInput, useSticky, FilterMark } from "../ui";
 import { ADDED_SOURCE, UNASSIGNED, keyForName, aisleKey, unitKeyFor, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg } from "../lib";
 
 export function ListTab({ data, update, updateCatalog, isGuest }) {
@@ -33,6 +33,13 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
   // Focused when the dialog opens, instead of Cancel — see DialogShell.
   const storeRef = useRef(null);
   const [confirmRemove, setConfirmRemove] = useState(null); // added-by-you item pending removal
+  /* The popover is work in progress, so useState — leaving the tab with it
+     open should not bring it back. The CHOICE it sets is `view` and
+     `storeSort` above, both still sticky and both unchanged. */
+  const [pickView, setPickView] = useState(false);
+  // Only names the state you are on; the toggles remain the single source.
+  const viewLabel = view === "all" ? "All items" : storeSort === "flow" ? "Store flow" : "By store";
+  const arranged = !(view === "store" && storeSort === "az");
   const [showBought, setShowBought] = useSticky("list.showBought", false); // "already bought" review panel
   const [askStore, setAskStore] = useState(null); // { key, name, store } pending "this trip or always?"
 
@@ -672,8 +679,13 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
           reachable with a trolley in the other hand. */}
       <StickyBar>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+          {/* "6 to buy", NOT "6 items left to buy" — the app's own words. Every
+              store subheading down the page already reads "Aldi · 4 to buy",
+              so this is the phrase you are reading anyway, and it is 60px
+              narrower. That 60px is what lets the whole bar be one line at
+              390px, and a pinned bar costs its height for the entire shop. */}
           <span style={{ fontSize: 13, color: C.faint, whiteSpace: "nowrap" }}>
-            <b style={{ fontSize: 15, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{remaining}</b> item{remaining === 1 ? "" : "s"} left to buy
+            <b style={{ fontSize: 15, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{remaining}</b> to buy
           </span>
           {/* QUIET UNTIL SOMETHING IS TICKED. This is the end of a trip, but
               it was painted in the app's loudest treatment — a tomato-tinted
@@ -687,15 +699,73 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
               takes on the warning colour once the trip is visibly underway,
               which is also when you might actually want it. */}
           <Btn kind={anyChecked ? "danger" : "ghost"} style={{ marginLeft: "auto" }} onClick={() => setConfirmDone(true)}>Done shopping</Btn>
-          {/* The toggles come SECOND so that when the bar wraps — and at
-              320px it does — the count and Done shopping are the line that
-              stays on top. A wrap pushes whatever is last down, and what is
-              last should be the decision you already made rather than the
-              number you keep checking.
-              NO forced flexBasis:100% break: tried, and it cost 10px at both
-              widths by stopping the toggles sharing a line where they fit. */}
-          <Seg options={[{ value: "all", label: "All items" }, { value: "store", label: "By store" }]} value={view} onChange={setView} />
-          {view === "store" && <Seg options={[{ value: "az", label: "A–Z" }, { value: "flow", label: "Store flow" }]} value={storeSort} onChange={setStoreSort} />}
+          {/* THE SAME TWO TOGGLES, BEHIND ONE BUTTON — the pattern the Recipes
+              and Pantry tabs already use for their own filters. They were
+              never confusing; they were in the wrong place, taking a row of a
+              bar that stays on screen for the whole shop.
+              STILL LAST for the reason they always were: a wrap pushes
+              whatever is last down, and what should give way is the setting
+              you already chose rather than the number you keep checking. At
+              320px that is exactly what happens.
+              THREE BARS, NOT A MAGNIFYING GLASS, and that changed on all
+              three tabs at once: ⌕ means SEARCH, and two of those buttons sit
+              directly beside a real search box with its own magnifier. The
+              same glyph a centimetre away meaning two different things is
+              worse than either choice alone.
+              IT NAMES THE VIEW rather than saying "Filter", because there are
+              only three states here and which one you are on is worth reading
+              at a glance. Green when it is not the default, the way the other
+              two mark a filter that is doing something. */}
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <button
+              onClick={() => setPickView((v) => !v)}
+              aria-expanded={pickView}
+              aria-label="Change how the list is arranged"
+              title="Change how the list is arranged"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                fontFamily: fontBody,
+                fontSize: 13,
+                fontWeight: 500,
+                padding: "8px 12px",
+                borderRadius: 8,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                border: `1px solid ${arranged ? C.green : C.line}`,
+                background: arranged ? C.greenSoft : "#fff",
+                color: arranged ? C.green : C.ink,
+              }}
+            >
+              <FilterMark /> {viewLabel}
+            </button>
+            {pickView && (
+              <>
+                {/* Tap anywhere else to close, the same as the other two. */}
+                <div onClick={() => setPickView(false)} style={{ position: "fixed", inset: 0, zIndex: 19 }} />
+                <div
+                  role="group"
+                  aria-label="How the list is arranged"
+                  style={{ position: "absolute", zIndex: 20, top: "calc(100% + 6px)", right: 0, width: 208, background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.14)", padding: 12 }}
+                >
+                  {/* UNCHANGED AND UNEXPLAINED. The sort only exists once "By
+                      store" is chosen, and that is what makes "A–Z" and "Store
+                      flow" read as sorts WITHIN a shop rather than as rivals to
+                      "All items" — which is why neither needs a sentence under
+                      it. */}
+                  <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, marginBottom: 6 }}>Group by</div>
+                  <Seg options={[{ value: "all", label: "All items" }, { value: "store", label: "By store" }]} value={view} onChange={setView} />
+                  {view === "store" && (
+                    <>
+                      <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: C.faint, margin: "12px 0 6px" }}>Sort</div>
+                      <Seg options={[{ value: "az", label: "A–Z" }, { value: "flow", label: "Store flow" }]} value={storeSort} onChange={setStoreSort} />
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </StickyBar>
 
