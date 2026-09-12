@@ -1,12 +1,12 @@
 /* ------------------------------------------------------------------ */
-/*  Ingredients tab — your stores and each ingredient's store / aisle
+/*  Pantry tab — your stores and each ingredient's store / aisle
     defaults. Sync and catalog publish / backup live on the Settings
     tab.                                                                */
 /* ------------------------------------------------------------------ */
 
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
-import { Btn, ConfirmDialog, ChoiceDialog, StickyBar, BackToTop, SearchField, SuggestInput, useSticky } from "../ui";
+import { Btn, ConfirmDialog, ChoiceDialog, Section, StickyBar, BackToTop, SearchField, SuggestInput, useSticky } from "../ui";
 import { UNASSIGNED, norm, cap, r2, aisleKey, aisleFor, normalizeCfg, ingredientNames, unitMatches, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient, ensureIngredientId, ingredientIdByName, mergeIngredients, setIngredientCfg, planIngredientRename } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Recipes tab's "unplanned" pill so
@@ -26,6 +26,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
   const [editItem, setEditItem] = useState(null); // { key, name } while renaming an ingredient
   const [openItem, setOpenItem] = useSticky("pantry.openItem", null); // key of the row expanded for store/aisle editing
   const [query, setQuery] = useSticky("pantry.query", "");
+  const [storesOpen, setStoresOpen] = useSticky("pantry.storesOpen", false);
   const [storeFilter, setStoreFilter] = useSticky("pantry.storeFilter", ""); // "" = all stores
   const [staplesOnly, setStaplesOnly] = useSticky("pantry.staplesOnly", false); // narrow to home staples
   const [filterOpen, setFilterOpen] = useState(false); // filter popover open
@@ -286,9 +287,16 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
       {/* The whole stores card is catalog editing. A guest still sees which
           store each ingredient belongs to on its own row, which is what they
           need in a shop — they just can't change the store list itself. */}
+      {/* CLOSED BY DEFAULT. Open, this card filled the top quarter of the
+          screen — five shops, their remove buttons and an Add field — in
+          front of the ingredients, which is what the tab is for and what
+          changes daily. A shop list changes about once a year.
+          useSticky and not useState because this is something you were
+          LOOKING AT rather than something you were in the middle of doing:
+          leave the tab with it open and it should still be open when you come
+          back (CLAUDE.md's rule about what survives a tab switch). */}
       {!isGuest && (
-      <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
-        <h2 style={{ fontFamily: fontDisplay, fontSize: 18, margin: "0 0 10px" }}>Your stores</h2>
+      <Section title="Your stores" open={storesOpen} onToggle={setStoresOpen}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
           {data.stores.map((s) => (
             /* The ✕ measured 11x15. Removing a store is the furthest-reaching
@@ -310,7 +318,7 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
           <input aria-label="Add a store" placeholder="Store name" value={newStore} onChange={(e) => setNewStore(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addStore()} style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
           <Btn kind="primary" onClick={addStore}>Add store</Btn>
         </div>
-      </div>
+      </Section>
       )}
 
       <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>

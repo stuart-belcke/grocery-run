@@ -3777,3 +3777,104 @@ into the details panel and the name grew.
      WHAT NO TEST COVERS: the write landing against Google's real service.
      tests/db proves it against the emulator with the real rules, which is as
      far as items 124 and 127 go for every other household write.
+
+131. A UX PASS OVER THE WHOLE APP, driven by looking at it rather than
+     reading it. Every tab opened in a real browser at 390px with meals
+     planned and a list built, which is the only reason most of this was
+     found — none of it is visible in the code.
+
+     A. "Catalog v16 loaded" IS GONE. It was set when a newer catalog
+        arrived and NEVER CLEARED, so a one-off "something updated" note sat
+        under the header on every tab for the rest of the session. It also
+        spoke in version numbers, which tell a person nothing. The recipes
+        updating themselves is the mechanism working, and a notice about a
+        mechanism that works is a step backwards from the mechanism.
+
+     B. HALF A CUP OF CARROTS SAID "4 fl oz". Arithmetically perfect and
+        useless: fluid ounces are a liquid measure. The unit ladder picked
+        the largest unit keeping the number above 1, so anything under a cup
+        stepped down. Two changes. `fl oz` is no longer a DEMOTION target,
+        the mirror of pt/qt/gal not being promotion targets — it still
+        converts and still shows when a recipe says "8 fl oz". And CUPS, AND
+        ONLY CUPS, accept a fraction a recipe would be written in: a half,
+        thirds, quarters. 0.3 of a cup is not one and still steps down.
+        ONLY CUPS, because the same indulgence everywhere would make half a
+        pound read "0.5 lb" instead of "8 oz" and half a litre "0.5 l"
+        instead of "500 ml" — both worse, since those smaller units are how
+        the things are sold. Fractions of a cup are an idiom; fractions of a
+        pound are not.
+        NOTHING PROTECTED THIS LADDER FOR VOLUME. Four tests now do, and
+        three deliberate breakages each fail only their own.
+
+     C. THE SETTINGS TAB SAID THE SYNC STATUS TWICE — the header at the top
+        of every tab, and the Household section heading, same words, same
+        colours, a few centimetres apart. The header wins: a status always in
+        one place is easier to trust than one sometimes in two.
+        THE TESTS THAT GUARDED IT WERE NOT DELETED. The bug they exist for —
+        reported from a real phone as "Sync error" drawn straight through the
+        word "Household" — is in Section, which crushes its own title to make
+        room for a long aside. Account still has an aside, and an email is
+        longer than any status, so the guard moved there. Plus a new one:
+        the status must appear ONCE on the Settings tab.
+
+     D. "Done shopping" IS QUIET UNTIL SOMETHING IS TICKED. It was painted in
+        the app's loudest treatment from the moment the list had anything on
+        it, so the most eye-catching thing on the main screen — at 15 items
+        left and nothing bought — was the button that ends the shop and
+        clears the list. Never disabled, though: finishing a trip having
+        bought nothing is a real thing to do.
+
+     E. THE RECIPES TAB LISTED EVERY INGREDIENT TWICE — a grey run-on on the
+        card, and the same names with amounts under "Ingredients & recipe".
+        The run-on was the biggest thing on each card, three wrapped lines,
+        pushing a card to ~200px so two and a half fitted on a phone with 24
+        recipes below. Browsing now gets a count.
+        BUT SEARCH MATCHES INGREDIENT NAMES, so with only a count a search
+        for "lemon" would return cards giving no hint why. While there is a
+        query the names come back. Three cards fit where two and a half did.
+
+     F. DELETING A RECIPE MOVED BEHIND Edit. It was a bare ✕ alone in each
+        card's top corner: the only irreversible action on the tab, furthest
+        from the three safe ones and right where a thumb scrolls, with
+        nothing beside it to hit instead. It is now a button at the bottom of
+        the editor beside Cancel and Save, labelled with the meal's name for
+        a screen reader, and it closes the editor afterwards so Save cannot
+        write the recipe back under its old id.
+        AND THAT EXPOSED SOMETHING ELSE: the editor renders ABOVE the list,
+        so opening it from a card halfway down did nothing you could see —
+        the form appeared off the top of the screen. It scrolls into view
+        now. A button you press and then cannot find is worse than one in
+        the wrong place.
+
+     G. THE PANTRY TAB'S "Your stores" CARD IS COLLAPSED BY DEFAULT. Open, it
+        filled the top quarter of the screen — five shops, their remove
+        buttons and an Add field — in front of the ingredients, which is what
+        the tab is for and what changes daily. A shop list changes about once
+        a year. Six ingredient rows are visible where two were. useSticky and
+        not useState, because this is something you were LOOKING AT.
+
+     H. "Ingredients tab" IS NOW "Pantry tab" in all six places. The tab has
+        been called Pantry for a long time and the comments had not caught
+        up, which is exactly how the wrong name reached a dialog in item 129.
+
+     WHAT WAS LOOKED AT AND DELIBERATELY NOT DONE: making the week fit on a
+     screen. A planned week is about 1,230px, and the obvious saving — not
+     offering "+ Choose a meal" on every day when you are not planning —
+     IS A CHANGE ALREADY TRIED AND REVERTED, recorded in WeekTab itself: an
+     empty slot has always been fillable in either mode, and gating it took
+     that away, which three specs caught. What remains is decorative trim
+     worth about 7% of the height, which is not worth the churn. Left open,
+     with that constraint written down so the next attempt starts from it.
+
+     ALSO OPEN, and the owner's to decide: the two view toggles on the List
+     tab keep a permanent row in the bar pinned while you shop. They are
+     really ONE choice of three — all items, by store A-Z, by store in
+     walking order — since the second only appears when the first is set.
+     Proposed: one control naming the current view, opening a three-way
+     picker, so the pinned bar becomes a single line.
+
+     TESTED: 401 unit, 12 sync, 79 rules, 18 database, 331 browser, lint and
+     build. Six existing browser tests had to be updated because controls
+     genuinely moved, and each was re-pointed rather than weakened — the
+     store editors are opened first, delete is measured inside the editor,
+     the Section squeeze guard moved to Account.

@@ -76,6 +76,7 @@ import {
   slotDishes,
   planSlotsFor,
   seedCatalog,
+  pickDisplayUnit,
   emptyCatalog,
   needsIngredientIds,
   ensureIngredientId,
@@ -908,6 +909,10 @@ test("an empty unit is not merged into 'ea'", () => {
 });
 
 test("the display unit is the largest that keeps the number above 1", () => {
+  /* CUPS ARE THE ONE EXCEPTION to the name of this test, and it is tested
+     separately below: half a cup stays half a cup rather than stepping down
+     to fluid ounces. Everything here is weight and metric, where the rule is
+     unqualified — half a pound really should read 8 oz. */
   assert.deepEqual(combineParts({ oz: 8, lb: 1 }), { lb: 1.5 });
   // Promotes even to a unit that wasn't typed: 24 oz is 1.5 lb, and everyone
   // reads lb and oz as the same scale.
@@ -1117,6 +1122,52 @@ test("seedCatalog keys recipes by id and MINTS ingredient ids", () => {
   }
 });
 
+/* WHICH UNIT AN AMOUNT IS SHOWN IN. Nothing tested this at all: the ladder
+   could be changed in any direction and all 397 tests stayed green, which is
+   how "4 fl oz of carrots" reached a real shopping list unnoticed. */
+const TSP = 4.92892159375;
+const OZ = 28.349523125;
+const PER = { tsp: TSP, tbsp: TSP * 3, "fl oz": TSP * 6, cup: TSP * 48, oz: OZ, lb: OZ * 16, ml: 1, l: 1000 };
+const shownAs = (qty, unit, pref = "standard") => pickDisplayUnit([unit], qty * PER[unit], {}, pref);
+
+test("a fraction of a cup stays in cups, because that is how recipes are written", () => {
+  /* THE BUG THIS FIXES, seen on a real shopping list: half a cup of carrots
+     rendered "4 fl oz". Perfectly correct, and useless — fluid ounces are a
+     liquid measure, and you cannot pick up four of them in a shop. */
+  assert.equal(shownAs(0.5, "cup"), "cup", "half a cup must stay a half cup");
+  assert.equal(shownAs(0.25, "cup"), "cup", "a quarter cup too");
+  assert.equal(shownAs(0.75, "cup"), "cup");
+  assert.equal(shownAs(1 / 3, "cup"), "cup", "thirds are a recipe fraction as much as halves");
+  assert.equal(shownAs(2 / 3, "cup"), "cup");
+});
+
+test("an amount nobody would measure still steps down", () => {
+  // 0.3 of a cup is not a fraction any recipe is written in, so there is
+  // nothing to gain by writing it that way.
+  assert.equal(shownAs(0.3, "cup"), "tbsp", "0.3 cup should become tablespoons, not stay an odd cup");
+  assert.equal(shownAs(1, "tbsp"), "tbsp", "a tablespoon of oil is a tablespoon");
+  assert.equal(shownAs(0.5, "tsp"), "tsp");
+});
+
+test("fluid ounces are never promoted INTO, only kept when asked for", () => {
+  /* Same rule pt/qt/gal already had, and the same reasoning: a container
+     size, or a liquid measure, is not somewhere an amount should be moved on
+     its own. It still displays when a recipe actually says so. */
+  for (const q of [0.3, 0.4, 0.6]) {
+    assert.notEqual(shownAs(q, "cup"), "fl oz", `${q} cup should not become fluid ounces`);
+  }
+  assert.equal(shownAs(8, "fl oz"), "cup", "8 fl oz is a cup, and promoting UP is still right");
+});
+
+test("the cup rule does not leak into weight, metric or count", () => {
+  /* THE REASON IT IS CUPS ONLY. Half a pound is sold as 8 oz and half a
+     litre as 500 ml — the smaller unit is the useful one there, and a
+     fractions-everywhere rule would have made both worse. */
+  assert.equal(shownAs(0.5, "lb"), "oz", "half a pound should read 8 oz, not 0.5 lb");
+  assert.equal(shownAs(0.5, "l", "metric"), "ml", "half a litre should read 500 ml");
+  assert.equal(shownAs(0.25, "lb"), "oz");
+});
+
 test("emptyCatalog has the shape of a catalog and none of the content", () => {
   /* ITEM 101. A household created "empty" still has to be a valid catalog
      node — a missing version or prefs means the first write lands in a shape
@@ -1125,7 +1176,7 @@ test("emptyCatalog has the shape of a catalog and none of the content", () => {
   const e = emptyCatalog();
   assert.deepEqual(e.recipes, {}, "an empty household must start with no recipes");
   assert.deepEqual(e.ingredients, {}, "an empty household must start with no ingredients");
-  assert.deepEqual(e.stores, [], "and no stores — the Ingredients tab adds them");
+  assert.deepEqual(e.stores, [], "and no stores — the Pantry tab adds them");
   assert.equal(e.version, CATALOG_SHAPE_VERSION, "the shape version has to be there");
   assert.equal(e.appDataVersion, APP_DATA_VERSION, "so an older build knows whether it may write here");
   assert.deepEqual(e.prefs, DEFAULT_PREFS, "units and week start are the household's, so a new one needs them");
@@ -1547,7 +1598,7 @@ test("catalogNameCollisions finds exactly the groups that would lose an entry", 
   assert.equal(found[1].entries.length, 3);
   // The DISPLAY names are no help: normalizeIngredient caps and trims, so
   // "eggs " comes back as "Eggs" — identical to the first entry. This is the
-  // whole reason duplicates are invisible in the Ingredients tab, and why the
+  // whole reason duplicates are invisible in the Pantry tab, and why the
   // store is carried too.
   assert.deepEqual(found[1].entries.map((e) => e.name), ["Eggs", "EGGS", "Eggs"]);
   assert.deepEqual(found[0].entries.map((e) => e.store), ["Costco", "Aldi"]);
@@ -1607,7 +1658,7 @@ test("no rename a user can ask for leaves the catalog un-exportable", () => {
 });
 
 test("adding an ingredient to the list doesn't clone it without a store", () => {
-  // THE BUG, exactly as reported: tap "+ List" on Orzo in the Ingredients tab
+  // THE BUG, exactly as reported: tap "+ List" on Orzo in the Pantry tab
   // and a second store-less "Orzo" appears. setListQty writes extras under the
   // ingredient's ID, but normalizeLocal re-derived the key from the NAME, so
   // the entry detached from the id-keyed catalog and rendered as its own row.

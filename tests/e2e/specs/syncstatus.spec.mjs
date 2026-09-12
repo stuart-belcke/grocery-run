@@ -64,13 +64,21 @@ const readHeader = (page) =>
     };
   });
 
-// The Household section's own header button: title span, status span, arrow.
-const readSection = (page) =>
-  page.evaluate(() => {
+/* A SECTION'S HEADER BUTTON: title span, aside span, arrow.
+
+   IT READS "Account" NOW, NOT "Household". The Household section used to
+   repeat the sync status beside its heading — the same sentence the header
+   at the top of every tab already shows — and that duplication was removed.
+   The SQUEEZE BUG IS NOT ABOUT SYNC, though: it is about Section giving a
+   long aside room by crushing its own title to nothing, and Account still
+   has an aside (the signed-in name or email), which can be far longer than
+   any status ever was. So the guard moves rather than going away. */
+const readSection = (page, heading = "Account") =>
+  page.evaluate((h) => {
     const box = (el) => (({ x, y, width, height }) => ({ x: Math.round(x), y: Math.round(y), w: Math.round(width), h: Math.round(height) }))(el.getBoundingClientRect());
     const g = { box };
-    const btn = Array.from(document.querySelectorAll("button[aria-expanded]")).find((b) => b.textContent.includes("Household"));
-    if (!btn) return { error: "no Household section header" };
+    const btn = Array.from(document.querySelectorAll("button[aria-expanded]")).find((b) => b.textContent.includes(h));
+    if (!btn) return { error: `no ${h} section header` };
     const spans = Array.from(btn.children).filter((e) => e.tagName === "SPAN");
     const title = spans[0];
     const aside = spans[1];
@@ -88,7 +96,7 @@ const readSection = (page) =>
       asideText: aside.textContent.trim(),
       asideFits: [aside.scrollWidth, aside.clientWidth],
     };
-  });
+  }, heading);
 
 const overlaps = (a, b) => Math.max(a.x, b.x) < Math.min(a.x + a.w, b.x + b.w) && Math.max(a.y, b.y) < Math.min(a.y + a.h, b.y + b.h);
 
@@ -99,32 +107,6 @@ const assertFits = (m, key, where) => {
 
 for (const [status, label] of STATUSES) {
   for (const width of WIDTHS) {
-    test(`the "${status}" status does not overwrite the Household heading at ${width}px`, async () => {
-      const page = await openApp(BASE, { status });
-      try {
-        await page.setViewportSize({ width, height: 780 });
-        await page.tab("Settings");
-        await page.waitForTimeout(400);
-
-        const m = await readSection(page);
-        const where = `${status} at ${width}px`;
-        assert.ok(!m.error, `${where}: ${m.error}`);
-        assert.match(m.asideText, label, `${where}: the section is showing "${m.asideText}"`);
-        assert.equal(m.titleText, "Household");
-        assertFits(m, "title", where);
-        assertFits(m, "aside", where);
-        assert.ok(
-          !overlaps(m.title, m.aside),
-          `${where}: "${m.titleText}" (x ${m.title.x}..${m.title.x + m.title.w}) and "${m.asideText}" (x ${m.aside.x}..${m.aside.x + m.aside.w}) are drawn on top of each other`
-        );
-        assert.ok(m.title.w >= 40, `${where}: the heading was squeezed to ${m.title.w}px`);
-        assert.equal(m.scrollWidth, m.viewport, `${where}: the page scrolls sideways`);
-        assertNoPageErrors(page, assert);
-      } finally {
-        await page.done();
-      }
-    });
-
     test(`the "${status}" status does not rewrap the app's own name at ${width}px`, async () => {
       const page = await openApp(BASE, { status });
       try {
@@ -146,17 +128,72 @@ for (const [status, label] of STATUSES) {
   }
 }
 
+/* THE SECTION SQUEEZE, on the section that still has an aside. A long email
+   is longer than any sync status ever was, so if Section can still crush its
+   own title to make room, this is where it shows. */
+const LONG_ASIDE = [
+  ["a long email", { uid: "u1", email: "genevieve.understaffed@averylongdomainname.example", displayName: "", isAnonymous: false }],
+  ["a long display name", { uid: "u1", email: "x@example.com", displayName: "Genevieve Understaffed-Wickersham", isAnonymous: false }],
+];
+
+for (const [what, user] of LONG_ASIDE) {
+  for (const width of WIDTHS) {
+    test(`${what} does not overwrite the Account heading at ${width}px`, async () => {
+      const page = await openApp(BASE, { user });
+      try {
+        await page.setViewportSize({ width, height: 780 });
+        await page.tab("Settings");
+        await page.waitForTimeout(400);
+
+        const m = await readSection(page, "Account");
+        const where = `${what} at ${width}px`;
+        assert.ok(!m.error, `${where}: ${m.error}`);
+        assert.equal(m.titleText, "Account");
+        assert.ok(m.asideText.length > 10, `${where}: the aside is "${m.asideText}" — this is not testing a long one`);
+        assertFits(m, "title", where);
+        assertFits(m, "aside", where);
+        assert.ok(
+          !overlaps(m.title, m.aside),
+          `${where}: "${m.titleText}" (x ${m.title.x}..${m.title.x + m.title.w}) and "${m.asideText}" (x ${m.aside.x}..${m.aside.x + m.aside.w}) are drawn on top of each other`
+        );
+        assert.ok(m.title.w >= 40, `${where}: the heading was squeezed to ${m.title.w}px`);
+        assert.equal(m.scrollWidth, m.viewport, `${where}: the page scrolls sideways`);
+        assertNoPageErrors(page, assert);
+      } finally {
+        await page.done();
+      }
+    });
+  }
+}
+
+/* AND THE SETTINGS TAB MUST NOT SAY IT TWICE. The Household section used to
+   repeat the header's status word for word, a few centimetres below it. */
+test("the sync status appears once on the Settings tab, not twice", async () => {
+  const page = await openApp(BASE, { status: "writeError" });
+  try {
+    await page.setViewportSize({ width: 390, height: 780 });
+    await page.tab("Settings");
+    await page.waitForTimeout(400);
+    const n = await page.evaluate(() => (document.body.innerText.match(/Sync error/g) || []).length);
+    assert.equal(n, 1, `"Sync error" appears ${n} times on the Settings tab — the header is the one place it belongs`);
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
 test("with nothing wrong, the status still says where the data is kept", async () => {
-  // The control. A build that simply stopped rendering the status would pass
-  // every assertion above.
+  /* THE CONTROL. A build that simply stopped rendering the status would pass
+     every assertion above. It reads the HEADER now — that is the one place
+     the status lives since the Settings duplicate went. */
   const page = await openApp(BASE);
   try {
     await page.setViewportSize({ width: 390, height: 780 });
     await page.tab("Settings");
     await page.waitForTimeout(400);
-    const m = await readSection(page);
-    assert.match(m.asideText, /Saved on this device/, "the Household section lost its status line");
-    assert.ok(!overlaps(m.title, m.aside), "even the short status is drawn over the heading");
+    const m = await readHeader(page);
+    assert.match(m.statusText, /Saved on this device/, "the header lost its status line");
+    assert.ok(!overlaps(m.title, m.status), "even the short status is drawn over the title");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

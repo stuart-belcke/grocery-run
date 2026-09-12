@@ -68,6 +68,9 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
   const canEditDefault = (item) => !isGuest && !!data.config[item.key];
   const storeOptions = [...data.stores, UNASSIGNED];
   const remaining = items.filter((i) => !data.list.checked[i.key]).length;
+  /* HAS ANYTHING BEEN TICKED YET? Only used to decide how loud "Done
+     shopping" is — see the sticky bar below. */
+  const anyChecked = items.some((i) => data.list.checked[i.key]);
 
   /* Item 44: the ingredient's PERMANENT home, edited from the row you are
      already looking at. Setting an aisle used to mean leaving the list, going
@@ -672,7 +675,18 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
           <span style={{ fontSize: 13, color: C.faint, whiteSpace: "nowrap" }}>
             <b style={{ fontSize: 15, color: C.ink, fontVariantNumeric: "tabular-nums" }}>{remaining}</b> item{remaining === 1 ? "" : "s"} left to buy
           </span>
-          <Btn kind="danger" style={{ marginLeft: "auto" }} onClick={() => setConfirmDone(true)}>Done shopping</Btn>
+          {/* QUIET UNTIL SOMETHING IS TICKED. This is the end of a trip, but
+              it was painted in the app's loudest treatment — a tomato-tinted
+              button — from the moment the list had anything on it. So the
+              most eye-catching thing on the main screen, at 15 items left and
+              nothing bought, was the button that ends the shop and clears the
+              list.
+              NEVER DISABLED, and that is deliberate: finishing a trip having
+              bought nothing is a real thing to do, and a control that is
+              there but greyed out is worse than one that is simply calm. It
+              takes on the warning colour once the trip is visibly underway,
+              which is also when you might actually want it. */}
+          <Btn kind={anyChecked ? "danger" : "ghost"} style={{ marginLeft: "auto" }} onClick={() => setConfirmDone(true)}>Done shopping</Btn>
           {/* The toggles come SECOND so that when the bar wraps — and at
               320px it does — the count and Done shopping are the line that
               stays on top. A wrap pushes whatever is last down, and what is

@@ -248,7 +248,13 @@ const UNIT_TABLE = {
   l: { dim: "volume", sys: "metric", per: 1000 },
   tsp: { dim: "volume", sys: "us", per: TSP_ML },
   tbsp: { dim: "volume", sys: "us", per: TSP_ML * 3 },
-  "fl oz": { dim: "volume", sys: "us", per: TSP_ML * 6 },
+  /* NOT A DEMOTION TARGET, for the mirror of the reason pt/qt/gal are not
+     promotion targets. Half a cup of carrots used to render "4 fl oz", which
+     is arithmetically perfect and useless: fluid ounces are a LIQUID measure
+     and carrots are not a liquid. It still converts, and still displays when
+     a recipe actually says "8 fl oz" — it is simply not somewhere an amount
+     gets moved to on its own. */
+  "fl oz": { dim: "volume", sys: "us", per: TSP_ML * 6, noPromote: true },
   cup: { dim: "volume", sys: "us", per: TSP_ML * 48 },
   // Container sizes rather than cooking measures. They convert fine when
   // typed, but they are not PROMOTION targets: a recipe wanting 2 cups of
@@ -487,7 +493,30 @@ export function pickDisplayUnit(units, baseQty, bySys, unitsPref) {
   }
 
   const bigFirst = [...candidates].sort((a, b) => b.info.per - a.info.per);
-  const fits = bigFirst.find((x) => baseQty / x.info.per >= 1);
+  /* A UNIT FITS IF THE AMOUNT REACHES 1 OF IT — or, for cups only, if it
+     lands on a fraction a recipe would actually be written in.
+
+     WHY CUPS ARE SPECIAL. Below a whole cup the ladder used to step down, so
+     half a cup of carrots became "4 fl oz" and a quarter cup of applesauce
+     "2 fl oz" — correct, and not how anybody shops or cooks. Half a cup is
+     written "1/2 cup" in every recipe there has ever been.
+
+     AND WHY ONLY CUPS. The same indulgence applied everywhere would make
+     half a pound read "0.5 lb" instead of "8 oz", and half a litre "0.5 l"
+     instead of "500 ml" — both worse, because those smaller units are how
+     the things are sold. Fractions of a cup are an idiom; fractions of a
+     pound are not. So this is deliberately the narrowest rule that fixes the
+     complaint, and cannot disturb weight, metric or count.
+
+     THE FRACTIONS ARE THE ONES RECIPES USE: a half, thirds and quarters.
+     0.3 of a cup is not one of them and still steps down, which is right —
+     nothing is gained by writing an amount nobody would measure. */
+  const CUP_FRACTIONS = [1 / 4, 1 / 3, 1 / 2, 2 / 3, 3 / 4];
+  const fits = bigFirst.find((x) => {
+    const n = baseQty / x.info.per;
+    if (n >= 1) return true;
+    return x.u === "cup" && CUP_FRACTIONS.some((f) => Math.abs(n - f) < 1e-6);
+  });
   return (fits || bigFirst[bigFirst.length - 1]).u;
 }
 
@@ -2763,7 +2792,7 @@ export function seedCatalog(catalogJson) {
    accepts this — two empty arrays and an empty object are a valid catalog
    with nothing in it, which is exactly what is wanted.
 
-   NO STORES, deliberately, and it is recoverable: the Ingredients tab's
+   NO STORES, deliberately, and it is recoverable: the Pantry tab's
    "Your stores" card adds them. The shipped list is five shops somebody
    actually goes to, which is a worse starting guess for a second household
    than none at all.
@@ -2795,7 +2824,7 @@ export function normalizeCatalog(raw) {
 // Every ingredient name the household knows about: configured defaults,
 // names used in recipes, and hand-added list entries — the same identity
 // (case-insensitive, by `key`) used throughout the app. Shared by the
-// Ingredients tab's list and the List tab's add-item suggestions so both
+// Pantry tab's list and the List tab's add-item suggestions so both
 // draw from one definition of "known ingredient".
 // The display name for an ingredient key. Every place that used to write
 // cap(key) needs this now: the key was the name until ingredients got ids, and
@@ -2976,7 +3005,7 @@ export function ingredientMatches(known, text, limit = 8) {
   return m.slice(0, limit);
 }
 
-// The Ingredients tab's visible rows: search text, one default store, staples
+// The Pantry tab's visible rows: search text, one default store, staples
 // only. A-Z order is inherited from `known`; this only hides rows.
 export function filterIngredients(data, known, { query = "", store = "", staplesOnly = false } = {}) {
   const q = norm(query);
