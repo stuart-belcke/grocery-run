@@ -290,3 +290,34 @@ test("every day is still a heading, and still says which meal it is", async () =
     await page.done();
   }
 });
+
+test("the servings sit on the meal's first line, to its right", async () => {
+  /* They used to be a line of their own under the name — a whole row for two
+     characters and a unit, on every planned day. Measured rather than looked
+     at, because "under" and "beside" are a few pixels apart in a screenshot
+     and opposite in what they cost. */
+  const page = await openWeek(planWith(fourDinners));
+  try {
+    const m = await page.evaluate(() => {
+      const btn = [...document.querySelectorAll("button")].find((b) => /view recipe$/i.test(b.getAttribute("aria-label") || ""));
+      if (!btn) return null;
+      const spans = [...btn.querySelectorAll("span")];
+      const sv = spans.find((s) => /^\d+(\.\d+)?\s*sv$/.test(s.textContent.trim()));
+      const name = spans.find((s) => s !== sv && s.textContent.trim() && !s.contains(sv));
+      if (!sv || !name) return null;
+      const a = name.getBoundingClientRect();
+      const b = sv.getBoundingClientRect();
+      return {
+        sameLine: Math.abs((a.top + a.height / 2) - (b.top + b.height / 2)) < a.height,
+        toTheRight: Math.round(b.left) > Math.round(a.left),
+        firstLine: Math.abs(a.top - b.top) < 12,
+      };
+    });
+    assert.ok(m, "could not find a planned meal with its servings");
+    assert.ok(m.toTheRight, "the servings should be to the right of the name, not under it");
+    assert.ok(m.firstLine, "the servings should sit on the name's FIRST line, so a name that wraps does not push them down");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});

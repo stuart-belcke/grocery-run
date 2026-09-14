@@ -3923,10 +3923,27 @@ into the details panel and the name grew.
         MOVED INSTEAD OF GOING: an empty day is one row and the ROW is the
         button, a wider target than the bordered one it replaces. A test
         taps it from the resting state, with no Edit first.
-        MEASURED: 1,228px to 844px at 390px — which is the viewport, so the
-        week no longer scrolls at all. The saving is the card chrome (12px of
-        padding, a heading row, a decorative stripe per day) and the
-        full-width button on all seven days.
+        THE DAY KEEPS ITS OWN ROW, WITH ITS STRIPE, and that was a
+        correction. My first pass saved a line a day by moving the day name
+        into the meal's left column and dropping the stripe — and lost the
+        thing that makes a week scannable: a day you can find without
+        reading, with what is on it beneath. The structure is a planning
+        thing AND a reading thing. What the resting view drops is the room a
+        form needs, not the structure.
+        SO AN EMPTY DAY PUTS ITS INVITATION ON THAT ROW, and the whole row is
+        the button — full card width, not the few characters of the words. A
+        compact button on the right measured 99px, which is a worse target
+        than the bordered one it replaced.
+        SERVINGS MOVED ONTO THE MEAL'S FIRST LINE, on the right. A whole row
+        for two characters and a unit made every planned day taller than the
+        thing it described. The name takes what is left and wraps under
+        itself; the count stays beside its first line. "Already have the
+        ingredients" keeps its own line — a sentence, not a number, and rare.
+        MEASURED at 390px: 1,228px to 844px, which is the viewport, so the
+        week no longer scrolls at all. The saving is the room, not the
+        structure — 12px of card padding down to 5, 10px of margin to 5, the
+        gap under each heading 8 to 2, and the full-width "Choose a meal"
+        button off all seven days.
         TWO THINGS CONDENSING COST, both caught by specs already here and
         both put back. Every day name had become a plain span, leaving a
         screen reader one heading — the app's name — and no way to move
@@ -3969,7 +3986,7 @@ into the details panel and the name grew.
         and it takes currentColor so it turns green with the words when a
         filter is doing something.
 
-     TESTED: 402 unit, 12 sync, 79 rules, 18 database, 340 browser, lint and
+     TESTED: 402 unit, 12 sync, 79 rules, 18 database, 341 browser, lint and
      build. Six existing browser tests had to be updated because controls
      genuinely moved, and each was re-pointed rather than weakened — the
      store editors are opened first, delete is measured inside the editor,
