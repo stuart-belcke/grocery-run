@@ -235,13 +235,23 @@ test("a dessert-only day shows its dessert and reads as planned", async () => {
    once already, so the affordance MOVED — the empty day's whole row is now
    the button — rather than going away. */
 
-test("a planned week fits on one screen without scrolling", async () => {
+test("a planned week costs far less to read than it used to", async () => {
+  /* A BUDGET, NOT "fits on one screen", and the difference is a decision
+     rather than a rounding. It DID fit for a while: the invitation to fill a
+     day rode on that day's heading row, which saved a line on every empty
+     one. That was wrong for a reason no measurement shows — you tapped it on
+     one row and the meal landed on another. A control should stand where its
+     result will, so it went back to its own line and took the one-screen fit
+     with it.
+     1,228px before any of this, about 980px now, at 390px with four days
+     planned. The budget is what the layout actually costs, checked so it
+     cannot creep back up. */
   const page = await openWeek(planWith(fourDinners));
   try {
     const m = await measure(page);
     assert.ok(
-      m.height <= m.viewport,
-      `the week is ${m.height}px against a ${m.viewport}px screen — reading it means scrolling`
+      m.height <= 1050,
+      `the week is ${m.height}px — it was 1,228px before this work and about 980px after, so something has grown`
     );
     assertNoPageErrors(page, assert);
   } finally {
@@ -249,7 +259,7 @@ test("a planned week fits on one screen without scrolling", async () => {
   }
 });
 
-test("an empty day is one row, and that row is how you fill it", async () => {
+test("an empty day's invitation stands where the meal will appear", async () => {
   const page = await openWeek(planWith(fourDinners));
   try {
     // Tue has nothing on it in fourDinners.
@@ -257,8 +267,8 @@ test("an empty day is one row, and that row is how you fill it", async () => {
     assert.equal(await add.count(), 1, "an empty day should offer exactly one way to fill it");
 
     const box = await add.boundingBox();
-    assert.ok(box.height <= 44, `an empty day is ${Math.round(box.height)}px tall — it should be a single row`);
-    assert.ok(box.width > 200, `the row itself should be the target, and it is only ${Math.round(box.width)}px wide`);
+    assert.ok(box.height <= 44, `the invitation is ${Math.round(box.height)}px tall — it should be a single row`);
+    assert.ok(box.width > 200, `it should span the row where the meal will appear, and it is only ${Math.round(box.width)}px wide`);
 
     /* WITHOUT PRESSING EDIT. This is the rule, checked from the resting
        state — no Start planning, no Edit, just the tab as you find it. */

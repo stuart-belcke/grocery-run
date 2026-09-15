@@ -358,41 +358,14 @@ export function WeekTab({ data, update, isGuest }) {
                   gap under the heading is 8px while planning and 4 at rest,
                   and an empty day puts its invitation on this row rather than
                   spending another one. */}
-              {/* AN EMPTY DAY AT REST: THE WHOLE HEADING ROW IS THE BUTTON.
-                  The invitation rides on the day's own row rather than taking
-                  one of its own, and the target is the full width of the card
-                  rather than the few characters of the words — a compact
-                  button on the right measured 99px, which is a worse target
-                  than the bordered one it replaced.
-                  THE HEADING WRAPS THE BUTTON, the pattern Section and the
-                  recipe cards use: the heading is what a screen reader moves
-                  by, the button is what it operates.
-                  IN BOTH MODES, because filling a day with nothing on it has
-                  never needed Edit first and a change that quietly took that
-                  away was caught by three specs once already. */}
-              {!isGuest && !slotsEditable && filledTypes(day).length === 0 ? (
-                <h2 style={{ margin: 0, font: "inherit", fontWeight: "inherit" }}>
-                  <button
-                    onClick={() => openPicker(day, defaultType(day))}
-                    aria-label={`Choose a meal for ${day}`}
-                    title="Tap to choose a meal"
-                    style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: "transparent", border: "none", padding: "3px 0", cursor: "pointer", fontFamily: fontBody }}
-                  >
-                    <span style={{ fontFamily: fontDisplay, fontSize: 17, fontWeight: 700, color: C.ink, width: 44, flexShrink: 0 }}>{day}</span>
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      <Stripe />
-                    </span>
-                    <span style={{ flexShrink: 0, fontSize: 13, color: C.ink }}>＋ Add a meal</span>
-                  </button>
-                </h2>
-              ) : (
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: slotsEditable ? 8 : 2 }}>
-                  <h2 style={{ fontFamily: fontDisplay, fontSize: 17, fontWeight: 700, margin: 0, width: 44 }}>{day}</h2>
-                  <div style={{ flex: 1 }}>
-                    <Stripe />
-                  </div>
+              {/* THE DAY AND ITS STRIPE, then what is on it underneath. The
+                  stripe is what lets you find a day without reading it. */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: slotsEditable ? 8 : 2 }}>
+                <h2 style={{ fontFamily: fontDisplay, fontSize: 17, fontWeight: 700, margin: 0, width: 44 }}>{day}</h2>
+                <div style={{ flex: 1 }}>
+                  <Stripe />
                 </div>
-              )}
+              </div>
               {filledTypes(day).map((type) => {
                 const slot = data.plan?.[day]?.[type];
                 const recipe = slot?.recipeId ? data.recipes.find((r) => r.id === slot.recipeId) : null;
@@ -649,44 +622,26 @@ export function WeekTab({ data, update, isGuest }) {
                   a day with nothing on it — and gating this on slotsEditable
                   quietly took that away. Three specs caught it. */}
               {!isGuest && freeTypes(day).length > 0 && (
-                slotsEditable ? (
-                  <div style={{ padding: "5px 0" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: TYPE_GAP }}>
-                      <span style={{ width: TYPE_COL, flexShrink: 0 }} />
-                      <button
-                        onClick={() => openPicker(day, defaultType(day))}
-                        aria-label={`Choose a meal for ${day}`}
-                        title="Tap to choose a meal"
-                        style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", fontFamily: fontBody, fontSize: 13, padding: "7px 10px", borderRadius: 8, cursor: "pointer", border: `1px solid ${C.line}`, background: "#fff", color: C.ink }}
-                      >
-                        <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>＋</span>
-                        Choose a meal
-                      </button>
-                    </div>
-                  </div>
-                ) : filledTypes(day).length === 0 ? (
-                  /* NOTHING — the day's own heading row above carries the
-                     invitation for an empty day, so it costs no line of its
-                     own. Rendering one here as well is what put "Add a meal"
-                     on the screen twice. */
-                  null
-                ) : (
-                  /* A DAY THAT ALREADY HAS SOMETHING still has free slots —
-                     lunch on a day with a dinner. A second full-width button
-                     would undo the whole saving, so it is a short one under
-                     the meals it belongs to, in the same column they are in. */
-                  <div style={{ display: "flex", gap: TYPE_GAP, padding: "2px 0 1px" }}>
+                /* ONE ROW, THE SAME IN BOTH MODES, and the position matters:
+                   it sits exactly where the meal it adds will appear. I had
+                   it riding on the day's own heading line to save a line, and
+                   that is the thing wrong with it — you tap an invitation on
+                   one row and the result lands on another. A control should
+                   stand where its result will. */
+                <div style={{ padding: slotsEditable ? "5px 0" : "3px 0" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: TYPE_GAP }}>
                     <span style={{ width: TYPE_COL, flexShrink: 0 }} />
                     <button
                       onClick={() => openPicker(day, defaultType(day))}
-                      aria-label={`Choose another meal for ${day}`}
-                      title="Tap to choose another meal"
-                      style={{ fontFamily: fontBody, fontSize: 12, color: C.faint, background: "transparent", border: "none", padding: "3px 0", cursor: "pointer", textAlign: "left" }}
+                      aria-label={`Choose a meal for ${day}`}
+                      title="Tap to choose a meal"
+                      style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", fontFamily: fontBody, fontSize: 13, padding: "7px 10px", borderRadius: 8, cursor: "pointer", border: `1px solid ${C.line}`, background: "#fff", color: C.ink }}
                     >
-                      ＋ Add another
+                      <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>＋</span>
+                      Choose a meal
                     </button>
                   </div>
-                )
+                </div>
               )}
 
               {/* A guest reads the week but cannot fill it, so a day with
@@ -698,12 +653,12 @@ export function WeekTab({ data, update, isGuest }) {
                    guest gets neither, so condensing the tab left them looking
                    at seven unlabelled "Nothing planned" lines. Caught by the
                    spec that asks whether a guest can see the week at all. */
-                <div style={{ display: "flex", alignItems: "baseline", gap: TYPE_GAP, padding: "5px 0" }}>
-                  {!slotsEditable && (
-                    <h2 style={{ fontFamily: fontDisplay, fontSize: 15, fontWeight: 700, color: C.ink, width: TYPE_COL, flexShrink: 0, margin: 0 }}>{day}</h2>
-                  )}
-                  <span style={{ fontSize: 13, color: C.faint }}>Nothing planned</span>
-                </div>
+                /* NO DAY NAME HERE. I added one while the heading row was
+                   hidden at rest, then put the heading row back and left this
+                   behind — so a guest saw the day twice, once in the heading
+                   and once beside this. Found by counting the headings rather
+                   than by looking. */
+                <div style={{ fontSize: 13, color: C.faint, padding: "5px 0" }}>Nothing planned</div>
               )}
             </div>
           );

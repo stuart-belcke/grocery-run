@@ -3930,20 +3930,28 @@ into the details panel and the name grew.
         reading, with what is on it beneath. The structure is a planning
         thing AND a reading thing. What the resting view drops is the room a
         form needs, not the structure.
-        SO AN EMPTY DAY PUTS ITS INVITATION ON THAT ROW, and the whole row is
-        the button — full card width, not the few characters of the words. A
-        compact button on the right measured 99px, which is a worse target
-        than the bordered one it replaced.
+        AND THE INVITATION TO FILL A DAY STANDS WHERE THE MEAL WILL APPEAR —
+        its own row, below the day, exactly as before. I had it riding on the
+        day's heading row instead, which saved a line on every empty day and
+        was wrong for a reason no measurement shows: you tap it on one row and
+        the result lands on another. A control should stand where its result
+        will. That cost the one-screen fit and was worth it.
         SERVINGS MOVED ONTO THE MEAL'S FIRST LINE, on the right. A whole row
         for two characters and a unit made every planned day taller than the
         thing it described. The name takes what is left and wraps under
         itself; the count stays beside its first line. "Already have the
         ingredients" keeps its own line — a sentence, not a number, and rare.
-        MEASURED at 390px: 1,228px to 844px, which is the viewport, so the
-        week no longer scrolls at all. The saving is the room, not the
-        structure — 12px of card padding down to 5, 10px of margin to 5, the
-        gap under each heading 8 to 2, and the full-width "Choose a meal"
-        button off all seven days.
+        MEASURED at 390px: 1,228px to about 980px, a fifth off. It reached
+        844px — the viewport exactly — while the invitation shared the day's
+        row, and the test said "fits on one screen". It is a BUDGET now
+        instead, because the honest number is the one the right layout costs.
+        The saving is the room and not the structure: 12px of card padding
+        down to 5, 10px of margin to 5, and the gap under each heading 8 to 2.
+        AND A GUEST SAW EVERY DAY NAME TWICE for a while — added to the
+        "Nothing planned" row while the heading was hidden at rest, and left
+        there when the heading came back. Found by counting the headings, not
+        by looking at it; a duplicate reads as a slightly odd layout rather
+        than as a fault.
         TWO THINGS CONDENSING COST, both caught by specs already here and
         both put back. Every day name had become a plain span, leaving a
         screen reader one heading — the app's name — and no way to move
