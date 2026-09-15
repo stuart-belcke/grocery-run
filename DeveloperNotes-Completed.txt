@@ -3821,7 +3821,181 @@ into the details panel and the name grew.
      failing only its own, one new unit test with two breakages of its own,
      and the four tabs looked at in a real browser at phone width.
 
-     NOT DONE, and worth knowing: the six source comments still say
-     "Ingredients tab". Renaming them is a separate tidy-up with no effect on
-     anything shown, and the guard above makes the only version that matters
-     — what is on screen — checkable.
+     THE SIX SOURCE COMMENTS that still said "Ingredients tab" were left for
+     a separate tidy-up here, since they change nothing on screen and the
+     guard above makes the only version that matters checkable. Item 131 did
+     them.
+
+131. A UX PASS OVER THE WHOLE APP, driven by looking at it rather than
+     reading it. Every tab opened in a real browser at 390px with meals
+     planned and a list built, which is the only reason most of this was
+     found — none of it is visible in the code.
+
+     A. "Catalog v16 loaded" IS GONE. It was set when a newer catalog
+        arrived and NEVER CLEARED, so a one-off "something updated" note sat
+        under the header on every tab for the rest of the session. It also
+        spoke in version numbers, which tell a person nothing. The recipes
+        updating themselves is the mechanism working, and a notice about a
+        mechanism that works is a step backwards from the mechanism.
+
+     B. HALF A CUP OF CARROTS SAID "4 fl oz". Arithmetically perfect and
+        useless: fluid ounces are a liquid measure. The unit ladder picked
+        the largest unit keeping the number above 1, so anything under a cup
+        stepped down. Two changes. `fl oz` is no longer a DEMOTION target,
+        the mirror of pt/qt/gal not being promotion targets — it still
+        converts and still shows when a recipe says "8 fl oz". And CUPS, AND
+        ONLY CUPS, accept a fraction a recipe would be written in: a half,
+        thirds, quarters. 0.3 of a cup is not one and still steps down.
+        ONLY CUPS, because the same indulgence everywhere would make half a
+        pound read "0.5 lb" instead of "8 oz" and half a litre "0.5 l"
+        instead of "500 ml" — both worse, since those smaller units are how
+        the things are sold. Fractions of a cup are an idiom; fractions of a
+        pound are not.
+        NOTHING PROTECTED THIS LADDER FOR VOLUME. Four tests now do, and
+        three deliberate breakages each fail only their own.
+
+     C. THE SETTINGS TAB SAID THE SYNC STATUS TWICE — the header at the top
+        of every tab, and the Household section heading, same words, same
+        colours, a few centimetres apart. The header wins: a status always in
+        one place is easier to trust than one sometimes in two.
+        THE TESTS THAT GUARDED IT WERE NOT DELETED. The bug they exist for —
+        reported from a real phone as "Sync error" drawn straight through the
+        word "Household" — is in Section, which crushes its own title to make
+        room for a long aside. Account still has an aside, and an email is
+        longer than any status, so the guard moved there. Plus a new one:
+        the status must appear ONCE on the Settings tab.
+
+     D. "Done shopping" IS QUIET UNTIL SOMETHING IS TICKED. It was painted in
+        the app's loudest treatment from the moment the list had anything on
+        it, so the most eye-catching thing on the main screen — at 15 items
+        left and nothing bought — was the button that ends the shop and
+        clears the list. Never disabled, though: finishing a trip having
+        bought nothing is a real thing to do.
+
+     E. THE RECIPES TAB LISTED EVERY INGREDIENT TWICE — a grey run-on on the
+        card, and the same names with amounts under "Ingredients & recipe".
+        The run-on was the biggest thing on each card, three wrapped lines,
+        pushing a card to ~200px so two and a half fitted on a phone with 24
+        recipes below. Browsing now gets a count.
+        BUT SEARCH MATCHES INGREDIENT NAMES, so with only a count a search
+        for "lemon" would return cards giving no hint why. While there is a
+        query the names come back. Three cards fit where two and a half did.
+
+     F. DELETING A RECIPE MOVED BEHIND Edit. It was a bare ✕ alone in each
+        card's top corner: the only irreversible action on the tab, furthest
+        from the three safe ones and right where a thumb scrolls, with
+        nothing beside it to hit instead. It is now a button at the bottom of
+        the editor beside Cancel and Save, labelled with the meal's name for
+        a screen reader, and it closes the editor afterwards so Save cannot
+        write the recipe back under its old id.
+        AND THAT EXPOSED SOMETHING ELSE: the editor renders ABOVE the list,
+        so opening it from a card halfway down did nothing you could see —
+        the form appeared off the top of the screen. It scrolls into view
+        now. A button you press and then cannot find is worse than one in
+        the wrong place.
+
+     G. THE PANTRY TAB'S "Your stores" CARD IS COLLAPSED BY DEFAULT. Open, it
+        filled the top quarter of the screen — five shops, their remove
+        buttons and an Add field — in front of the ingredients, which is what
+        the tab is for and what changes daily. A shop list changes about once
+        a year. Six ingredient rows are visible where two were. useSticky and
+        not useState, because this is something you were LOOKING AT.
+
+     H. "Ingredients tab" IS NOW "Pantry tab" in all six places. The tab has
+        been called Pantry for a long time and the comments had not caught
+        up, which is exactly how the wrong name reached a dialog in item 129.
+
+     K. THE WEEK NOW FITS ON ONE SCREEN, and this entry first said it could
+        not be done. That was wrong, and worth recording why. I read the
+        comment in WeekTab about gating "+ Choose a meal" on edit mode and
+        reported it as "condensing the plan tab was already tried and
+        rejected". It was not. Two different things had been run together:
+        the thing BUILT AND REJECTED was a 7x4 GRID for choosing meals (item
+        111) — 28 boxes, which won every measurement and lost on reading your
+        own week by counting rows and columns. The comment records something
+        narrower and different in kind: a REGRESSION caught by three specs,
+        which left behind a RULE — a day with nothing on it stays fillable
+        without pressing Edit. A rule about how, not a verdict on whether.
+        THE SHAPE, proposed by the owner: Edit expands the tab to the form it
+        has always been, and leaving Edit condenses it to what is planned.
+        AND THE ONE PLACE IT COLLIDED with that rule was empty days, which
+        the proposal would have shown as a bare day name. So the affordance
+        MOVED INSTEAD OF GOING: an empty day is one row and the ROW is the
+        button, a wider target than the bordered one it replaces. A test
+        taps it from the resting state, with no Edit first.
+        THE DAY KEEPS ITS OWN ROW, WITH ITS STRIPE, and that was a
+        correction. My first pass saved a line a day by moving the day name
+        into the meal's left column and dropping the stripe — and lost the
+        thing that makes a week scannable: a day you can find without
+        reading, with what is on it beneath. The structure is a planning
+        thing AND a reading thing. What the resting view drops is the room a
+        form needs, not the structure.
+        AND THE INVITATION TO FILL A DAY STANDS WHERE THE MEAL WILL APPEAR —
+        its own row, below the day, exactly as before. I had it riding on the
+        day's heading row instead, which saved a line on every empty day and
+        was wrong for a reason no measurement shows: you tap it on one row and
+        the result lands on another. A control should stand where its result
+        will. That cost the one-screen fit and was worth it.
+        SERVINGS MOVED ONTO THE MEAL'S FIRST LINE, on the right. A whole row
+        for two characters and a unit made every planned day taller than the
+        thing it described. The name takes what is left and wraps under
+        itself; the count stays beside its first line. "Already have the
+        ingredients" keeps its own line — a sentence, not a number, and rare.
+        MEASURED at 390px: 1,228px to about 980px, a fifth off. It reached
+        844px — the viewport exactly — while the invitation shared the day's
+        row, and the test said "fits on one screen". It is a BUDGET now
+        instead, because the honest number is the one the right layout costs.
+        The saving is the room and not the structure: 12px of card padding
+        down to 5, 10px of margin to 5, and the gap under each heading 8 to 2.
+        AND A GUEST SAW EVERY DAY NAME TWICE for a while — added to the
+        "Nothing planned" row while the heading was hidden at rest, and left
+        there when the heading came back. Found by counting the headings, not
+        by looking at it; a duplicate reads as a slightly odd layout rather
+        than as a fault.
+        TWO THINGS CONDENSING COST, both caught by specs already here and
+        both put back. Every day name had become a plain span, leaving a
+        screen reader one heading — the app's name — and no way to move
+        through the week; they are h2 again, with the empty day's heading
+        wrapping its button the way Section does. And dropping the meal type
+        as redundant made a day holding only a DESSERT read exactly like a
+        day holding a dinner; it is always shown, under the day name in the
+        same column, which costs no height. An 11px label also failed the
+        floor of 12px the app holds itself to.
+
+     I. THE LIST TAB'S VIEW TOGGLES MOVED OFF THE PINNED BAR. They took a
+        row of a bar that stays on screen for the whole shop. They are now
+        behind one button, in a popover — the pattern the Recipes and Pantry
+        tabs already use for their own filters.
+        THE TOGGLES THEMSELVES ARE UNCHANGED, and that was a correction. My
+        first attempt replaced them with a list of three options, each with a
+        sentence explaining it, on the reasoning that they were "really one
+        choice of three". The owner's answer was that the original options
+        were fine and should not need explaining — which is right, and the
+        reason is structural: the sort only exists once "By store" is chosen,
+        so "A-Z" and "Store flow" read as sorts WITHIN a shop rather than as
+        rivals to "All items". Take that nesting away and they need prose;
+        leave it and they do not.
+        THE COUNT READS "6 to buy" now, not "6 items left to buy" — the app's
+        own words, since every store subheading down the page already says it.
+        Those 60px are what put the whole bar on one line: 94px of pinned bar
+        before, 55px after at 390px, and 133 to 98 at 320px. Measured on a
+        real page, both before and after, because the first attempt made it
+        WORSE at 390 (110px) and only looked like a win at 320.
+        WHAT WRAPS AT 320 IS STILL THE SETTING, never the count or Done
+        shopping — the control sits last for exactly that reason, which is
+        what the original comment said and what a test holds.
+
+     J. A TAPERED FILTER MARK REPLACED THE MAGNIFYING GLASS on all three
+        tabs. ⌕ means SEARCH, and on two of them the button sat directly
+        beside a real search box with its own magnifier — the same mark a
+        centimetre apart meaning two different things. Three EQUAL bars were
+        tried first and read as settings. It is an inline SVG (FilterMark in
+        ui.jsx) because no dependable character exists for the tapered shape,
+        and it takes currentColor so it turns green with the words when a
+        filter is doing something.
+
+     TESTED: 402 unit, 12 sync, 79 rules, 18 database, 341 browser, lint and
+     build. Six existing browser tests had to be updated because controls
+     genuinely moved, and each was re-pointed rather than weakened — the
+     store editors are opened first, delete is measured inside the editor,
+     the Section squeeze guard moved to Account.

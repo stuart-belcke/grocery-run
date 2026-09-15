@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { openApp, assertNoPageErrors } from "../harness.mjs";
-import { cleanCatalog, smallCatalog, idOf } from "../fixtures.mjs";
+import { cleanCatalog, smallCatalog, idOf, longListState } from "../fixtures.mjs";
 
 const BASE = process.env.E2E_BASE_URL;
 
@@ -379,6 +379,119 @@ test("putting a bought item back returns it to the list", async () => {
         .map((e) => e.getAttribute("aria-label").replace(/^Bought /, "")).sort()
     );
     assert.ok(names.includes("Broccoli"), "putting it back should return it to the list");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* ── HOW THE LIST IS ARRANGED ─────────────────────────────────────────────
+   The bar holding this is PINNED while you shop, so its height is charged for
+   the whole trip, and the two view toggles used to take a row of it.
+
+   They are the SAME TWO TOGGLES now — nothing about them changed — moved into
+   a popover behind one button, which is the pattern the Recipes and Pantry
+   tabs already use for their own filters. The button carries the tapered
+   filter mark all three now share, so it reads as something that narrows what
+   you are looking at rather than as a mystery caret.
+
+   Measured on a real page: 94px of pinned bar before, 55px after at 390px. */
+
+const barHeight = (page) =>
+  page.evaluate(() => {
+    const bar = Array.from(document.querySelectorAll("div")).find((d) => getComputedStyle(d).position === "sticky");
+    return bar ? Math.round(bar.getBoundingClientRect().height) : null;
+  });
+
+const VIEW_BTN = 'button[aria-label="Change how the list is arranged"]';
+
+test("the pinned bar is one line on a normal phone", async () => {
+  const page = await openApp(BASE, { state: longListState(12) });
+  try {
+    await page.setViewportSize({ width: 390, height: 780 });
+    await page.tab("List");
+    await page.waitForTimeout(400);
+    const h = await barHeight(page);
+    assert.ok(h !== null, "no pinned bar found — the selector is wrong");
+    assert.ok(h <= 70, `the pinned bar is ${h}px — it has wrapped onto a second line, which costs that height for the whole shop`);
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("the control names the view you are on, and holds the same two toggles", async () => {
+  const page = await openApp(BASE, { state: longListState(12) });
+  try {
+    await page.setViewportSize({ width: 390, height: 780 });
+    await page.tab("List");
+    await page.waitForTimeout(400);
+
+    const control = page.locator(VIEW_BTN);
+    assert.match(await control.innerText(), /By store/, "the control should name the view you are on, not just say 'Filter'");
+
+    await control.click();
+    await page.waitForTimeout(300);
+    const pop = page.getByRole("group", { name: "How the list is arranged" });
+    await pop.waitFor({ state: "visible", timeout: 3000 });
+
+    const text = await pop.innerText();
+    for (const label of ["All items", "By store", "A–Z", "Store flow"]) {
+      assert.ok(text.includes(label), `"${label}" should still be one of the choices — these are the original toggles, not new wording`);
+    }
+
+    /* THE SORT ONLY EXISTS UNDER "By store", which is what makes "A–Z" and
+       "Store flow" read as sorts WITHIN a shop rather than as rivals to
+       "All items" — and why neither needs explaining. */
+    await pop.getByRole("button", { name: "All items" }).click();
+    await page.waitForTimeout(400);
+    assert.doesNotMatch(await pop.innerText(), /Store flow/, "with All items chosen there is no store to sort within, so the sort must go");
+    assert.match(await control.innerText(), /All items/, "picking a view should change what the control says");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("the chosen view survives leaving the tab, and the popover does not", async () => {
+  /* The CHOICE is something you were looking at, so it is remembered. The
+     popover is something you were in the middle of doing, so it is not. */
+  const page = await openApp(BASE, { state: longListState(12) });
+  try {
+    await page.setViewportSize({ width: 390, height: 780 });
+    await page.tab("List");
+    await page.waitForTimeout(400);
+    await page.locator(VIEW_BTN).click();
+    await page.waitForTimeout(300);
+    await page.getByRole("group", { name: "How the list is arranged" }).getByRole("button", { name: "Store flow" }).click();
+    await page.waitForTimeout(400);
+
+    await page.tab("Recipes");
+    await page.tab("List");
+    await page.waitForTimeout(500);
+
+    assert.match(await page.locator(VIEW_BTN).innerText(), /Store flow/, "the view you chose should still be the one you are on");
+    assert.equal(await page.getByRole("group", { name: "How the list is arranged" }).count(), 0, "the popover should not reopen itself");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("the view control carries the filter mark, not just a word", async () => {
+  /* The mark is an inline SVG rather than a character, because there is no
+     dependable one: three EQUAL bars read as settings, and a magnifying glass
+     means search — which is what these buttons used to show, a centimetre
+     from a real search box on two of the three tabs. */
+  const page = await openApp(BASE, { state: longListState(12) });
+  try {
+    await page.setViewportSize({ width: 390, height: 780 });
+    await page.tab("List");
+    await page.waitForTimeout(400);
+    const svgs = await page.locator(VIEW_BTN).locator("svg").count();
+    assert.equal(svgs, 1, "the control should carry the filter mark beside its label");
+    const body = await page.locator("body").innerText();
+    assert.doesNotMatch(body, /⌕/, "the magnifying glass should be gone — it means search");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

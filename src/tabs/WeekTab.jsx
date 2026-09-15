@@ -335,8 +335,32 @@ export function WeekTab({ data, update, isGuest }) {
           // from the other phone counts before anything is rendered for it.
           const dayHasMeals = MEAL_TYPES.some((t) => data.plan?.[day]?.[t]?.recipeId);
           return (
-            <div key={day} style={{ background: C.card, border: `1px solid ${dayHasMeals ? C.green : C.line}`, borderRadius: 12, padding: "12px 16px", marginBottom: 10 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            /* TWO SHAPES FOR ONE DAY, and which you get is the mode you are
+               in. PLANNING is a form: every slot open, servings, sides, the
+               lot — unchanged from what it always was, because that is the
+               activity and it needs the room.
+               AT REST IT IS A LIST OF WHAT YOU ARE EATING, and it was still
+               wearing the form's clothes: a card with 12px of padding, a
+               heading row with a decorative stripe, and a full-width "Choose
+               a meal" button on every one of seven days. A planned week ran
+               to about 1,230px — one and a half screens to answer "what are
+               we having". Condensed it is one line a day. */
+            <div key={day} style={ slotsEditable
+              ? { background: C.card, border: `1px solid ${dayHasMeals ? C.green : C.line}`, borderRadius: 12, padding: "12px 16px", marginBottom: 10 }
+              : { background: C.card, border: `1px solid ${dayHasMeals ? C.green : C.line}`, borderRadius: 10, padding: "5px 10px", marginBottom: 5 } }>
+              {/* THE DAY, ITS STRIPE, AND THE MEALS UNDER IT. I took this row
+                  out when condensing and put the day name in the meal's left
+                  column instead; it saved a line a day and lost the thing
+                  that made the week scannable — a day you can find without
+                  reading, with what is on it beneath.
+                  IT STAYS IN BOTH MODES for that reason. What the resting
+                  view drops is the room a form needs, not the structure: the
+                  gap under the heading is 8px while planning and 4 at rest,
+                  and an empty day puts its invitation on this row rather than
+                  spending another one. */}
+              {/* THE DAY AND ITS STRIPE, then what is on it underneath. The
+                  stripe is what lets you find a day without reading it. */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: slotsEditable ? 8 : 2 }}>
                 <h2 style={{ fontFamily: fontDisplay, fontSize: 17, fontWeight: 700, margin: 0, width: 44 }}>{day}</h2>
                 <div style={{ flex: 1 }}>
                   <Stripe />
@@ -372,6 +396,13 @@ export function WeekTab({ data, update, isGuest }) {
                           grey used for supporting text, which is what it is
                           not: on a scanned week it read as decoration. Ink,
                           bolder, and a point larger. */}
+                      {/* PLANNING: which meal of the day this is, the only
+                          thing telling two rows on one day apart.
+                          AT REST: the day itself on its first row, and the
+                          meal type underneath it on any row after — because a
+                          week you are reading is a list of DAYS, and the type
+                          only has to disambiguate when a day holds more than
+                          one. */}
                       <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, width: TYPE_COL, flexShrink: 0 }}>{type}</span>
                       {!recipe && isGuest ? (
                         // A guest cannot fill a slot, so an empty one is a fact
@@ -435,6 +466,19 @@ export function WeekTab({ data, update, isGuest }) {
                         // Title spans the full width, with servings as a
                         // subtitle underneath. Sides get their own rows below
                         // rather than being folded into this line.
+                        /* THE SERVINGS SIT ON THE MEAL'S FIRST LINE, on the
+                           right, rather than on a line of their own beneath
+                           it. They are two characters and a unit; a whole row
+                           for them made every planned day taller than the
+                           thing it was describing.
+                           flexShrink 0 so the number never wraps or is
+                           clipped, and the name takes what is left — a long
+                           recipe name runs to two lines and the count stays
+                           put beside its first.
+                           "already have the ingredients" KEEPS ITS OWN LINE:
+                           it is the reason a meal is on the plan but not on
+                           the shopping list, which is a sentence rather than
+                           a number, and it is rare. */
                         <button
                           onClick={() => toggleRecipe(day, type)}
                           aria-expanded={recipeOpen === recipeKey(day, type)}
@@ -442,10 +486,15 @@ export function WeekTab({ data, update, isGuest }) {
                           title="View recipe"
                           style={{ ...slotBox, cursor: "pointer", flexDirection: "column", alignItems: "stretch", gap: 1 }}
                         >
-                          <span style={{ fontWeight: 600 }}>{recipe.easy ? "⚡ " : ""}{recipe.name}</span>
-                          <span style={{ fontSize: 12, color: C.faint, fontVariantNumeric: "tabular-nums" }}>
-                            {Number(slot.servings) || base} sv{skipped ? " · already have the ingredients" : ""}
+                          <span style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                            <span style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>{recipe.easy ? "⚡ " : ""}{recipe.name}</span>
+                            <span style={{ flexShrink: 0, fontSize: 12, color: C.faint, fontVariantNumeric: "tabular-nums" }}>
+                              {Number(slot.servings) || base} sv
+                            </span>
                           </span>
+                          {skipped && (
+                            <span style={{ fontSize: 12, color: C.faint }}>already have the ingredients</span>
+                          )}
                         </button>
                       )}
                     </div>
@@ -573,7 +622,13 @@ export function WeekTab({ data, update, isGuest }) {
                   a day with nothing on it — and gating this on slotsEditable
                   quietly took that away. Three specs caught it. */}
               {!isGuest && freeTypes(day).length > 0 && (
-                <div style={{ padding: "5px 0" }}>
+                /* ONE ROW, THE SAME IN BOTH MODES, and the position matters:
+                   it sits exactly where the meal it adds will appear. I had
+                   it riding on the day's own heading line to save a line, and
+                   that is the thing wrong with it — you tap an invitation on
+                   one row and the result lands on another. A control should
+                   stand where its result will. */
+                <div style={{ padding: slotsEditable ? "5px 0" : "3px 0" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: TYPE_GAP }}>
                     <span style={{ width: TYPE_COL, flexShrink: 0 }} />
                     <button
@@ -593,6 +648,16 @@ export function WeekTab({ data, update, isGuest }) {
                   nothing on it needs to say so rather than render as a bare
                   heading with a blank underneath. */}
               {filledTypes(day).length === 0 && isGuest && (
+                /* THE DAY NAME COMES WITH IT. At rest the name is drawn by the
+                   first meal row, or by the empty day's own button — and a
+                   guest gets neither, so condensing the tab left them looking
+                   at seven unlabelled "Nothing planned" lines. Caught by the
+                   spec that asks whether a guest can see the week at all. */
+                /* NO DAY NAME HERE. I added one while the heading row was
+                   hidden at rest, then put the heading row back and left this
+                   behind — so a guest saw the day twice, once in the heading
+                   and once beside this. Found by counting the headings rather
+                   than by looking. */
                 <div style={{ fontSize: 13, color: C.faint, padding: "5px 0" }}>Nothing planned</div>
               )}
             </div>

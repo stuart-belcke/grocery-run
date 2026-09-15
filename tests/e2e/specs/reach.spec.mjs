@@ -78,6 +78,9 @@ for (const width of [390, 320]) {
     try {
       await page.setViewportSize({ width, height: 780 });
       await page.tab("Pantry");
+      // "Your stores" is collapsed by default now, so open it to reach the
+      // Remove buttons this measures.
+      await page.openSection(/^Your stores/);
       await page.waitForTimeout(400);
       assertReachable(await measureTargets(page, /^Remove /), `${width}px`);
       assertNoPageErrors(page, assert);
@@ -87,10 +90,25 @@ for (const width of [390, 320]) {
   });
 
   test(`deleting a meal is a thumb-sized target at ${width}px`, async () => {
+    /* DELETE MOVED BEHIND EDIT. It used to be a bare ✕ in each card's top
+       corner — the only irreversible action on the tab, sitting alone where
+       a thumb scrolls — and this measured it there. It is now an ordinary
+       button at the bottom of the editor, beside Cancel and Save, so that is
+       where it gets measured: a control being far from the scroll path does
+       not excuse it from being thumb-sized once you are in front of it. */
     const page = await openApp(BASE, { catalog: cleanCatalog() });
     try {
       await page.setViewportSize({ width, height: 780 });
       await page.tab("Recipes");
+      await page.waitForTimeout(400);
+      await page.locator("button").filter({ hasText: /^Edit$/ }).first().click();
+      await page.waitForTimeout(600);
+      /* Opening the editor scrolls its TOP into view, which is right — that
+         is where you start reading. Delete is at the bottom of a long form,
+         so scroll to the control itself: what is being measured is whether it
+         is thumb-sized and cleanly tappable once you are in front of it, not
+         how far away it starts. */
+      await page.getByLabel(/^Delete /).first().scrollIntoViewIfNeeded();
       await page.waitForTimeout(400);
       assertReachable(await measureTargets(page, /^Delete /), `${width}px`);
       assertNoPageErrors(page, assert);

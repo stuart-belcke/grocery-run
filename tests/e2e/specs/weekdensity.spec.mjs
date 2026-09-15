@@ -222,3 +222,112 @@ test("a dessert-only day shows its dessert and reads as planned", async () => {
     await page.done();
   }
 });
+
+/* ── THE WEEK AT REST IS A LIST, NOT A FORM ────────────────────────────────
+   Planning needs the room: every slot open, servings, sides. Reading the week
+   does not, and it was wearing the form's clothes — a card per day with a
+   heading row, a decorative stripe and a full-width "Choose a meal" button on
+   all seven. A planned week ran about 1,230px, one and a half screens to
+   answer "what are we having".
+
+   THE RULE THIS HAD TO KEEP: a day with nothing on it stays fillable without
+   pressing Edit first. Gating that on edit mode was caught by three specs
+   once already, so the affordance MOVED — the empty day's whole row is now
+   the button — rather than going away. */
+
+test("a planned week costs far less to read than it used to", async () => {
+  /* A BUDGET, NOT "fits on one screen", and the difference is a decision
+     rather than a rounding. It DID fit for a while: the invitation to fill a
+     day rode on that day's heading row, which saved a line on every empty
+     one. That was wrong for a reason no measurement shows — you tapped it on
+     one row and the meal landed on another. A control should stand where its
+     result will, so it went back to its own line and took the one-screen fit
+     with it.
+     1,228px before any of this, about 980px now, at 390px with four days
+     planned. The budget is what the layout actually costs, checked so it
+     cannot creep back up. */
+  const page = await openWeek(planWith(fourDinners));
+  try {
+    const m = await measure(page);
+    assert.ok(
+      m.height <= 1050,
+      `the week is ${m.height}px — it was 1,228px before this work and about 980px after, so something has grown`
+    );
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("an empty day's invitation stands where the meal will appear", async () => {
+  const page = await openWeek(planWith(fourDinners));
+  try {
+    // Tue has nothing on it in fourDinners.
+    const add = page.getByLabel("Choose a meal for Tue");
+    assert.equal(await add.count(), 1, "an empty day should offer exactly one way to fill it");
+
+    const box = await add.boundingBox();
+    assert.ok(box.height <= 44, `the invitation is ${Math.round(box.height)}px tall — it should be a single row`);
+    assert.ok(box.width > 200, `it should span the row where the meal will appear, and it is only ${Math.round(box.width)}px wide`);
+
+    /* WITHOUT PRESSING EDIT. This is the rule, checked from the resting
+       state — no Start planning, no Edit, just the tab as you find it. */
+    await add.click();
+    await page.waitForTimeout(400);
+    assert.equal(await page.getByRole("dialog", { name: "Choose a meal for Tue" }).count(), 1, "tapping an empty day should open the picker without going through Edit first");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("every day is still a heading, and still says which meal it is", async () => {
+  /* Two things condensing cost, both caught by other specs and both put back:
+     a screen reader navigates this tab by its day headings, and a day holding
+     only a DESSERT must not read like a day holding a dinner. */
+  const page = await openWeek(planWith({ ...fourDinners, Fri: { Dessert: { recipeId: "r-riceside", servings: 2 } } }));
+  try {
+    const seen = await page.evaluate(() =>
+      [...document.querySelectorAll("h2")].map((h) => h.textContent.trim().split("\n")[0])
+    );
+    for (const day of ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]) {
+      assert.ok(seen.some((t) => t.startsWith(day)), `${day} is not a heading — a screen reader cannot move through the week`);
+    }
+    const m = await measure(page);
+    assert.ok(m.typeLabels.includes("Dessert"), "a dessert-only day must say it is a dessert");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("the servings sit on the meal's first line, to its right", async () => {
+  /* They used to be a line of their own under the name — a whole row for two
+     characters and a unit, on every planned day. Measured rather than looked
+     at, because "under" and "beside" are a few pixels apart in a screenshot
+     and opposite in what they cost. */
+  const page = await openWeek(planWith(fourDinners));
+  try {
+    const m = await page.evaluate(() => {
+      const btn = [...document.querySelectorAll("button")].find((b) => /view recipe$/i.test(b.getAttribute("aria-label") || ""));
+      if (!btn) return null;
+      const spans = [...btn.querySelectorAll("span")];
+      const sv = spans.find((s) => /^\d+(\.\d+)?\s*sv$/.test(s.textContent.trim()));
+      const name = spans.find((s) => s !== sv && s.textContent.trim() && !s.contains(sv));
+      if (!sv || !name) return null;
+      const a = name.getBoundingClientRect();
+      const b = sv.getBoundingClientRect();
+      return {
+        sameLine: Math.abs((a.top + a.height / 2) - (b.top + b.height / 2)) < a.height,
+        toTheRight: Math.round(b.left) > Math.round(a.left),
+        firstLine: Math.abs(a.top - b.top) < 12,
+      };
+    });
+    assert.ok(m, "could not find a planned meal with its servings");
+    assert.ok(m.toTheRight, "the servings should be to the right of the name, not under it");
+    assert.ok(m.firstLine, "the servings should sit on the name's FIRST line, so a name that wraps does not push them down");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
