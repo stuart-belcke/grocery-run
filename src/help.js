@@ -105,6 +105,11 @@ export const FAQS = [
     keywords: ["create", "new household", "second household", "another household", "more than one", "separate list", "trip", "second home"],
   },
   {
+    q: "Can I cook two dishes for the same meal?",
+    a: "Yes, as many as you like. Plan the meal on {Plan}, then [[Add another dish]] under it — the picker offers every recipe you have, with side dishes at the top. Each dish keeps its own serving count, and every one of them is totalled into the shopping list, so two mains for one dinner works exactly like two separate meals would. Useful for a meat dish and a vegetarian one at the same table, not only for a side.",
+    keywords: ["two dishes", "second dish", "side", "sides", "side dish", "two meals", "same night", "vegetarian", "extra dish"],
+  },
+  {
     q: "How do I get the app onto my home screen?",
     a: "On iPhone: tap Share, then Add to Home Screen. On Android: open the browser menu, then Install app — or use the button the app offers you, which opens the same dialog in one tap. It then opens without the browser bar, works offline, and stays signed in. The app offers this once after you join, and it is always available afterwards in Settings under Account. If you joined as a guest without an account, that access lives in this browser, so signing in is what carries it to the icon.",
     keywords: ["home screen", "install", "icon", "add to home screen", "app", "pwa", "shortcut", "standalone"],

@@ -38,7 +38,7 @@ const listAmount = (page, name) =>
     return span ? span.textContent.trim() : null;
   }, name);
 
-// Per-slot controls — servings, the ✕, and "Add a side" — only exist while
+// Per-slot controls — servings, the ✕, and "Add another dish" — only exist while
 // planning (or behind Edit in the shopping stage). Skipping this step is what
 // made the sides button look missing when this suite was first sketched.
 const startPlanning = async (page) => {
@@ -58,9 +58,9 @@ const pickMain = (page, slot, recipe) => page.planMeal(slot, recipe);
 const openSidePicker = async (page, slot) => {
   // getByRole("button"), not getByLabel: the modal itself carries the same
   // accessible name, so a plain label lookup is ambiguous the moment it opens.
-  await page.getByRole("button", { name: `Add a side for ${slot}` }).click();
+  await page.getByRole("button", { name: `Add another dish for ${slot}` }).click();
   await page.waitForTimeout(400);
-  return page.getByRole("dialog", { name: `Add a side for ${slot}` });
+  return page.getByRole("dialog", { name: `Add another dish for ${slot}` });
 };
 
 const addSide = async (page, slot, recipe) => {
@@ -69,7 +69,7 @@ const addSide = async (page, slot, recipe) => {
   await page.waitForTimeout(200);
   // The side picker commits explicitly — a tap only marks, so several sides
   // go on in one write.
-  await picker.locator("button").filter({ hasText: /^Add \d+ sides?$/ }).click();
+  await picker.locator("button").filter({ hasText: /^Add \d+ dish(es)?$/ }).click();
   await page.waitForTimeout(600);
 };
 

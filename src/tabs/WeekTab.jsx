@@ -209,6 +209,19 @@ export function WeekTab({ data, update, isGuest }) {
   //     picker also drops whatever's already in this slot — the main and any
   //     side already added — so re-tapping one can't create a duplicate; the
   //     only way to remove one is the ✕ on its row.
+  /* "SIDE" IS THE DATA'S WORD, "DISH" IS THE PERSON'S. A slot has always held
+     a main plus any number of others, each a real recipe with its own
+     servings, and slotDishes feeds every one of them to the shopping list —
+     so two full dinners on one day has always worked. What said otherwise was
+     the BUTTON: "Add a side" tells you the second dish is subordinate, which
+     is true of potatoes beside a roast and wrong for a meat dish and a
+     vegetarian one for the same table. The picker already knew — it offers
+     every recipe, with side-tagged ones merely first.
+     THE STORED FIELD STAYS `sides`, and the `side` tag on a recipe stays too.
+     Renaming a stored field costs every device a migration for no change in
+     behaviour, and the tag still earns its keep: it is what puts side dishes
+     at the top of this picker. The word people read is the part that was
+     wrong. */
   const pickGroups = useMemo(() => {
     if (!picker) return [];
     const q = norm(pickQuery);
@@ -580,7 +593,7 @@ export function WeekTab({ data, update, isGuest }) {
                                     <button
                                       onClick={() => removeSide(day, type, s.index)}
                                       aria-label={`Remove ${s.recipe.name} from ${day} ${type}`}
-                                      title="Remove this side"
+                                      title="Remove this dish"
                                       style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 2, lineHeight: 1, flexShrink: 0 }}
                                     >
                                       ✕
@@ -599,11 +612,11 @@ export function WeekTab({ data, update, isGuest }) {
                         {slotsEditable && (
                           <button
                             onClick={() => openPicker(day, type, "side")}
-                            aria-label={`Add a side for ${day} ${type}`}
+                            aria-label={`Add another dish for ${day} ${type}`}
                             style={{ display: "flex", alignItems: "center", gap: 6, width: `calc(100% - ${SLOT_INDENT}px)`, marginLeft: SLOT_INDENT, boxSizing: "border-box", textAlign: "left", fontFamily: fontBody, fontSize: 12, fontWeight: 500, padding: "5px 8px", borderRadius: 7, cursor: "pointer", border: `1px dashed ${C.line}`, background: "transparent", color: C.faint }}
                           >
                             <span aria-hidden style={{ fontSize: 13, lineHeight: 1 }}>＋</span>
-                            Add a side
+                            Add another dish
                           </button>
                         )}
                       </div>
@@ -669,7 +682,7 @@ export function WeekTab({ data, update, isGuest }) {
         <div
           role="dialog"
           aria-modal="true"
-          aria-label={picker.role === "side" ? `Add a side for ${picker.day} ${picker.type}` : `Choose a meal for ${picker.day}`}
+          aria-label={picker.role === "side" ? `Add another dish for ${picker.day} ${picker.type}` : `Choose a meal for ${picker.day}`}
           onClick={() => setPicker(null)}
           // Anchored to the top (not vertically centered) so that as the search
           // narrows the list and the panel shrinks, its top — and the search box
@@ -684,7 +697,7 @@ export function WeekTab({ data, update, isGuest }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 700, color: C.ink }}>{picker.day}{picker.role === "side" ? ` · ${picker.type}` : ""}</div>
                 <div style={{ fontSize: 12, color: C.faint }}>
-                  {picker.role === "side" ? "Tap to add a side — pick as many as you like, then Add" : "Pick a meal, and say which meal of the day it is"}
+                  {picker.role === "side" ? "Tap to add a dish — pick as many as you like, then Add" : "Pick a meal, and say which meal of the day it is"}
                 </div>
               </div>
               <button
@@ -785,7 +798,7 @@ export function WeekTab({ data, update, isGuest }) {
             {picker.role === "side" && (
               <div style={{ display: "flex", justifyContent: "flex-end", padding: "10px 16px", borderTop: `1px solid ${C.line}` }}>
                 <Btn kind="primary" onClick={commitSidePicks} disabled={sidePicks.length === 0}>
-                  {sidePicks.length > 0 ? `Add ${sidePicks.length} side${sidePicks.length === 1 ? "" : "s"}` : "Add sides"}
+                  {sidePicks.length > 0 ? `Add ${sidePicks.length} dish${sidePicks.length === 1 ? "" : "es"}` : "Add dishes"}
                 </Btn>
               </div>
             )}

@@ -3994,6 +3994,27 @@ into the details panel and the name grew.
         and it takes currentColor so it turns green with the words when a
         filter is doing something.
 
+     L. "ADD A SIDE" IS "ADD ANOTHER DISH". Asked whether two separate dishes
+        for one dinner would be worth supporting — and it already was, in
+        full: a slot has always held a main plus any number of others, each a
+        real recipe with its own servings, and slotDishes feeds every one of
+        them to the shopping list. The picker already offered EVERY recipe,
+        with side-tagged ones merely sorted first.
+        WHAT SAID OTHERWISE WAS THE BUTTON. "Add a side" tells you the second
+        dish is subordinate — true of potatoes beside a roast, wrong for a
+        meat dish and a vegetarian one at the same table, and enough to stop
+        somebody realising the feature is how you do that at all. A capability
+        nobody can find is not a capability.
+        THE STORED FIELD STAYS `sides`, and so does the `side` tag on a
+        recipe. Renaming a stored field costs every device a migration for no
+        change in behaviour, and the tag still earns its keep — it is what
+        puts side dishes at the top of the picker. The word people READ was
+        the part that was wrong.
+        Four strings, not one: the button, the picker's own title, its
+        subtitle, the confirm button ("Add 2 dishes"), and the remove
+        tooltip. A help entry too, since nothing in the help had ever
+        mentioned it — which is part of why it was invisible.
+
      TESTED: 402 unit, 12 sync, 79 rules, 18 database, 341 browser, lint and
      build. Six existing browser tests had to be updated because controls
      genuinely moved, and each was re-pointed rather than weakened — the

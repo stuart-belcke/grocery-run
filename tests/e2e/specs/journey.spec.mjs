@@ -55,12 +55,12 @@ test("plan a meal, shop it, finish the trip, then rename an ingredient", async (
        below like any other source of demand. */
     await page.locator("button").filter({ hasText: /^Edit$/ }).first().click();
     await page.waitForTimeout(400);
-    await page.getByRole("button", { name: "Add a side for Mon Dinner" }).click();
+    await page.getByRole("button", { name: "Add another dish for Mon Dinner" }).click();
     await page.waitForTimeout(400);
-    const sidePicker = page.getByRole("dialog", { name: "Add a side for Mon Dinner" });
+    const sidePicker = page.getByRole("dialog", { name: "Add another dish for Mon Dinner" });
     await sidePicker.locator("button").filter({ hasText: /Rice side/ }).first().click();
     await page.waitForTimeout(200);
-    await sidePicker.locator("button").filter({ hasText: /^Add 1 side$/ }).click();
+    await sidePicker.locator("button").filter({ hasText: /^Add 1 dish$/ }).click();
     await page.waitForTimeout(600);
     await page.locator("button").filter({ hasText: /Done editing/ }).first().click();
     await page.waitForTimeout(400);
