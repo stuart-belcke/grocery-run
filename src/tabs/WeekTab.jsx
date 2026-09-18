@@ -280,12 +280,14 @@ export function WeekTab({ data, update, isGuest }) {
     ].filter((g) => g.recipes.length > 0);
   }, [picker, pickQuery, recipesSorted, data.plan]);
 
-  /* WHAT THIS PICK WOULD JOIN, or nothing. Named on screen before you tap,
-     because "this adds to the dinner you already have" is the one thing a
-     person needs to know that the list of recipes cannot tell them. Absent
-     while replacing, which is the path that does overwrite. */
-  const joiningRecipeId = picker && picker.role !== "replace" ? data.plan?.[picker.day]?.[picker.type]?.recipeId : null;
-  const joiningName = joiningRecipeId ? (data.recipes.find((r) => r.id === joiningRecipeId) || {}).name : null;
+  /* WHETHER THIS PICK WOULD ADD TO A MEAL RATHER THAN FILL AN EMPTY ONE —
+     "Add additional dish to meal", said before you tap, because it is the one
+     thing a list of recipes cannot tell you. It named the dish it would join
+     and spelt out that the meal would have both; the meal it joins is on the
+     screen behind the picker and the meal-of-the-day button above is already
+     lit, so the sentence was explaining what was in view. False while
+     replacing, which is the path that does overwrite. */
+  const joining = !!(picker && picker.role !== "replace" && data.plan?.[picker.day]?.[picker.type]?.recipeId);
   const activeSlotRecipeId = picker && picker.role === "replace" ? data.plan?.[picker.day]?.[picker.type]?.recipeId : null;
 
   return (
@@ -759,9 +761,14 @@ export function WeekTab({ data, update, isGuest }) {
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px 10px" }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 700, color: C.ink }}>{picker.day}</div>
-                <div style={{ fontSize: 12, color: C.faint }}>
-                  {picker.role === "replace" ? "Pick the meal that replaces this one" : "Pick a meal, and say which meal of the day it is"}
-                </div>
+                {/* NO SUBTITLE ON THE ORDINARY PATH. It read "Pick a meal, and
+                    say which meal of the day it is", which is a caption for a
+                    list of meals and a row of meal-of-the-day buttons sitting
+                    directly beneath it. Replacing keeps one, because
+                    "replaces" is the one thing the controls do not show. */}
+                {picker.role === "replace" && (
+                  <div style={{ fontSize: 12, color: C.faint }}>Pick the meal that replaces this one</div>
+                )}
               </div>
               <button
                 onClick={() => setPicker(null)}
@@ -777,7 +784,7 @@ export function WeekTab({ data, update, isGuest }) {
                 It used to offer only the free ones, so that nothing could
                 silently replace Monday's dinner — but a taken one now JOINS
                 rather than replaces, so there is nothing to protect against
-                and the line below says so before you tap.
+                and the line below says which it will do before you tap.
                 Defaults to the first free type, so the common case (one
                 dinner on an empty day) is still a single tap on the meal. */}
             {picker.role !== "replace" && (
@@ -787,10 +794,8 @@ export function WeekTab({ data, update, isGuest }) {
                   value={picker.type}
                   onChange={(t) => setPicker((p) => ({ ...p, type: t }))}
                 />
-                {joiningName && (
-                  <div style={{ fontSize: 12, color: C.faint, marginTop: 6 }}>
-                    Joins <b style={{ color: C.ink, fontWeight: 600 }}>{joiningName}</b> — {picker.day} {picker.type.toLowerCase()} will have both.
-                  </div>
+                {joining && (
+                  <div style={{ fontSize: 12, color: C.faint, marginTop: 6 }}>Add additional dish to meal</div>
                 )}
               </div>
             )}

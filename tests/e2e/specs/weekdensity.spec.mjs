@@ -195,6 +195,17 @@ test("a meal of the day that is already taken is still offered, and picking it J
     );
     assert.deepEqual(offered, ["Breakfast", "Lunch", "Dinner", "Dessert"], `every meal of the day should be offered, got ${JSON.stringify(offered)}`);
 
+    /* AND IT SAYS WHICH IT WILL DO, on the taken one only. "Adds to what is
+       there" and "fills an empty one" are the same three taps otherwise, and
+       the difference only shows up in the shopping list. */
+    const saysAdds = () => page.evaluate(() => /Add additional dish to meal/.test(document.querySelector('[role="dialog"]').textContent));
+    assert.equal(await saysAdds(), true, "Dinner is taken on Tue, so the picker should say the dish is being added to it");
+    await page.getByRole("button", { name: /^Lunch$/ }).click();
+    await page.waitForTimeout(200);
+    assert.equal(await saysAdds(), false, "Lunch is free, so nothing is being added to — that line must not show");
+    await page.getByRole("button", { name: /^Dinner$/ }).click();
+    await page.waitForTimeout(200);
+
     // Dinner is the default and it is taken, so this pick joins the stir-fry.
     await page.locator('[role="dialog"] button').filter({ hasText: /Rice side/ }).first().click();
     await page.waitForTimeout(500);

@@ -177,11 +177,11 @@ test("SHOULD: the side picker offers side dishes first and never what's already 
     await startPlanning(page);
     await pickMain(page, "Mon Dinner", "Stir-fry");
 
-    /* WHAT IS OFFERED, not what the dialog says. The picker names the dish
-       this pick would join — "Joins Stir-fry — Mon dinner will have both" —
-       so the main's name is on screen on purpose, and a check over the whole
-       dialog text would read that as it being offered. A recipe in the list
-       is the thing carrying a "Serves N" line under its name. */
+    /* WHAT IS OFFERED, not what the dialog says — a recipe in the list is the
+       thing carrying a "Serves N" line under its name. The dialog's own text
+       is not a safe stand-in for the list: it briefly named the dish this
+       pick would join, which put the main's name on screen on purpose and
+       made a whole-dialog check read it as being offered. */
     const offered = () =>
       page.evaluate(() =>
         [...document.querySelectorAll('[role="dialog"] button')]
@@ -198,7 +198,7 @@ test("SHOULD: the side picker offers side dishes first and never what's already 
       `the tagged side should be offered before an untagged meal, got ${JSON.stringify(names)}`
     );
     assert.ok(!names.some((n) => /Stir-fry/.test(n)), `the dish already on this meal should not be offered again, got ${JSON.stringify(names)}`);
-    assert.ok(/Joins/.test(text) && /Stir-fry/.test(text), "the picker should say which dish this one would join");
+    assert.ok(/Add additional dish to meal/.test(text), "the picker should say that this pick adds to the meal rather than filling an empty one");
     await page.getByRole("button", { name: "Close" }).click();
     await page.waitForTimeout(300);
 

@@ -4084,9 +4084,20 @@ into the details panel and the name grew.
         NOW EVERY MEAL OF THE DAY IS OFFERED and a taken one JOINS. Nothing
         is ever overwritten by that path, which is what the original guard
         was protecting. The picker says which it will do before you tap —
-        "Joins Stir-fry — Mon dinner will have both" — and the dishes
-        already on that meal are dropped from the list, so a tap cannot
-        duplicate one.
+        "Add additional dish to meal", on the taken meal of the day only —
+        and the dishes already on that meal are dropped from the list, so a
+        tap cannot duplicate one.
+        THAT LINE WAS LONGER AND SAID LESS: "Joins Stir-fry — Mon dinner
+        will have both". The meal it joins is on the screen behind the
+        picker, the day is the dialog's own heading and the meal-of-the-day
+        button is lit, so the sentence was explaining what was already in
+        view. What it has to carry is that this ADDS rather than fills, and
+        four words carry it.
+        THE PICKER'S SUBTITLE WENT WITH IT. "Pick a meal, and say which meal
+        of the day it is" was a caption for a list of meals and a row of
+        meal-of-the-day buttons sitting directly beneath it. Replacing keeps
+        its subtitle, because "replaces" is the one thing its controls do
+        not show.
         REPLACING IS STILL REACHABLE and is now the only thing that
         overwrites: tap the MEAL ITSELF while planning. That opens the
         picker in `role: "replace"`, which hides the meal-of-the-day chooser
@@ -4105,7 +4116,9 @@ into the details panel and the name grew.
         MUTATION-TESTED BOTH DIRECTIONS. Making a taken meal replace instead
         of join failed 10 browser tests including the one that names the
         behaviour; making replace join as well failed exactly the two that
-        say a re-pick swaps the meal and takes its other dishes with it.
+        say a re-pick swaps the meal and takes its other dishes with it; and
+        making "Add additional dish to meal" show on every pick failed the
+        test that switches to a free meal of the day and expects it gone.
         THE SERVINGS RULE IS UNCHANGED: a joining dish takes the MEAL's
         servings, not its own recipe's, because two dishes on one dinner
         feed the same table.
