@@ -563,7 +563,7 @@ export function WeekTab({ data, update, isGuest }) {
                         card exactly as the main's does. With the margin out
                         here, every child inherited it and the recipe sat in a
                         78px-narrower column than the one above it. */}
-                    {recipe && (sideEntries.length > 0 || slotsEditable) && (
+                    {recipe && (sideEntries.length > 0 || !isGuest) && (
                       <div style={{ marginTop: 4 }}>
                         {sideEntries.map((s) => {
                           const sideBase = s.recipe.servings || 4;
@@ -600,10 +600,9 @@ export function WeekTab({ data, update, isGuest }) {
                                       "aria-label": `${day} ${type}: ${s.recipe.name} — view recipe`,
                                       title: "View recipe",
                                     })}
-                                style={{ display: "flex", alignItems: "center", gap: 6, width: slotsEditable ? undefined : `calc(100% - ${SLOT_INDENT}px)`, boxSizing: "border-box", textAlign: "left", fontFamily: fontBody, fontSize: 12, color: C.ink, padding: "4px 8px", marginBottom: 4, marginLeft: SLOT_INDENT, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 7, cursor: slotsEditable ? undefined : "pointer" }}
+                                style={{ ...slotBox, width: `calc(100% - ${SLOT_INDENT}px)`, boxSizing: "border-box", marginBottom: 4, marginLeft: SLOT_INDENT, cursor: slotsEditable ? undefined : "pointer" }}
                               >
-                                <span aria-hidden style={{ color: C.green, flexShrink: 0 }}>+</span>
-                                <span style={{ flex: 1, minWidth: 0, ...(slotsEditable ? { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } : {}) }}>{s.recipe.easy ? "⚡ " : ""}{s.recipe.name}</span>
+                                <span style={{ flex: 1, minWidth: 0, fontWeight: 600, ...(slotsEditable ? { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } : {}) }}>{s.recipe.easy ? "⚡ " : ""}{s.recipe.name}</span>
                                 {slotsEditable ? (
                                   <>
                                 <button
@@ -645,11 +644,33 @@ export function WeekTab({ data, update, isGuest }) {
                             </Fragment>
                           );
                         })}
-                        {slotsEditable && (
+                        {/* NO LONGER BEHIND Edit. Filling an EMPTY day has never
+                            needed it — that rule is old and three specs hold it
+                            — and adding a second dish to a day is the same kind
+                            of act: you are putting food on the plan, not
+                            rearranging what is already there. Requiring Edit
+                            for one and not the other was an inconsistency
+                            nobody chose. !isGuest, like every other way of
+                            putting something on the plan. */}
+                        {!isGuest && (
                           <button
                             onClick={() => openPicker(day, type, "side")}
                             aria-label={`Add another dish for ${day} ${type}`}
-                            style={{ display: "flex", alignItems: "center", gap: 6, width: `calc(100% - ${SLOT_INDENT}px)`, marginLeft: SLOT_INDENT, boxSizing: "border-box", textAlign: "left", fontFamily: fontBody, fontSize: 12, fontWeight: 500, padding: "5px 8px", borderRadius: 7, cursor: "pointer", border: `1px dashed ${C.line}`, background: "transparent", color: C.faint }}
+                            /* TWO ADD CONTROLS ON ONE DAY, so they must not
+                               look alike. This one adds a dish to the MEAL
+                               above it; "Choose a meal" below adds a different
+                               meal to the DAY. Stacked as two identical
+                               dashed rows they read as the same offer twice,
+                               which is what making this reachable at rest
+                               first produced.
+                               So at rest it is quiet and sits with the dishes
+                               it belongs to, and the day-level one keeps the
+                               full-width row. While planning it stays the
+                               dashed button — that screen is a form, every
+                               slot is open, and it is one field among many. */
+                            style={ slotsEditable
+                              ? { display: "flex", alignItems: "center", gap: 6, width: `calc(100% - ${SLOT_INDENT}px)`, marginLeft: SLOT_INDENT, boxSizing: "border-box", textAlign: "left", fontFamily: fontBody, fontSize: 12, fontWeight: 500, padding: "5px 8px", borderRadius: 7, cursor: "pointer", border: `1px dashed ${C.line}`, background: "transparent", color: C.faint }
+                              : { display: "inline-flex", alignItems: "center", gap: 5, marginLeft: SLOT_INDENT, textAlign: "left", fontFamily: fontBody, fontSize: 12, padding: "2px 0 4px", cursor: "pointer", border: "none", background: "transparent", color: C.faint } }
                           >
                             <span aria-hidden style={{ fontSize: 13, lineHeight: 1 }}>＋</span>
                             Add another dish

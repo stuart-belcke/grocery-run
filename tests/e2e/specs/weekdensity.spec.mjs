@@ -243,15 +243,20 @@ test("a planned week costs far less to read than it used to", async () => {
      one row and the meal landed on another. A control should stand where its
      result will, so it went back to its own line and took the one-screen fit
      with it.
-     1,228px before any of this, about 980px now, at 390px with four days
-     planned. The budget is what the layout actually costs, checked so it
-     cannot creep back up. */
+     1,228px before any of this, about 1,075px now, at 390px with four days
+     planned. It was 980px for a while, before adding a second dish to a meal
+     stopped requiring Edit — that put a control back on every planned day,
+     which is worth its ~95px because the alternative was a capability you
+     could only reach by first saying you wanted to rearrange things.
+     THE BUDGET IS WHAT THE LAYOUT ACTUALLY COSTS, raised deliberately each
+     time and never trimmed to fit a claim. It is here to catch creep, not to
+     defend a number. */
   const page = await openWeek(planWith(fourDinners));
   try {
     const m = await measure(page);
     assert.ok(
-      m.height <= 1050,
-      `the week is ${m.height}px — it was 1,228px before this work and about 980px after, so something has grown`
+      m.height <= 1120,
+      `the week is ${m.height}px — it was 1,228px before this work and about 1,075px after, so something has grown`
     );
     assertNoPageErrors(page, assert);
   } finally {

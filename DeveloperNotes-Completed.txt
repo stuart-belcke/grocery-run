@@ -4038,6 +4038,30 @@ into the details panel and the name grew.
         found and clicked. A div with an onClick cannot be reached by keyboard
         and is announced as nothing. The test asserts the tag now.
 
+     N. A SECOND DISH LOOKS LIKE A MEAL, BECAUSE IT IS ONE, and adding one no
+        longer needs Edit.
+        IT HAD ITS OWN COLOUR SCHEME — a small pale chip with a border and a
+        green "+", indented under the meal — which said "aside" at exactly the
+        moment item L's rename stopped calling it one. It wears the meal's own
+        bubble now, in the meal's own column, listed under the meal type. The
+        main and the dishes under it are the same thing and look it.
+        AND IT WAS BEHIND Edit, which nobody chose: filling an EMPTY day has
+        never required pressing Edit — three specs hold that — and putting a
+        second dish on a meal is the same kind of act. Requiring it for one
+        and not the other was an inconsistency, and it is gone.
+        THAT IMMEDIATELY PUT TWO ADD CONTROLS ON EVERY PLANNED DAY, stacked
+        and identical: one adds a dish to the meal above it, the other adds a
+        different meal to the day. Two identical dashed rows read as the same
+        offer twice. So they look as different as they are — the dish one is
+        quiet and sits with the dishes it belongs to, the day one keeps its
+        full-width row. While planning both stay as they were, because that
+        screen is a form and every field is open.
+        THE HEIGHT: 980px to about 1,075px, and the budget in the test was
+        raised to match rather than the layout trimmed to fit it. A control on
+        every planned day is what reachable costs; the alternative was a
+        capability you could only get to by first saying you wanted to
+        rearrange things. 1,228px is still where this started.
+
      TESTED: 402 unit, 12 sync, 79 rules, 18 database, 344 browser, lint and
      build. Six existing browser tests had to be updated because controls
      genuinely moved, and each was re-pointed rather than weakened — the
