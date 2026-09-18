@@ -4015,7 +4015,30 @@ into the details panel and the name grew.
         tooltip. A help entry too, since nothing in the help had ever
         mentioned it — which is part of why it was invisible.
 
-     TESTED: 402 unit, 12 sync, 79 rules, 18 database, 341 browser, lint and
+     M. ONE WAY TO OPEN A RECIPE, WHICHEVER DISH IT IS. Reported from a real
+        phone with a screenshot: the main dish opened its recipe when you
+        tapped the row, and a second dish on the same meal made you find a
+        13px 📖 beside the name instead. The same question — what is in this?
+        — answered two different ways a centimetre apart.
+        IT WAS NEVER A DECISION. The main's resting row had been made a button
+        at some point; the dish rows below it were still a plain div with an
+        icon, and nothing compared them. Both are buttons at rest now and the
+        book is gone from both.
+        THE BOOK SURVIVES WHILE PLANNING, on both, for the same reason on
+        both: there the row's tap belongs to something else — re-picking the
+        main, or the servings box and remove ✕ on a dish — and a <button> may
+        not contain a number input anyway.
+        AND THE NAME WRAPS AT REST. "Baked Chicken & Veggie Me…" is what the
+        screenshot showed; the truncation bought one line and cost the answer.
+        It still clips while planning, where the row carries an input and two
+        buttons and has no width to give.
+        A MUTATION CAUGHT MY OWN TEST BEING TOO WEAK: making the row a plain
+        div again failed nothing, because the click handler and the label
+        still landed on the div and the test only asked whether it could be
+        found and clicked. A div with an onClick cannot be reached by keyboard
+        and is announced as nothing. The test asserts the tag now.
+
+     TESTED: 402 unit, 12 sync, 79 rules, 18 database, 344 browser, lint and
      build. Six existing browser tests had to be updated because controls
      genuinely moved, and each was re-pointed rather than weakened — the
      store editors are opened first, delete is measured inside the editor,

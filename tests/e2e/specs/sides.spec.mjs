@@ -11,7 +11,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { openApp, assertNoPageErrors } from "../harness.mjs";
-import { sidesCatalog } from "../fixtures.mjs";
+import { sidesCatalog, stateWith } from "../fixtures.mjs";
 
 const BASE = process.env.E2E_BASE_URL;
 
@@ -308,6 +308,100 @@ test("SHOULD: the Recipes tab shows a recipe planned as a side, and drops only t
     const slot = (await page.readState()).plan.Mon.Dinner;
     assert.equal(slot.recipeId, "r-stirfry", "removing a side from Meals must leave the main planned");
     assert.ok(!("sides" in slot), "the side should be gone from the slot");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+// A meal already carrying a second dish, with the week at rest.
+const withSide = () =>
+  stateWith({
+    planStage: "shopping",
+    plan: { Mon: { Dinner: { recipeId: "r-stirfry", servings: 4, sides: [{ recipeId: "r-riceside", servings: 3 }] } } },
+  });
+
+/* ── ONE WAY TO OPEN A RECIPE, WHICHEVER DISH IT IS ────────────────────────
+   Reported from a real phone with a screenshot: the main dish opened its
+   recipe when you tapped the row, and a second dish on the same meal made you
+   find a 13px 📖 beside the name instead. Same question, two answers, a
+   centimetre apart. The rows behave the same now.
+
+   THE BOOK SURVIVES WHILE PLANNING, on both, because there the row's tap
+   belongs to something else — re-picking the main, or the servings box and
+   remove button on a second dish — and a <button> cannot hold a number input
+   anyway. */
+
+test("at rest, a second dish opens its recipe from the row, with no book icon", async () => {
+  const page = await openApp(BASE, { catalog: sidesCatalog(), state: withSide() });
+  try {
+    await page.tab("Plan");
+    await page.waitForTimeout(400);
+
+    const books = await page.evaluate(() =>
+      [...document.querySelectorAll("button")].filter((b) => (b.textContent || "").includes("📖")).length
+    );
+    assert.equal(books, 0, "at rest the row is the way in, so no dish should carry a book icon");
+
+    const row = page.getByLabel(/Rice bowl — view recipe/);
+    assert.equal(await row.count(), 1, "the second dish's row should open its recipe");
+
+    /* A REAL BUTTON, not a div carrying an onClick. Hanging a handler on a
+       container looks identical and clicks identically — and cannot be
+       reached by keyboard, and is announced as nothing. A mutation that left
+       the row a div passed an earlier version of this test. */
+    assert.equal(
+      await row.evaluate((el) => el.tagName),
+      "BUTTON",
+      "the row has a click handler but is not a button — it would be unreachable by keyboard and announced as nothing"
+    );
+
+    const box = await row.boundingBox();
+    assert.ok(box.width > 150, `the ROW should be the target, and it is only ${Math.round(box.width)}px wide`);
+
+    await row.click();
+    await page.waitForTimeout(400);
+    assert.match(await page.textContent("body"), /Rice bowl/, "tapping the row should open that dish's recipe");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("while planning, the book comes back because the row is busy", async () => {
+  const page = await openApp(BASE, { catalog: sidesCatalog(), state: withSide() });
+  try {
+    await page.tab("Plan");
+    await page.locator("button").filter({ hasText: /^Edit$/ }).first().click();
+    await page.waitForTimeout(400);
+
+    const books = await page.evaluate(() =>
+      [...document.querySelectorAll("button")].filter((b) => (b.textContent || "").includes("📖")).length
+    );
+    assert.ok(books >= 2, `planning should offer a book on the main and on each dish, and there are ${books}`);
+    assert.equal(await page.getByLabel(/^View recipe for Rice bowl$/).count(), 1, "the second dish keeps its own book while planning");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("a long dish name is readable at rest rather than cut off", async () => {
+  /* "Baked Chicken & Veggie Me…" was what the phone showed. The truncation
+     bought one line and cost the answer. While planning it still clips —
+     that row carries an input and two buttons and has no width to give. */
+  const page = await openApp(BASE, { catalog: sidesCatalog(), state: withSide() });
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.tab("Plan");
+    await page.waitForTimeout(400);
+    const clipped = await page.evaluate(() => {
+      const b = [...document.querySelectorAll("button")].find((x) => /view recipe$/.test(x.getAttribute("aria-label") || "") && /Rice bowl/.test(x.textContent));
+      if (!b) return null;
+      const name = [...b.querySelectorAll("span")].find((s) => /Rice bowl/.test(s.textContent));
+      return name ? getComputedStyle(name).textOverflow : null;
+    });
+    assert.notEqual(clipped, "ellipsis", "a dish name should wrap at rest, not be cut short");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

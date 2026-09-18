@@ -244,7 +244,10 @@ test("SHOULD: a side's recipe scales to the SIDE's own servings, not the main's"
   const page = await openApp(BASE, { catalog, state });
   try {
     await page.tab("Plan");
-    await page.getByLabel(/View recipe for Rice side/).click();
+    /* THE ROW IS THE WAY IN AT REST NOW, for a second dish exactly as for the
+       main — it used to be a 📖 beside the name, which is why this asked for
+       "View recipe for". What the test is about, the scaling, is unchanged. */
+    await page.getByLabel(/Rice side — view recipe/).click();
     await page.waitForTimeout(300);
 
     const text = await page.textContent("body");

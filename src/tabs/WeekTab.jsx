@@ -71,6 +71,12 @@ export function WeekTab({ data, update, isGuest }) {
   // including any added later.
   const slotsEditable = (stage === "planning" || editing) && !isGuest;
 
+  /* WHAT A DISH ROW IS MADE OF. At rest it is a button, because the row is
+     how you open that dish's recipe. While planning it is a plain container:
+     it holds a number input and a remove button, and a <button> may not
+     contain either. */
+  const RowTag = slotsEditable ? "div" : "button";
+
   // Entering "planning" starts a fresh buying cycle. This is the boundary that
   // was missing: `bought` used to persist until someone happened to press
   // "Clear week", so last week's purchases kept cancelling this week's needs.
@@ -563,11 +569,43 @@ export function WeekTab({ data, update, isGuest }) {
                           const sideBase = s.recipe.servings || 4;
                           return (
                             <Fragment key={s.index}>
-                              <div
-                                style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.ink, padding: "4px 8px", marginBottom: 4, marginLeft: SLOT_INDENT, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 7 }}
+                              {/* ONE RULE FOR BOTH, AT LAST: at rest the ROW is
+                                  how you open a recipe, for the main dish and
+                                  for every dish under it. The main had worked
+                                  that way for a while; these rows were a plain
+                                  div with a 📖 beside the name, so the same
+                                  question — what is in this? — was answered by
+                                  tapping a whole bubble on one line and hunting
+                                  a 13px icon on the next. Reported from a real
+                                  phone, with a screenshot.
+                                  THE BOOK STAYS WHILE PLANNING, on both, and
+                                  for the same reason on both: there the row's
+                                  tap belongs to something else — re-picking the
+                                  main, or the servings box and remove ✕ here —
+                                  so an icon is the only way in. A button cannot
+                                  hold a number input anyway.
+                                  AND THE NAME WRAPS AT REST rather than being
+                                  cut off. "Baked Chicken & Veggie Me…" was what
+                                  the screenshot showed; the truncation bought a
+                                  single line at the cost of the answer. While
+                                  planning it still clips, because the row there
+                                  carries an input and two buttons and has no
+                                  width to give. */}
+                              <RowTag
+                                {...(slotsEditable
+                                  ? {}
+                                  : {
+                                      onClick: () => toggleRecipe(day, type, s.index),
+                                      "aria-expanded": recipeOpen === recipeKey(day, type, s.index),
+                                      "aria-label": `${day} ${type}: ${s.recipe.name} — view recipe`,
+                                      title: "View recipe",
+                                    })}
+                                style={{ display: "flex", alignItems: "center", gap: 6, width: slotsEditable ? undefined : `calc(100% - ${SLOT_INDENT}px)`, boxSizing: "border-box", textAlign: "left", fontFamily: fontBody, fontSize: 12, color: C.ink, padding: "4px 8px", marginBottom: 4, marginLeft: SLOT_INDENT, background: C.paper, border: `1px solid ${C.line}`, borderRadius: 7, cursor: slotsEditable ? undefined : "pointer" }}
                               >
                                 <span aria-hidden style={{ color: C.green, flexShrink: 0 }}>+</span>
-                                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.recipe.easy ? "⚡ " : ""}{s.recipe.name}</span>
+                                <span style={{ flex: 1, minWidth: 0, ...(slotsEditable ? { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } : {}) }}>{s.recipe.easy ? "⚡ " : ""}{s.recipe.name}</span>
+                                {slotsEditable ? (
+                                  <>
                                 <button
                                   onClick={() => toggleRecipe(day, type, s.index)}
                                   aria-expanded={recipeOpen === recipeKey(day, type, s.index)}
@@ -577,8 +615,6 @@ export function WeekTab({ data, update, isGuest }) {
                                 >
                                   📖
                                 </button>
-                                {slotsEditable ? (
-                                  <>
                                     <input
                                       type="number"
                                       min="1"
@@ -602,7 +638,7 @@ export function WeekTab({ data, update, isGuest }) {
                                 ) : (
                                   <span style={{ color: C.faint, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{Number(s.servings) || sideBase} sv</span>
                                 )}
-                              </div>
+                              </RowTag>
                               {recipeOpen === recipeKey(day, type, s.index) && (
                                 <RecipeDetail recipe={s.recipe} servings={Number(s.servings) || sideBase} />
                               )}
