@@ -106,7 +106,7 @@ export const FAQS = [
   },
   {
     q: "Can I cook two dishes for the same meal?",
-    a: "Yes, as many as you like. Plan the meal on {Plan}, then [[Add another dish]] under it — the picker offers every recipe you have, with side dishes at the top. Each dish keeps its own serving count, and every one of them is totalled into the shopping list, so two mains for one dinner works exactly like two separate meals would. Useful for a meat dish and a vegetarian one at the same table, not only for a side.",
+    a: "Yes, as many as you like, and it is the same control either way: on {Plan}, tap [[Choose a meal]] on the day and pick the meal of the day it is for. If that meal already has a dish, the next one JOINS it rather than replacing it — the picker says so before you tap, and offers side dishes at the top. Each dish keeps its own serving count, and every one of them is totalled into the shopping list, so two mains for one dinner works exactly like two separate meals would. Useful for a meat dish and a vegetarian one at the same table, not only for a side.",
     keywords: ["two dishes", "second dish", "side", "sides", "side dish", "two meals", "same night", "vegetarian", "extra dish"],
   },
   {

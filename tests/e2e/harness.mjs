@@ -373,6 +373,35 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
     await page.waitForTimeout(500);
   };
 
+  /* Put a SECOND dish on a meal of the day that already has one — two dishes
+     for the same dinner, say.
+
+     It is the SAME control as planMeal's, on purpose: a day carries one
+     "Choose a meal" row and picking a meal of the day that is already taken
+     adds to it rather than replacing it. There used to be a separate "Add
+     another dish" button with its own multi-select picker; this helper exists
+     so that if the two ever diverge again, the specs say so. */
+  page.addDish = async (slot, recipe) => {
+    const [day, type] = slot.split(" ");
+    await page.tab("Plan");
+    for (const re of [/^Start planning$/, /^Edit$/]) {
+      const b = page.locator("button").filter({ hasText: re }).first();
+      if (await b.count()) {
+        await b.click();
+        await page.waitForTimeout(400);
+        break;
+      }
+    }
+    await page.getByLabel(`Choose a meal for ${day}`).click();
+    await page.waitForTimeout(300);
+    const typeBtn = page.getByRole("button", { name: new RegExp(`^${type}$`) });
+    if (await typeBtn.count()) await typeBtn.first().click();
+    await page.waitForTimeout(300);
+    const picker = page.getByRole("dialog", { name: `Choose a meal for ${day}` });
+    await picker.locator("button").filter({ hasText: new RegExp(recipe) }).first().click();
+    await page.waitForTimeout(600);
+  };
+
   page.clickText = async (re, nth = 0) => {
     await page.locator("button").filter({ hasText: re }).nth(nth).click();
     await page.waitForTimeout(400);

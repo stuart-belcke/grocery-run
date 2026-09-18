@@ -24,12 +24,11 @@ export function WeekTab({ data, update, isGuest }) {
   // planned for Sunday is on Sunday whichever end of the week it's drawn at.
   const days = useMemo(() => daysInOrder(data.prefs), [data.prefs]);
   const recipesSorted = useMemo(() => [...data.recipes].sort((a, b) => a.name.localeCompare(b.name)), [data.recipes]);
-  const [picker, setPicker] = useState(null); // { day, type, role } while choosing a recipe — role is "main" or "side"
+  // { day, type, role } while choosing a recipe. role is "main" — pick a meal,
+  // joining whatever is already on that meal of the day — or "replace", the
+  // one path that swaps a meal out, reached by tapping the meal itself.
+  const [picker, setPicker] = useState(null);
   const [pickQuery, setPickQuery] = useState("");
-  // Recipe ids tapped in an OPEN side picker, not yet written to the slot.
-  // Side-picking is multi-select — commitSidePicks writes them all at once on
-  // "Add N sides" — unlike the main, where a tap assigns and closes immediately.
-  const [sidePicks, setSidePicks] = useState([]);
   const [editing, setEditing] = useSticky("week.editing", false); // whole-plan edit mode: reveals per-slot change + clear
   const [confirmClear, setConfirmClear] = useState(false);
   const [unplannedOpen, setUnplannedOpen] = useSticky("week.unplannedOpen", false); // "Unplanned meals" disclosure
@@ -58,7 +57,13 @@ export function WeekTab({ data, update, isGuest }) {
      the whole change came from — so the common case has to be one tap on the
      meal and nothing else. First free in MEAL_TYPES order defaulted to
      BREAKFAST, which journey.spec caught by reading the plan back. */
-  const defaultType = (day) => (freeTypes(day).includes("Dinner") ? "Dinner" : freeTypes(day)[0]);
+  /* DINNER UNLESS YOU SAY OTHERWISE. It used to be "the first FREE meal of
+     the day, preferring dinner", which made sense while a taken one could not
+     be picked: a day already holding a dinner opened on Breakfast, because
+     that was the first thing still empty. Now that picking a taken meal joins
+     it, the likeliest thing on a day with a dinner is still the dinner — so
+     the default stops stepping over it. */
+  const defaultType = (day) => (MEAL_TYPES.includes("Dinner") ? "Dinner" : freeTypes(day)[0] || MEAL_TYPES[0]);
 
   // Where the week is in its cycle, and what each stage lets you do.
   const stage = planStageOf(data);
@@ -129,11 +134,39 @@ export function WeekTab({ data, update, isGuest }) {
 
   const openPicker = (day, type, role = "main") => {
     setPickQuery("");
-    setSidePicks([]);
     setPicker({ day, type, role });
   };
 
   const assignFromPicker = (r) => {
+    const slot = data.plan?.[picker.day]?.[picker.type];
+    /* PICKING A MEAL OF THE DAY THAT ALREADY HAS ONE ADDS TO IT. Not
+       replaces — that distinction is the whole of this.
+
+       The type chooser used to offer only the FREE meals of a day, and the
+       reason was sound: an option that silently replaced Monday's dinner is
+       not an option, and item 111 is a bug that did exactly that. But
+       "cannot replace" was answered by making the case unreachable, which
+       also made the honest version of it — a second dish on the same dinner
+       — unreachable through the one control a day offers. It needed its own
+       button, and then two near-identical buttons sat on every planned day
+       saying what looked like the same thing.
+       So the type is offered whether or not it is taken, and a taken one
+       JOINS. Nothing is ever overwritten by this path, which is what the
+       original guard was protecting; the picker says which it will do before
+       you tap, and `role: "replace"` is the one way to swap a meal out,
+       reached by tapping the meal itself while planning.
+
+       A JOINING DISH TAKES THE MEAL'S SERVINGS, not its own recipe's — two
+       dishes on one dinner feed the same table, and a "serves 6" recipe
+       joining a dinner for 4 was the wrong number more often than not. */
+    if (slot?.recipeId && picker.role !== "replace") {
+      const mainServings = Number(slot.servings) || 0;
+      setSlot(picker.day, picker.type, {
+        sides: [...asArray(slot.sides), { recipeId: r.id, servings: mainServings || r.servings || 4 }],
+      });
+      setPicker(null);
+      return;
+    }
     // A freshly picked meal starts at its own default servings, and on the
     // shopping list: "already have the ingredients" was about the meal that
     // used to be in this slot, not whatever replaces it — and neither were
@@ -142,26 +175,6 @@ export function WeekTab({ data, update, isGuest }) {
     setPicker(null);
   };
 
-  const toggleSidePick = (id) => setSidePicks((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
-
-  // Commit every side tapped this session in one write. New sides default to
-  // the MAIN's current servings, not their own recipe's base — sides almost
-  // always feed the same headcount as the entree, and defaulting to the
-  // side recipe's own batch size (e.g. a "serves 6" green beans recipe on a
-  // 4-serving dinner) was the wrong number more often than not.
-  const commitSidePicks = () => {
-    if (!picker) return;
-    const slot = data.plan?.[picker.day]?.[picker.type];
-    if (sidePicks.length) {
-      const mainServings = Number(slot?.servings) || 0;
-      const added = sidePicks.map((id) => {
-        const r = data.recipes.find((x) => x.id === id);
-        return { recipeId: id, servings: mainServings || (r && r.servings) || 4 };
-      });
-      setSlot(picker.day, picker.type, { sides: [...asArray(slot?.sides), ...added] });
-    }
-    setPicker(null);
-  };
 
   const setSlotSide = (day, type, index, patch) =>
     update((d) => {
@@ -208,13 +221,13 @@ export function WeekTab({ data, update, isGuest }) {
     });
 
   // Recipes offered in the open picker, narrowed by the search box (name or
-  // ingredient) and grouped differently per role:
-  //   main — tagged for that slot's meal type first, then everything else.
-  //   side — recipes marked "🥗 Side" first (a recipe-level trait, set in the
-  //     Recipes tab editor), then the meal-type groups as for a main. A side
-  //     picker also drops whatever's already in this slot — the main and any
-  //     side already added — so re-tapping one can't create a duplicate; the
-  //     only way to remove one is the ✕ on its row.
+  // ingredient) and grouped by what the pick would do:
+  //   an EMPTY meal of the day — recipes tagged for that meal type first,
+  //     then everything else.
+  //   a TAKEN one, which this pick would join — recipes marked "🥗 Side" (a
+  //     recipe-level trait, set in the Recipes tab editor) first, then the
+  //     meal-type groups as above, and whatever is already on the meal is
+  //     dropped so a tap cannot duplicate it.
   /* "SIDE" IS THE DATA'S WORD, "DISH" IS THE PERSON'S. A slot has always held
      a main plus any number of others, each a real recipe with its own
      servings, and slotDishes feeds every one of them to the shopping list —
@@ -233,10 +246,22 @@ export function WeekTab({ data, update, isGuest }) {
     const q = norm(pickQuery);
     const match = (r) => !q || norm(r.name).includes(q) || r.ingredients.some((i) => norm(i.name).includes(q));
     let hits = recipesSorted.filter(match);
-    if (picker.role === "side") {
-      const slot = data.plan?.[picker.day]?.[picker.type];
-      const taken = new Set([slot?.recipeId, ...asArray(slot?.sides).map((s) => s.recipeId)].filter(Boolean));
+
+    /* WHAT IS ALREADY ON THIS MEAL IS NOT OFFERED AGAIN when the pick would
+       JOIN it — the same dish twice on one dinner is not a plan, it is a
+       mistake. Replacing is different: there the meal in the slot is shown
+       and marked as the current one, so you can see what you are swapping. */
+    const slot = data.plan?.[picker.day]?.[picker.type];
+    if (picker.role !== "replace" && slot?.recipeId) {
+      const taken = new Set([slot.recipeId, ...asArray(slot.sides).map((x) => x.recipeId)].filter(Boolean));
       hits = hits.filter((r) => !taken.has(r.id));
+    }
+
+    /* SIDE-TAGGED RECIPES FIRST WHEN JOINING A MEAL. The tag no longer names
+       the relationship — every dish on a meal is a dish — but it is still
+       what somebody means by it, so when you are adding to a dinner that
+       already exists, the things usually served alongside one come first. */
+    if (slot?.recipeId && picker.role !== "replace") {
       const sideTagged = hits.filter((r) => r.side);
       const tagged = hits.filter((r) => !r.side && (r.mealTypes || []).includes(picker.type));
       const other = hits.filter((r) => !r.side && !(r.mealTypes || []).includes(picker.type));
@@ -246,6 +271,7 @@ export function WeekTab({ data, update, isGuest }) {
         { label: "Other meals", recipes: other },
       ].filter((g) => g.recipes.length > 0);
     }
+
     const tagged = hits.filter((r) => (r.mealTypes || []).includes(picker.type));
     const other = hits.filter((r) => !(r.mealTypes || []).includes(picker.type));
     return [
@@ -254,9 +280,13 @@ export function WeekTab({ data, update, isGuest }) {
     ].filter((g) => g.recipes.length > 0);
   }, [picker, pickQuery, recipesSorted, data.plan]);
 
-  // Only meaningful for the main: a side picker is always adding another one,
-  // so there's no single "current" side to highlight or offer to remove.
-  const activeSlotRecipeId = picker && picker.role !== "side" ? data.plan?.[picker.day]?.[picker.type]?.recipeId : null;
+  /* WHAT THIS PICK WOULD JOIN, or nothing. Named on screen before you tap,
+     because "this adds to the dinner you already have" is the one thing a
+     person needs to know that the list of recipes cannot tell them. Absent
+     while replacing, which is the path that does overwrite. */
+  const joiningRecipeId = picker && picker.role !== "replace" ? data.plan?.[picker.day]?.[picker.type]?.recipeId : null;
+  const joiningName = joiningRecipeId ? (data.recipes.find((r) => r.id === joiningRecipeId) || {}).name : null;
+  const activeSlotRecipeId = picker && picker.role === "replace" ? data.plan?.[picker.day]?.[picker.type]?.recipeId : null;
 
   return (
     <div>
@@ -452,7 +482,7 @@ export function WeekTab({ data, update, isGuest }) {
                         // drop to their own line just below.
                         <>
                           <button
-                            onClick={() => openPicker(day, type)}
+                            onClick={() => openPicker(day, type, "replace")}
                             aria-label={`${day} ${type}: ${recipe.name} — tap to pick a different meal`}
                             title="Tap to pick a different meal"
                             style={{ ...slotBox, cursor: "pointer" }}
@@ -563,7 +593,7 @@ export function WeekTab({ data, update, isGuest }) {
                         card exactly as the main's does. With the margin out
                         here, every child inherited it and the recipe sat in a
                         78px-narrower column than the one above it. */}
-                    {recipe && (sideEntries.length > 0 || !isGuest) && (
+                    {recipe && sideEntries.length > 0 && (
                       <div style={{ marginTop: 4 }}>
                         {sideEntries.map((s) => {
                           const sideBase = s.recipe.servings || 4;
@@ -644,38 +674,6 @@ export function WeekTab({ data, update, isGuest }) {
                             </Fragment>
                           );
                         })}
-                        {/* NO LONGER BEHIND Edit. Filling an EMPTY day has never
-                            needed it — that rule is old and three specs hold it
-                            — and adding a second dish to a day is the same kind
-                            of act: you are putting food on the plan, not
-                            rearranging what is already there. Requiring Edit
-                            for one and not the other was an inconsistency
-                            nobody chose. !isGuest, like every other way of
-                            putting something on the plan. */}
-                        {!isGuest && (
-                          <button
-                            onClick={() => openPicker(day, type, "side")}
-                            aria-label={`Add another dish for ${day} ${type}`}
-                            /* TWO ADD CONTROLS ON ONE DAY, so they must not
-                               look alike. This one adds a dish to the MEAL
-                               above it; "Choose a meal" below adds a different
-                               meal to the DAY. Stacked as two identical
-                               dashed rows they read as the same offer twice,
-                               which is what making this reachable at rest
-                               first produced.
-                               So at rest it is quiet and sits with the dishes
-                               it belongs to, and the day-level one keeps the
-                               full-width row. While planning it stays the
-                               dashed button — that screen is a form, every
-                               slot is open, and it is one field among many. */
-                            style={ slotsEditable
-                              ? { display: "flex", alignItems: "center", gap: 6, width: `calc(100% - ${SLOT_INDENT}px)`, marginLeft: SLOT_INDENT, boxSizing: "border-box", textAlign: "left", fontFamily: fontBody, fontSize: 12, fontWeight: 500, padding: "5px 8px", borderRadius: 7, cursor: "pointer", border: `1px dashed ${C.line}`, background: "transparent", color: C.faint }
-                              : { display: "inline-flex", alignItems: "center", gap: 5, marginLeft: SLOT_INDENT, textAlign: "left", fontFamily: fontBody, fontSize: 12, padding: "2px 0 4px", cursor: "pointer", border: "none", background: "transparent", color: C.faint } }
-                          >
-                            <span aria-hidden style={{ fontSize: 13, lineHeight: 1 }}>＋</span>
-                            Add another dish
-                          </button>
-                        )}
                       </div>
                     )}
                   </div>
@@ -691,7 +689,15 @@ export function WeekTab({ data, update, isGuest }) {
                   fillable in either mode — you do not press Edit to plan into
                   a day with nothing on it — and gating this on slotsEditable
                   quietly took that away. Three specs caught it. */}
-              {!isGuest && freeTypes(day).length > 0 && (
+              {/* ON EVERY DAY, filled or not, and it is the ONLY add control a
+                  day has. It used to appear only while a day still had a meal
+                  of the day free, because picking a taken one could then only
+                  have replaced what was there. A taken one JOINS now, so a
+                  day with a dinner can still be added to — and the separate
+                  "Add another dish" button is gone with it. Two controls that
+                  looked alike and did different things are one that does
+                  both, and which it will do is said in the picker. */}
+              {!isGuest && (
                 /* ONE ROW, THE SAME IN BOTH MODES, and the position matters:
                    it sits exactly where the meal it adds will appear. I had
                    it riding on the day's own heading line to save a line, and
@@ -739,7 +745,7 @@ export function WeekTab({ data, update, isGuest }) {
         <div
           role="dialog"
           aria-modal="true"
-          aria-label={picker.role === "side" ? `Add another dish for ${picker.day} ${picker.type}` : `Choose a meal for ${picker.day}`}
+          aria-label={`Choose a meal for ${picker.day}`}
           onClick={() => setPicker(null)}
           // Anchored to the top (not vertically centered) so that as the search
           // narrows the list and the panel shrinks, its top — and the search box
@@ -752,9 +758,9 @@ export function WeekTab({ data, update, isGuest }) {
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px 10px" }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 700, color: C.ink }}>{picker.day}{picker.role === "side" ? ` · ${picker.type}` : ""}</div>
+                <div style={{ fontFamily: fontDisplay, fontSize: 18, fontWeight: 700, color: C.ink }}>{picker.day}</div>
                 <div style={{ fontSize: 12, color: C.faint }}>
-                  {picker.role === "side" ? "Tap to add a dish — pick as many as you like, then Add" : "Pick a meal, and say which meal of the day it is"}
+                  {picker.role === "replace" ? "Pick the meal that replaces this one" : "Pick a meal, and say which meal of the day it is"}
                 </div>
               </div>
               <button
@@ -767,18 +773,25 @@ export function WeekTab({ data, update, isGuest }) {
               </button>
             </div>
             {/* WHICH MEAL OF THE DAY, decided here rather than by which row was
-                tapped. Only the types still free on this day are offered plus
-                the one already selected — a day holds one meal per type, so an
-                option that would silently replace an existing meal is not an
-                option. Defaults to the first free type, so the common case
-                (one dinner) is a single tap on the meal and nothing else. */}
-            {picker.role !== "side" && (
+                tapped, and EVERY meal is offered whether or not it is taken.
+                It used to offer only the free ones, so that nothing could
+                silently replace Monday's dinner — but a taken one now JOINS
+                rather than replaces, so there is nothing to protect against
+                and the line below says so before you tap.
+                Defaults to the first free type, so the common case (one
+                dinner on an empty day) is still a single tap on the meal. */}
+            {picker.role !== "replace" && (
               <div style={{ padding: "0 16px 10px" }}>
                 <Seg
-                  options={MEAL_TYPES.filter((t) => t === picker.type || !data.plan?.[picker.day]?.[t]?.recipeId).map((t) => ({ value: t, label: t }))}
+                  options={MEAL_TYPES.map((t) => ({ value: t, label: t }))}
                   value={picker.type}
                   onChange={(t) => setPicker((p) => ({ ...p, type: t }))}
                 />
+                {joiningName && (
+                  <div style={{ fontSize: 12, color: C.faint, marginTop: 6 }}>
+                    Joins <b style={{ color: C.ink, fontWeight: 600 }}>{joiningName}</b> — {picker.day} {picker.type.toLowerCase()} will have both.
+                  </div>
+                )}
               </div>
             )}
             <div style={{ padding: "0 16px 10px" }}>
@@ -815,11 +828,11 @@ export function WeekTab({ data, update, isGuest }) {
                       // replaces it and closes. Side: highlighted means "picked
                       // this session", a tap toggles it and the picker stays open
                       // for more.
-                      const chosen = picker.role === "side" ? sidePicks.includes(r.id) : r.id === activeSlotRecipeId;
+                      const chosen = r.id === activeSlotRecipeId;
                       return (
                         <button
                           key={r.id}
-                          onClick={() => (picker.role === "side" ? toggleSidePick(r.id) : assignFromPicker(r))}
+                          onClick={() => assignFromPicker(r)}
                           style={{
                             display: "flex",
                             alignItems: "center",
@@ -852,13 +865,6 @@ export function WeekTab({ data, update, isGuest }) {
                 ))
               )}
             </div>
-            {picker.role === "side" && (
-              <div style={{ display: "flex", justifyContent: "flex-end", padding: "10px 16px", borderTop: `1px solid ${C.line}` }}>
-                <Btn kind="primary" onClick={commitSidePicks} disabled={sidePicks.length === 0}>
-                  {sidePicks.length > 0 ? `Add ${sidePicks.length} dish${sidePicks.length === 1 ? "" : "es"}` : "Add dishes"}
-                </Btn>
-              </div>
-            )}
           </div>
         </div>
       )}

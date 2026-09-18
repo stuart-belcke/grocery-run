@@ -178,31 +178,50 @@ test("the meal type is chosen when the meal is, not by which row was tapped", as
   }
 });
 
-test("a type already filled that day is not offered as somewhere to put another meal", async () => {
-  // A day holds one meal per type, so offering Dinner again would mean
-  // silently replacing the dinner already there.
+test("a meal of the day that is already taken is still offered, and picking it JOINS", async () => {
+  /* The type chooser used to offer only the FREE meals of a day, because
+     picking a taken one could then only have replaced what was there —
+     silently, which is item 111. It joins now, so there is nothing left to
+     protect against and every type is offered.
+     ASSERTED ON WHAT WAS PERSISTED: "joined" and "replaced" look almost the
+     same on screen and are completely different in the shopping list. */
   const page = await openWeek(planWith({ Tue: { Dinner: { recipeId: "r-stirfry", servings: 2 } } }));
   try {
     await startEditing(page);
-    await page.getByLabel("Choose a meal for Tue").click();
+    await page.getByRole("button", { name: "Choose a meal for Tue", exact: true }).click();
     await page.waitForTimeout(400);
     const offered = await page.evaluate(() =>
       [...document.querySelectorAll('[role="dialog"] button')].map((b) => b.textContent.trim()).filter((t) => ["Breakfast", "Lunch", "Dinner", "Dessert"].includes(t))
     );
-    assert.deepEqual(offered, ["Breakfast", "Lunch", "Dessert"], `Dinner is taken on Tue, so it should not be offered: ${JSON.stringify(offered)}`);
+    assert.deepEqual(offered, ["Breakfast", "Lunch", "Dinner", "Dessert"], `every meal of the day should be offered, got ${JSON.stringify(offered)}`);
+
+    // Dinner is the default and it is taken, so this pick joins the stir-fry.
+    await page.locator('[role="dialog"] button').filter({ hasText: /Rice side/ }).first().click();
+    await page.waitForTimeout(500);
+    await page.roundTrip();
+
+    assert.deepEqual(
+      (await page.readState()).plan.Tue.Dinner,
+      { recipeId: "r-stirfry", servings: 2, sides: [{ recipeId: "r-riceside", servings: 2 }] },
+      "picking a taken meal of the day must ADD to it — replacing the stir-fry here is the bug this replaced"
+    );
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
   }
 });
 
-test("a day with every meal type filled stops offering another", async () => {
+test("a day with every meal type filled still offers a way to add another dish", async () => {
+  /* It used to stop offering one, because there was no free type left to put
+     a meal in. A second dish goes on an EXISTING meal now, so a full day is
+     not a finished one — and the alternative was pressing Edit and hunting a
+     per-slot button, which is the duplicate control this removed. */
   const full = { Tue: Object.fromEntries(["Breakfast", "Lunch", "Dinner", "Dessert"].map((t) => [t, { recipeId: "r-stirfry", servings: 2 }])) };
   const page = await openWeek(planWith(full));
   try {
     await startEditing(page);
-    assert.equal(await page.getByLabel("Choose a meal for Tue").count(), 0, "there is nowhere left to put one");
-    assert.equal(await page.getByLabel("Choose a meal for Wed").count(), 1, "other days are unaffected");
+    assert.equal(await page.getByRole("button", { name: "Choose a meal for Tue", exact: true }).count(), 1, "a full day can still take a second dish on a meal it already has");
+    assert.equal(await page.getByRole("button", { name: "Choose a meal for Wed", exact: true }).count(), 1, "other days are unaffected");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

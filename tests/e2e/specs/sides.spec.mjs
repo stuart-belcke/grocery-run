@@ -38,9 +38,9 @@ const listAmount = (page, name) =>
     return span ? span.textContent.trim() : null;
   }, name);
 
-// Per-slot controls — servings, the ✕, and "Add another dish" — only exist while
-// planning (or behind Edit in the shopping stage). Skipping this step is what
-// made the sides button look missing when this suite was first sketched.
+// Per-slot controls — servings and the ✕ — only exist while planning (or
+// behind Edit in the shopping stage). Skipping this step is what made the
+// second-dish button look missing when this suite was first sketched.
 const startPlanning = async (page) => {
   await page.tab("Plan");
   const start = page.locator("button").filter({ hasText: /^Start planning$/ }).first();
@@ -55,23 +55,25 @@ const startPlanning = async (page) => {
 // and lives in one place.
 const pickMain = (page, slot, recipe) => page.planMeal(slot, recipe);
 
+/* Open the picker aimed at a meal of the day that ALREADY HAS A DISH, which
+   is how a second one goes on. There is no separate control for it any more:
+   a day carries one "Choose a meal" row, you say which meal of the day inside
+   the picker, and picking one that is taken joins it.
+
+   getByRole("button"), not getByLabel: the modal carries the same accessible
+   name as the button that opens it, so a plain label lookup is ambiguous the
+   moment it opens. */
 const openSidePicker = async (page, slot) => {
-  // getByRole("button"), not getByLabel: the modal itself carries the same
-  // accessible name, so a plain label lookup is ambiguous the moment it opens.
-  await page.getByRole("button", { name: `Add another dish for ${slot}` }).click();
-  await page.waitForTimeout(400);
-  return page.getByRole("dialog", { name: `Add another dish for ${slot}` });
+  const [day, type] = slot.split(" ");
+  await page.getByRole("button", { name: `Choose a meal for ${day}`, exact: true }).click();
+  await page.waitForTimeout(300);
+  const typeBtn = page.getByRole("button", { name: new RegExp(`^${type}$`) });
+  if (await typeBtn.count()) await typeBtn.first().click();
+  await page.waitForTimeout(300);
+  return page.getByRole("dialog", { name: `Choose a meal for ${day}` });
 };
 
-const addSide = async (page, slot, recipe) => {
-  const picker = await openSidePicker(page, slot);
-  await picker.locator("button").filter({ hasText: new RegExp(recipe) }).first().click();
-  await page.waitForTimeout(200);
-  // The side picker commits explicitly — a tap only marks, so several sides
-  // go on in one write.
-  await picker.locator("button").filter({ hasText: /^Add \d+ dish(es)?$/ }).click();
-  await page.waitForTimeout(600);
-};
+const addSide = (page, slot, recipe) => page.addDish(slot, recipe);
 
 test("SHOULD: a side added to a slot is stored on it and feeds the shopping list", async () => {
   const page = await openApp(BASE, { catalog: sidesCatalog() });
@@ -175,22 +177,37 @@ test("SHOULD: the side picker offers side dishes first and never what's already 
     await startPlanning(page);
     await pickMain(page, "Mon Dinner", "Stir-fry");
 
-    let picker = await openSidePicker(page, "Mon Dinner");
-    const text = await picker.textContent();
+    /* WHAT IS OFFERED, not what the dialog says. The picker names the dish
+       this pick would join — "Joins Stir-fry — Mon dinner will have both" —
+       so the main's name is on screen on purpose, and a check over the whole
+       dialog text would read that as it being offered. A recipe in the list
+       is the thing carrying a "Serves N" line under its name. */
+    const offered = () =>
+      page.evaluate(() =>
+        [...document.querySelectorAll('[role="dialog"] button')]
+          .filter((b) => /Serves \d/.test(b.textContent))
+          .map((b) => b.textContent.replace(/Serves .*$/, "").trim())
+      );
+
+    await openSidePicker(page, "Mon Dinner");
+    const text = await page.getByRole("dialog", { name: "Choose a meal for Mon" }).textContent();
     assert.ok(/Side dishes/i.test(text), "recipes tagged as sides should have their own group");
+    let names = await offered();
     assert.ok(
-      text.indexOf("Green beans") < text.indexOf("Rice bowl"),
-      "the tagged side should be offered before an untagged meal"
+      names.findIndex((n) => /Green beans/.test(n)) < names.findIndex((n) => /Rice bowl/.test(n)),
+      `the tagged side should be offered before an untagged meal, got ${JSON.stringify(names)}`
     );
-    assert.ok(!/Stir-fry/.test(text), "the slot's own main should not be offered as its side");
+    assert.ok(!names.some((n) => /Stir-fry/.test(n)), `the dish already on this meal should not be offered again, got ${JSON.stringify(names)}`);
+    assert.ok(/Joins/.test(text) && /Stir-fry/.test(text), "the picker should say which dish this one would join");
     await page.getByRole("button", { name: "Close" }).click();
     await page.waitForTimeout(300);
 
     await addSide(page, "Mon Dinner", "Green beans");
-    picker = await openSidePicker(page, "Mon Dinner");
+    await openSidePicker(page, "Mon Dinner");
+    names = await offered();
     assert.ok(
-      !/Green beans/.test(await picker.textContent()),
-      "a side already on the slot must not be offered again — that is how you get it twice"
+      !names.some((n) => /Green beans/.test(n)),
+      `a dish already on the meal must not be offered again — that is how you get it twice: ${JSON.stringify(names)}`
     );
     assertNoPageErrors(page, assert);
   } finally {

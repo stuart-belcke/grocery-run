@@ -4056,14 +4056,74 @@ into the details panel and the name grew.
         quiet and sits with the dishes it belongs to, the day one keeps its
         full-width row. While planning both stay as they were, because that
         screen is a form and every field is open.
+        THAT LASTED ONE ROUND. Styling two controls to be told apart is not
+        the answer to having two controls that do nearly the same thing; O
+        below removes one of them outright.
         THE HEIGHT: 980px to about 1,075px, and the budget in the test was
         raised to match rather than the layout trimmed to fit it. A control on
         every planned day is what reachable costs; the alternative was a
         capability you could only get to by first saying you wanted to
         rearrange things. 1,228px is still where this started.
 
+     O. ONE ADD CONTROL, AND PICKING A MEAL THAT IS TAKEN JOINS IT. N above
+        ended with two add controls on every planned day and a paragraph
+        about making them look different enough to tell apart. That was
+        styling around the problem. Asked, correctly: why not remove "add a
+        dish" and let "Choose a meal" assign to a meal of the day that
+        already has one?
+        WHAT WAS IN THE WAY WAS A GUARD THAT NO LONGER GUARDED ANYTHING. The
+        meal-of-the-day chooser in the picker (Breakfast / Lunch / Dinner /
+        Dessert) offered only the FREE ones, and the reason was sound while
+        picking a taken one could only have overwritten what was there —
+        item 111 is a bug that did exactly that, silently. But "cannot
+        replace" was answered by making the case UNREACHABLE, which also
+        made the honest version of it — a second dish on the same dinner —
+        unreachable through the one control a day offers. So it needed its
+        own button, and then two near-identical buttons sat on every planned
+        day.
+        NOW EVERY MEAL OF THE DAY IS OFFERED and a taken one JOINS. Nothing
+        is ever overwritten by that path, which is what the original guard
+        was protecting. The picker says which it will do before you tap —
+        "Joins Stir-fry — Mon dinner will have both" — and the dishes
+        already on that meal are dropped from the list, so a tap cannot
+        duplicate one.
+        REPLACING IS STILL REACHABLE and is now the only thing that
+        overwrites: tap the MEAL ITSELF while planning. That opens the
+        picker in `role: "replace"`, which hides the meal-of-the-day chooser
+        and the "joins" line, shows the current meal ticked, and offers
+        "Remove meal from this slot".
+        DELETED: the "Add another dish" button, its own picker, its
+        multi-select (tap to mark, then "Add 2 dishes" to commit) and the
+        confirm footer that went with it. A day carries one "Choose a meal"
+        row now, in both modes, on every day whether or not it is full —
+        a full day is not a finished one, because a second dish goes on a
+        meal that already exists.
+        THE DEFAULT MEAL OF THE DAY STOPS STEPPING OVER DINNER. It was "the
+        first FREE meal of the day, preferring dinner", which made sense
+        while a taken one could not be picked: a day already holding a
+        dinner opened on Breakfast. It is Dinner unless you say otherwise.
+        MUTATION-TESTED BOTH DIRECTIONS. Making a taken meal replace instead
+        of join failed 10 browser tests including the one that names the
+        behaviour; making replace join as well failed exactly the two that
+        say a re-pick swaps the meal and takes its other dishes with it.
+        THE SERVINGS RULE IS UNCHANGED: a joining dish takes the MEAL's
+        servings, not its own recipe's, because two dishes on one dinner
+        feed the same table.
+
      TESTED: 402 unit, 12 sync, 79 rules, 18 database, 344 browser, lint and
      build. Six existing browser tests had to be updated because controls
      genuinely moved, and each was re-pointed rather than weakened — the
      store editors are opened first, delete is measured inside the editor,
-     the Section squeeze guard moved to Account.
+     the Section squeeze guard moved to Account. O rewrote four more: the
+     two weekdensity tests that asserted a taken meal type was NOT offered
+     now assert that it is and that picking it joins (read back from the
+     saved plan, because joined and replaced look almost identical on screen
+     and are completely different on the shopping list), and the sides and
+     journey specs drive the one control through a shared `page.addDish`
+     helper — so if the two ever diverge again, a spec says so.
+     ONE OF THOSE UPDATES CAUGHT MY OWN ASSERTION BEING WRONG RATHER THAN
+     THE CODE: "the main is not offered as its own side" was checking the
+     whole dialog's text for the main's name, and the "Joins Stir-fry" line
+     puts that name on screen deliberately. It reads the offered RECIPES now
+     — the buttons carrying a "Serves N" line — and separately asserts the
+     joins line is there.
