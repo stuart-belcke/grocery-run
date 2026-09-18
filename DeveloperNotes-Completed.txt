@@ -4123,7 +4123,26 @@ into the details panel and the name grew.
         servings, not its own recipe's, because two dishes on one dinner
         feed the same table.
 
-     TESTED: 402 unit, 12 sync, 79 rules, 18 database, 344 browser, lint and
+     P. "FINISH PLANNING" ON A WEEK WITH NOTHING IN IT. Reported from a real
+        phone with a screenshot: press Start planning and the loudest thing
+        on the screen is a solid green button at half opacity, disabled,
+        sitting beside a line telling you to add your meals. It was drawn
+        whenever the week was in the planning stage and disabled while the
+        count was zero.
+        A DISABLED CONTROL GIVES NO REASON FOR BEING DISABLED. It reads as
+        broken, or as tap-harder, and the answer here is not a tooltip —
+        there is simply nothing to finish yet.
+        NOTHING IS LOST BY NOT DRAWING IT. Its only job is to end the
+        planning stage, and ending it with no meals on the week leaves
+        exactly the week you already have; the stage line already says what
+        to do. It appears on the first meal planned, in the place it will
+        stay.
+        TESTED BOTH DIRECTIONS, because hiding it outright would strand
+        somebody who has planned a week and cannot leave the stage: absent on
+        an empty week, present AND enabled the moment one meal is on. Putting
+        the disabled button back fails that test.
+
+     TESTED: 402 unit, 12 sync, 79 rules, 18 database, 345 browser, lint and
      build. Six existing browser tests had to be updated because controls
      genuinely moved, and each was re-pointed rather than weakened — the
      store editors are opened first, delete is measured inside the editor,

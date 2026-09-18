@@ -303,8 +303,18 @@ export function WeekTab({ data, update, isGuest }) {
         {stage === "empty" && !isGuest && (
           <Btn kind="primary" onClick={startPlanning}>Start planning</Btn>
         )}
-        {stage === "planning" && !isGuest && (
-          <Btn kind="primary" onClick={finishPlanning} disabled={plannedCount === 0}>
+        {/* NOT RENDERED UNTIL THERE IS SOMETHING TO FINISH. It used to be
+            drawn disabled on an empty week, which made the loudest thing on
+            the screen — a solid green button, half-faded — the one thing you
+            could not do, sitting beside a line telling you to add meals. A
+            disabled control gives no reason for being disabled; it reads as
+            broken, or as tap-harder.
+            NOTHING IS LOST BY HIDING IT. Its only job is to end the planning
+            stage, and ending it with no meals on the week leaves exactly the
+            week you already have. It appears on the first meal planned, in
+            the place it will stay. */}
+        {stage === "planning" && !isGuest && plannedCount > 0 && (
+          <Btn kind="primary" onClick={finishPlanning}>
             Finish planning
           </Btn>
         )}

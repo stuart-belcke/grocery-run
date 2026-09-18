@@ -239,6 +239,33 @@ test("a day with every meal type filled still offers a way to add another dish",
   }
 });
 
+test("\"Finish planning\" arrives with the first meal, rather than sitting there disabled", async () => {
+  /* Reported from a real phone: an empty week in the planning stage drew
+     "Finish planning" as a solid green button at half opacity — the loudest
+     thing on the screen, disabled, beside a line saying to add meals. A
+     disabled control gives no reason for being disabled.
+
+     BOTH DIRECTIONS, because hiding it outright would strand somebody who
+     has planned a week and cannot leave the stage. */
+  const page = await openWeek(stateWith({ plan: {} }));
+  try {
+    await startEditing(page);
+    const finish = page.locator("button").filter({ hasText: /^Finish planning$/ });
+    assert.equal(await finish.count(), 0, "there is nothing to finish on an empty week, so nothing should offer to");
+
+    await page.getByRole("button", { name: "Choose a meal for Wed", exact: true }).click();
+    await page.waitForTimeout(300);
+    await page.locator('[role="dialog"] button').filter({ hasText: /Stir-fry/ }).first().click();
+    await page.waitForTimeout(500);
+
+    assert.equal(await finish.count(), 1, "one meal in, and there is something to finish");
+    assert.equal(await finish.first().isDisabled(), false, "it must be usable the moment it appears");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
 test("a dessert-only day shows its dessert and reads as planned", async () => {
   /* The border is what says "this day has something" at a glance. Deriving it
      from the VISIBLE rows would make a day with only a breakfast look empty
