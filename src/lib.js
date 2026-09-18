@@ -995,8 +995,21 @@ export const FALLBACK_CATALOG = {
   config: {},
 };
 
+/* THE SHAPE VERSION OF THE STATE NODE, and the first thing ever to compare it.
+   2 means every dish on a slot carries its own `skipList`; 1 meant one flag on
+   the slot that stood for the whole meal. normalizeLocal converts a 1 exactly
+   once — see the block by `plan` below — and it has to be gated on something,
+   because "the slot skips and this dish does not" is a sentence version 1
+   could not write and version 2 writes all the time. Without the gate, ticking
+   a main on the new build would re-silence the dishes under it on the next
+   read.
+   IT IS NOT APP_DATA_VERSION AND MUST NOT BECOME IT. That one locks older
+   devices out of the household until they update; this one changes nothing for
+   them. An older build reads a converted plan and behaves as it always did. */
+export const SKIP_PER_DISH_VERSION = 2;
+
 export const emptyLocal = () => ({
-  version: 1,
+  version: SKIP_PER_DISH_VERSION,
   // `bought`: ingredient keys acquired on an earlier trip this week. Recipe-
   // driven items are computed from the plan, so they can't be deleted — this
   // records that you already have them so they drop off the list.
@@ -1055,6 +1068,29 @@ export function needsKeyMigration(raw) {
   // no longer touches it — an array in the database passes through unchanged,
   // so baseline and server agree about it and there is nothing to repair.
   return looksLegacyCollection(raw.list && raw.list.extras);
+}
+
+/* THE SAME PROBLEM, FOR THE OLD WHOLE-MEAL SKIP. normalizeLocal converts a
+   version-1 plan on READ, and the converted copy becomes both the local state
+   and the baseline a later edit is diffed against — so the conversion itself
+   is never part of any diff and the DATABASE keeps its version-1 copy forever.
+   That would be harmless if the conversion were free to re-run, and it is not:
+   it fires on every read while the stored version says 1, so un-ticking a dish
+   would be silently undone the next time the app opened.
+   Same answer as needsKeyMigration above: no baseline, so the next write is a
+   full set() that replaces the stored copy with the converted one, version and
+   all. One wide write per household, then narrow writes forever after. */
+export function needsSkipConversion(raw) {
+  if (!raw || typeof raw !== "object") return false;
+  if ((Number(raw.version) || 0) >= SKIP_PER_DISH_VERSION) return false;
+  // Only a slot that actually skips AND has dishes under it means anything
+  // different under the two readings. Nothing else is worth a wide write.
+  for (const slots of Object.values(asObject(raw.plan))) {
+    for (const slot of Object.values(asObject(slots))) {
+      if (slot && typeof slot === "object" && slot.skipList && asArray(slot.sides).length > 0) return true;
+    }
+  }
+  return false;
 }
 
 export function asKeyed(v, keyOf) {
@@ -1770,8 +1806,34 @@ export function normalizeLocal(raw) {
        belt and braces, not a known failure. It costs two lines and closes the
        one route that could ever put something else there: an imported backup,
        which is a hand-editable file. */
+    /* AND THE STATE'S SHAPE VERSION IS RAISED, which is what makes the
+       conversion below a ONE-TIME one rather than something that runs on
+       every read and re-silences a dish somebody has just un-silenced.
+       Math.max, not the constant: a state written by a LATER build carries a
+       number this one has never heard of, and knocking it back to 2 would
+       hand that build its own old shape and run its migrations again. */
+    version: Math.max(Number(d.version) || 0, SKIP_PER_DISH_VERSION),
+    /* AND THE ONE-TIME CONVERSION OF THE OLD WHOLE-MEAL SKIP. A version-1
+       plan that says a slot skips the list meant "none of this meal reaches
+       the list, dishes included" — the only thing it could mean, since there
+       was one checkbox. Read as version 2 that sentence says "the MAIN is
+       covered", which would quietly put the other dishes' ingredients back on
+       the shopping list: an extra trip's worth of food somebody already has.
+       So the flag is copied down onto each dish, which is what it meant.
+       ON READ, so a plan arriving from the other phone is converted too, and
+       gated on the version so it cannot fire on a version-2 plan where "the
+       main is skipped and this dish is not" was said deliberately. */
     plan: withSafeKeys(
-      Object.fromEntries(Object.entries(asObject(d.plan)).map(([day, slots]) => [day, withSafeKeys(slots)]))
+      Object.fromEntries(
+        Object.entries(asObject(d.plan)).map(([day, slots]) => [
+          day,
+          withSafeKeys(
+            Number(d.version) >= SKIP_PER_DISH_VERSION
+              ? asObject(slots)
+              : Object.fromEntries(Object.entries(asObject(slots)).map(([type, slot]) => [type, spreadSkipToDishes(slot)]))
+          ),
+        ])
+      )
     ),
     stapleNeeds: withSafeKeys(d.stapleNeeds, (a, b) => a || b),
   };
@@ -3085,26 +3147,53 @@ export function plannedMealCount(data) {
   return n;
 }
 
-// A slot marked `skipList` stays on the plan but stops feeding the shopping
-// list: leftovers, or a meal you already have everything for. It still counts
-// as a planned meal, so plannedMealCount deliberately doesn't use this — only
-// the two list-facing walks below do, and they share this one definition so
-// they can't drift apart.
-export function slotFeedsList(slot) {
-  return !!slot?.recipeId && !slot.skipList;
+/* EVERY DISH CARRIES ITS OWN `skipList`, and it means "we already have what
+   this one needs" — leftovers, or a dish whose ingredients are in the
+   cupboard. The dish stays on the plan and stops feeding the shopping list.
+
+   IT USED TO BE ONE FLAG FOR THE WHOLE MEAL. `skipList` sat on the slot and
+   silenced the main AND every dish under it, while the checkbox that set it
+   sat under the main and read as the main's own. So on a dinner of three
+   dishes, a control that looked like it covered one covered all three, and
+   "we have everything for the cod but not the meatballs" could not be said at
+   all. Reported from a phone with three dishes on one Sunday dinner.
+   `skipList` ON THE SLOT NOW MEANS THE MAIN DISH ONLY. A plan written before
+   this meant the whole meal, which is why normalizeLocal copies the old flag
+   down onto each dish once — see stateVersion / SKIP_PER_DISH_VERSION. */
+/* Copy a version-1 slot's whole-meal skip onto each dish under it, which is
+   what it used to mean. Everything else about the slot is carried through
+   untouched — a field this build does not know about included, because every
+   device writes the whole state back. Returns the slot unchanged when there is
+   nothing to convert, so the common case allocates nothing. */
+export function spreadSkipToDishes(slot) {
+  if (!slot || typeof slot !== "object") return slot;
+  const sides = asArray(slot.sides);
+  if (!slot.skipList || sides.length === 0) return slot;
+  return { ...slot, sides: sides.map((s) => (s && typeof s === "object" ? { ...s, skipList: true } : s)) };
 }
 
-// Every dish a feeding slot puts on the table: the main plus its sides, as
-// { recipeId, servings }. A side never makes sense without its main, so this
-// is the ONE gate — skipList or an empty slot means nothing feeds the list,
-// sides included, with no separate check for them.
+export function dishSkipsList(dish) {
+  return !!dish && !!dish.skipList;
+}
+
+// Every dish a slot puts on the shopping list: the main, unless it is skipped,
+// plus each of its other dishes that is not. An empty slot puts nothing.
 export function slotDishes(slot) {
-  if (!slotFeedsList(slot)) return [];
-  const out = [{ recipeId: slot.recipeId, servings: Number(slot.servings) || 0 }];
+  if (!slot?.recipeId) return [];
+  const out = [];
+  if (!dishSkipsList(slot)) out.push({ recipeId: slot.recipeId, servings: Number(slot.servings) || 0 });
   for (const s of asArray(slot.sides)) {
-    if (s && s.recipeId) out.push({ recipeId: s.recipeId, servings: Number(s.servings) || 0 });
+    if (s && s.recipeId && !dishSkipsList(s)) out.push({ recipeId: s.recipeId, servings: Number(s.servings) || 0 });
   }
   return out;
+}
+
+// Whether a slot puts ANYTHING on the list. Derived from slotDishes rather
+// than duplicating its rules, so the two can never disagree about a meal whose
+// dishes are all skipped one by one. plannedMealCount deliberately does not
+// use this: a skipped meal is still a planned meal.
+export function slotFeedsList(slot) {
+  return slotDishes(slot).length > 0;
 }
 
 // Every day/type/role a recipe appears in the plan, as main or as a side —

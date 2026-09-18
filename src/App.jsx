@@ -74,6 +74,7 @@ import {
   FALLBACK_CATALOG,
   emptyLocal,
   normalizeLocal,
+  needsSkipConversion,
   loadJSON,
   saveJSON,
   validLocal,
@@ -776,7 +777,14 @@ export default function App() {
         // narrow diff would write to paths that don't exist there. Leaving the
         // baseline unset makes the next write a full set() that replaces the old
         // shape outright — one wide write per device, then narrow forever after.
-        markSynced(code, needsKeyMigration(remote) ? null : adopted);
+        // needsSkipConversion for the same reason as needsKeyMigration: the
+        // conversion of the old whole-meal "already have the ingredients" flag
+        // happens on READ, so it is in `adopted` and never in a diff. Leaving
+        // the baseline unset makes the next write a full set() that puts the
+        // converted plan and its version into the database, which is what
+        // stops the conversion re-running and undoing a dish somebody has just
+        // un-ticked.
+        markSynced(code, needsKeyMigration(remote) || needsSkipConversion(remote) ? null : adopted);
       } else if (push) {
         // Either a brand-new household, or this device holds work the database
         // never received — seed/repair it rather than losing the local copy.

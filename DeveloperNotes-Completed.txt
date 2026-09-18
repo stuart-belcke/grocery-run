@@ -4142,7 +4142,63 @@ into the details panel and the name grew.
         an empty week, present AND enabled the moment one meal is on. Putting
         the disabled button back fails that test.
 
-     TESTED: 402 unit, 12 sync, 79 rules, 18 database, 345 browser, lint and
+     Q. "ALREADY HAVE THE INGREDIENTS" COVERED THE WHOLE MEAL FROM UNDER THE
+        MAIN. Reported from a phone with three dishes on one Sunday dinner:
+        the checkbox appeared once, under the first dish, and read as that
+        dish's own. Ticking it silenced all three.
+        IT WAS NEVER A DECISION EITHER. `skipList` sat on the SLOT and
+        slotDishes returned nothing at all for a skipped one — which was the
+        only reading available while there was one checkbox, and it was even
+        written down as "a side never makes sense without its main". That is
+        true of potatoes beside a roast and wrong for the case N above made
+        ordinary: two full dinners on one day. "We have everything for the
+        beans but not the stir-fry" could not be said.
+        EVERY DISH CARRIES ITS OWN FLAG NOW, and every dish has its own
+        checkbox, worded identically and sitting under the dish it belongs
+        to. `skipList` on the slot means the MAIN.
+        THAT RE-READS DATA ALREADY SAVED, which is the part that could cost a
+        trip. A plan written before this says "the slot skips" and MEANT "none
+        of this meal reaches the list". Read under the new rule the same
+        sentence says "the main is covered", so the other dishes' ingredients
+        would quietly reappear on the shopping list — food the household has
+        already said it has. So normalizeLocal copies the old flag down onto
+        each dish, once.
+        ONCE IS THE HARD PART. The conversion has to be gated, because "the
+        slot skips and this dish does not" is a sentence the old shape could
+        not write and the new one writes all the time — ungated, ticking a
+        main would re-silence the dishes under it on the next read. The gate
+        is `version` in emptyLocal, which had sat at 1 since the app was
+        written and is described in CLAUDE.md as "never compared today". This
+        is the first thing ever to compare it. It is NOT APP_DATA_VERSION and
+        must not become one: that locks other devices out of the household
+        until they update, and this changes nothing for them.
+        AND THE CONVERSION IS NEVER IN A DIFF, because it happens on read and
+        the converted copy becomes both the state and the baseline the next
+        narrow write is measured against — so the database would keep its
+        version-1 copy and the conversion would re-run on every load forever.
+        Same answer as needsKeyMigration, which had the same problem for the
+        old array-shaped `extras`: needsSkipConversion leaves the baseline
+        unset, so the next write is one full set() that puts the converted
+        plan and its version in the database. One wide write per household.
+        THE COST TO AN OLDER BUILD, stated plainly: it reads a dish-level flag
+        it does not know, carries it through untouched (forward compatibility
+        holds), and puts that dish on its own shopping list anyway. So a phone
+        that has not updated yet can shop for one dish somebody said they had.
+        That is why APP_DATA_VERSION was weighed and not spent — devices check
+        for new builds on their own and item 30 removed the button that let
+        one stay behind, so the window is a launch, and the alternative is
+        locking a phone out of the shopping list mid-trip.
+        MUTATION-TESTED BOTH HALVES. Putting slotDishes back to the whole-meal
+        rule fails 4 unit tests and 2 browser tests; removing the version gate
+        fails 1 unit test and the same 2 browser tests — the one that un-ticks
+        a dish, reloads, and finds it ticked again.
+        ONE FIXTURE CHANGED: tests/e2e/fixtures.mjs had `version: 1` written
+        as a literal, which made every one of the 346 browser tests a
+        pre-conversion state and left the spec that means to test the
+        conversion testing nothing in particular. It takes the constant from
+        lib.js now, so the one spec that wants an old state says so itself.
+
+     TESTED: 408 unit, 12 sync, 79 rules, 18 database, 346 browser, lint and
      build. Six existing browser tests had to be updated because controls
      genuinely moved, and each was re-pointed rather than weakened — the
      store editors are opened first, delete is measured inside the editor,

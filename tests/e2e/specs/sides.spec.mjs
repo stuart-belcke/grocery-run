@@ -276,24 +276,99 @@ test("SHOULD: replacing the main clears the sides that were paired with it", asy
   }
 });
 
-test("SHOULD: 'already have the ingredients' silences the sides as well as the main", async () => {
-  /* One gate for the whole slot: a side never makes sense without its main,
-     so if the main isn't feeding the list nothing in that slot is. A side
-     that kept reporting demand here would put food on the list for a meal
-     you already told the app you were stocked for. */
+test("SHOULD: 'already have the ingredients' covers the dish it sits under, and only that one", async () => {
+  /* EVERY DISH HAS ONE. There used to be a single checkbox on a meal, sitting
+     under the main and reading as the main's own, and ticking it silenced
+     every dish on the meal — so on a dinner of three dishes a control that
+     looked like it covered one covered all three, and "we have everything for
+     the beans but not the stir-fry" could not be said at all. Reported from a
+     phone with three dishes on one Sunday dinner.
+
+     ASSERTED ON THE SHOPPING LIST, because that is what the flag is for and
+     where getting it wrong costs a wasted trip. */
   const page = await openApp(BASE, { catalog: sidesCatalog() });
   try {
     await startPlanning(page);
     await pickMain(page, "Mon Dinner", "Stir-fry");
     await addSide(page, "Mon Dinner", "Green beans");
 
+    // The main's box. The dish under it must stay on the list.
     await page.getByLabel("Already have the ingredients for Stir-fry on Mon Dinner").check();
     await page.waitForTimeout(600);
     await page.roundTrip();
-
-    assert.equal((await page.readState()).plan.Mon.Dinner.skipList, true, "the slot should be marked skipped");
+    assert.equal((await page.readState()).plan.Mon.Dinner.skipList, true, "the main should be marked skipped");
     await page.tab("List");
-    assert.deepEqual(await listedNames(page), [], "a skipped slot should contribute nothing, sides included");
+    assert.deepEqual(await listedNames(page), ["Green beans"], "skipping the main must leave the dish under it on the list");
+
+    // The dish's own box, which did not exist before this.
+    await page.tab("Plan");
+    await page.getByLabel("Already have the ingredients for Green beans on Mon Dinner").check();
+    await page.waitForTimeout(600);
+    await page.roundTrip();
+    assert.deepEqual(
+      (await page.readState()).plan.Mon.Dinner.sides,
+      [{ recipeId: "r-greenbeans", servings: 2, skipList: true }],
+      "the flag belongs to the dish, not to the meal"
+    );
+    await page.tab("List");
+    assert.deepEqual(await listedNames(page), [], "with every dish covered, the meal reaches the list with nothing");
+
+    // And back off again — un-ticking has to stick, which is what the one-time
+    // conversion of the old whole-meal flag could quietly undo on every read.
+    await page.tab("Plan");
+    await page.getByLabel("Already have the ingredients for Green beans on Mon Dinner").uncheck();
+    await page.waitForTimeout(600);
+    await page.roundTrip();
+    await page.tab("List");
+    assert.deepEqual(await listedNames(page), ["Green beans"], "un-ticking a dish must put it back on the list and stay that way");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: a plan saved before dishes had their own flag still means what it said", async () => {
+  /* THE CONVERSION, THROUGH THE REAL APP. A saved plan at version 1 says the
+     SLOT skips the list, which meant "none of this meal reaches the list,
+     dishes included". Read under the per-dish rule that same sentence says
+     "the main is covered" — so without the conversion, opening the app would
+     quietly put the other dishes' ingredients back on the shopping list and
+     send somebody out for food they already have. */
+  const page = await openApp(BASE, {
+    catalog: sidesCatalog(),
+    state: stateWith({
+      version: 1,
+      planStage: "shopping",
+      plan: { Mon: { Dinner: { recipeId: "r-stirfry", servings: 2, skipList: true, sides: [{ recipeId: "r-greenbeans", servings: 2 }] } } },
+    }),
+  });
+  try {
+    await page.tab("List");
+    assert.deepEqual(await listedNames(page), [], "the whole meal was covered when this was saved, and still is");
+
+    /* AND THE CONVERSION HAS TO BE A ONE-TIME ONE. It runs when the saved plan
+       is READ, so it is not part of any narrow write and the stored copy keeps
+       saying version 1 until something rewrites it. Until then it re-runs on
+       every load — and a dish you have just un-ticked gets silently re-ticked
+       the next time the app opens, which is a meal quietly missing from the
+       shopping list. Un-tick one, reload, and it must still be un-ticked. */
+    await page.tab("Plan");
+    await page.locator("button").filter({ hasText: /^Edit$/ }).first().click();
+    await page.waitForTimeout(400);
+    const box = page.getByLabel("Already have the ingredients for Green beans on Mon Dinner");
+    assert.equal(await box.isChecked(), true, "the dish should have arrived carrying the meal's old flag");
+    await box.uncheck();
+    await page.waitForTimeout(600);
+
+    await page.tab("List");
+    assert.deepEqual(await listedNames(page), ["Green beans"], "un-ticking one dish should put its ingredients on the list");
+
+    await page.roundTrip();
+    const slot = (await page.readState()).plan.Mon.Dinner;
+    assert.equal(slot.skipList, true, "the main was covered and stays covered");
+    assert.equal(slot.sides[0].skipList, undefined, "the dish was un-ticked, and reloading must not tick it again");
+    await page.tab("List");
+    assert.deepEqual(await listedNames(page), ["Green beans"], "and it is still on the list after a reload");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

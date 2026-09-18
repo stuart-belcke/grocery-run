@@ -180,7 +180,18 @@ export function WeekTab({ data, update, isGuest }) {
     update((d) => {
       const slot = d.plan?.[day]?.[type];
       if (!slot) return d;
-      d.plan[day][type] = { ...slot, sides: asArray(slot.sides).map((s, i) => (i === index ? { ...s, ...patch } : s)) };
+      d.plan[day][type] = {
+        ...slot,
+        sides: asArray(slot.sides).map((s, i) => {
+          if (i !== index) return s;
+          const next = { ...s, ...patch };
+          // `undefined` in a patch means "unset this", exactly as in setSlot —
+          // a dish that does not skip the list keeps the shape it has always
+          // had rather than storing a `false` on every dish on the plan.
+          for (const [k, v] of Object.entries(patch)) if (v === undefined) delete next[k];
+          return next;
+        }),
+      };
       return d;
     });
 
@@ -431,8 +442,14 @@ export function WeekTab({ data, update, isGuest }) {
                 const slot = data.plan?.[day]?.[type];
                 const recipe = slot?.recipeId ? data.recipes.find((r) => r.id === slot.recipeId) : null;
                 const base = recipe ? recipe.servings || 4 : 4;
-                // Leftovers, or a meal you already have everything for: still
-                // on the plan, but its ingredients never reach the list.
+                /* Leftovers, or a dish you already have everything for: still
+                   on the plan, but its ingredients never reach the list.
+                   PER DISH, NOT PER MEAL. `slot.skipList` is the MAIN's now;
+                   each of the other dishes carries its own. It used to be one
+                   flag for the whole slot, set by a checkbox sitting under the
+                   main and reading as the main's own — so on a dinner of three
+                   dishes, a control that looked like it covered one covered
+                   all three. */
                 const skipped = !!slot?.skipList;
                 // Side dishes for this slot. A reference to a deleted recipe
                 // is filtered out here rather than crashing — MealsTab cleans
@@ -442,11 +459,14 @@ export function WeekTab({ data, update, isGuest }) {
                       .map((s, index) => ({ ...s, index, recipe: data.recipes.find((r) => r.id === s.recipeId) }))
                       .filter((s) => s.recipe)
                   : [];
-                // Shared box styling so the read-only display and the editable
-                // meal button occupy the same shape on the line. A skipped slot
-                // drops the green so the week reads at a glance as which meals
-                // are actually driving the shopping.
-                const slotBox = { flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", fontFamily: fontBody, fontSize: 13, padding: "7px 10px", borderRadius: 8, border: `1px solid ${skipped ? C.line : C.green}`, background: skipped ? "#fff" : C.greenSoft, color: C.ink };
+                /* Shared box styling so the read-only display and the editable
+                   meal button occupy the same shape on the line. A skipped dish
+                   drops the green so the week reads at a glance as which dishes
+                   are actually driving the shopping — TAKES THE DISH'S OWN
+                   skip, because with one flag per dish a skipped side under an
+                   ordinary main is an ordinary thing to see. */
+                const dishBox = (isSkipped) => ({ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", fontFamily: fontBody, fontSize: 13, padding: "7px 10px", borderRadius: 8, border: `1px solid ${isSkipped ? C.line : C.green}`, background: isSkipped ? "#fff" : C.greenSoft, color: C.ink });
+                const slotBox = dishBox(skipped);
                 return (
                   <div key={type} style={{ padding: "5px 0" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: TYPE_GAP }}>
@@ -609,6 +629,7 @@ export function WeekTab({ data, update, isGuest }) {
                       <div style={{ marginTop: 4 }}>
                         {sideEntries.map((s) => {
                           const sideBase = s.recipe.servings || 4;
+                          const sideSkipped = !!s.skipList;
                           return (
                             <Fragment key={s.index}>
                               {/* ONE RULE FOR BOTH, AT LAST: at rest the ROW is
@@ -642,7 +663,7 @@ export function WeekTab({ data, update, isGuest }) {
                                       "aria-label": `${day} ${type}: ${s.recipe.name} — view recipe`,
                                       title: "View recipe",
                                     })}
-                                style={{ ...slotBox, width: `calc(100% - ${SLOT_INDENT}px)`, boxSizing: "border-box", marginBottom: 4, marginLeft: SLOT_INDENT, cursor: slotsEditable ? undefined : "pointer" }}
+                                style={{ ...dishBox(sideSkipped), width: `calc(100% - ${SLOT_INDENT}px)`, boxSizing: "border-box", marginBottom: sideSkipped && !slotsEditable ? 1 : 4, marginLeft: SLOT_INDENT, cursor: slotsEditable ? undefined : "pointer" }}
                               >
                                 <span style={{ flex: 1, minWidth: 0, fontWeight: 600, ...(slotsEditable ? { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } : {}) }}>{s.recipe.easy ? "⚡ " : ""}{s.recipe.name}</span>
                                 {slotsEditable ? (
@@ -680,6 +701,36 @@ export function WeekTab({ data, update, isGuest }) {
                                   <span style={{ color: C.faint, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{Number(s.servings) || sideBase} sv</span>
                                 )}
                               </RowTag>
+                              {/* WHY THIS DISH IS NOT ON THE LIST, said on the
+                                  dish itself. The main has always carried this
+                                  line; a dish under it could not be skipped at
+                                  all, so a week at rest would otherwise show a
+                                  dish whose ingredients are silently missing
+                                  from the shopping list with nothing to say
+                                  so. */}
+                              {sideSkipped && !slotsEditable && (
+                                <div style={{ fontSize: 12, color: C.faint, marginLeft: SLOT_INDENT + 10, marginBottom: 4 }}>already have the ingredients</div>
+                              )}
+                              {/* ITS OWN CHECKBOX, ONE PER DISH. This is the
+                                  whole of the fix: the box under the main used
+                                  to silence every dish on the meal, so "we have
+                                  everything for the cod but not the meatballs"
+                                  could not be said. It sits under the dish it
+                                  belongs to, in the dish's own column, worded
+                                  exactly as the main's. */}
+                              {slotsEditable && (
+                                <label style={{ display: "flex", alignItems: "center", gap: 5, marginLeft: SLOT_INDENT, marginBottom: 6, fontSize: 12, color: C.faint, cursor: "pointer" }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={sideSkipped}
+                                    // Unset rather than store `false` — see setSlot.
+                                    onChange={(e) => setSlotSide(day, type, s.index, { skipList: e.target.checked || undefined })}
+                                    aria-label={`Already have the ingredients for ${s.recipe.name} on ${day} ${type}`}
+                                    style={{ width: 15, height: 15, accentColor: C.green, cursor: "pointer" }}
+                                  />
+                                  Already have the ingredients
+                                </label>
+                              )}
                               {recipeOpen === recipeKey(day, type, s.index) && (
                                 <RecipeDetail recipe={s.recipe} servings={Number(s.servings) || sideBase} />
                               )}
