@@ -501,8 +501,14 @@ test("SHOULD: deleting a recipe removes it from the list it was feeding", async 
     await page.tab("Recipes");
     await addUnplanned(page, "Stir-fry");
 
+    /* DELETE LIVES BEHIND EDIT NOW. It used to be a bare ✕ in the card's top
+       corner — the one irreversible action on the tab, alone, furthest from
+       the three safe ones and right where a thumb scrolls. Two deliberate
+       taps instead, and the confirmation it always had is still below. */
+    await page.locator("div").filter({ hasText: /^Stir-fry/ }).getByRole("button", { name: "Edit" }).last().click();
+    await page.waitForTimeout(400);
     const del = page.getByLabel(/^Delete Stir-fry$/);
-    assert.equal(await del.count(), 1, "a recipe should be deletable");
+    assert.equal(await del.count(), 1, "a recipe should be deletable from its editor");
     await del.click();
     await page.waitForTimeout(400);
     // Destructive, so it confirms.

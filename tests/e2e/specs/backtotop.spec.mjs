@@ -78,6 +78,9 @@ test("a dialog covers the back-to-top button rather than the other way round", a
   const page = await openApp(BASE);
   try {
     await page.tab("Pantry");
+    // "Your stores" is collapsed by default now, so its Remove buttons —
+    // which is what opens a dialog here — have to be revealed first.
+    await page.openSection(/^Your stores/);
     const remove = page.locator('button[aria-label^="Remove "]').first();
     await remove.click();
     await page.waitForTimeout(400);

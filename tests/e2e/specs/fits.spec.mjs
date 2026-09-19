@@ -203,14 +203,21 @@ test("nothing renders below 12px", async () => {
    decision — they come first in the source so that a wrap displaces the
    grouping toggles rather than them. Asserting the height alone would pass on
    a layout that pushed the count to the second line. */
-test("the pinned List header stays two lines, with the count on the first", async () => {
+test("the pinned List header keeps the count and Done shopping on the first line", async () => {
+  /* IT USED TO BE TWO LINES EVERYWHERE, which is what this once asserted: the
+     two view toggles took a row of their own. One control replaced them and
+     the count was shortened to the app's own "6 to buy", so at 390px the
+     whole bar is now a single line. The INVARIANT is unchanged and is the
+     reason the test exists — a pinned bar costs its height for the whole
+     shop, and if anything has to wrap it must be the setting you already
+     chose, never the number you keep checking. */
   const page = await openApp(BASE, { catalog: smallCatalog(), state: busy() });
   try {
-    for (const [width, budget] of [[320, 140], [390, 100]]) {
+    for (const [width, budget] of [[320, 120], [390, 70]]) {
       await page.setViewportSize({ width, height: 844 });
       await page.waitForTimeout(300);
       const m = await page.evaluate(() => {
-        const span = [...document.querySelectorAll("span")].find((s) => /left to buy$/.test((s.textContent || "").trim()));
+        const span = [...document.querySelectorAll("span")].find((s) => /\bto buy$/.test((s.textContent || "").trim()));
         const done = [...document.querySelectorAll("button")].find((b) => /Done shopping/.test(b.textContent || ""));
         let bar = span;
         while (bar && getComputedStyle(bar).position !== "sticky") bar = bar.parentElement;
@@ -227,7 +234,7 @@ test("the pinned List header stays two lines, with the count on the first", asyn
       });
       assert.ok(m.found, `at ${width}px: the count, Done shopping and the pinned bar should all be on the List tab`);
       assert.ok(m.height > 0 && m.height < budget, `at ${width}px the pinned header is ${m.height}px, over its ${budget}px budget — it has grown a line`);
-      assert.ok(m.sameLine, `at ${width}px the count and Done shopping are on different lines; the toggles should be what wraps`);
+      assert.ok(m.sameLine, `at ${width}px the count and Done shopping are on different lines; the view control should be what wraps`);
     }
     assertNoPageErrors(page, assert);
   } finally {

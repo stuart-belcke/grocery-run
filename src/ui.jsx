@@ -726,6 +726,30 @@ export function InstallOffer({ heading, children, ask, onInstall, onDismiss }) {
   );
 }
 
+/* THE FILTER MARK: three lines, tapering. Drawn rather than typed, because
+   there is no dependable character for it — ☰ is three EQUAL bars, which
+   reads as a settings or menu button, and the tapered shape is the one people
+   already know means "narrow this down".
+
+   WHY IT IS NOT A MAGNIFYING GLASS any more, which is what these buttons used
+   to carry: ⌕ means SEARCH, and on two of the three tabs the button sits
+   directly beside a real search box with its own magnifier. The same mark a
+   centimetre apart meaning two different things is worse than either choice
+   on its own.
+
+   currentColor on purpose — these buttons turn green when a filter is doing
+   something, and the mark has to turn with the words beside it. aria-hidden
+   because every one of them already has a text label. */
+export function FilterMark() {
+  return (
+    <svg aria-hidden width="13" height="13" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0, display: "block" }}>
+      <rect x="1" y="3" width="12" height="1.6" rx="0.8" fill="currentColor" />
+      <rect x="3" y="6.2" width="8" height="1.6" rx="0.8" fill="currentColor" />
+      <rect x="5" y="9.4" width="4" height="1.6" rx="0.8" fill="currentColor" />
+    </svg>
+  );
+}
+
 export function Btn({ children, onClick, kind = "ghost", small, style, title, disabled, ...rest }) {
   const base = {
     fontFamily: fontBody,

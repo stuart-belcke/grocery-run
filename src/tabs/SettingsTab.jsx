@@ -5,7 +5,7 @@
 /* ------------------------------------------------------------------ */
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { C, fontBody, inputStyle, syncTone } from "../theme";
+import { C, fontBody, inputStyle } from "../theme";
 import { Btn, ConfirmDialog, ChoiceDialog, AlertDialog, Section, Seg, HelpText, useUnsavedWork } from "../ui";
 import { formatCatalog, recipeForCatalogFile, compactCfg, normalizeLocal, validLocal, seedCatalog, remapStateIngredientIds, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, inviteLive, newInviteToken, searchHelp, writeErrorAdvice, householdLabel, hasHouseholdName, cleanHouseholdName, exampleHouseholdName, HOUSEHOLD_NAME_MAX } from "../lib";
 import { syncEnabled } from "../sync";
@@ -660,17 +660,14 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
           ones you read, then the one that can lose data. */}
       <Section
         title="Household"
-        /* Shown whether or not sync is on — "Saved on this device" is a
-           status too, and the header says it in the same place. The dot is
-           the part that only means something when there is a database.
-           textAlign/justifyContent matter because this wraps: the longest
-           status is three times the width of the heading beside it. */
-        aside={
-          <span role="status" style={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 5, fontSize: 12, fontFamily: fontBody, fontWeight: 400, textAlign: "right", color: sync.tone === "bad" || sync.tone === "warn" ? syncTone[sync.tone] : C.faint }}>
-            {syncEnabled && <span aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: syncTone[sync.tone], flexShrink: 0 }} />}
-            {sync.text}
-          </span>
-        }
+        /* NO STATUS HERE ANY MORE. This said exactly what the header at the
+           top of the screen says, in the same words and the same colours —
+           "Saved on this device", or "Synced" with its dot — so the Settings
+           screen carried the same sentence twice, a few centimetres apart.
+           The header wins because it is on EVERY tab: a status that is
+           always in one place is easier to trust than one that is sometimes
+           in two. The sync state still reaches this section where it
+           MATTERS, on the individual controls that can fail. */
       >
         {/* `&& !user`, not just `!syncEnabled`, and only for the e2e build's
             benefit: MEMBERS_PREVIEW_KEY / INVITES_PREVIEW_KEY seed `members`

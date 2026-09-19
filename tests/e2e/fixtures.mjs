@@ -6,7 +6,7 @@
 
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { seedCatalog, norm } from "../../src/lib.js";
+import { seedCatalog, norm, SKIP_PER_DISH_VERSION } from "../../src/lib.js";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 
@@ -41,7 +41,14 @@ export function withDuplicateName(catalog, name, store = "Costco") {
 
 export function emptyState() {
   return {
-    version: 1,
+    /* THE CURRENT SHAPE VERSION, from the app rather than a literal, so every
+       fixture is a state a phone running this build would actually hold. A
+       literal 1 here made every fixture a pre-conversion one, which quietly
+       put the one-time migration of the old whole-meal skip into the path of
+       all 345 browser tests and left the spec that means to test it testing
+       nothing in particular. A spec that wants an old state says version: 1
+       itself, and is then the only one. */
+    version: SKIP_PER_DISH_VERSION,
     updatedAt: Date.now(),
     list: { selections: {}, overrides: {}, checked: {}, extras: {}, bought: {} },
     plan: {},

@@ -178,31 +178,88 @@ test("the meal type is chosen when the meal is, not by which row was tapped", as
   }
 });
 
-test("a type already filled that day is not offered as somewhere to put another meal", async () => {
-  // A day holds one meal per type, so offering Dinner again would mean
-  // silently replacing the dinner already there.
+test("a meal of the day that is already taken is still offered, and picking it JOINS", async () => {
+  /* The type chooser used to offer only the FREE meals of a day, because
+     picking a taken one could then only have replaced what was there —
+     silently, which is item 111. It joins now, so there is nothing left to
+     protect against and every type is offered.
+     ASSERTED ON WHAT WAS PERSISTED: "joined" and "replaced" look almost the
+     same on screen and are completely different in the shopping list. */
   const page = await openWeek(planWith({ Tue: { Dinner: { recipeId: "r-stirfry", servings: 2 } } }));
   try {
     await startEditing(page);
-    await page.getByLabel("Choose a meal for Tue").click();
+    await page.getByRole("button", { name: "Choose a meal for Tue", exact: true }).click();
     await page.waitForTimeout(400);
     const offered = await page.evaluate(() =>
       [...document.querySelectorAll('[role="dialog"] button')].map((b) => b.textContent.trim()).filter((t) => ["Breakfast", "Lunch", "Dinner", "Dessert"].includes(t))
     );
-    assert.deepEqual(offered, ["Breakfast", "Lunch", "Dessert"], `Dinner is taken on Tue, so it should not be offered: ${JSON.stringify(offered)}`);
+    assert.deepEqual(offered, ["Breakfast", "Lunch", "Dinner", "Dessert"], `every meal of the day should be offered, got ${JSON.stringify(offered)}`);
+
+    /* AND IT SAYS WHICH IT WILL DO, on the taken one only. "Adds to what is
+       there" and "fills an empty one" are the same three taps otherwise, and
+       the difference only shows up in the shopping list. */
+    const saysAdds = () => page.evaluate(() => /Add additional dish to meal/.test(document.querySelector('[role="dialog"]').textContent));
+    assert.equal(await saysAdds(), true, "Dinner is taken on Tue, so the picker should say the dish is being added to it");
+    await page.getByRole("button", { name: /^Lunch$/ }).click();
+    await page.waitForTimeout(200);
+    assert.equal(await saysAdds(), false, "Lunch is free, so nothing is being added to — that line must not show");
+    await page.getByRole("button", { name: /^Dinner$/ }).click();
+    await page.waitForTimeout(200);
+
+    // Dinner is the default and it is taken, so this pick joins the stir-fry.
+    await page.locator('[role="dialog"] button').filter({ hasText: /Rice side/ }).first().click();
+    await page.waitForTimeout(500);
+    await page.roundTrip();
+
+    assert.deepEqual(
+      (await page.readState()).plan.Tue.Dinner,
+      { recipeId: "r-stirfry", servings: 2, sides: [{ recipeId: "r-riceside", servings: 2 }] },
+      "picking a taken meal of the day must ADD to it — replacing the stir-fry here is the bug this replaced"
+    );
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
   }
 });
 
-test("a day with every meal type filled stops offering another", async () => {
+test("a day with every meal type filled still offers a way to add another dish", async () => {
+  /* It used to stop offering one, because there was no free type left to put
+     a meal in. A second dish goes on an EXISTING meal now, so a full day is
+     not a finished one — and the alternative was pressing Edit and hunting a
+     per-slot button, which is the duplicate control this removed. */
   const full = { Tue: Object.fromEntries(["Breakfast", "Lunch", "Dinner", "Dessert"].map((t) => [t, { recipeId: "r-stirfry", servings: 2 }])) };
   const page = await openWeek(planWith(full));
   try {
     await startEditing(page);
-    assert.equal(await page.getByLabel("Choose a meal for Tue").count(), 0, "there is nowhere left to put one");
-    assert.equal(await page.getByLabel("Choose a meal for Wed").count(), 1, "other days are unaffected");
+    assert.equal(await page.getByRole("button", { name: "Choose a meal for Tue", exact: true }).count(), 1, "a full day can still take a second dish on a meal it already has");
+    assert.equal(await page.getByRole("button", { name: "Choose a meal for Wed", exact: true }).count(), 1, "other days are unaffected");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("\"Finish planning\" arrives with the first meal, rather than sitting there disabled", async () => {
+  /* Reported from a real phone: an empty week in the planning stage drew
+     "Finish planning" as a solid green button at half opacity — the loudest
+     thing on the screen, disabled, beside a line saying to add meals. A
+     disabled control gives no reason for being disabled.
+
+     BOTH DIRECTIONS, because hiding it outright would strand somebody who
+     has planned a week and cannot leave the stage. */
+  const page = await openWeek(stateWith({ plan: {} }));
+  try {
+    await startEditing(page);
+    const finish = page.locator("button").filter({ hasText: /^Finish planning$/ });
+    assert.equal(await finish.count(), 0, "there is nothing to finish on an empty week, so nothing should offer to");
+
+    await page.getByRole("button", { name: "Choose a meal for Wed", exact: true }).click();
+    await page.waitForTimeout(300);
+    await page.locator('[role="dialog"] button').filter({ hasText: /Stir-fry/ }).first().click();
+    await page.waitForTimeout(500);
+
+    assert.equal(await finish.count(), 1, "one meal in, and there is something to finish");
+    assert.equal(await finish.first().isDisabled(), false, "it must be usable the moment it appears");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
@@ -217,6 +274,120 @@ test("a dessert-only day shows its dessert and reads as planned", async () => {
   const page = await openWeek(planWith({ Tue: { Dessert: { recipeId: "r-stirfry", servings: 2 } } }));
   try {
     assert.deepEqual((await measure(page)).typeLabels, ["Dessert"]);
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* ── THE WEEK AT REST IS A LIST, NOT A FORM ────────────────────────────────
+   Planning needs the room: every slot open, servings, sides. Reading the week
+   does not, and it was wearing the form's clothes — a card per day with a
+   heading row, a decorative stripe and a full-width "Choose a meal" button on
+   all seven. A planned week ran about 1,230px, one and a half screens to
+   answer "what are we having".
+
+   THE RULE THIS HAD TO KEEP: a day with nothing on it stays fillable without
+   pressing Edit first. Gating that on edit mode was caught by three specs
+   once already, so the affordance MOVED — the empty day's whole row is now
+   the button — rather than going away. */
+
+test("a planned week costs far less to read than it used to", async () => {
+  /* A BUDGET, NOT "fits on one screen", and the difference is a decision
+     rather than a rounding. It DID fit for a while: the invitation to fill a
+     day rode on that day's heading row, which saved a line on every empty
+     one. That was wrong for a reason no measurement shows — you tapped it on
+     one row and the meal landed on another. A control should stand where its
+     result will, so it went back to its own line and took the one-screen fit
+     with it.
+     1,228px before any of this, about 1,075px now, at 390px with four days
+     planned. It was 980px for a while, before adding a second dish to a meal
+     stopped requiring Edit — that put a control back on every planned day,
+     which is worth its ~95px because the alternative was a capability you
+     could only reach by first saying you wanted to rearrange things.
+     THE BUDGET IS WHAT THE LAYOUT ACTUALLY COSTS, raised deliberately each
+     time and never trimmed to fit a claim. It is here to catch creep, not to
+     defend a number. */
+  const page = await openWeek(planWith(fourDinners));
+  try {
+    const m = await measure(page);
+    assert.ok(
+      m.height <= 1120,
+      `the week is ${m.height}px — it was 1,228px before this work and about 1,075px after, so something has grown`
+    );
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("an empty day's invitation stands where the meal will appear", async () => {
+  const page = await openWeek(planWith(fourDinners));
+  try {
+    // Tue has nothing on it in fourDinners.
+    const add = page.getByLabel("Choose a meal for Tue");
+    assert.equal(await add.count(), 1, "an empty day should offer exactly one way to fill it");
+
+    const box = await add.boundingBox();
+    assert.ok(box.height <= 44, `the invitation is ${Math.round(box.height)}px tall — it should be a single row`);
+    assert.ok(box.width > 200, `it should span the row where the meal will appear, and it is only ${Math.round(box.width)}px wide`);
+
+    /* WITHOUT PRESSING EDIT. This is the rule, checked from the resting
+       state — no Start planning, no Edit, just the tab as you find it. */
+    await add.click();
+    await page.waitForTimeout(400);
+    assert.equal(await page.getByRole("dialog", { name: "Choose a meal for Tue" }).count(), 1, "tapping an empty day should open the picker without going through Edit first");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("every day is still a heading, and still says which meal it is", async () => {
+  /* Two things condensing cost, both caught by other specs and both put back:
+     a screen reader navigates this tab by its day headings, and a day holding
+     only a DESSERT must not read like a day holding a dinner. */
+  const page = await openWeek(planWith({ ...fourDinners, Fri: { Dessert: { recipeId: "r-riceside", servings: 2 } } }));
+  try {
+    const seen = await page.evaluate(() =>
+      [...document.querySelectorAll("h2")].map((h) => h.textContent.trim().split("\n")[0])
+    );
+    for (const day of ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]) {
+      assert.ok(seen.some((t) => t.startsWith(day)), `${day} is not a heading — a screen reader cannot move through the week`);
+    }
+    const m = await measure(page);
+    assert.ok(m.typeLabels.includes("Dessert"), "a dessert-only day must say it is a dessert");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("the servings sit on the meal's first line, to its right", async () => {
+  /* They used to be a line of their own under the name — a whole row for two
+     characters and a unit, on every planned day. Measured rather than looked
+     at, because "under" and "beside" are a few pixels apart in a screenshot
+     and opposite in what they cost. */
+  const page = await openWeek(planWith(fourDinners));
+  try {
+    const m = await page.evaluate(() => {
+      const btn = [...document.querySelectorAll("button")].find((b) => /view recipe$/i.test(b.getAttribute("aria-label") || ""));
+      if (!btn) return null;
+      const spans = [...btn.querySelectorAll("span")];
+      const sv = spans.find((s) => /^\d+(\.\d+)?\s*sv$/.test(s.textContent.trim()));
+      const name = spans.find((s) => s !== sv && s.textContent.trim() && !s.contains(sv));
+      if (!sv || !name) return null;
+      const a = name.getBoundingClientRect();
+      const b = sv.getBoundingClientRect();
+      return {
+        sameLine: Math.abs((a.top + a.height / 2) - (b.top + b.height / 2)) < a.height,
+        toTheRight: Math.round(b.left) > Math.round(a.left),
+        firstLine: Math.abs(a.top - b.top) < 12,
+      };
+    });
+    assert.ok(m, "could not find a planned meal with its servings");
+    assert.ok(m.toTheRight, "the servings should be to the right of the name, not under it");
+    assert.ok(m.firstLine, "the servings should sit on the name's FIRST line, so a name that wraps does not push them down");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

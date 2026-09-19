@@ -11,7 +11,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { openApp, assertNoPageErrors } from "../harness.mjs";
-import { sidesCatalog } from "../fixtures.mjs";
+import { sidesCatalog, stateWith } from "../fixtures.mjs";
 
 const BASE = process.env.E2E_BASE_URL;
 
@@ -38,9 +38,9 @@ const listAmount = (page, name) =>
     return span ? span.textContent.trim() : null;
   }, name);
 
-// Per-slot controls — servings, the ✕, and "Add a side" — only exist while
-// planning (or behind Edit in the shopping stage). Skipping this step is what
-// made the sides button look missing when this suite was first sketched.
+// Per-slot controls — servings and the ✕ — only exist while planning (or
+// behind Edit in the shopping stage). Skipping this step is what made the
+// second-dish button look missing when this suite was first sketched.
 const startPlanning = async (page) => {
   await page.tab("Plan");
   const start = page.locator("button").filter({ hasText: /^Start planning$/ }).first();
@@ -55,23 +55,25 @@ const startPlanning = async (page) => {
 // and lives in one place.
 const pickMain = (page, slot, recipe) => page.planMeal(slot, recipe);
 
+/* Open the picker aimed at a meal of the day that ALREADY HAS A DISH, which
+   is how a second one goes on. There is no separate control for it any more:
+   a day carries one "Choose a meal" row, you say which meal of the day inside
+   the picker, and picking one that is taken joins it.
+
+   getByRole("button"), not getByLabel: the modal carries the same accessible
+   name as the button that opens it, so a plain label lookup is ambiguous the
+   moment it opens. */
 const openSidePicker = async (page, slot) => {
-  // getByRole("button"), not getByLabel: the modal itself carries the same
-  // accessible name, so a plain label lookup is ambiguous the moment it opens.
-  await page.getByRole("button", { name: `Add a side for ${slot}` }).click();
-  await page.waitForTimeout(400);
-  return page.getByRole("dialog", { name: `Add a side for ${slot}` });
+  const [day, type] = slot.split(" ");
+  await page.getByRole("button", { name: `Choose a meal for ${day}`, exact: true }).click();
+  await page.waitForTimeout(300);
+  const typeBtn = page.getByRole("button", { name: new RegExp(`^${type}$`) });
+  if (await typeBtn.count()) await typeBtn.first().click();
+  await page.waitForTimeout(300);
+  return page.getByRole("dialog", { name: `Choose a meal for ${day}` });
 };
 
-const addSide = async (page, slot, recipe) => {
-  const picker = await openSidePicker(page, slot);
-  await picker.locator("button").filter({ hasText: new RegExp(recipe) }).first().click();
-  await page.waitForTimeout(200);
-  // The side picker commits explicitly — a tap only marks, so several sides
-  // go on in one write.
-  await picker.locator("button").filter({ hasText: /^Add \d+ sides?$/ }).click();
-  await page.waitForTimeout(600);
-};
+const addSide = (page, slot, recipe) => page.addDish(slot, recipe);
 
 test("SHOULD: a side added to a slot is stored on it and feeds the shopping list", async () => {
   const page = await openApp(BASE, { catalog: sidesCatalog() });
@@ -175,22 +177,37 @@ test("SHOULD: the side picker offers side dishes first and never what's already 
     await startPlanning(page);
     await pickMain(page, "Mon Dinner", "Stir-fry");
 
-    let picker = await openSidePicker(page, "Mon Dinner");
-    const text = await picker.textContent();
+    /* WHAT IS OFFERED, not what the dialog says — a recipe in the list is the
+       thing carrying a "Serves N" line under its name. The dialog's own text
+       is not a safe stand-in for the list: it briefly named the dish this
+       pick would join, which put the main's name on screen on purpose and
+       made a whole-dialog check read it as being offered. */
+    const offered = () =>
+      page.evaluate(() =>
+        [...document.querySelectorAll('[role="dialog"] button')]
+          .filter((b) => /Serves \d/.test(b.textContent))
+          .map((b) => b.textContent.replace(/Serves .*$/, "").trim())
+      );
+
+    await openSidePicker(page, "Mon Dinner");
+    const text = await page.getByRole("dialog", { name: "Choose a meal for Mon" }).textContent();
     assert.ok(/Side dishes/i.test(text), "recipes tagged as sides should have their own group");
+    let names = await offered();
     assert.ok(
-      text.indexOf("Green beans") < text.indexOf("Rice bowl"),
-      "the tagged side should be offered before an untagged meal"
+      names.findIndex((n) => /Green beans/.test(n)) < names.findIndex((n) => /Rice bowl/.test(n)),
+      `the tagged side should be offered before an untagged meal, got ${JSON.stringify(names)}`
     );
-    assert.ok(!/Stir-fry/.test(text), "the slot's own main should not be offered as its side");
+    assert.ok(!names.some((n) => /Stir-fry/.test(n)), `the dish already on this meal should not be offered again, got ${JSON.stringify(names)}`);
+    assert.ok(/Add additional dish to meal/.test(text), "the picker should say that this pick adds to the meal rather than filling an empty one");
     await page.getByRole("button", { name: "Close" }).click();
     await page.waitForTimeout(300);
 
     await addSide(page, "Mon Dinner", "Green beans");
-    picker = await openSidePicker(page, "Mon Dinner");
+    await openSidePicker(page, "Mon Dinner");
+    names = await offered();
     assert.ok(
-      !/Green beans/.test(await picker.textContent()),
-      "a side already on the slot must not be offered again — that is how you get it twice"
+      !names.some((n) => /Green beans/.test(n)),
+      `a dish already on the meal must not be offered again — that is how you get it twice: ${JSON.stringify(names)}`
     );
     assertNoPageErrors(page, assert);
   } finally {
@@ -235,7 +252,7 @@ test("SHOULD: replacing the main clears the sides that were paired with it", asy
     await pickMain(page, "Mon Dinner", "Stir-fry");
     await addSide(page, "Mon Dinner", "Green beans");
 
-    await page.getByLabel(/^Mon Dinner: Stir-fry/).click();
+    await page.getByLabel(/^Mon Dinner: Stir-fry — pick a different meal$/).click();
     await page.waitForTimeout(400);
     await page.getByRole("dialog", { name: "Choose a meal for Mon" })
       .locator("button").filter({ hasText: /Rice bowl/ }).first().click();
@@ -259,24 +276,99 @@ test("SHOULD: replacing the main clears the sides that were paired with it", asy
   }
 });
 
-test("SHOULD: 'already have the ingredients' silences the sides as well as the main", async () => {
-  /* One gate for the whole slot: a side never makes sense without its main,
-     so if the main isn't feeding the list nothing in that slot is. A side
-     that kept reporting demand here would put food on the list for a meal
-     you already told the app you were stocked for. */
+test("SHOULD: 'already have the ingredients' covers the dish it sits under, and only that one", async () => {
+  /* EVERY DISH HAS ONE. There used to be a single checkbox on a meal, sitting
+     under the main and reading as the main's own, and ticking it silenced
+     every dish on the meal — so on a dinner of three dishes a control that
+     looked like it covered one covered all three, and "we have everything for
+     the beans but not the stir-fry" could not be said at all. Reported from a
+     phone with three dishes on one Sunday dinner.
+
+     ASSERTED ON THE SHOPPING LIST, because that is what the flag is for and
+     where getting it wrong costs a wasted trip. */
   const page = await openApp(BASE, { catalog: sidesCatalog() });
   try {
     await startPlanning(page);
     await pickMain(page, "Mon Dinner", "Stir-fry");
     await addSide(page, "Mon Dinner", "Green beans");
 
+    // The main's box. The dish under it must stay on the list.
     await page.getByLabel("Already have the ingredients for Stir-fry on Mon Dinner").check();
     await page.waitForTimeout(600);
     await page.roundTrip();
-
-    assert.equal((await page.readState()).plan.Mon.Dinner.skipList, true, "the slot should be marked skipped");
+    assert.equal((await page.readState()).plan.Mon.Dinner.skipList, true, "the main should be marked skipped");
     await page.tab("List");
-    assert.deepEqual(await listedNames(page), [], "a skipped slot should contribute nothing, sides included");
+    assert.deepEqual(await listedNames(page), ["Green beans"], "skipping the main must leave the dish under it on the list");
+
+    // The dish's own box, which did not exist before this.
+    await page.tab("Plan");
+    await page.getByLabel("Already have the ingredients for Green beans on Mon Dinner").check();
+    await page.waitForTimeout(600);
+    await page.roundTrip();
+    assert.deepEqual(
+      (await page.readState()).plan.Mon.Dinner.sides,
+      [{ recipeId: "r-greenbeans", servings: 2, skipList: true }],
+      "the flag belongs to the dish, not to the meal"
+    );
+    await page.tab("List");
+    assert.deepEqual(await listedNames(page), [], "with every dish covered, the meal reaches the list with nothing");
+
+    // And back off again — un-ticking has to stick, which is what the one-time
+    // conversion of the old whole-meal flag could quietly undo on every read.
+    await page.tab("Plan");
+    await page.getByLabel("Already have the ingredients for Green beans on Mon Dinner").uncheck();
+    await page.waitForTimeout(600);
+    await page.roundTrip();
+    await page.tab("List");
+    assert.deepEqual(await listedNames(page), ["Green beans"], "un-ticking a dish must put it back on the list and stay that way");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: a plan saved before dishes had their own flag still means what it said", async () => {
+  /* THE CONVERSION, THROUGH THE REAL APP. A saved plan at version 1 says the
+     SLOT skips the list, which meant "none of this meal reaches the list,
+     dishes included". Read under the per-dish rule that same sentence says
+     "the main is covered" — so without the conversion, opening the app would
+     quietly put the other dishes' ingredients back on the shopping list and
+     send somebody out for food they already have. */
+  const page = await openApp(BASE, {
+    catalog: sidesCatalog(),
+    state: stateWith({
+      version: 1,
+      planStage: "shopping",
+      plan: { Mon: { Dinner: { recipeId: "r-stirfry", servings: 2, skipList: true, sides: [{ recipeId: "r-greenbeans", servings: 2 }] } } },
+    }),
+  });
+  try {
+    await page.tab("List");
+    assert.deepEqual(await listedNames(page), [], "the whole meal was covered when this was saved, and still is");
+
+    /* AND THE CONVERSION HAS TO BE A ONE-TIME ONE. It runs when the saved plan
+       is READ, so it is not part of any narrow write and the stored copy keeps
+       saying version 1 until something rewrites it. Until then it re-runs on
+       every load — and a dish you have just un-ticked gets silently re-ticked
+       the next time the app opens, which is a meal quietly missing from the
+       shopping list. Un-tick one, reload, and it must still be un-ticked. */
+    await page.tab("Plan");
+    await page.locator("button").filter({ hasText: /^Edit$/ }).first().click();
+    await page.waitForTimeout(400);
+    const box = page.getByLabel("Already have the ingredients for Green beans on Mon Dinner");
+    assert.equal(await box.isChecked(), true, "the dish should have arrived carrying the meal's old flag");
+    await box.uncheck();
+    await page.waitForTimeout(600);
+
+    await page.tab("List");
+    assert.deepEqual(await listedNames(page), ["Green beans"], "un-ticking one dish should put its ingredients on the list");
+
+    await page.roundTrip();
+    const slot = (await page.readState()).plan.Mon.Dinner;
+    assert.equal(slot.skipList, true, "the main was covered and stays covered");
+    assert.equal(slot.sides[0].skipList, undefined, "the dish was un-ticked, and reloading must not tick it again");
+    await page.tab("List");
+    assert.deepEqual(await listedNames(page), ["Green beans"], "and it is still on the list after a reload");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
@@ -308,6 +400,121 @@ test("SHOULD: the Recipes tab shows a recipe planned as a side, and drops only t
     const slot = (await page.readState()).plan.Mon.Dinner;
     assert.equal(slot.recipeId, "r-stirfry", "removing a side from Meals must leave the main planned");
     assert.ok(!("sides" in slot), "the side should be gone from the slot");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+// A meal already carrying a second dish, with the week at rest.
+const withSide = () =>
+  stateWith({
+    planStage: "shopping",
+    plan: { Mon: { Dinner: { recipeId: "r-stirfry", servings: 4, sides: [{ recipeId: "r-riceside", servings: 3 }] } } },
+  });
+
+/* ── ONE WAY TO OPEN A RECIPE, WHICHEVER DISH IT IS ────────────────────────
+   Reported from a real phone with a screenshot: the main dish opened its
+   recipe when you tapped the row, and a second dish on the same meal made you
+   find a 13px 📖 beside the name instead. Same question, two answers, a
+   centimetre apart. The rows behave the same now.
+
+   THE BOOK SURVIVES WHILE PLANNING, on both, because there the row's tap
+   belongs to something else — re-picking the main, or the servings box and
+   remove button on a second dish — and a <button> cannot hold a number input
+   anyway. */
+
+test("at rest, a second dish opens its recipe from the row, with no book icon", async () => {
+  const page = await openApp(BASE, { catalog: sidesCatalog(), state: withSide() });
+  try {
+    await page.tab("Plan");
+    await page.waitForTimeout(400);
+
+    const books = await page.evaluate(() =>
+      [...document.querySelectorAll("button")].filter((b) => (b.textContent || "").includes("📖")).length
+    );
+    assert.equal(books, 0, "at rest the row is the way in, so no dish should carry a book icon");
+
+    const row = page.getByLabel(/Rice bowl — view recipe/);
+    assert.equal(await row.count(), 1, "the second dish's row should open its recipe");
+
+    /* A REAL BUTTON, not a div carrying an onClick. Hanging a handler on a
+       container looks identical and clicks identically — and cannot be
+       reached by keyboard, and is announced as nothing. A mutation that left
+       the row a div passed an earlier version of this test. */
+    assert.equal(
+      await row.evaluate((el) => el.tagName),
+      "BUTTON",
+      "the row has a click handler but is not a button — it would be unreachable by keyboard and announced as nothing"
+    );
+
+    const box = await row.boundingBox();
+    assert.ok(box.width > 150, `the ROW should be the target, and it is only ${Math.round(box.width)}px wide`);
+
+    await row.click();
+    await page.waitForTimeout(400);
+    assert.match(await page.textContent("body"), /Rice bowl/, "tapping the row should open that dish's recipe");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("while planning, the NAME opens the recipe — and there is no book anywhere", async () => {
+  /* ONE RULE IN BOTH MODES: a dish's NAME is how you open its recipe. The 📖
+     used to come back while planning, on the main and on each dish, because
+     the row's tap was spoken for — the whole bubble was "pick a different
+     meal". It is the name's now, and picking a different meal moved onto the
+     ▾ that was already drawn there and already meant "change".
+     COUNTED, because the failure to catch is one of them surviving somewhere:
+     the main and the dishes were two separate pieces of markup and drifted
+     apart once already. */
+  const page = await openApp(BASE, { catalog: sidesCatalog(), state: withSide() });
+  try {
+    await page.tab("Plan");
+    await page.locator("button").filter({ hasText: /^Edit$/ }).first().click();
+    await page.waitForTimeout(400);
+
+    const books = await page.evaluate(() =>
+      [...document.querySelectorAll("button")].filter((b) => (b.textContent || "").includes("📖")).length
+    );
+    assert.equal(books, 0, `no book anywhere while planning, and there are ${books}`);
+
+    // The main and the second dish both open from their own name.
+    for (const name of ["Stir-fry", "Rice bowl"]) {
+      const row = page.getByLabel(`Mon Dinner: ${name} — view recipe`);
+      assert.equal(await row.count(), 1, `${name} should open its recipe from its name`);
+      await row.click();
+      await page.waitForTimeout(400);
+      assert.match(await page.textContent("body"), new RegExp(name), `tapping ${name} should open its recipe`);
+      await row.click();
+      await page.waitForTimeout(300);
+    }
+
+    // And the way to swap the main is still there, on the ▾.
+    assert.equal(await page.getByLabel(/^Mon Dinner: Stir-fry — pick a different meal$/).count(), 1, "the ▾ should pick a different meal");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("a long dish name is readable at rest rather than cut off", async () => {
+  /* "Baked Chicken & Veggie Me…" was what the phone showed. The truncation
+     bought one line and cost the answer. While planning it still clips —
+     that row carries an input and two buttons and has no width to give. */
+  const page = await openApp(BASE, { catalog: sidesCatalog(), state: withSide() });
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.tab("Plan");
+    await page.waitForTimeout(400);
+    const clipped = await page.evaluate(() => {
+      const b = [...document.querySelectorAll("button")].find((x) => /view recipe$/.test(x.getAttribute("aria-label") || "") && /Rice bowl/.test(x.textContent));
+      if (!b) return null;
+      const name = [...b.querySelectorAll("span")].find((s) => /Rice bowl/.test(s.textContent));
+      return name ? getComputedStyle(name).textOverflow : null;
+    });
+    assert.notEqual(clipped, "ellipsis", "a dish name should wrap at rest, not be cut short");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

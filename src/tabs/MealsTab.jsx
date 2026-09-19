@@ -3,9 +3,9 @@
     of them to the shopping list.  */
 /* ------------------------------------------------------------------ */
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
-import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop, SuggestInput, SearchField, Section, useSticky, useUnsavedWork } from "../ui";
+import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop, SuggestInput, SearchField, Section, useSticky, useUnsavedWork, FilterMark } from "../ui";
 import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, ingredientNames, normalizeCfg, ingredientMatches, existingIngredientSuggestions, splitSuggestion, unitMatches, ensureIngredientId, asArray, planSlotsFor, parseRecipeText } from "../lib";
 import { fetchRecipeFromUrl } from "../recipeImport";
 import { RecipeDetail } from "../RecipeDetail";
@@ -247,10 +247,22 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
   const blankDraft = () => ({ id: null, name: "", mealTypes: [], easy: false, side: false, servings: "4", source: "", instructions: "", notes: "", ingredients: [{ name: "", qty: "1", unit: "", note: "" }] });
   const startNew = () => {
     setDraft(blankDraft());
+    revealDraft();
     setFieldsOpen(false);
     setParsed(null);
     closePaste();
   };
+  /* THE EDITOR IS ABOVE THE LIST, so opening it from a card halfway down the
+     recipes did nothing you could see: the form appeared off the top of the
+     screen and the cards shifted under your thumb. This matters more now that
+     Delete lives inside the editor rather than on the card — a button you
+     press and then cannot find is worse than one in the wrong place. */
+  const draftRef = useRef(null);
+  const revealDraft = () => {
+    // After the render that creates it, or there is nothing to scroll to.
+    requestAnimationFrame(() => draftRef.current?.scrollIntoView({ block: "start", behavior: "smooth" }));
+  };
+
   const startEdit = (r) => {
     // Straight to the fields: an existing recipe has nothing to choose
     // between, and a collapsed form would hide the thing you came to change.
@@ -269,6 +281,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
       ingredients: r.ingredients.map((i) => ({ ...i, qty: String(i.qty), note: i.note || "" })),
     });
     closePaste();
+    revealDraft();
   };
 
   /* ONE definition of "fill a draft from a parsed recipe", because there are
@@ -489,6 +502,11 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
       return d;
     });
     setConfirmDelete(null);
+    /* CLOSE THE EDIT FORM IF THAT IS WHERE THIS CAME FROM. Delete now lives
+       at the bottom of Edit, so without this the form stays open on a recipe
+       that no longer exists — and pressing Save would write it straight back
+       under its old id. */
+    setDraft((cur) => (cur && cur.id === r.id ? null : cur));
   };
 
   // Non-default view options, surfaced as a count on the Filter button.
@@ -570,20 +588,16 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
           marginBottom: 10,
         }}
       >
-        <button
-          onClick={() => setConfirmDelete(r)}
-          aria-label={`Delete ${r.name}`}
-          title="Delete this meal"
-          /* Measured 21x24. Deleting a meal is destructive and was the
-             smallest target on the tab; the button is absolutely positioned,
-             so growing it to 44 costs the layout nothing. Nudged out to the
-             card's corner so the visible ✕ stays where it was. */
-          style={{ position: "absolute", top: 0, right: 0, width: 44, height: 44, border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0, display: "inline-flex", alignItems: "flex-start", justifyContent: "flex-end", paddingTop: 8, paddingRight: 10 }}
-        >
-          ✕
-        </button>
+        {/* DELETE IS NOT ON THE CARD ANY MORE — it lives at the bottom of
+            Edit, beside Cancel and Save. It used to be a ✕ alone in the
+            card's top corner, which put the one irreversible action on the
+            tab furthest from the three safe ones and nearest to the thing
+            your thumb reaches for when scrolling. It was a 44px target with
+            nothing beside it to hit instead, so a mis-tap could only ever
+            land on delete. Behind Edit it is two deliberate taps, and the
+            confirmation it already had is still there. */}
 
-        <div style={{ paddingRight: 22 }}>
+        <div>
           {/* The card's title is a HEADING as well as a button — the same
               disclosure pattern Section uses. The default A-Z view is a flat
               run of 22 cards with no headings at all, so a screen reader had
@@ -623,12 +637,26 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
               )}
             </div>
             {/* SIZE, NOT COLOUR (item 87). This one IS supporting text — the
-                recipe name above it is 18px display bold, and painting the
-                ingredient list ink would have the two competing on a screen
-                you scan rather than read. 13px is the app's floor for a line
-                you read rather than a label you glance at. */}
+                recipe name above it is 18px display bold, and painting this
+                line ink would have the two competing on a screen you scan
+                rather than read. 13px is the app's floor for a line you read
+                rather than a label you glance at.
+
+                THE INGREDIENT NAMES ONLY APPEAR WHILE SEARCHING, and that is
+                the whole of this decision. Listed always, they were the
+                biggest thing on every card — three wrapped lines of grey —
+                pushing a card to about 200px so that two and a half fitted on
+                a phone, with 24 recipes below. And they were already a tap
+                away under "Ingredients & recipe", with amounts, which the
+                run-on did not have. So browsing gets a count.
+                BUT SEARCH MATCHES INGREDIENT NAMES as well as recipe names,
+                so with nothing but a count a search for "lemon" would return
+                cards giving no hint of why they are there. While there is a
+                query, the names come back and the answer is on the card. */}
             <div style={{ fontSize: 13, color: C.faint, marginTop: 2 }}>
-              Serves {base} · {r.ingredients.map((i) => i.name).join(", ")}
+              Serves {base} · {query.trim()
+                ? r.ingredients.map((i) => i.name).join(", ")
+                : `${r.ingredients.length} ingredient${r.ingredients.length === 1 ? "" : "s"}`}
             </div>
             <div style={{ color: C.green, fontSize: 12, fontWeight: 500, marginTop: 4 }}>
               {detailShown ? "Hide details ▲" : "Ingredients & recipe ▾"}
@@ -773,7 +801,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
   return (
     <div>
       {/* ADD SITS ABOVE, PINNED ROW IS SEARCH + FILTER — the same split the
-          Ingredients tab already had. Three controls on one line squeezed the
+          Pantry tab already had. Three controls on one line squeezed the
           search box until its placeholder read "Search meals or ingre", and
           adding a meal is occasional where finding one is what you do while
           scrolling. Not inside the StickyBar for that reason: two pinned bands
@@ -823,7 +851,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
               color: activeViews ? C.green : C.ink,
             }}
           >
-            <span aria-hidden>⌕</span> Filter
+            <FilterMark /> Filter
             {activeViews > 0 && (
               <span style={{ background: C.green, color: "#fff", borderRadius: 999, fontSize: 12, fontWeight: 700, minWidth: 16, textAlign: "center", padding: "1px 5px" }}>
                 {activeViews}
@@ -929,7 +957,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
              The green border stays, because it is the only thing saying "you
              are editing a draft"; the background and most of the padding go,
              since the Sections supply both. */
-          <div style={{ border: `1px solid ${C.green}`, borderRadius: 12, padding: "8px 6px", marginBottom: 16 }}>
+          <div ref={draftRef} style={{ border: `1px solid ${C.green}`, borderRadius: 12, padding: "8px 6px", marginBottom: 16 }}>
           {/* TWO WAYS IN, BOTH BEHIND A DISCLOSURE (item 116). The paste
               panel used to be one line above a screen and a half of empty
               fields — measured at 831px on a 390 screen, 937 on a 320 — so
@@ -1437,7 +1465,27 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
               style={{ ...inputStyle, width: "100%", boxSizing: "border-box", resize: "vertical", marginBottom: 8 }}
             />
           </Section>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {/* ON THE FAR LEFT, apart from Cancel and Save. Same row so it is
+                findable, opposite end so it is not next to the button you
+                press every time. Only when EDITING: a meal you have not saved
+                has nothing to delete, and `id` is null until it does. */}
+            {draft.id && !isGuest && (
+              <Btn
+                small
+                kind="danger"
+                /* NAMES THE MEAL for a screen reader. On the card this was
+                   "Delete Stir-fry"; here the visible words are "Delete meal"
+                   because the form around it already says which meal, and a
+                   button repeating the name would read as shouting. Out of
+                   context — which is how a screen reader lists buttons — the
+                   name is exactly what is missing, so the label keeps it. */
+                aria-label={`Delete ${draft.name.trim() || "this meal"}`}
+                onClick={() => { const r = data.recipes.find((x) => x.id === draft.id); if (r) setConfirmDelete(r); }}
+              >
+                Delete meal
+              </Btn>
+            )}
             <div style={{ flex: 1 }} />
             <Btn small onClick={() => { setDraft(null); closePaste(); }}>Cancel</Btn>
             {/* DISABLED UNTIL THERE IS A NAME, because saveDraft has always

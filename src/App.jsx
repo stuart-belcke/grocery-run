@@ -74,6 +74,7 @@ import {
   FALLBACK_CATALOG,
   emptyLocal,
   normalizeLocal,
+  needsSkipConversion,
   loadJSON,
   saveJSON,
   validLocal,
@@ -368,7 +369,6 @@ export default function App() {
   // break a redirect-based sign-in silently. Without this, that failure had
   // nowhere to go but a console.error nobody on a phone can read.
   const [authError, setAuthError] = useState(null);
-  const [catalogNote, setCatalogNote] = useState("");
   // The build the site is serving, when it differs from the one running here.
   // Stored as the build id rather than a boolean so that dismissing it can be
   // remembered PER BUILD: "Later" should mean "not for this one", not "not
@@ -628,7 +628,16 @@ export default function App() {
           setCatalog((old) => {
             if (JSON.stringify(fresh) !== JSON.stringify(old)) {
               saveJSON(CATALOG_KEY, fresh);
-              setCatalogNote(`Catalog v${fresh.catalogVersion ?? "?"} loaded`);
+              /* NO NOTICE THAT THIS HAPPENED. There used to be a line reading
+                 "Catalog v16 loaded" under the header, and it had two
+                 problems. It NEVER CLEARED — set here, never unset — so a
+                 one-off "something updated" note sat on every tab for the
+                 rest of the session. And it spoke in version numbers, which
+                 tell nobody anything: the recipes updating themselves is the
+                 mechanism working, and CLAUDE.md's own rule is that a notice
+                 about a mechanism that works is a step backwards from the
+                 mechanism. What a person would want to know is WHAT changed,
+                 and that is on the Recipes tab either way. */
               return fresh;
             }
             return old;
@@ -768,7 +777,14 @@ export default function App() {
         // narrow diff would write to paths that don't exist there. Leaving the
         // baseline unset makes the next write a full set() that replaces the old
         // shape outright — one wide write per device, then narrow forever after.
-        markSynced(code, needsKeyMigration(remote) ? null : adopted);
+        // needsSkipConversion for the same reason as needsKeyMigration: the
+        // conversion of the old whole-meal "already have the ingredients" flag
+        // happens on READ, so it is in `adopted` and never in a diff. Leaving
+        // the baseline unset makes the next write a full set() that puts the
+        // converted plan and its version into the database, which is what
+        // stops the conversion re-running and undoing a dish somebody has just
+        // un-ticked.
+        markSynced(code, needsKeyMigration(remote) || needsSkipConversion(remote) ? null : adopted);
       } else if (push) {
         // Either a brand-new household, or this device holds work the database
         // never received — seed/repair it rather than losing the local copy.
@@ -1267,7 +1283,6 @@ export default function App() {
               Device storage is unavailable in this browser view, so changes will not be saved. Open the app in your normal browser.
             </div>
           )}
-          {catalogNote && <div style={{ fontSize: 12, color: C.faint, marginTop: 8 }}>{catalogNote}</div>}
         </header>
 
         {/* ITEM 91. THE JOIN CONFIRMATION. Above the tab content rather than

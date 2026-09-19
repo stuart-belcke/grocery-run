@@ -48,27 +48,22 @@ test("plan a meal, shop it, finish the trip, then rename an ingredient", async (
       "the planned meal didn't reach the shared state"
     );
 
-    /* --- 1b. add a side to that slot ----------------------------------- */
-    /* Per-slot controls live behind Edit once a meal exists (planStageOf
-       reports "shopping" from the first planned meal), which is the real way
-       in: you plan, then adjust. The side then rides through the whole trip
-       below like any other source of demand. */
-    await page.locator("button").filter({ hasText: /^Edit$/ }).first().click();
-    await page.waitForTimeout(400);
-    await page.getByRole("button", { name: "Add a side for Mon Dinner" }).click();
-    await page.waitForTimeout(400);
-    const sidePicker = page.getByRole("dialog", { name: "Add a side for Mon Dinner" });
-    await sidePicker.locator("button").filter({ hasText: /Rice side/ }).first().click();
-    await page.waitForTimeout(200);
-    await sidePicker.locator("button").filter({ hasText: /^Add 1 side$/ }).click();
-    await page.waitForTimeout(600);
-    await page.locator("button").filter({ hasText: /Done editing/ }).first().click();
-    await page.waitForTimeout(400);
+    /* --- 1b. put a second dish on that same dinner --------------------- */
+    /* The SAME control that planned the first one: a day carries one "Choose
+       a meal" row, and picking a meal of the day that is already taken adds
+       to it rather than replacing it. The second dish then rides through the
+       whole trip below like any other source of demand. */
+    await page.addDish("Mon Dinner", "Rice side");
+    const doneEditing = page.locator("button").filter({ hasText: /Done editing/ }).first();
+    if (await doneEditing.count()) {
+      await doneEditing.click();
+      await page.waitForTimeout(400);
+    }
 
     assert.deepEqual(
       (await page.readState()).plan.Mon.Dinner,
       { recipeId: "r-stirfry", servings: 2, sides: [{ recipeId: "r-riceside", servings: 2 }] },
-      "the side should be stored on the slot, at the main's servings"
+      "the second dish should be stored on the slot, at the meal's servings"
     );
 
     /* --- 2. the list is exactly that slot's ingredients ---------------- */
