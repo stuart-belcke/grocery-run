@@ -19,6 +19,14 @@ const TYPE_COL = 76;
 const TYPE_GAP = 8;
 const SLOT_INDENT = TYPE_COL + TYPE_GAP;
 
+/* THE SMALLEST TARGET A THUMB RELIABLY HITS, and the one number for it on this
+   tab. The ✕ that clears a planned meal measured 17x20px and the one that
+   removes a dish 16x18 — both about a third of it, both sitting beside
+   something harmless, and both destructive. reach.spec.mjs has enforced 44 on
+   the Pantry and Recipes tabs since item 51a; it never looked here. */
+const TAP = 44;
+const iconTap = { width: TAP, height: TAP, display: "flex", alignItems: "center", justifyContent: "center", border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0, flexShrink: 0 };
+
 export function WeekTab({ data, update, isGuest }) {
   // Presentation order only. Plan data stays keyed by day name, so a meal
   // planned for Sunday is on Sunday whichever end of the week it's drawn at.
@@ -509,33 +517,44 @@ export function WeekTab({ data, update, isGuest }) {
                           Choose a meal
                         </button>
                       ) : slotsEditable ? (
-                        // Edit mode — tap the meal to re-pick it, the book icon to
-                        // view its recipe, and an ✕ to clear the slot. Servings
-                        // drop to their own line just below.
+                        /* PLANNING: the NAME opens the recipe, the ▾ picks a
+                           different meal, the ✕ clears the slot. Servings drop
+                           to their own line just below.
+                           THE NAME, IN BOTH MODES, AND THE BOOK IS GONE. The
+                           whole bubble used to be the "pick a different meal"
+                           button here, which left no room for the recipe — so
+                           a 📖 was bolted on beside it, 24x20px, and the same
+                           question (what is in this?) was answered by tapping
+                           a whole bubble at rest and hunting an icon while
+                           planning. One rule instead: a dish's NAME is how you
+                           open its dish. Picking a different meal moves onto
+                           the ▾ that was already drawn there and already meant
+                           "change", now a real button rather than decoration. */
                         <>
-                          <button
-                            onClick={() => openPicker(day, type, "replace")}
-                            aria-label={`${day} ${type}: ${recipe.name} — tap to pick a different meal`}
-                            title="Tap to pick a different meal"
-                            style={{ ...slotBox, cursor: "pointer" }}
-                          >
-                            <span style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>{recipe.easy ? "⚡ " : ""}{recipe.name}</span>
-                            <span aria-hidden style={{ flexShrink: 0, color: skipped ? C.faint : C.green, fontSize: 12 }}>▾</span>
-                          </button>
-                          <button
-                            onClick={() => toggleRecipe(day, type)}
-                            aria-expanded={recipeOpen === recipeKey(day, type)}
-                            aria-label={`View recipe for ${recipe.name}`}
-                            title="View recipe"
-                            style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 16, padding: 2, lineHeight: 1, flexShrink: 0 }}
-                          >
-                            📖
-                          </button>
+                          <div style={{ ...slotBox, padding: 0, minHeight: TAP, overflow: "hidden" }}>
+                            <button
+                              onClick={() => toggleRecipe(day, type)}
+                              aria-expanded={recipeOpen === recipeKey(day, type)}
+                              aria-label={`${day} ${type}: ${recipe.name} — view recipe`}
+                              title="View recipe"
+                              style={{ flex: 1, minWidth: 0, alignSelf: "stretch", textAlign: "left", padding: "7px 10px", border: "none", background: "transparent", cursor: "pointer", fontFamily: fontBody, fontSize: 13, fontWeight: 600, color: C.ink }}
+                            >
+                              {recipe.easy ? "⚡ " : ""}{recipe.name}
+                            </button>
+                            <button
+                              onClick={() => openPicker(day, type, "replace")}
+                              aria-label={`${day} ${type}: ${recipe.name} — pick a different meal`}
+                              title="Pick a different meal"
+                              style={{ width: TAP, alignSelf: "stretch", flexShrink: 0, border: "none", borderLeft: `1px solid ${skipped ? C.line : C.green}`, background: "transparent", color: skipped ? C.faint : C.green, cursor: "pointer", fontSize: 12, lineHeight: 1 }}
+                            >
+                              ▾
+                            </button>
+                          </div>
                           <button
                             onClick={() => setSlot(day, type, null)}
                             aria-label={`Clear ${recipe.name} from ${day} ${type}`}
                             title="Clear this slot"
-                            style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 16, padding: 2, lineHeight: 1, flexShrink: 0 }}
+                            style={iconTap}
                           >
                             ✕
                           </button>
@@ -647,13 +666,17 @@ export function WeekTab({ data, update, isGuest }) {
                                   main, or the servings box and remove ✕ here —
                                   so an icon is the only way in. A button cannot
                                   hold a number input anyway.
-                                  AND THE NAME WRAPS AT REST rather than being
-                                  cut off. "Baked Chicken & Veggie Me…" was what
-                                  the screenshot showed; the truncation bought a
-                                  single line at the cost of the answer. While
-                                  planning it still clips, because the row there
-                                  carries an input and two buttons and has no
-                                  width to give. */}
+                                  AND THE NAME WRAPS IN BOTH MODES now. "Baked
+                                  Chicken & Veggie Me…" was what the screenshot
+                                  showed; the truncation bought a single line at
+                                  the cost of the answer. It used to clip while
+                                  planning, where the row carries an input and
+                                  buttons and had no width to give — and then
+                                  the ✕ grew from 17px to a thumb's 44, which
+                                  took 27 more. A row that is 44px tall for the
+                                  ✕ has room for two lines of a 13px name
+                                  anyway, so the name wraps and the row stops
+                                  hiding the answer. */}
                               <RowTag
                                 {...(slotsEditable
                                   ? {}
@@ -663,20 +686,27 @@ export function WeekTab({ data, update, isGuest }) {
                                       "aria-label": `${day} ${type}: ${s.recipe.name} — view recipe`,
                                       title: "View recipe",
                                     })}
-                                style={{ ...dishBox(sideSkipped), width: `calc(100% - ${SLOT_INDENT}px)`, boxSizing: "border-box", marginBottom: sideSkipped && !slotsEditable ? 1 : 4, marginLeft: SLOT_INDENT, cursor: slotsEditable ? undefined : "pointer" }}
+                                style={{ ...dishBox(sideSkipped), width: `calc(100% - ${SLOT_INDENT}px)`, boxSizing: "border-box", marginBottom: sideSkipped && !slotsEditable ? 1 : 4, marginLeft: SLOT_INDENT, cursor: slotsEditable ? undefined : "pointer", ...(slotsEditable ? { padding: "0 8px 0 0", minHeight: TAP, overflow: "hidden", gap: 6 } : {}) }}
                               >
-                                <span style={{ flex: 1, minWidth: 0, fontWeight: 600, ...(slotsEditable ? { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } : {}) }}>{s.recipe.easy ? "⚡ " : ""}{s.recipe.name}</span>
                                 {slotsEditable ? (
                                   <>
-                                <button
-                                  onClick={() => toggleRecipe(day, type, s.index)}
-                                  aria-expanded={recipeOpen === recipeKey(day, type, s.index)}
-                                  aria-label={`View recipe for ${s.recipe.name}`}
-                                  title="View recipe"
-                                  style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 13, padding: 2, lineHeight: 1, flexShrink: 0 }}
-                                >
-                                  📖
-                                </button>
+                                    {/* THE NAME IS THE WAY IN HERE TOO, so the
+                                        📖 that used to sit beside it — 20x17px
+                                        — is gone. At rest the whole row is the
+                                        name and the whole row opens the recipe;
+                                        while planning the row also carries a
+                                        number and a ✕, so the name keeps its
+                                        own button and the rest of the row keeps
+                                        its controls. */}
+                                    <button
+                                      onClick={() => toggleRecipe(day, type, s.index)}
+                                      aria-expanded={recipeOpen === recipeKey(day, type, s.index)}
+                                      aria-label={`${day} ${type}: ${s.recipe.name} — view recipe`}
+                                      title="View recipe"
+                                      style={{ flex: 1, minWidth: 0, alignSelf: "stretch", textAlign: "left", padding: "7px 0 7px 10px", border: "none", background: "transparent", cursor: "pointer", fontFamily: fontBody, fontSize: 13, fontWeight: 600, color: C.ink }}
+                                    >
+                                      {s.recipe.easy ? "⚡ " : ""}{s.recipe.name}
+                                    </button>
                                     <input
                                       type="number"
                                       min="1"
@@ -692,13 +722,16 @@ export function WeekTab({ data, update, isGuest }) {
                                       onClick={() => removeSide(day, type, s.index)}
                                       aria-label={`Remove ${s.recipe.name} from ${day} ${type}`}
                                       title="Remove this dish"
-                                      style={{ border: "none", background: "transparent", color: C.faint, cursor: "pointer", fontSize: 14, padding: 2, lineHeight: 1, flexShrink: 0 }}
+                                      style={iconTap}
                                     >
                                       ✕
                                     </button>
                                   </>
                                 ) : (
-                                  <span style={{ color: C.faint, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{Number(s.servings) || sideBase} sv</span>
+                                  <>
+                                    <span style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>{s.recipe.easy ? "⚡ " : ""}{s.recipe.name}</span>
+                                    <span style={{ color: C.faint, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{Number(s.servings) || sideBase} sv</span>
+                                  </>
                                 )}
                               </RowTag>
                               {/* WHY THIS DISH IS NOT ON THE LIST, said on the

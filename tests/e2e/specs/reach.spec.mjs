@@ -21,7 +21,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { openApp, assertNoPageErrors } from "../harness.mjs";
-import { cleanCatalog } from "../fixtures.mjs";
+import { cleanCatalog, sidesCatalog, stateWith } from "../fixtures.mjs";
 
 const BASE = process.env.E2E_BASE_URL;
 const MIN_TARGET = 44;
@@ -111,6 +111,33 @@ for (const width of [390, 320]) {
       await page.getByLabel(/^Delete /).first().scrollIntoViewIfNeeded();
       await page.waitForTimeout(400);
       assertReachable(await measureTargets(page, /^Delete /), `${width}px`);
+      assertNoPageErrors(page, assert);
+    } finally {
+      await page.done();
+    }
+  });
+
+  test(`clearing a meal and removing a dish are thumb-sized targets at ${width}px`, async () => {
+    /* THE PLAN TAB WAS NEVER MEASURED. This spec has enforced 44px on the
+       Pantry and Recipes tabs since item 51a and its selectors — "Remove *"
+       and "Delete *" — simply never reached here. Measured while planning a
+       Monday dinner with a second dish on it: the ✕ that clears the meal was
+       17x20px and the ✕ that removes the dish 16x18, both about a third of a
+       thumb, both beside a number input you are aiming at with the same hand.
+       Clearing a planned meal takes its other dishes with it, so a mis-tap
+       here is the same kind of loss the rest of this file is about. */
+    const page = await openApp(BASE, {
+      catalog: sidesCatalog(),
+      state: stateWith({
+        planStage: "planning",
+        plan: { Mon: { Dinner: { recipeId: "r-stirfry", servings: 2, sides: [{ recipeId: "r-greenbeans", servings: 2 }] } } },
+      }),
+    });
+    try {
+      await page.setViewportSize({ width, height: 780 });
+      await page.tab("Plan");
+      await page.waitForTimeout(400);
+      assertReachable(await measureTargets(page, /^(Clear|Remove) .* from /), `${width}px`);
       assertNoPageErrors(page, assert);
     } finally {
       await page.done();

@@ -36,7 +36,8 @@ const startPlanning = async (page) => {
    tests quietly losing their coverage of the non-dinner meal types. */
 const pick = async (page, slot, recipe) => {
   const [day, type] = slot.split(" ");
-  const filled = page.getByLabel(new RegExp(`^${day} ${type}: `));
+  // The ▾ beside the name, not the name: the name opens the recipe now.
+  const filled = page.getByLabel(new RegExp(`^${day} ${type}: .* — pick a different meal$`));
   // An occupied slot is re-picked from the meal itself; an empty one from the
   // day's invitation, where the type still has to be named.
   if (await filled.count()) await filled.first().click();
@@ -156,8 +157,10 @@ test("SHOULD: re-picking a slot replaces the meal rather than adding one", async
     await startPlanning(page);
     await pick(page, "Mon Dinner", "Stir-fry");
 
-    // Tapping the filled slot re-opens the picker.
-    await page.getByLabel(/^Mon Dinner: Stir-fry/).click();
+    // The ▾ beside the meal re-opens the picker, in "replace" mode — the name
+    // beside it opens the recipe, and "Choose a meal" on the day would ADD a
+    // second dish rather than swap this one.
+    await page.getByLabel(/^Mon Dinner: Stir-fry — pick a different meal$/).click();
     await page.waitForTimeout(400);
     await page.locator("button").filter({ hasText: /Rice side/ }).first().click();
     await page.waitForTimeout(600);
@@ -270,11 +273,13 @@ test("SHOULD: edit mode still offers the recipe view, alongside re-pick and clea
     await page.locator("button").filter({ hasText: /^Edit$/ }).first().click();
     await page.waitForTimeout(300);
 
-    // Re-pick and clear are unaffected by the new button.
-    assert.equal(await page.getByLabel(/tap to pick a different meal/).count(), 1, "the meal itself should still re-pick");
+    /* Re-pick moved onto the ▾ beside the name, because the name is now how
+       you open the recipe — in both modes, with no 📖 anywhere. Clear is
+       unaffected. */
+    assert.equal(await page.getByLabel(/pick a different meal/).count(), 1, "the ▾ should still re-pick");
     assert.equal(await page.getByLabel(/^Clear Stir-fry from Mon Dinner$/).count(), 1, "clear should still be there");
 
-    await page.getByLabel(/^View recipe for Stir-fry$/).click();
+    await page.getByLabel(/^Mon Dinner: Stir-fry — view recipe$/).click();
     await page.waitForTimeout(300);
     const text = await page.textContent("body");
     assert.ok(/2\s*lb/.test(text), "the recipe should open scaled, same as in the read-only stage");

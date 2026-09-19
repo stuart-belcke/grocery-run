@@ -252,7 +252,7 @@ test("SHOULD: replacing the main clears the sides that were paired with it", asy
     await pickMain(page, "Mon Dinner", "Stir-fry");
     await addSide(page, "Mon Dinner", "Green beans");
 
-    await page.getByLabel(/^Mon Dinner: Stir-fry/).click();
+    await page.getByLabel(/^Mon Dinner: Stir-fry — pick a different meal$/).click();
     await page.waitForTimeout(400);
     await page.getByRole("dialog", { name: "Choose a meal for Mon" })
       .locator("button").filter({ hasText: /Rice bowl/ }).first().click();
@@ -460,7 +460,15 @@ test("at rest, a second dish opens its recipe from the row, with no book icon", 
   }
 });
 
-test("while planning, the book comes back because the row is busy", async () => {
+test("while planning, the NAME opens the recipe — and there is no book anywhere", async () => {
+  /* ONE RULE IN BOTH MODES: a dish's NAME is how you open its recipe. The 📖
+     used to come back while planning, on the main and on each dish, because
+     the row's tap was spoken for — the whole bubble was "pick a different
+     meal". It is the name's now, and picking a different meal moved onto the
+     ▾ that was already drawn there and already meant "change".
+     COUNTED, because the failure to catch is one of them surviving somewhere:
+     the main and the dishes were two separate pieces of markup and drifted
+     apart once already. */
   const page = await openApp(BASE, { catalog: sidesCatalog(), state: withSide() });
   try {
     await page.tab("Plan");
@@ -470,8 +478,21 @@ test("while planning, the book comes back because the row is busy", async () => 
     const books = await page.evaluate(() =>
       [...document.querySelectorAll("button")].filter((b) => (b.textContent || "").includes("📖")).length
     );
-    assert.ok(books >= 2, `planning should offer a book on the main and on each dish, and there are ${books}`);
-    assert.equal(await page.getByLabel(/^View recipe for Rice bowl$/).count(), 1, "the second dish keeps its own book while planning");
+    assert.equal(books, 0, `no book anywhere while planning, and there are ${books}`);
+
+    // The main and the second dish both open from their own name.
+    for (const name of ["Stir-fry", "Rice bowl"]) {
+      const row = page.getByLabel(`Mon Dinner: ${name} — view recipe`);
+      assert.equal(await row.count(), 1, `${name} should open its recipe from its name`);
+      await row.click();
+      await page.waitForTimeout(400);
+      assert.match(await page.textContent("body"), new RegExp(name), `tapping ${name} should open its recipe`);
+      await row.click();
+      await page.waitForTimeout(300);
+    }
+
+    // And the way to swap the main is still there, on the ▾.
+    assert.equal(await page.getByLabel(/^Mon Dinner: Stir-fry — pick a different meal$/).count(), 1, "the ▾ should pick a different meal");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

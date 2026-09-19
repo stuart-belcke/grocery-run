@@ -356,7 +356,11 @@ export async function openApp(baseUrl, { code = "home-e2etest", catalog, state, 
         break;
       }
     }
-    const filled = page.getByLabel(new RegExp(`^${day} ${type}: `));
+    /* THE ▾, NOT THE ROW. A filled slot's NAME opens its recipe now, in both
+       modes, and picking a different meal moved onto the ▾ beside it — so a
+       bare `^Mon Dinner: ` matches both buttons and would open the recipe
+       instead of the picker. */
+    const filled = page.getByLabel(new RegExp(`^${day} ${type}: .* — pick a different meal$`));
     if (await filled.count()) {
       await filled.first().click();
     } else {

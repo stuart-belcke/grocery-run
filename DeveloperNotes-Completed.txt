@@ -4198,8 +4198,41 @@ into the details panel and the name grew.
         conversion testing nothing in particular. It takes the constant from
         lib.js now, so the one spec that wants an old state says so itself.
 
-     TESTED: 408 unit, 12 sync, 79 rules, 18 database, 346 browser, lint and
-     build. Six existing browser tests had to be updated because controls
+     R. THE BOOK IS GONE FROM PLANNING TOO, AND THE NAME IS THE ONE WAY IN.
+        M above removed 📖 at rest and kept it while planning, because there
+        the row's tap was spoken for — the whole bubble was "pick a different
+        meal". Asked, reasonably: weren't we removing the book and leaving each
+        meal to be a button? The exception was real but it was still an
+        exception, and it left the same question — what is in this? — answered
+        two ways depending on which mode you were in.
+        ONE RULE: a dish's NAME is how you open its recipe. While planning the
+        name is its own button inside the bubble; at rest the row is all name
+        and the whole row opens it.
+        PICKING A DIFFERENT MEAL MOVED ONTO THE ▾ that was already drawn beside
+        the main and already meant "change" — decoration inside a bigger
+        button until now, a real 44px button of its own since. It is the only
+        path that replaces a meal; "Choose a meal" on the day ADDS one (O).
+        AND THE ✕ CONTROLS WERE A THIRD OF A THUMB. Measured while planning a
+        Monday dinner with a second dish: the ✕ that clears the meal was
+        17x20px and the ✕ that removes a dish 16x18. reach.spec.mjs has
+        enforced 44px since item 51a and never looked at this tab — its
+        selectors are "Remove *" and "Delete *", which matched nothing here.
+        Both are 44x44 now and the spec covers the Plan tab at 390 and 320px;
+        shrinking them back fails it at both widths.
+        THE NAME WRAPS WHILE PLANNING NOW rather than clipping. It clipped
+        because the row carries an input and buttons and had no width to give,
+        and then the ✕ took 27px more — "Green bea…" for "Green beans". A row
+        that is 44px tall for the ✕ has room for two lines of a 13px name, so
+        the truncation bought nothing and cost the answer.
+        MUTATION-TESTED: putting a 📖 back on one dish row fails the spec that
+        counts them (the main and the dishes are separate markup and drifted
+        apart once already, which is why it counts rather than checking one).
+
+     TESTED: 408 unit, 12 sync, 79 rules, 18 database, 348 browser, lint and
+     build. Four browser tests moved onto the new labels rather than being
+     weakened: three helpers that re-pick a filled slot now aim at the ▾,
+     because a bare "Mon Dinner: " matches the name button too and would have
+     opened the recipe instead of the picker. Six existing browser tests had to be updated because controls
      genuinely moved, and each was re-pointed rather than weakened — the
      store editors are opened first, delete is measured inside the editor,
      the Section squeeze guard moved to Account. O rewrote four more: the
