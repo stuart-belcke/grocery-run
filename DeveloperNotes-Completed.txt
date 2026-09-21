@@ -3821,7 +3821,480 @@ into the details panel and the name grew.
      failing only its own, one new unit test with two breakages of its own,
      and the four tabs looked at in a real browser at phone width.
 
-     NOT DONE, and worth knowing: the six source comments still say
-     "Ingredients tab". Renaming them is a separate tidy-up with no effect on
-     anything shown, and the guard above makes the only version that matters
-     — what is on screen — checkable.
+     THE SIX SOURCE COMMENTS that still said "Ingredients tab" were left for
+     a separate tidy-up here, since they change nothing on screen and the
+     guard above makes the only version that matters checkable. Item 131 did
+     them.
+
+131. A UX PASS OVER THE WHOLE APP, driven by looking at it rather than
+     reading it. Every tab opened in a real browser at 390px with meals
+     planned and a list built, which is the only reason most of this was
+     found — none of it is visible in the code.
+
+     A. "Catalog v16 loaded" IS GONE. It was set when a newer catalog
+        arrived and NEVER CLEARED, so a one-off "something updated" note sat
+        under the header on every tab for the rest of the session. It also
+        spoke in version numbers, which tell a person nothing. The recipes
+        updating themselves is the mechanism working, and a notice about a
+        mechanism that works is a step backwards from the mechanism.
+
+     B. HALF A CUP OF CARROTS SAID "4 fl oz". Arithmetically perfect and
+        useless: fluid ounces are a liquid measure. The unit ladder picked
+        the largest unit keeping the number above 1, so anything under a cup
+        stepped down. Two changes. `fl oz` is no longer a DEMOTION target,
+        the mirror of pt/qt/gal not being promotion targets — it still
+        converts and still shows when a recipe says "8 fl oz". And CUPS, AND
+        ONLY CUPS, accept a fraction a recipe would be written in: a half,
+        thirds, quarters. 0.3 of a cup is not one and still steps down.
+        ONLY CUPS, because the same indulgence everywhere would make half a
+        pound read "0.5 lb" instead of "8 oz" and half a litre "0.5 l"
+        instead of "500 ml" — both worse, since those smaller units are how
+        the things are sold. Fractions of a cup are an idiom; fractions of a
+        pound are not.
+        NOTHING PROTECTED THIS LADDER FOR VOLUME. Four tests now do, and
+        three deliberate breakages each fail only their own.
+
+     C. THE SETTINGS TAB SAID THE SYNC STATUS TWICE — the header at the top
+        of every tab, and the Household section heading, same words, same
+        colours, a few centimetres apart. The header wins: a status always in
+        one place is easier to trust than one sometimes in two.
+        THE TESTS THAT GUARDED IT WERE NOT DELETED. The bug they exist for —
+        reported from a real phone as "Sync error" drawn straight through the
+        word "Household" — is in Section, which crushes its own title to make
+        room for a long aside. Account still has an aside, and an email is
+        longer than any status, so the guard moved there. Plus a new one:
+        the status must appear ONCE on the Settings tab.
+
+     D. "Done shopping" IS QUIET UNTIL SOMETHING IS TICKED. It was painted in
+        the app's loudest treatment from the moment the list had anything on
+        it, so the most eye-catching thing on the main screen — at 15 items
+        left and nothing bought — was the button that ends the shop and
+        clears the list. Never disabled, though: finishing a trip having
+        bought nothing is a real thing to do.
+
+     E. THE RECIPES TAB LISTED EVERY INGREDIENT TWICE — a grey run-on on the
+        card, and the same names with amounts under "Ingredients & recipe".
+        The run-on was the biggest thing on each card, three wrapped lines,
+        pushing a card to ~200px so two and a half fitted on a phone with 24
+        recipes below. Browsing now gets a count.
+        BUT SEARCH MATCHES INGREDIENT NAMES, so with only a count a search
+        for "lemon" would return cards giving no hint why. While there is a
+        query the names come back. Three cards fit where two and a half did.
+
+     F. DELETING A RECIPE MOVED BEHIND Edit. It was a bare ✕ alone in each
+        card's top corner: the only irreversible action on the tab, furthest
+        from the three safe ones and right where a thumb scrolls, with
+        nothing beside it to hit instead. It is now a button at the bottom of
+        the editor beside Cancel and Save, labelled with the meal's name for
+        a screen reader, and it closes the editor afterwards so Save cannot
+        write the recipe back under its old id.
+        AND THAT EXPOSED SOMETHING ELSE: the editor renders ABOVE the list,
+        so opening it from a card halfway down did nothing you could see —
+        the form appeared off the top of the screen. It scrolls into view
+        now. A button you press and then cannot find is worse than one in
+        the wrong place.
+
+     G. THE PANTRY TAB'S "Your stores" CARD IS COLLAPSED BY DEFAULT. Open, it
+        filled the top quarter of the screen — five shops, their remove
+        buttons and an Add field — in front of the ingredients, which is what
+        the tab is for and what changes daily. A shop list changes about once
+        a year. Six ingredient rows are visible where two were. useSticky and
+        not useState, because this is something you were LOOKING AT.
+
+     H. "Ingredients tab" IS NOW "Pantry tab" in all six places. The tab has
+        been called Pantry for a long time and the comments had not caught
+        up, which is exactly how the wrong name reached a dialog in item 129.
+
+     K. THE WEEK NOW FITS ON ONE SCREEN, and this entry first said it could
+        not be done. That was wrong, and worth recording why. I read the
+        comment in WeekTab about gating "+ Choose a meal" on edit mode and
+        reported it as "condensing the plan tab was already tried and
+        rejected". It was not. Two different things had been run together:
+        the thing BUILT AND REJECTED was a 7x4 GRID for choosing meals (item
+        111) — 28 boxes, which won every measurement and lost on reading your
+        own week by counting rows and columns. The comment records something
+        narrower and different in kind: a REGRESSION caught by three specs,
+        which left behind a RULE — a day with nothing on it stays fillable
+        without pressing Edit. A rule about how, not a verdict on whether.
+        THE SHAPE, proposed by the owner: Edit expands the tab to the form it
+        has always been, and leaving Edit condenses it to what is planned.
+        AND THE ONE PLACE IT COLLIDED with that rule was empty days, which
+        the proposal would have shown as a bare day name. So the affordance
+        MOVED INSTEAD OF GOING: an empty day is one row and the ROW is the
+        button, a wider target than the bordered one it replaces. A test
+        taps it from the resting state, with no Edit first.
+        THE DAY KEEPS ITS OWN ROW, WITH ITS STRIPE, and that was a
+        correction. My first pass saved a line a day by moving the day name
+        into the meal's left column and dropping the stripe — and lost the
+        thing that makes a week scannable: a day you can find without
+        reading, with what is on it beneath. The structure is a planning
+        thing AND a reading thing. What the resting view drops is the room a
+        form needs, not the structure.
+        AND THE INVITATION TO FILL A DAY STANDS WHERE THE MEAL WILL APPEAR —
+        its own row, below the day, exactly as before. I had it riding on the
+        day's heading row instead, which saved a line on every empty day and
+        was wrong for a reason no measurement shows: you tap it on one row and
+        the result lands on another. A control should stand where its result
+        will. That cost the one-screen fit and was worth it.
+        SERVINGS MOVED ONTO THE MEAL'S FIRST LINE, on the right. A whole row
+        for two characters and a unit made every planned day taller than the
+        thing it described. The name takes what is left and wraps under
+        itself; the count stays beside its first line. "Already have the
+        ingredients" keeps its own line — a sentence, not a number, and rare.
+        MEASURED at 390px: 1,228px to about 980px, a fifth off. It reached
+        844px — the viewport exactly — while the invitation shared the day's
+        row, and the test said "fits on one screen". It is a BUDGET now
+        instead, because the honest number is the one the right layout costs.
+        The saving is the room and not the structure: 12px of card padding
+        down to 5, 10px of margin to 5, and the gap under each heading 8 to 2.
+        AND A GUEST SAW EVERY DAY NAME TWICE for a while — added to the
+        "Nothing planned" row while the heading was hidden at rest, and left
+        there when the heading came back. Found by counting the headings, not
+        by looking at it; a duplicate reads as a slightly odd layout rather
+        than as a fault.
+        TWO THINGS CONDENSING COST, both caught by specs already here and
+        both put back. Every day name had become a plain span, leaving a
+        screen reader one heading — the app's name — and no way to move
+        through the week; they are h2 again, with the empty day's heading
+        wrapping its button the way Section does. And dropping the meal type
+        as redundant made a day holding only a DESSERT read exactly like a
+        day holding a dinner; it is always shown, under the day name in the
+        same column, which costs no height. An 11px label also failed the
+        floor of 12px the app holds itself to.
+
+     I. THE LIST TAB'S VIEW TOGGLES MOVED OFF THE PINNED BAR. They took a
+        row of a bar that stays on screen for the whole shop. They are now
+        behind one button, in a popover — the pattern the Recipes and Pantry
+        tabs already use for their own filters.
+        THE TOGGLES THEMSELVES ARE UNCHANGED, and that was a correction. My
+        first attempt replaced them with a list of three options, each with a
+        sentence explaining it, on the reasoning that they were "really one
+        choice of three". The owner's answer was that the original options
+        were fine and should not need explaining — which is right, and the
+        reason is structural: the sort only exists once "By store" is chosen,
+        so "A-Z" and "Store flow" read as sorts WITHIN a shop rather than as
+        rivals to "All items". Take that nesting away and they need prose;
+        leave it and they do not.
+        THE COUNT READS "6 to buy" now, not "6 items left to buy" — the app's
+        own words, since every store subheading down the page already says it.
+        Those 60px are what put the whole bar on one line: 94px of pinned bar
+        before, 55px after at 390px, and 133 to 98 at 320px. Measured on a
+        real page, both before and after, because the first attempt made it
+        WORSE at 390 (110px) and only looked like a win at 320.
+        WHAT WRAPS AT 320 IS STILL THE SETTING, never the count or Done
+        shopping — the control sits last for exactly that reason, which is
+        what the original comment said and what a test holds.
+
+     J. A TAPERED FILTER MARK REPLACED THE MAGNIFYING GLASS on all three
+        tabs. ⌕ means SEARCH, and on two of them the button sat directly
+        beside a real search box with its own magnifier — the same mark a
+        centimetre apart meaning two different things. Three EQUAL bars were
+        tried first and read as settings. It is an inline SVG (FilterMark in
+        ui.jsx) because no dependable character exists for the tapered shape,
+        and it takes currentColor so it turns green with the words when a
+        filter is doing something.
+
+     L. "ADD A SIDE" IS "ADD ANOTHER DISH". Asked whether two separate dishes
+        for one dinner would be worth supporting — and it already was, in
+        full: a slot has always held a main plus any number of others, each a
+        real recipe with its own servings, and slotDishes feeds every one of
+        them to the shopping list. The picker already offered EVERY recipe,
+        with side-tagged ones merely sorted first.
+        WHAT SAID OTHERWISE WAS THE BUTTON. "Add a side" tells you the second
+        dish is subordinate — true of potatoes beside a roast, wrong for a
+        meat dish and a vegetarian one at the same table, and enough to stop
+        somebody realising the feature is how you do that at all. A capability
+        nobody can find is not a capability.
+        THE STORED FIELD STAYS `sides`, and so does the `side` tag on a
+        recipe. Renaming a stored field costs every device a migration for no
+        change in behaviour, and the tag still earns its keep — it is what
+        puts side dishes at the top of the picker. The word people READ was
+        the part that was wrong.
+        Four strings, not one: the button, the picker's own title, its
+        subtitle, the confirm button ("Add 2 dishes"), and the remove
+        tooltip. A help entry too, since nothing in the help had ever
+        mentioned it — which is part of why it was invisible.
+
+     M. ONE WAY TO OPEN A RECIPE, WHICHEVER DISH IT IS. Reported from a real
+        phone with a screenshot: the main dish opened its recipe when you
+        tapped the row, and a second dish on the same meal made you find a
+        13px 📖 beside the name instead. The same question — what is in this?
+        — answered two different ways a centimetre apart.
+        IT WAS NEVER A DECISION. The main's resting row had been made a button
+        at some point; the dish rows below it were still a plain div with an
+        icon, and nothing compared them. Both are buttons at rest now and the
+        book is gone from both.
+        THE BOOK SURVIVES WHILE PLANNING, on both, for the same reason on
+        both: there the row's tap belongs to something else — re-picking the
+        main, or the servings box and remove ✕ on a dish — and a <button> may
+        not contain a number input anyway.
+        AND THE NAME WRAPS AT REST. "Baked Chicken & Veggie Me…" is what the
+        screenshot showed; the truncation bought one line and cost the answer.
+        It still clips while planning, where the row carries an input and two
+        buttons and has no width to give.
+        A MUTATION CAUGHT MY OWN TEST BEING TOO WEAK: making the row a plain
+        div again failed nothing, because the click handler and the label
+        still landed on the div and the test only asked whether it could be
+        found and clicked. A div with an onClick cannot be reached by keyboard
+        and is announced as nothing. The test asserts the tag now.
+
+     N. A SECOND DISH LOOKS LIKE A MEAL, BECAUSE IT IS ONE, and adding one no
+        longer needs Edit.
+        IT HAD ITS OWN COLOUR SCHEME — a small pale chip with a border and a
+        green "+", indented under the meal — which said "aside" at exactly the
+        moment item L's rename stopped calling it one. It wears the meal's own
+        bubble now, in the meal's own column, listed under the meal type. The
+        main and the dishes under it are the same thing and look it.
+        AND IT WAS BEHIND Edit, which nobody chose: filling an EMPTY day has
+        never required pressing Edit — three specs hold that — and putting a
+        second dish on a meal is the same kind of act. Requiring it for one
+        and not the other was an inconsistency, and it is gone.
+        THAT IMMEDIATELY PUT TWO ADD CONTROLS ON EVERY PLANNED DAY, stacked
+        and identical: one adds a dish to the meal above it, the other adds a
+        different meal to the day. Two identical dashed rows read as the same
+        offer twice. So they look as different as they are — the dish one is
+        quiet and sits with the dishes it belongs to, the day one keeps its
+        full-width row. While planning both stay as they were, because that
+        screen is a form and every field is open.
+        THAT LASTED ONE ROUND. Styling two controls to be told apart is not
+        the answer to having two controls that do nearly the same thing; O
+        below removes one of them outright.
+        THE HEIGHT: 980px to about 1,075px, and the budget in the test was
+        raised to match rather than the layout trimmed to fit it. A control on
+        every planned day is what reachable costs; the alternative was a
+        capability you could only get to by first saying you wanted to
+        rearrange things. 1,228px is still where this started.
+
+     O. ONE ADD CONTROL, AND PICKING A MEAL THAT IS TAKEN JOINS IT. N above
+        ended with two add controls on every planned day and a paragraph
+        about making them look different enough to tell apart. That was
+        styling around the problem. Asked, correctly: why not remove "add a
+        dish" and let "Choose a meal" assign to a meal of the day that
+        already has one?
+        WHAT WAS IN THE WAY WAS A GUARD THAT NO LONGER GUARDED ANYTHING. The
+        meal-of-the-day chooser in the picker (Breakfast / Lunch / Dinner /
+        Dessert) offered only the FREE ones, and the reason was sound while
+        picking a taken one could only have overwritten what was there —
+        item 111 is a bug that did exactly that, silently. But "cannot
+        replace" was answered by making the case UNREACHABLE, which also
+        made the honest version of it — a second dish on the same dinner —
+        unreachable through the one control a day offers. So it needed its
+        own button, and then two near-identical buttons sat on every planned
+        day.
+        NOW EVERY MEAL OF THE DAY IS OFFERED and a taken one JOINS. Nothing
+        is ever overwritten by that path, which is what the original guard
+        was protecting. The picker says which it will do before you tap —
+        "Add additional dish to meal", on the taken meal of the day only —
+        and the dishes already on that meal are dropped from the list, so a
+        tap cannot duplicate one.
+        THAT LINE WAS LONGER AND SAID LESS: "Joins Stir-fry — Mon dinner
+        will have both". The meal it joins is on the screen behind the
+        picker, the day is the dialog's own heading and the meal-of-the-day
+        button is lit, so the sentence was explaining what was already in
+        view. What it has to carry is that this ADDS rather than fills, and
+        four words carry it.
+        THE PICKER'S SUBTITLE WENT WITH IT. "Pick a meal, and say which meal
+        of the day it is" was a caption for a list of meals and a row of
+        meal-of-the-day buttons sitting directly beneath it. Replacing keeps
+        its subtitle, because "replaces" is the one thing its controls do
+        not show.
+        REPLACING IS STILL REACHABLE and is now the only thing that
+        overwrites: tap the MEAL ITSELF while planning. That opens the
+        picker in `role: "replace"`, which hides the meal-of-the-day chooser
+        and the "joins" line, shows the current meal ticked, and offers
+        "Remove meal from this slot".
+        DELETED: the "Add another dish" button, its own picker, its
+        multi-select (tap to mark, then "Add 2 dishes" to commit) and the
+        confirm footer that went with it. A day carries one "Choose a meal"
+        row now, in both modes, on every day whether or not it is full —
+        a full day is not a finished one, because a second dish goes on a
+        meal that already exists.
+        THE DEFAULT MEAL OF THE DAY STOPS STEPPING OVER DINNER. It was "the
+        first FREE meal of the day, preferring dinner", which made sense
+        while a taken one could not be picked: a day already holding a
+        dinner opened on Breakfast. It is Dinner unless you say otherwise.
+        MUTATION-TESTED BOTH DIRECTIONS. Making a taken meal replace instead
+        of join failed 10 browser tests including the one that names the
+        behaviour; making replace join as well failed exactly the two that
+        say a re-pick swaps the meal and takes its other dishes with it; and
+        making "Add additional dish to meal" show on every pick failed the
+        test that switches to a free meal of the day and expects it gone.
+        THE SERVINGS RULE IS UNCHANGED: a joining dish takes the MEAL's
+        servings, not its own recipe's, because two dishes on one dinner
+        feed the same table.
+
+     P. "FINISH PLANNING" ON A WEEK WITH NOTHING IN IT. Reported from a real
+        phone with a screenshot: press Start planning and the loudest thing
+        on the screen is a solid green button at half opacity, disabled,
+        sitting beside a line telling you to add your meals. It was drawn
+        whenever the week was in the planning stage and disabled while the
+        count was zero.
+        A DISABLED CONTROL GIVES NO REASON FOR BEING DISABLED. It reads as
+        broken, or as tap-harder, and the answer here is not a tooltip —
+        there is simply nothing to finish yet.
+        NOTHING IS LOST BY NOT DRAWING IT. Its only job is to end the
+        planning stage, and ending it with no meals on the week leaves
+        exactly the week you already have; the stage line already says what
+        to do. It appears on the first meal planned, in the place it will
+        stay.
+        TESTED BOTH DIRECTIONS, because hiding it outright would strand
+        somebody who has planned a week and cannot leave the stage: absent on
+        an empty week, present AND enabled the moment one meal is on. Putting
+        the disabled button back fails that test.
+
+     Q. "ALREADY HAVE THE INGREDIENTS" COVERED THE WHOLE MEAL FROM UNDER THE
+        MAIN. Reported from a phone with three dishes on one Sunday dinner:
+        the checkbox appeared once, under the first dish, and read as that
+        dish's own. Ticking it silenced all three.
+        IT WAS NEVER A DECISION EITHER. `skipList` sat on the SLOT and
+        slotDishes returned nothing at all for a skipped one — which was the
+        only reading available while there was one checkbox, and it was even
+        written down as "a side never makes sense without its main". That is
+        true of potatoes beside a roast and wrong for the case N above made
+        ordinary: two full dinners on one day. "We have everything for the
+        beans but not the stir-fry" could not be said.
+        EVERY DISH CARRIES ITS OWN FLAG NOW, and every dish has its own
+        checkbox, worded identically and sitting under the dish it belongs
+        to. `skipList` on the slot means the MAIN.
+        THAT RE-READS DATA ALREADY SAVED, which is the part that could cost a
+        trip. A plan written before this says "the slot skips" and MEANT "none
+        of this meal reaches the list". Read under the new rule the same
+        sentence says "the main is covered", so the other dishes' ingredients
+        would quietly reappear on the shopping list — food the household has
+        already said it has. So normalizeLocal copies the old flag down onto
+        each dish, once.
+        ONCE IS THE HARD PART. The conversion has to be gated, because "the
+        slot skips and this dish does not" is a sentence the old shape could
+        not write and the new one writes all the time — ungated, ticking a
+        main would re-silence the dishes under it on the next read. The gate
+        is `version` in emptyLocal, which had sat at 1 since the app was
+        written and is described in CLAUDE.md as "never compared today". This
+        is the first thing ever to compare it. It is NOT APP_DATA_VERSION and
+        must not become one: that locks other devices out of the household
+        until they update, and this changes nothing for them.
+        AND THE CONVERSION IS NEVER IN A DIFF, because it happens on read and
+        the converted copy becomes both the state and the baseline the next
+        narrow write is measured against — so the database would keep its
+        version-1 copy and the conversion would re-run on every load forever.
+        Same answer as needsKeyMigration, which had the same problem for the
+        old array-shaped `extras`: needsSkipConversion leaves the baseline
+        unset, so the next write is one full set() that puts the converted
+        plan and its version in the database. One wide write per household.
+        THE COST TO AN OLDER BUILD, stated plainly: it reads a dish-level flag
+        it does not know, carries it through untouched (forward compatibility
+        holds), and puts that dish on its own shopping list anyway. So a phone
+        that has not updated yet can shop for one dish somebody said they had.
+        That is why APP_DATA_VERSION was weighed and not spent — devices check
+        for new builds on their own and item 30 removed the button that let
+        one stay behind, so the window is a launch, and the alternative is
+        locking a phone out of the shopping list mid-trip.
+        MUTATION-TESTED BOTH HALVES. Putting slotDishes back to the whole-meal
+        rule fails 4 unit tests and 2 browser tests; removing the version gate
+        fails 1 unit test and the same 2 browser tests — the one that un-ticks
+        a dish, reloads, and finds it ticked again.
+        ONE FIXTURE CHANGED: tests/e2e/fixtures.mjs had `version: 1` written
+        as a literal, which made every one of the 346 browser tests a
+        pre-conversion state and left the spec that means to test the
+        conversion testing nothing in particular. It takes the constant from
+        lib.js now, so the one spec that wants an old state says so itself.
+
+     R. THE BOOK IS GONE FROM PLANNING TOO, AND THE NAME IS THE ONE WAY IN.
+        M above removed 📖 at rest and kept it while planning, because there
+        the row's tap was spoken for — the whole bubble was "pick a different
+        meal". Asked, reasonably: weren't we removing the book and leaving each
+        meal to be a button? The exception was real but it was still an
+        exception, and it left the same question — what is in this? — answered
+        two ways depending on which mode you were in.
+        ONE RULE: a dish's NAME is how you open its recipe. While planning the
+        name is its own button inside the bubble; at rest the row is all name
+        and the whole row opens it.
+        PICKING A DIFFERENT MEAL MOVED ONTO THE ▾ that was already drawn beside
+        the main and already meant "change" — decoration inside a bigger
+        button until now, a real 44px button of its own since. It is the only
+        path that replaces a meal; "Choose a meal" on the day ADDS one (O).
+        AND THE ✕ CONTROLS WERE A THIRD OF A THUMB. Measured while planning a
+        Monday dinner with a second dish: the ✕ that clears the meal was
+        17x20px and the ✕ that removes a dish 16x18. reach.spec.mjs has
+        enforced 44px since item 51a and never looked at this tab — its
+        selectors are "Remove *" and "Delete *", which matched nothing here.
+        Both are 44x44 now and the spec covers the Plan tab at 390 and 320px;
+        shrinking them back fails it at both widths.
+        THE NAME WRAPS WHILE PLANNING NOW rather than clipping. It clipped
+        because the row carries an input and buttons and had no width to give,
+        and then the ✕ took 27px more — "Green bea…" for "Green beans". A row
+        that is 44px tall for the ✕ has room for two lines of a 13px name, so
+        the truncation bought nothing and cost the answer.
+        MUTATION-TESTED: putting a 📖 back on one dish row fails the spec that
+        counts them (the main and the dishes are separate markup and drifted
+        apart once already, which is why it counts rather than checking one).
+
+     S. THE FIRST DISH WAS TREATED AS A DIFFERENT KIND OF THING, AND THAT WAS
+        NEVER A DECISION EITHER. Asked, after a screenshot of one Sunday
+        dinner holding five dishes: why is the first one different, and what
+        is the logic? There is none. A slot stores its first dish in the
+        slot's own `recipeId` and the rest in `sides`, and that STORED SHAPE
+        was showing through the screen in four ways — the first dish had a ▾
+        to swap it and the others did not, its servings sat on a line of their
+        own with the word spelt out while theirs were a cramped "4 sv", its ✕
+        was outside the bubble, and its ✕ DELETED THE WHOLE MEAL.
+        THE ✕ IS THE PART THAT COULD COST A TRIP. It looked identical to the
+        four below it and removed five dishes instead of one. The Recipes tab
+        had the sharper version: both chips read "Remove <recipe> from Sun
+        Dinner", and which of the two things it did depended on where that
+        recipe happened to sit in the stored shape. Same sentence, one dish or
+        five.
+        REMOVING THE FIRST DISH PROMOTES THE NEXT. The meal goes when its last
+        dish goes. That is one rule, in lib.js as removeDish, shared by the
+        Plan tab and the Recipes tab, and it is why every ✕ can now read the
+        same and mean the same.
+        SWAPPING THE FIRST DISH USED TO DROP THE OTHERS TOO, on the reasoning
+        that a side belongs to the dish it was chosen beside — true of
+        potatoes beside a roast, and untrue from the moment N made two full
+        dinners on one day ordinary. Swapping the third never touched the
+        others. replaceDish leaves the rest of the meal alone whichever dish
+        it is, and every dish has a ▾ now.
+        THE STORED SHAPE IS UNCHANGED — still one `recipeId` plus `sides`, no
+        migration, no version spent. Promotion is a move. The markup is what
+        changed: ONE block draws every dish, built from a flattened list, so
+        the two cannot drift apart again the way they did after L renamed the
+        words and left the layout alone.
+        THE SERVINGS BOX MOVED OFF THE ROW, for all of them. Riding on the row
+        with a ▾, "sv" and a 44px ✕ left about 70px of width for a name like
+        "Baked Creamy Orzo with Chickpeas & Spinach". The line under each dish
+        had to exist anyway for its checkbox, so the number sits there and the
+        word is spelt out in full.
+        "(SIDE)" IS GONE from the Recipes tab chips. It marked a recipe as not
+        being the first dish, which said "lesser" about a second full dinner.
+        MY OWN TEST CAUGHT A HOLE I HAD WRITTEN: promotion copied the three
+        fields it knew by name, so a field from a newer build sitting on the
+        promoted dish was dropped — and every device writes the whole state
+        back, so that would strip it out of the SHARED copy for everybody. It
+        spreads the whole dish now and unsets only what the arriving dish does
+        not have, so nothing is inherited from the dish that left either.
+        MUTATION-TESTED THREE WAYS: making the first dish's removal delete the
+        meal fails 3 unit and 2 browser tests; making its swap drop the other
+        dishes fails 1 unit and 1 browser test; giving only the first dish a ▾
+        fails 1 browser test.
+
+     TESTED: 414 unit, 12 sync, 79 rules, 18 database, 349 browser, lint and
+     build. Six browser tests moved onto the new labels rather than being
+     weakened — "Servings for Mon Dinner" names its dish now, and "Clear X
+     from" is "Remove X from" like every other dish's. Four browser tests moved onto the new labels rather than being
+     weakened: three helpers that re-pick a filled slot now aim at the ▾,
+     because a bare "Mon Dinner: " matches the name button too and would have
+     opened the recipe instead of the picker. Six existing browser tests had to be updated because controls
+     genuinely moved, and each was re-pointed rather than weakened — the
+     store editors are opened first, delete is measured inside the editor,
+     the Section squeeze guard moved to Account. O rewrote four more: the
+     two weekdensity tests that asserted a taken meal type was NOT offered
+     now assert that it is and that picking it joins (read back from the
+     saved plan, because joined and replaced look almost identical on screen
+     and are completely different on the shopping list), and the sides and
+     journey specs drive the one control through a shared `page.addDish`
+     helper — so if the two ever diverge again, a spec says so.
+     ONE OF THOSE UPDATES CAUGHT MY OWN ASSERTION BEING WRONG RATHER THAN
+     THE CODE: "the main is not offered as its own side" was checking the
+     whole dialog's text for the main's name, and the "Joins Stir-fry" line
+     puts that name on screen deliberately. It reads the offered RECIPES now
+     — the buttons carrying a "Serves N" line — and separately asserts the
+     joins line is there.

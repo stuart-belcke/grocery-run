@@ -90,6 +90,12 @@ test("Pantry: a guest keeps the read-only detail and loses every editor", async 
     await guest.tab("Pantry");
     await member.tab("Pantry");
 
+    /* "Your stores" is collapsed by default, so a member has to open it
+       before its editors exist to be counted. A GUEST NEVER SEES THE SECTION
+       AT ALL — it is still behind !isGuest — so there is nothing to open on
+       that side, and counting zero there remains the real assertion. */
+    await member.openSection(/^Your stores/);
+
     assert.ok(await count(member, 'button:text-is("Add store")'), "control missing for a member too — selector is wrong");
     assert.equal(await count(guest, 'button:text-is("Add store")'), 0, "a guest was offered the stores editor");
     assert.equal(await count(guest, 'button:text-is("Add item")'), 0, "a guest was offered to add an ingredient");
@@ -127,6 +133,7 @@ test("a full member still sees everything", async () => {
   const page = await asMember();
   try {
     await page.tab("Pantry");
+    await page.openSection(/^Your stores/); // collapsed by default
     assert.ok(await count(page, 'button:text-is("Add store")'));
     assert.ok(await count(page, 'button:text-is("Add item")'));
     await page.tab("Plan");

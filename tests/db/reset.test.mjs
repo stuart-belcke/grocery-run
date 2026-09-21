@@ -17,6 +17,7 @@ import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { start, stop, read, write, wipe, haveEmulator, PORT, NS } from "./harness.mjs";
+import { SKIP_PER_DISH_VERSION } from "../../src/lib.js";
 
 const run = promisify(execFile);
 const SCRIPT = new URL("../../scripts/reset-test-household.mjs", import.meta.url).pathname;
@@ -95,7 +96,11 @@ if (!haveEmulator()) {
        because the second is a shape this database will never hold. */
     const state = await read(`households/${CODE}/state`);
     assert.equal(JSON.stringify(state).includes("left-over"), false, `the old shopping state survived: ${JSON.stringify(state)}`);
-    assert.equal(state.version, 1, "the reset state should carry the state-shape version");
+    /* THE CONSTANT, NOT A LITERAL. The script writes emptyLocal(), so a
+       literal here says "the shape version is 1 forever" and fails the day it
+       is not — which it did, the first time the state's shape actually
+       changed. What this test is for is that the version is WRITTEN. */
+    assert.equal(state.version, SKIP_PER_DISH_VERSION, "the reset state should carry the state-shape version");
     assert.ok(state.updatedAt > 1, "the reset state should carry a real edit time, not the seeded one");
   });
 

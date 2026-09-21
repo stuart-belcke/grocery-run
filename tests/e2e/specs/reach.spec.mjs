@@ -21,7 +21,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { openApp, assertNoPageErrors } from "../harness.mjs";
-import { cleanCatalog } from "../fixtures.mjs";
+import { cleanCatalog, sidesCatalog, stateWith } from "../fixtures.mjs";
 
 const BASE = process.env.E2E_BASE_URL;
 const MIN_TARGET = 44;
@@ -78,6 +78,9 @@ for (const width of [390, 320]) {
     try {
       await page.setViewportSize({ width, height: 780 });
       await page.tab("Pantry");
+      // "Your stores" is collapsed by default now, so open it to reach the
+      // Remove buttons this measures.
+      await page.openSection(/^Your stores/);
       await page.waitForTimeout(400);
       assertReachable(await measureTargets(page, /^Remove /), `${width}px`);
       assertNoPageErrors(page, assert);
@@ -87,12 +90,54 @@ for (const width of [390, 320]) {
   });
 
   test(`deleting a meal is a thumb-sized target at ${width}px`, async () => {
+    /* DELETE MOVED BEHIND EDIT. It used to be a bare ✕ in each card's top
+       corner — the only irreversible action on the tab, sitting alone where
+       a thumb scrolls — and this measured it there. It is now an ordinary
+       button at the bottom of the editor, beside Cancel and Save, so that is
+       where it gets measured: a control being far from the scroll path does
+       not excuse it from being thumb-sized once you are in front of it. */
     const page = await openApp(BASE, { catalog: cleanCatalog() });
     try {
       await page.setViewportSize({ width, height: 780 });
       await page.tab("Recipes");
       await page.waitForTimeout(400);
+      await page.locator("button").filter({ hasText: /^Edit$/ }).first().click();
+      await page.waitForTimeout(600);
+      /* Opening the editor scrolls its TOP into view, which is right — that
+         is where you start reading. Delete is at the bottom of a long form,
+         so scroll to the control itself: what is being measured is whether it
+         is thumb-sized and cleanly tappable once you are in front of it, not
+         how far away it starts. */
+      await page.getByLabel(/^Delete /).first().scrollIntoViewIfNeeded();
+      await page.waitForTimeout(400);
       assertReachable(await measureTargets(page, /^Delete /), `${width}px`);
+      assertNoPageErrors(page, assert);
+    } finally {
+      await page.done();
+    }
+  });
+
+  test(`clearing a meal and removing a dish are thumb-sized targets at ${width}px`, async () => {
+    /* THE PLAN TAB WAS NEVER MEASURED. This spec has enforced 44px on the
+       Pantry and Recipes tabs since item 51a and its selectors — "Remove *"
+       and "Delete *" — simply never reached here. Measured while planning a
+       Monday dinner with a second dish on it: the ✕ that clears the meal was
+       17x20px and the ✕ that removes the dish 16x18, both about a third of a
+       thumb, both beside a number input you are aiming at with the same hand.
+       Clearing a planned meal takes its other dishes with it, so a mis-tap
+       here is the same kind of loss the rest of this file is about. */
+    const page = await openApp(BASE, {
+      catalog: sidesCatalog(),
+      state: stateWith({
+        planStage: "planning",
+        plan: { Mon: { Dinner: { recipeId: "r-stirfry", servings: 2, sides: [{ recipeId: "r-greenbeans", servings: 2 }] } } },
+      }),
+    });
+    try {
+      await page.setViewportSize({ width, height: 780 });
+      await page.tab("Plan");
+      await page.waitForTimeout(400);
+      assertReachable(await measureTargets(page, /^(Clear|Remove) .* from /), `${width}px`);
       assertNoPageErrors(page, assert);
     } finally {
       await page.done();

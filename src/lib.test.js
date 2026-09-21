@@ -51,6 +51,10 @@ import {
   remapStateIngredientIds,
   safeKey,
   normalizeLocal,
+  removeDish,
+  replaceDish,
+  SKIP_PER_DISH_VERSION,
+  spreadSkipToDishes,
   emptyLocal,
   diffPaths,
   planWrite,
@@ -76,6 +80,7 @@ import {
   slotDishes,
   planSlotsFor,
   seedCatalog,
+  pickDisplayUnit,
   emptyCatalog,
   needsIngredientIds,
   ensureIngredientId,
@@ -722,9 +727,90 @@ test("slotDishes lists the main and every side", () => {
   ]);
 });
 
-test("slotDishes drops everything when the slot is skipped or empty", () => {
-  assert.deepEqual(slotDishes({ recipeId: "r1", servings: 4, skipList: true, sides: [{ recipeId: "r2", servings: 2 }] }), []);
+test("each dish's skipList covers that dish alone", () => {
+  /* ONE FLAG PER DISH. It used to be one flag on the SLOT standing for the
+     whole meal, set by a checkbox that sat under the main and read as the
+     main's own — so a control that looked like it covered one dish covered
+     every dish on the meal, and "we have everything for the beans but not the
+     chicken" could not be said at all. A version-1 plan still MEANS the old
+     thing and normalizeLocal converts it; these are the raw rules. */
+  const main = { recipeId: "r1", servings: 4 };
+  const side = { recipeId: "r2", servings: 2 };
+
+  assert.deepEqual(slotDishes({ ...main, skipList: true, sides: [side] }), [{ recipeId: "r2", servings: 2 }], "skipping the main leaves the dishes under it on the list");
+  assert.deepEqual(slotDishes({ ...main, sides: [{ ...side, skipList: true }] }), [{ recipeId: "r1", servings: 4 }], "skipping a dish leaves the main on the list");
+  assert.deepEqual(slotDishes({ ...main, skipList: true, sides: [{ ...side, skipList: true }] }), [], "every dish skipped is a meal that reaches nothing");
+  assert.deepEqual(slotDishes({ recipeId: "r1", servings: 4, skipList: true }), [], "a lone main that skips still reaches nothing");
   assert.deepEqual(slotDishes(undefined), []);
+});
+
+/* ---------------- the old whole-meal skip, converted once ----------------
+   A version-1 plan that says a SLOT skips the list meant "none of this meal
+   reaches the list, dishes included" — the only thing it could mean, since
+   there was one checkbox. Read under the per-dish rule that same sentence says
+   "the MAIN is covered", which would put the other dishes' ingredients back on
+   the shopping list: an extra trip's worth of food the household already has.
+   So normalizeLocal copies the flag down onto each dish, once. */
+
+test("a version-1 plan's whole-meal skip is copied onto every dish under it", () => {
+  const after = normalizeLocal({
+    version: 1,
+    plan: { Mon: { Dinner: { recipeId: "r1", servings: 4, skipList: true, sides: [{ recipeId: "r2", servings: 2 }, { recipeId: "r3", servings: 2 }] } } },
+  });
+  assert.deepEqual(
+    after.plan.Mon.Dinner.sides,
+    [{ recipeId: "r2", servings: 2, skipList: true }, { recipeId: "r3", servings: 2, skipList: true }],
+    "the old flag meant all of them, so all of them keep it"
+  );
+  assert.deepEqual(slotDishes(after.plan.Mon.Dinner), [], "and the meal still reaches the list with nothing, exactly as before");
+  assert.equal(after.version, SKIP_PER_DISH_VERSION, "the state has to record that it was converted");
+});
+
+test("converting is a ONE-TIME thing, so un-skipping a dish sticks", () => {
+  /* Without the version gate this runs on every read: you untick one dish on a
+     meal whose main is skipped, and the next read silently ticks it again. */
+  const first = normalizeLocal({
+    version: 1,
+    plan: { Mon: { Dinner: { recipeId: "r1", servings: 4, skipList: true, sides: [{ recipeId: "r2", servings: 2 }] } } },
+  });
+  delete first.plan.Mon.Dinner.sides[0].skipList;
+  const second = normalizeLocal(first);
+  assert.deepEqual(second.plan.Mon.Dinner.sides, [{ recipeId: "r2", servings: 2 }], "a dish un-skipped on the new build must stay un-skipped");
+  assert.deepEqual(slotDishes(second.plan.Mon.Dinner), [{ recipeId: "r2", servings: 2 }]);
+});
+
+test("a state written by a LATER build keeps its own version", () => {
+  // Knocking it back would hand that build its old shape and re-run whatever
+  // migrations it had already done.
+  assert.equal(normalizeLocal({ version: 99, plan: {} }).version, 99);
+  assert.equal(normalizeLocal({}).version, SKIP_PER_DISH_VERSION, "a state with no version at all is brought up to date");
+});
+
+test("spreadSkipToDishes leaves alone what it has nothing to convert", () => {
+  const unskipped = { recipeId: "r1", servings: 4, sides: [{ recipeId: "r2", servings: 2 }] };
+  assert.equal(spreadSkipToDishes(unskipped), unskipped, "no flag to copy, so not even a new object");
+  const noSides = { recipeId: "r1", servings: 4, skipList: true };
+  assert.equal(spreadSkipToDishes(noSides), noSides, "nothing to copy it onto");
+  assert.equal(spreadSkipToDishes(undefined), undefined);
+});
+
+test("converting carries through a field this build has never heard of", () => {
+  // Forward compatibility: every device writes the whole state back, so a slot
+  // or a dish rebuilt field-by-field would strip a newer build's field out of
+  // the SHARED copy for everybody.
+  const after = normalizeLocal({
+    version: 1,
+    plan: { Mon: { Dinner: { recipeId: "r1", servings: 4, skipList: true, mood: "cosy", sides: [{ recipeId: "r2", servings: 2, garnish: "dill" }] } } },
+  });
+  assert.equal(after.plan.Mon.Dinner.mood, "cosy");
+  assert.equal(after.plan.Mon.Dinner.sides[0].garnish, "dill");
+});
+
+test("slotFeedsList follows the dishes, not the slot's own flag", () => {
+  // Derived from slotDishes on purpose: a meal whose dishes are skipped one by
+  // one feeds nothing, and the two must not be able to disagree about it.
+  assert.equal(slotFeedsList({ recipeId: "r1", servings: 4, skipList: true, sides: [{ recipeId: "r2", servings: 2 }] }), true, "a dish is still going on the list");
+  assert.equal(slotFeedsList({ recipeId: "r1", servings: 4, skipList: true, sides: [{ recipeId: "r2", servings: 2, skipList: true }] }), false, "nothing is");
 });
 
 test("slotDishes ignores a malformed side entry rather than crashing", () => {
@@ -749,16 +835,33 @@ test("a side's ingredients reach the shopping list alongside the main", () => {
   assert.deepEqual(servingsByRecipe(d), { r1: 4, r2: 4 });
 });
 
-test("a skipped slot suppresses its sides too, not just the main", () => {
-  const d = aggData({
-    recipes: [
-      recipe("r1", "Roast chicken", 4, [{ name: "Chicken", qty: 4, unit: "lb" }]),
-      recipe("r2", "Green beans", 4, [{ name: "Beans", qty: 1, unit: "lb" }]),
-    ],
+test("skipping one dish takes only that dish's ingredients off the list", () => {
+  /* The point of a flag per dish, walked all the way through to the shopping
+     list — which is where a mistake here costs a wasted trip. */
+  const recipes = [
+    recipe("r1", "Roast chicken", 4, [{ name: "Chicken", qty: 4, unit: "lb" }]),
+    recipe("r2", "Green beans", 4, [{ name: "Beans", qty: 1, unit: "lb" }]),
+  ];
+  const mainSkipped = aggData({
+    recipes,
     plan: { Mon: { Dinner: { recipeId: "r1", servings: 4, skipList: true, sides: [{ recipeId: "r2", servings: 4 }] } } },
   });
-  assert.deepEqual(aggregateItems(d), []);
-  assert.deepEqual(servingsByRecipe(d), {});
+  assert.deepEqual(aggregateItems(mainSkipped).map((i) => i.name), ["Beans"]);
+  assert.deepEqual(servingsByRecipe(mainSkipped), { r2: 4 });
+
+  const sideSkipped = aggData({
+    recipes,
+    plan: { Mon: { Dinner: { recipeId: "r1", servings: 4, sides: [{ recipeId: "r2", servings: 4, skipList: true }] } } },
+  });
+  assert.deepEqual(aggregateItems(sideSkipped).map((i) => i.name), ["Chicken"]);
+  assert.deepEqual(servingsByRecipe(sideSkipped), { r1: 4 });
+
+  const bothSkipped = aggData({
+    recipes,
+    plan: { Mon: { Dinner: { recipeId: "r1", servings: 4, skipList: true, sides: [{ recipeId: "r2", servings: 4, skipList: true }] } } },
+  });
+  assert.deepEqual(aggregateItems(bothSkipped), []);
+  assert.deepEqual(servingsByRecipe(bothSkipped), {});
 });
 
 test("the same ingredient sums across a main and a side", () => {
@@ -780,12 +883,78 @@ test("planSlotsFor finds a recipe whether it's the main or a side", () => {
       Tue: { Dinner: { recipeId: "r3", servings: 4, sides: [{ recipeId: "r2", servings: 6 }] } },
     },
   });
-  assert.deepEqual(planSlotsFor(d, "r1"), [{ day: "Mon", type: "Dinner", role: "main", servings: 4 }]);
+  // dishIndex is what removeDish and replaceDish take: 0 is the dish held in
+  // the slot's own recipeId, 1 is sides[0].
+  assert.deepEqual(planSlotsFor(d, "r1"), [{ day: "Mon", type: "Dinner", role: "main", dishIndex: 0, servings: 4 }]);
   assert.deepEqual(planSlotsFor(d, "r2"), [
-    { day: "Mon", type: "Dinner", role: "side", index: 0, servings: 2 },
-    { day: "Tue", type: "Dinner", role: "side", index: 0, servings: 6 },
+    { day: "Mon", type: "Dinner", role: "side", index: 0, dishIndex: 1, servings: 2 },
+    { day: "Tue", type: "Dinner", role: "side", index: 0, dishIndex: 1, servings: 6 },
   ]);
   assert.deepEqual(planSlotsFor(d, "nope"), []);
+});
+
+/* ---------------- one rule for taking a dish off a meal ----------------
+   removeDish counts the dishes as they are DRAWN — 0 is the one in the slot's
+   own recipeId, 1 is sides[0] — so nothing above it has to know that the
+   first dish is stored differently from the rest.
+
+   REMOVING THE FIRST ONE USED TO DELETE THE WHOLE MEAL, every dish on it,
+   because the first dish IS the slot as far as the stored shape goes. The ✕
+   that did it was identical to the four below it, and on the Recipes tab the
+   chip read "Remove <recipe> from Sun Dinner" and took four other dinners
+   with it. */
+
+test("removing the first dish promotes the next one rather than deleting the meal", () => {
+  const slot = { recipeId: "r1", servings: 4, skipList: true, sides: [{ recipeId: "r2", servings: 2 }, { recipeId: "r3", servings: 6 }] };
+  assert.deepEqual(
+    removeDish(slot, 0),
+    { recipeId: "r2", servings: 2, sides: [{ recipeId: "r3", servings: 6 }] },
+    "the next dish takes its place, and the skip goes with the dish that left"
+  );
+});
+
+test("removing a later dish takes only that dish", () => {
+  const slot = { recipeId: "r1", servings: 4, sides: [{ recipeId: "r2", servings: 2 }, { recipeId: "r3", servings: 6 }] };
+  assert.deepEqual(removeDish(slot, 1), { recipeId: "r1", servings: 4, sides: [{ recipeId: "r3", servings: 6 }] });
+  assert.deepEqual(removeDish(slot, 2), { recipeId: "r1", servings: 4, sides: [{ recipeId: "r2", servings: 2 }] });
+  assert.deepEqual(removeDish(slot, 9), slot, "a dish number that is not there changes nothing");
+});
+
+test("the meal goes when its last dish does, and not before", () => {
+  assert.equal(removeDish({ recipeId: "r1", servings: 4 }, 0), null);
+  assert.deepEqual(removeDish({ recipeId: "r1", servings: 4, sides: [{ recipeId: "r2", servings: 2 }] }, 1), { recipeId: "r1", servings: 4 }, "the empty sides list is removed, not left behind");
+  assert.equal(removeDish(undefined, 0), null);
+  assert.equal(removeDish({}, 0), null);
+});
+
+test("a promoted dish carries its own skip, and does not inherit the old one", () => {
+  assert.equal(removeDish({ recipeId: "r1", skipList: true, sides: [{ recipeId: "r2" }] }, 0).skipList, undefined, "the skip belonged to the dish that left");
+  assert.equal(removeDish({ recipeId: "r1", sides: [{ recipeId: "r2", skipList: true }] }, 0).skipList, true, "and the arriving dish keeps its own");
+});
+
+test("removing a dish carries through a field this build has never heard of", () => {
+  // Every device writes the whole state back, so a slot rebuilt field by field
+  // would strip a newer build's field out of the SHARED copy for everybody.
+  const next = removeDish({ recipeId: "r1", mood: "cosy", sides: [{ recipeId: "r2", garnish: "dill" }] }, 0);
+  assert.equal(next.mood, "cosy", "a field on the meal stays on the meal");
+  assert.equal(next.garnish, "dill", "and the promoted dish brings its own");
+});
+
+test("replaceDish swaps one dish and leaves the rest of the meal alone", () => {
+  /* The first dish's swap used to drop every other dish, on the reasoning that
+     a side belongs to the dish it was chosen beside. Swapping the third never
+     touched the others; there is no reason the first should. */
+  const slot = { recipeId: "r1", servings: 4, skipList: true, sides: [{ recipeId: "r2", servings: 2 }] };
+  assert.deepEqual(
+    replaceDish(slot, 0, "rX", 3),
+    { recipeId: "rX", servings: 3, sides: [{ recipeId: "r2", servings: 2 }] },
+    "the other dishes survive, and the skip does not carry to a dish nobody said that about"
+  );
+  assert.deepEqual(
+    replaceDish(slot, 1, "rX", 3),
+    { recipeId: "r1", servings: 4, skipList: true, sides: [{ recipeId: "rX", servings: 3 }] }
+  );
+  assert.deepEqual(replaceDish(slot, 9, "rX", 3), slot, "a dish number that is not there changes nothing");
 });
 
 test("the cupboard SUBTRACTS from demand instead of hiding the item", () => {
@@ -908,6 +1077,10 @@ test("an empty unit is not merged into 'ea'", () => {
 });
 
 test("the display unit is the largest that keeps the number above 1", () => {
+  /* CUPS ARE THE ONE EXCEPTION to the name of this test, and it is tested
+     separately below: half a cup stays half a cup rather than stepping down
+     to fluid ounces. Everything here is weight and metric, where the rule is
+     unqualified — half a pound really should read 8 oz. */
   assert.deepEqual(combineParts({ oz: 8, lb: 1 }), { lb: 1.5 });
   // Promotes even to a unit that wasn't typed: 24 oz is 1.5 lb, and everyone
   // reads lb and oz as the same scale.
@@ -1115,6 +1288,52 @@ test("seedCatalog keys recipes by id and MINTS ingredient ids", () => {
       assert.ok(c.ingredients[line.ingredientId], `dangling line ${JSON.stringify(line)}`);
     }
   }
+});
+
+/* WHICH UNIT AN AMOUNT IS SHOWN IN. Nothing tested this at all: the ladder
+   could be changed in any direction and all 397 tests stayed green, which is
+   how "4 fl oz of carrots" reached a real shopping list unnoticed. */
+const TSP = 4.92892159375;
+const OZ = 28.349523125;
+const PER = { tsp: TSP, tbsp: TSP * 3, "fl oz": TSP * 6, cup: TSP * 48, oz: OZ, lb: OZ * 16, ml: 1, l: 1000 };
+const shownAs = (qty, unit, pref = "standard") => pickDisplayUnit([unit], qty * PER[unit], {}, pref);
+
+test("a fraction of a cup stays in cups, because that is how recipes are written", () => {
+  /* THE BUG THIS FIXES, seen on a real shopping list: half a cup of carrots
+     rendered "4 fl oz". Perfectly correct, and useless — fluid ounces are a
+     liquid measure, and you cannot pick up four of them in a shop. */
+  assert.equal(shownAs(0.5, "cup"), "cup", "half a cup must stay a half cup");
+  assert.equal(shownAs(0.25, "cup"), "cup", "a quarter cup too");
+  assert.equal(shownAs(0.75, "cup"), "cup");
+  assert.equal(shownAs(1 / 3, "cup"), "cup", "thirds are a recipe fraction as much as halves");
+  assert.equal(shownAs(2 / 3, "cup"), "cup");
+});
+
+test("an amount nobody would measure still steps down", () => {
+  // 0.3 of a cup is not a fraction any recipe is written in, so there is
+  // nothing to gain by writing it that way.
+  assert.equal(shownAs(0.3, "cup"), "tbsp", "0.3 cup should become tablespoons, not stay an odd cup");
+  assert.equal(shownAs(1, "tbsp"), "tbsp", "a tablespoon of oil is a tablespoon");
+  assert.equal(shownAs(0.5, "tsp"), "tsp");
+});
+
+test("fluid ounces are never promoted INTO, only kept when asked for", () => {
+  /* Same rule pt/qt/gal already had, and the same reasoning: a container
+     size, or a liquid measure, is not somewhere an amount should be moved on
+     its own. It still displays when a recipe actually says so. */
+  for (const q of [0.3, 0.4, 0.6]) {
+    assert.notEqual(shownAs(q, "cup"), "fl oz", `${q} cup should not become fluid ounces`);
+  }
+  assert.equal(shownAs(8, "fl oz"), "cup", "8 fl oz is a cup, and promoting UP is still right");
+});
+
+test("the cup rule does not leak into weight, metric or count", () => {
+  /* THE REASON IT IS CUPS ONLY. Half a pound is sold as 8 oz and half a
+     litre as 500 ml — the smaller unit is the useful one there, and a
+     fractions-everywhere rule would have made both worse. */
+  assert.equal(shownAs(0.5, "lb"), "oz", "half a pound should read 8 oz, not 0.5 lb");
+  assert.equal(shownAs(0.5, "l", "metric"), "ml", "half a litre should read 500 ml");
+  assert.equal(shownAs(0.25, "lb"), "oz");
 });
 
 test("emptyCatalog has the shape of a catalog and none of the content", () => {
@@ -1547,7 +1766,7 @@ test("catalogNameCollisions finds exactly the groups that would lose an entry", 
   assert.equal(found[1].entries.length, 3);
   // The DISPLAY names are no help: normalizeIngredient caps and trims, so
   // "eggs " comes back as "Eggs" — identical to the first entry. This is the
-  // whole reason duplicates are invisible in the Ingredients tab, and why the
+  // whole reason duplicates are invisible in the Pantry tab, and why the
   // store is carried too.
   assert.deepEqual(found[1].entries.map((e) => e.name), ["Eggs", "EGGS", "Eggs"]);
   assert.deepEqual(found[0].entries.map((e) => e.store), ["Costco", "Aldi"]);
@@ -1607,7 +1826,7 @@ test("no rename a user can ask for leaves the catalog un-exportable", () => {
 });
 
 test("adding an ingredient to the list doesn't clone it without a store", () => {
-  // THE BUG, exactly as reported: tap "+ List" on Orzo in the Ingredients tab
+  // THE BUG, exactly as reported: tap "+ List" on Orzo in the Pantry tab
   // and a second store-less "Orzo" appears. setListQty writes extras under the
   // ingredient's ID, but normalizeLocal re-derived the key from the NAME, so
   // the entry detached from the id-keyed catalog and rendered as its own row.
