@@ -523,7 +523,7 @@ export function WeekTab({ data, update, isGuest }) {
                                     onClick={() => openPicker(day, type, "replace", d.dishIndex)}
                                     aria-label={`${day} ${type}: ${d.recipe.name} — pick a different meal`}
                                     title="Pick a different meal"
-                                    style={{ width: TAP, alignSelf: "stretch", flexShrink: 0, border: "none", borderLeft: `1px solid ${skipped ? C.line : C.green}`, background: "transparent", color: skipped ? C.faint : C.green, cursor: "pointer", fontSize: 12, lineHeight: 1, padding: 0 }}
+                                    style={{ width: TAP, alignSelf: "stretch", flexShrink: 0, border: "none", borderLeft: `1px solid ${skipped ? C.line : C.green}`, background: "transparent", color: skipped ? C.faint : C.green, cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 0 }}
                                   >
                                     ▾
                                   </button>
