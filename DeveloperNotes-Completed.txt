@@ -4228,8 +4228,58 @@ into the details panel and the name grew.
         counts them (the main and the dishes are separate markup and drifted
         apart once already, which is why it counts rather than checking one).
 
-     TESTED: 408 unit, 12 sync, 79 rules, 18 database, 348 browser, lint and
-     build. Four browser tests moved onto the new labels rather than being
+     S. THE FIRST DISH WAS TREATED AS A DIFFERENT KIND OF THING, AND THAT WAS
+        NEVER A DECISION EITHER. Asked, after a screenshot of one Sunday
+        dinner holding five dishes: why is the first one different, and what
+        is the logic? There is none. A slot stores its first dish in the
+        slot's own `recipeId` and the rest in `sides`, and that STORED SHAPE
+        was showing through the screen in four ways — the first dish had a ▾
+        to swap it and the others did not, its servings sat on a line of their
+        own with the word spelt out while theirs were a cramped "4 sv", its ✕
+        was outside the bubble, and its ✕ DELETED THE WHOLE MEAL.
+        THE ✕ IS THE PART THAT COULD COST A TRIP. It looked identical to the
+        four below it and removed five dishes instead of one. The Recipes tab
+        had the sharper version: both chips read "Remove <recipe> from Sun
+        Dinner", and which of the two things it did depended on where that
+        recipe happened to sit in the stored shape. Same sentence, one dish or
+        five.
+        REMOVING THE FIRST DISH PROMOTES THE NEXT. The meal goes when its last
+        dish goes. That is one rule, in lib.js as removeDish, shared by the
+        Plan tab and the Recipes tab, and it is why every ✕ can now read the
+        same and mean the same.
+        SWAPPING THE FIRST DISH USED TO DROP THE OTHERS TOO, on the reasoning
+        that a side belongs to the dish it was chosen beside — true of
+        potatoes beside a roast, and untrue from the moment N made two full
+        dinners on one day ordinary. Swapping the third never touched the
+        others. replaceDish leaves the rest of the meal alone whichever dish
+        it is, and every dish has a ▾ now.
+        THE STORED SHAPE IS UNCHANGED — still one `recipeId` plus `sides`, no
+        migration, no version spent. Promotion is a move. The markup is what
+        changed: ONE block draws every dish, built from a flattened list, so
+        the two cannot drift apart again the way they did after L renamed the
+        words and left the layout alone.
+        THE SERVINGS BOX MOVED OFF THE ROW, for all of them. Riding on the row
+        with a ▾, "sv" and a 44px ✕ left about 70px of width for a name like
+        "Baked Creamy Orzo with Chickpeas & Spinach". The line under each dish
+        had to exist anyway for its checkbox, so the number sits there and the
+        word is spelt out in full.
+        "(SIDE)" IS GONE from the Recipes tab chips. It marked a recipe as not
+        being the first dish, which said "lesser" about a second full dinner.
+        MY OWN TEST CAUGHT A HOLE I HAD WRITTEN: promotion copied the three
+        fields it knew by name, so a field from a newer build sitting on the
+        promoted dish was dropped — and every device writes the whole state
+        back, so that would strip it out of the SHARED copy for everybody. It
+        spreads the whole dish now and unsets only what the arriving dish does
+        not have, so nothing is inherited from the dish that left either.
+        MUTATION-TESTED THREE WAYS: making the first dish's removal delete the
+        meal fails 3 unit and 2 browser tests; making its swap drop the other
+        dishes fails 1 unit and 1 browser test; giving only the first dish a ▾
+        fails 1 browser test.
+
+     TESTED: 414 unit, 12 sync, 79 rules, 18 database, 349 browser, lint and
+     build. Six browser tests moved onto the new labels rather than being
+     weakened — "Servings for Mon Dinner" names its dish now, and "Clear X
+     from" is "Remove X from" like every other dish's. Four browser tests moved onto the new labels rather than being
      weakened: three helpers that re-pick a filled slot now aim at the ▾,
      because a bare "Mon Dinner: " matches the name button too and would have
      opened the recipe instead of the picker. Six existing browser tests had to be updated because controls

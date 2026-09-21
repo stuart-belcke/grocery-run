@@ -115,7 +115,9 @@ test("SHOULD: a new side takes the MAIN's servings, not its own recipe's", async
   try {
     await startPlanning(page);
     await pickMain(page, "Mon Dinner", "Stir-fry");
-    const servings = page.getByLabel("Servings for Mon Dinner");
+    // Every dish's servings box names its dish now — the first one's used to
+    // be "Servings for Mon Dinner", the meal rather than the dish on it.
+    const servings = page.getByLabel("Servings of Stir-fry on Mon Dinner");
     await servings.fill("4");
     await servings.blur();
     await page.waitForTimeout(500);
@@ -242,16 +244,22 @@ test("SHOULD: removing a side takes only its own ingredients off the list", asyn
   }
 });
 
-test("SHOULD: replacing the main clears the sides that were paired with it", async () => {
-  /* Sides belong to the dish they were chosen beside. Keeping green beans
-     when the stir-fry becomes a rice bowl silently invents a meal nobody
-     planned — and it would go on the list. */
+test("SHOULD: swapping one dish leaves the rest of the meal alone, whichever dish it is", async () => {
+  /* THIS USED TO SAY THE OPPOSITE for the first dish: swapping it dropped
+     every other dish on the meal, on the reasoning that a side belongs to the
+     dish it was chosen beside. True of potatoes beside a roast; wrong once a
+     meal is a list of dishes and this is dish number one. Swapping the second
+     dish never touched the others, and nothing explained why the first should
+     be different — it was the stored shape showing through, the same as the ✕
+     that deleted the whole meal.
+     BOTH DIRECTIONS IN ONE TEST, because the pair is the point. */
   const page = await openApp(BASE, { catalog: sidesCatalog() });
   try {
     await startPlanning(page);
     await pickMain(page, "Mon Dinner", "Stir-fry");
     await addSide(page, "Mon Dinner", "Green beans");
 
+    // Swap the FIRST dish. The second one stays.
     await page.getByLabel(/^Mon Dinner: Stir-fry — pick a different meal$/).click();
     await page.waitForTimeout(400);
     await page.getByRole("dialog", { name: "Choose a meal for Mon" })
@@ -261,15 +269,63 @@ test("SHOULD: replacing the main clears the sides that were paired with it", asy
 
     assert.deepEqual(
       (await page.readState()).plan.Mon.Dinner,
-      { recipeId: "r-riceside", servings: 2 },
-      "a replaced main should take its sides with it"
+      { recipeId: "r-riceside", servings: 2, sides: [{ recipeId: "r-greenbeans", servings: 2 }] },
+      "swapping the first dish must not take the others with it"
     );
     await page.tab("List");
+    assert.deepEqual(await listedNames(page), ["Green beans", "Jasmine rice"], "the meal is the new first dish plus the one that was already there");
+
+    // And swap the SECOND dish, which has always worked this way.
+    await page.tab("Plan");
+    await page.getByLabel(/^Mon Dinner: Green beans — pick a different meal$/).click();
+    await page.waitForTimeout(400);
+    await page.getByRole("dialog", { name: "Choose a meal for Mon" })
+      .locator("button").filter({ hasText: /Stir-fry/ }).first().click();
+    await page.waitForTimeout(600);
+    await page.roundTrip();
+
     assert.deepEqual(
-      await listedNames(page),
-      ["Jasmine rice"],
-      "the old main's sides should be off the list too"
+      (await page.readState()).plan.Mon.Dinner,
+      { recipeId: "r-riceside", servings: 2, sides: [{ recipeId: "r-stirfry", servings: 2 }] },
+      "swapping a later dish must not disturb the first"
     );
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("SHOULD: removing the first dish promotes the next rather than deleting the meal", async () => {
+  /* The sharpest edge this removed. The ✕ on the first dish was identical to
+     the ones below it and deleted every dish on the meal. */
+  const page = await openApp(BASE, { catalog: sidesCatalog() });
+  try {
+    await startPlanning(page);
+    await pickMain(page, "Mon Dinner", "Stir-fry");
+    await addSide(page, "Mon Dinner", "Green beans");
+
+    await page.getByLabel("Remove Stir-fry from Mon Dinner").click();
+    await page.waitForTimeout(600);
+    await page.roundTrip();
+
+    assert.deepEqual(
+      (await page.readState()).plan.Mon.Dinner,
+      { recipeId: "r-greenbeans", servings: 2 },
+      "the dish that was second is the meal now"
+    );
+    await page.tab("List");
+    assert.deepEqual(await listedNames(page), ["Green beans"], "and only the removed dish's ingredients have gone");
+
+    // And the meal goes when its last dish does.
+    await page.tab("Plan");
+    await page.getByLabel("Remove Green beans from Mon Dinner").click();
+    await page.waitForTimeout(600);
+    await page.roundTrip();
+    // The DAY key stays behind as an empty object, as it always has when a slot
+    // is deleted — Firebase drops an empty object on the way out, so nothing
+    // reaches the database, and filledTypes reads it as a day with nothing on
+    // it. What matters is that the meal is gone.
+    assert.equal((await page.readState()).plan.Mon?.Dinner, undefined, "removing the last dish empties the meal");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
@@ -375,10 +431,17 @@ test("SHOULD: a plan saved before dishes had their own flag still means what it 
   }
 });
 
-test("SHOULD: the Recipes tab shows a recipe planned as a side, and drops only that side", async () => {
+test("SHOULD: a Recipes-tab chip removes its own dish, whichever dish it is", async () => {
   /* The Recipes tab's "on the plan" chips are how you find where a recipe is
-     used. A side that didn't appear there would be invisible from the recipe
-     — and its ✕ has to remove the SIDE, not the whole slot. */
+     used, and each carries a ✕ reading "Remove <recipe> from Mon Dinner".
+
+     THE SAME SENTENCE USED TO DO TWO DIFFERENT THINGS. On a recipe that was
+     the FIRST dish it deleted the whole meal — every other dish with it — and
+     on any later dish it removed just that one. Nothing on the chip said
+     which, because the difference was only in how the meal happens to be
+     stored. This is the sharper half of the same edge the Plan tab's ✕ had.
+     ALSO: the chip used to print "(side)" on anything that was not the first
+     dish, which said "lesser" about a second full dinner. */
   const page = await openApp(BASE, { catalog: sidesCatalog() });
   try {
     await startPlanning(page);
@@ -386,20 +449,34 @@ test("SHOULD: the Recipes tab shows a recipe planned as a side, and drops only t
     await addSide(page, "Mon Dinner", "Green beans");
 
     await page.tab("Recipes");
-    const remove = page.getByRole("button", { name: "Remove Green beans from Mon Dinner" });
-    assert.equal(await remove.count(), 1, "a recipe used as a side should show the slot it's in");
-    assert.ok(
-      /Mon · Dinner \(side\)/.test(await page.textContent("body")),
-      "the chip should say it's there as a side, not as the meal itself"
+    assert.equal(
+      /\(side\)/.test(await page.textContent("body")),
+      false,
+      "no dish on a meal is a lesser kind of dish, so no chip should say so"
     );
 
-    await remove.click();
+    // The chip for the FIRST dish. It must take off that dish and no other.
+    const removeFirst = page.getByRole("button", { name: "Remove Stir-fry from Mon Dinner" });
+    assert.equal(await removeFirst.count(), 1, "a recipe on the plan should show the meal it is on");
+    await removeFirst.click();
     await page.waitForTimeout(600);
     await page.roundTrip();
+    assert.deepEqual(
+      (await page.readState()).plan.Mon.Dinner,
+      { recipeId: "r-greenbeans", servings: 2 },
+      "the dish that was second is the meal now — deleting both is the bug this replaced"
+    );
 
-    const slot = (await page.readState()).plan.Mon.Dinner;
-    assert.equal(slot.recipeId, "r-stirfry", "removing a side from Meals must leave the main planned");
-    assert.ok(!("sides" in slot), "the side should be gone from the slot");
+    // And the chip for what is now the only dish empties the meal.
+    await page.tab("Recipes");
+    await page.getByRole("button", { name: "Remove Green beans from Mon Dinner" }).click();
+    await page.waitForTimeout(600);
+    await page.roundTrip();
+    // The DAY key stays behind as an empty object, as it always has when a slot
+    // is deleted — Firebase drops an empty object on the way out, so nothing
+    // reaches the database, and filledTypes reads it as a day with nothing on
+    // it. What matters is that the meal is gone.
+    assert.equal((await page.readState()).plan.Mon?.Dinner, undefined, "removing the last dish empties the meal");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

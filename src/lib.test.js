@@ -51,6 +51,8 @@ import {
   remapStateIngredientIds,
   safeKey,
   normalizeLocal,
+  removeDish,
+  replaceDish,
   SKIP_PER_DISH_VERSION,
   spreadSkipToDishes,
   emptyLocal,
@@ -881,12 +883,78 @@ test("planSlotsFor finds a recipe whether it's the main or a side", () => {
       Tue: { Dinner: { recipeId: "r3", servings: 4, sides: [{ recipeId: "r2", servings: 6 }] } },
     },
   });
-  assert.deepEqual(planSlotsFor(d, "r1"), [{ day: "Mon", type: "Dinner", role: "main", servings: 4 }]);
+  // dishIndex is what removeDish and replaceDish take: 0 is the dish held in
+  // the slot's own recipeId, 1 is sides[0].
+  assert.deepEqual(planSlotsFor(d, "r1"), [{ day: "Mon", type: "Dinner", role: "main", dishIndex: 0, servings: 4 }]);
   assert.deepEqual(planSlotsFor(d, "r2"), [
-    { day: "Mon", type: "Dinner", role: "side", index: 0, servings: 2 },
-    { day: "Tue", type: "Dinner", role: "side", index: 0, servings: 6 },
+    { day: "Mon", type: "Dinner", role: "side", index: 0, dishIndex: 1, servings: 2 },
+    { day: "Tue", type: "Dinner", role: "side", index: 0, dishIndex: 1, servings: 6 },
   ]);
   assert.deepEqual(planSlotsFor(d, "nope"), []);
+});
+
+/* ---------------- one rule for taking a dish off a meal ----------------
+   removeDish counts the dishes as they are DRAWN — 0 is the one in the slot's
+   own recipeId, 1 is sides[0] — so nothing above it has to know that the
+   first dish is stored differently from the rest.
+
+   REMOVING THE FIRST ONE USED TO DELETE THE WHOLE MEAL, every dish on it,
+   because the first dish IS the slot as far as the stored shape goes. The ✕
+   that did it was identical to the four below it, and on the Recipes tab the
+   chip read "Remove <recipe> from Sun Dinner" and took four other dinners
+   with it. */
+
+test("removing the first dish promotes the next one rather than deleting the meal", () => {
+  const slot = { recipeId: "r1", servings: 4, skipList: true, sides: [{ recipeId: "r2", servings: 2 }, { recipeId: "r3", servings: 6 }] };
+  assert.deepEqual(
+    removeDish(slot, 0),
+    { recipeId: "r2", servings: 2, sides: [{ recipeId: "r3", servings: 6 }] },
+    "the next dish takes its place, and the skip goes with the dish that left"
+  );
+});
+
+test("removing a later dish takes only that dish", () => {
+  const slot = { recipeId: "r1", servings: 4, sides: [{ recipeId: "r2", servings: 2 }, { recipeId: "r3", servings: 6 }] };
+  assert.deepEqual(removeDish(slot, 1), { recipeId: "r1", servings: 4, sides: [{ recipeId: "r3", servings: 6 }] });
+  assert.deepEqual(removeDish(slot, 2), { recipeId: "r1", servings: 4, sides: [{ recipeId: "r2", servings: 2 }] });
+  assert.deepEqual(removeDish(slot, 9), slot, "a dish number that is not there changes nothing");
+});
+
+test("the meal goes when its last dish does, and not before", () => {
+  assert.equal(removeDish({ recipeId: "r1", servings: 4 }, 0), null);
+  assert.deepEqual(removeDish({ recipeId: "r1", servings: 4, sides: [{ recipeId: "r2", servings: 2 }] }, 1), { recipeId: "r1", servings: 4 }, "the empty sides list is removed, not left behind");
+  assert.equal(removeDish(undefined, 0), null);
+  assert.equal(removeDish({}, 0), null);
+});
+
+test("a promoted dish carries its own skip, and does not inherit the old one", () => {
+  assert.equal(removeDish({ recipeId: "r1", skipList: true, sides: [{ recipeId: "r2" }] }, 0).skipList, undefined, "the skip belonged to the dish that left");
+  assert.equal(removeDish({ recipeId: "r1", sides: [{ recipeId: "r2", skipList: true }] }, 0).skipList, true, "and the arriving dish keeps its own");
+});
+
+test("removing a dish carries through a field this build has never heard of", () => {
+  // Every device writes the whole state back, so a slot rebuilt field by field
+  // would strip a newer build's field out of the SHARED copy for everybody.
+  const next = removeDish({ recipeId: "r1", mood: "cosy", sides: [{ recipeId: "r2", garnish: "dill" }] }, 0);
+  assert.equal(next.mood, "cosy", "a field on the meal stays on the meal");
+  assert.equal(next.garnish, "dill", "and the promoted dish brings its own");
+});
+
+test("replaceDish swaps one dish and leaves the rest of the meal alone", () => {
+  /* The first dish's swap used to drop every other dish, on the reasoning that
+     a side belongs to the dish it was chosen beside. Swapping the third never
+     touched the others; there is no reason the first should. */
+  const slot = { recipeId: "r1", servings: 4, skipList: true, sides: [{ recipeId: "r2", servings: 2 }] };
+  assert.deepEqual(
+    replaceDish(slot, 0, "rX", 3),
+    { recipeId: "rX", servings: 3, sides: [{ recipeId: "r2", servings: 2 }] },
+    "the other dishes survive, and the skip does not carry to a dish nobody said that about"
+  );
+  assert.deepEqual(
+    replaceDish(slot, 1, "rX", 3),
+    { recipeId: "r1", servings: 4, skipList: true, sides: [{ recipeId: "rX", servings: 3 }] }
+  );
+  assert.deepEqual(replaceDish(slot, 9, "rX", 3), slot, "a dish number that is not there changes nothing");
 });
 
 test("the cupboard SUBTRACTS from demand instead of hiding the item", () => {

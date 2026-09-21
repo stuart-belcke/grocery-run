@@ -277,7 +277,7 @@ test("SHOULD: edit mode still offers the recipe view, alongside re-pick and clea
        you open the recipe — in both modes, with no 📖 anywhere. Clear is
        unaffected. */
     assert.equal(await page.getByLabel(/pick a different meal/).count(), 1, "the ▾ should still re-pick");
-    assert.equal(await page.getByLabel(/^Clear Stir-fry from Mon Dinner$/).count(), 1, "clear should still be there");
+    assert.equal(await page.getByLabel(/^Remove Stir-fry from Mon Dinner$/).count(), 1, "removing the dish should still be there");
 
     await page.getByLabel(/^Mon Dinner: Stir-fry — view recipe$/).click();
     await page.waitForTimeout(300);

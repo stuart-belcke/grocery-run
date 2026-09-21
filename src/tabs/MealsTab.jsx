@@ -6,7 +6,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, StickyBar, BackToTop, SuggestInput, SearchField, Section, useSticky, useUnsavedWork, FilterMark } from "../ui";
-import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, ingredientNames, normalizeCfg, ingredientMatches, existingIngredientSuggestions, splitSuggestion, unitMatches, ensureIngredientId, asArray, planSlotsFor, parseRecipeText } from "../lib";
+import { UNASSIGNED, DAYS, MEAL_TYPES, norm, uid, r2, ingredientNames, normalizeCfg, ingredientMatches, existingIngredientSuggestions, splitSuggestion, unitMatches, ensureIngredientId, asArray, planSlotsFor, removeDish, parseRecipeText } from "../lib";
 import { fetchRecipeFromUrl } from "../recipeImport";
 import { RecipeDetail } from "../RecipeDetail";
 
@@ -218,23 +218,22 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
       d.plan[day][type] = { recipeId: r.id, servings };
       return d;
     });
-  const removePlanSlot = (day, type) =>
+  /* TAKE THIS RECIPE OFF ONE MEAL, whichever dish it is on.
+
+     THERE USED TO BE TWO OF THESE and which one ran depended on where the
+     recipe sat in the stored shape: a side was dropped on its own, and the
+     FIRST dish deleted the whole day and meal — every other dish with it.
+     Both chips read "Remove <recipe> from Sun Dinner", so the same sentence
+     removed one dish or five depending on something nobody can see.
+     removeDish in lib.js is the one rule now, shared with the Plan tab:
+     removing the first dish moves the next one into its place, and the meal
+     goes when its last dish does. */
+  const removePlanDish = (day, type, dishIndex) =>
     update((d) => {
-      if (d.plan[day]) delete d.plan[day][type];
-      return d;
-    });
-  // Drop this recipe from just its ONE side slot, leaving the main and any
-  // other sides in place — unlike removePlanSlot, which clears the whole day/
-  // meal because there the recipe IS what fills it.
-  const removePlanSlotSide = (day, type, recipeId) =>
-    update((d) => {
-      const slot = d.plan?.[day]?.[type];
-      if (!slot) return d;
-      const sides = asArray(slot.sides).filter((s) => !(s && s.recipeId === recipeId));
-      const next = { ...slot };
-      if (sides.length) next.sides = sides;
-      else delete next.sides;
-      d.plan[day][type] = next;
+      const next = removeDish(d.plan?.[day]?.[type], dishIndex);
+      if (!d.plan[day]) return d;
+      if (next) d.plan[day][type] = next;
+      else delete d.plan[day][type];
       return d;
     });
 
@@ -573,7 +572,7 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
     // Everywhere this recipe appears in the plan, as a main or as a side —
     // sides are read-only here (a name + which day/meal), since adding one is
     // a Week-tab action that needs the rest of that slot's dishes in view.
-    const planSlots = planSlotsFor(data, r.id).map(({ day, type, role, servings: sv }) => ({ day, type, role, servings: Number(sv) || base }));
+    const planSlots = planSlotsFor(data, r.id).map(({ day, type, role, dishIndex, servings: sv }) => ({ day, type, role, dishIndex, servings: Number(sv) || base }));
     const onPlan = planSlots.length > 0;
     return (
       <div
@@ -770,11 +769,15 @@ export function MealsTab({ data, update, updateCatalog, isGuest, pendingImport, 
                 On the plan {planSlots.length} time{planSlots.length === 1 ? "" : "s"}:
               </span>
             )}
-            {planSlots.map(({ day, type, role, servings: sv }) => (
+            {planSlots.map(({ day, type, role, dishIndex, servings: sv }) => (
               <span key={day + type + role} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: C.greenSoft, color: C.green, fontSize: 12, fontWeight: 500, padding: "3px 4px 3px 9px", borderRadius: 999 }}>
-                {day} · {type}{role === "side" ? " (side)" : ""}{sv !== base ? ` ×${r2(sv / base)}` : ""}
+                {/* NO "(side)" ANY MORE. It marked a recipe as not being the
+                    first dish on its meal, which stopped meaning anything when
+                    every dish on a meal became the same kind of thing — the
+                    word said "lesser" about a second full dinner. */}
+                {day} · {type}{sv !== base ? ` ×${r2(sv / base)}` : ""}
                 <button
-                  onClick={() => (role === "side" ? removePlanSlotSide(day, type, r.id) : removePlanSlot(day, type))}
+                  onClick={() => removePlanDish(day, type, dishIndex)}
                   aria-label={`Remove ${r.name} from ${day} ${type}`}
                   title="Remove from the week plan"
                   style={{ border: "none", background: "transparent", color: C.green, cursor: "pointer", fontSize: 13, lineHeight: 1, padding: "0 2px" }}

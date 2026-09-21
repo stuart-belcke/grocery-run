@@ -7,7 +7,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, ConfirmDialog, SearchField, Seg, useSticky } from "../ui";
-import { MEAL_TYPES, norm, planStageOf, plannedMealCount, daysInOrder, asArray, unplannedMeals, r2 } from "../lib";
+import { MEAL_TYPES, norm, planStageOf, plannedMealCount, daysInOrder, asArray, unplannedMeals, r2, removeDish, replaceDish } from "../lib";
 import { RecipeDetail } from "../RecipeDetail";
 
 /* The meal-type column, and the indent that lines everything under it up
@@ -45,9 +45,12 @@ export function WeekTab({ data, update, isGuest }) {
   // do nothing (read-only stage) or reopen the picker (edit mode); neither
   // gets you to the recipe without leaving the tab and searching Meals again.
   const [recipeOpen, setRecipeOpen] = useSticky("week.recipeOpen", null);
-  const recipeKey = (day, type, sideIndex) => (sideIndex == null ? `${day}|${type}` : `${day}|${type}|${sideIndex}`);
-  const toggleRecipe = (day, type, sideIndex) =>
-    setRecipeOpen((cur) => (cur === recipeKey(day, type, sideIndex) ? null : recipeKey(day, type, sideIndex)));
+  // "day|type|dishIndex", where dishIndex counts the dishes as they are drawn
+  // and 0 is the first. It used to leave the index off for the first dish,
+  // which was the shape showing through here too.
+  const recipeKey = (day, type, dishIndex) => `${day}|${type}|${dishIndex}`;
+  const toggleRecipe = (day, type, dishIndex) =>
+    setRecipeOpen((cur) => (cur === recipeKey(day, type, dishIndex) ? null : recipeKey(day, type, dishIndex)));
   // Item 51d. View state only — nothing about which types you PLAN is stored,
   // because planning one is what makes it stay.
   /* A day shows the meals ON it, then one invitation to add another — the same
@@ -83,12 +86,6 @@ export function WeekTab({ data, update, isGuest }) {
   // into slotsEditable means every slot control follows automatically,
   // including any added later.
   const slotsEditable = (stage === "planning" || editing) && !isGuest;
-
-  /* WHAT A DISH ROW IS MADE OF. At rest it is a button, because the row is
-     how you open that dish's recipe. While planning it is a plain container:
-     it holds a number input and a remove button, and a <button> may not
-     contain either. */
-  const RowTag = slotsEditable ? "div" : "button";
 
   // Entering "planning" starts a fresh buying cycle. This is the boundary that
   // was missing: `bought` used to persist until someone happened to press
@@ -140,10 +137,26 @@ export function WeekTab({ data, update, isGuest }) {
     setConfirmClear(false);
   };
 
-  const openPicker = (day, type, role = "main") => {
+  /* `dishIndex` only matters while replacing, and counts the dishes as they
+     are drawn: 0 is the first, 1 the second. Every dish has its own ▾ now, so
+     "replace" has to know WHICH one — it used to mean the first, because the
+     first was the only one that had a ▾. */
+  const openPicker = (day, type, role = "main", dishIndex = 0) => {
     setPickQuery("");
-    setPicker({ day, type, role });
+    setPicker({ day, type, role, dishIndex });
   };
+
+  // Write a slot that removeDish/replaceDish worked out, or delete it when the
+  // last dish has gone. One path, so every ✕ on the tab behaves the same way.
+  const putSlot = (day, type, next) =>
+    update((d) => {
+      if (!d.plan[day]) d.plan[day] = {};
+      if (next) d.plan[day][type] = next;
+      else delete d.plan[day][type];
+      return d;
+    });
+
+  const dropDish = (day, type, dishIndex) => putSlot(day, type, removeDish(data.plan?.[day]?.[type], dishIndex));
 
   const assignFromPicker = (r) => {
     const slot = data.plan?.[picker.day]?.[picker.type];
@@ -175,58 +188,47 @@ export function WeekTab({ data, update, isGuest }) {
       setPicker(null);
       return;
     }
-    // A freshly picked meal starts at its own default servings, and on the
-    // shopping list: "already have the ingredients" was about the meal that
-    // used to be in this slot, not whatever replaces it — and neither were
-    // its sides, which were paired with the dish being replaced.
+    /* REPLACING ONE DISH, whichever dish it is. A swapped-in recipe starts at
+       its own default servings and on the shopping list — "already have the
+       ingredients" was about the dish that used to be here, not this one.
+       The OTHER dishes on the meal are untouched. They used to be dropped when
+       the first dish was swapped, on the reasoning that a side belongs to the
+       dish it was chosen beside; that stopped being true when a meal became a
+       list of dishes with no privileged one. Swapping the third never touched
+       the others, and now neither does swapping the first. */
+    if (slot?.recipeId) {
+      putSlot(picker.day, picker.type, replaceDish(slot, picker.dishIndex || 0, r.id, r.servings || 4));
+      setPicker(null);
+      return;
+    }
+    // An empty meal of the day: the picked recipe simply fills it.
     setSlot(picker.day, picker.type, { recipeId: r.id, servings: r.servings || 4, skipList: undefined, sides: undefined });
     setPicker(null);
   };
 
 
-  const setSlotSide = (day, type, index, patch) =>
+  /* CHANGE ONE DISH'S FIELDS, whichever dish it is. dishIndex 0 is the one
+     stored in the slot itself and the rest are in `sides`, so this is where
+     that difference stops — one setter, so the servings box and the
+     "already have the ingredients" box behave identically on every row.
+     `undefined` in a patch means "unset this": a dish that does not skip the
+     list keeps the shape it has always had rather than storing a `false` on
+     every dish on the plan. */
+  const setDish = (day, type, dishIndex, patch) =>
     update((d) => {
       const slot = d.plan?.[day]?.[type];
       if (!slot) return d;
-      d.plan[day][type] = {
-        ...slot,
-        sides: asArray(slot.sides).map((s, i) => {
-          if (i !== index) return s;
-          const next = { ...s, ...patch };
-          // `undefined` in a patch means "unset this", exactly as in setSlot —
-          // a dish that does not skip the list keeps the shape it has always
-          // had rather than storing a `false` on every dish on the plan.
-          for (const [k, v] of Object.entries(patch)) if (v === undefined) delete next[k];
-          return next;
-        }),
+      const apply = (dish) => {
+        const next = { ...dish, ...patch };
+        for (const [k, v] of Object.entries(patch)) if (v === undefined) delete next[k];
+        return next;
       };
+      d.plan[day][type] =
+        dishIndex === 0
+          ? apply(slot)
+          : { ...slot, sides: asArray(slot.sides).map((x, i) => (i === dishIndex - 1 ? apply(x) : x)) };
       return d;
     });
-
-  const removeSide = (day, type, index) =>
-    update((d) => {
-      const slot = d.plan?.[day]?.[type];
-      if (!slot) return d;
-      const sides = asArray(slot.sides).filter((_, i) => i !== index);
-      const next = { ...slot };
-      if (sides.length) next.sides = sides;
-      else delete next.sides;
-      d.plan[day][type] = next;
-      return d;
-    });
-
-  // Same snap-back as normalizeServings, for one side's amount.
-  const normalizeSideServings = (day, type, index, base) => {
-    const cur = Number(data.plan?.[day]?.[type]?.sides?.[index]?.servings);
-    if (!(cur > 0)) setSlotSide(day, type, index, { servings: base });
-  };
-
-  // Snap an empty / non-positive servings value back to the recipe's default so
-  // a slot never ends up with a blank amount (called when the input loses focus).
-  const normalizeServings = (day, type, base) => {
-    const cur = Number(data.plan?.[day]?.[type]?.servings);
-    if (!(cur > 0)) setSlot(day, type, { servings: base });
-  };
 
   const plannedCount = plannedMealCount(data);
   // Meals added straight to the shopping list on the Recipes tab ("Add
@@ -448,330 +450,162 @@ export function WeekTab({ data, update, isGuest }) {
               </div>
               {filledTypes(day).map((type) => {
                 const slot = data.plan?.[day]?.[type];
-                const recipe = slot?.recipeId ? data.recipes.find((r) => r.id === slot.recipeId) : null;
-                const base = recipe ? recipe.servings || 4 : 4;
-                /* Leftovers, or a dish you already have everything for: still
-                   on the plan, but its ingredients never reach the list.
-                   PER DISH, NOT PER MEAL. `slot.skipList` is the MAIN's now;
-                   each of the other dishes carries its own. It used to be one
-                   flag for the whole slot, set by a checkbox sitting under the
-                   main and reading as the main's own — so on a dinner of three
-                   dishes, a control that looked like it covered one covered
-                   all three. */
-                const skipped = !!slot?.skipList;
-                // Side dishes for this slot. A reference to a deleted recipe
-                // is filtered out here rather than crashing — MealsTab cleans
-                // these up on delete, but an old build's own edits might not.
-                const sideEntries = recipe
-                  ? asArray(slot.sides)
-                      .map((s, index) => ({ ...s, index, recipe: data.recipes.find((r) => r.id === s.recipeId) }))
-                      .filter((s) => s.recipe)
-                  : [];
-                /* Shared box styling so the read-only display and the editable
-                   meal button occupy the same shape on the line. A skipped dish
-                   drops the green so the week reads at a glance as which dishes
-                   are actually driving the shopping — TAKES THE DISH'S OWN
-                   skip, because with one flag per dish a skipped side under an
-                   ordinary main is an ordinary thing to see. */
+                /* ONE LIST OF DISHES, and nothing in it is privileged. The
+                   stored shape keeps the first dish in the slot's own
+                   `recipeId` and the rest in `sides`, which is why they used
+                   to be two separate pieces of markup — and having been drawn
+                   twice they drifted, until the first dish had a ▾ the others
+                   did not, its servings on a line of its own with the word
+                   spelt out, its ✕ outside the bubble, and that ✕ deleting the
+                   whole meal rather than one dish.
+                   NONE OF THAT WAS A DECISION. It was the stored shape showing
+                   through. Flattening here is what lets one block draw every
+                   dish, so they cannot drift again.
+                   A REFERENCE TO A DELETED RECIPE is dropped rather than
+                   crashing — MealsTab cleans these up on delete, but an old
+                   build's own edits might not. */
+                const dishes = [{ recipeId: slot?.recipeId, servings: slot?.servings, skipList: slot?.skipList }, ...asArray(slot?.sides)]
+                  .map((d, dishIndex) => ({ ...d, dishIndex, recipe: d && d.recipeId ? data.recipes.find((r) => r.id === d.recipeId) : null }))
+                  .filter((d) => d.recipe);
+                if (dishes.length === 0) {
+                  // The slot names a recipe that no longer exists. A guest sees
+                  // the same nothing; there is nothing to offer either of them.
+                  return null;
+                }
+                /* Shared box styling so the resting display and the editable
+                   row occupy the same shape. A skipped dish drops the green so
+                   the week reads at a glance as which dishes are actually
+                   driving the shopping — per dish, because a covered dish
+                   under an ordinary one is an ordinary thing to see. */
                 const dishBox = (isSkipped) => ({ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", fontFamily: fontBody, fontSize: 13, padding: "7px 10px", borderRadius: 8, border: `1px solid ${isSkipped ? C.line : C.green}`, background: isSkipped ? "#fff" : C.greenSoft, color: C.ink });
-                const slotBox = dishBox(skipped);
                 return (
                   <div key={type} style={{ padding: "5px 0" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: TYPE_GAP }}>
-                      {/* WHICH MEAL OF THE DAY THIS IS, and it has to be
-                          readable at a glance — it is the only thing telling
-                          a row apart from the one above it on a day that
-                          holds more than one meal. It was 12px in the faint
-                          grey used for supporting text, which is what it is
-                          not: on a scanned week it read as decoration. Ink,
-                          bolder, and a point larger. */}
-                      {/* PLANNING: which meal of the day this is, the only
-                          thing telling two rows on one day apart.
-                          AT REST: the day itself on its first row, and the
-                          meal type underneath it on any row after — because a
-                          week you are reading is a list of DAYS, and the type
-                          only has to disambiguate when a day holds more than
-                          one. */}
-                      <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, width: TYPE_COL, flexShrink: 0 }}>{type}</span>
-                      {!recipe && isGuest ? (
-                        // A guest cannot fill a slot, so an empty one is a fact
-                        // rather than an invitation.
-                        <span style={{ flex: 1, fontSize: 13, color: C.faint, padding: "7px 10px" }}>—</span>
-                      ) : !recipe ? (
-                        /* Empty slot — addable in either mode.
-                           INK, NOT FAINT (item 87). This is the primary action
-                           on an empty day and it was painted the grey the app
-                           uses for supporting notes, which reads as "disabled"
-                           or "already handled" on the one row whose whole job
-                           is to be tapped. Not a contrast failure — faint is
-                           5.67:1 on white and passes AA — but 5.67 against
-                           ink's 13.84 is the difference between a note and a
-                           button, and this is a button. */
-                        <button
-                          onClick={() => openPicker(day, type)}
-                          aria-label={`Choose a meal for ${day} ${type}`}
-                          title="Tap to choose a meal"
-                          style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, textAlign: "left", fontFamily: fontBody, fontSize: 13, padding: "7px 10px", borderRadius: 8, cursor: "pointer", border: `1px solid ${C.line}`, background: "#fff", color: C.ink }}
-                        >
-                          <span aria-hidden style={{ fontSize: 15, lineHeight: 1 }}>＋</span>
-                          Choose a meal
-                        </button>
-                      ) : slotsEditable ? (
-                        /* PLANNING: the NAME opens the recipe, the ▾ picks a
-                           different meal, the ✕ clears the slot. Servings drop
-                           to their own line just below.
-                           THE NAME, IN BOTH MODES, AND THE BOOK IS GONE. The
-                           whole bubble used to be the "pick a different meal"
-                           button here, which left no room for the recipe — so
-                           a 📖 was bolted on beside it, 24x20px, and the same
-                           question (what is in this?) was answered by tapping
-                           a whole bubble at rest and hunting an icon while
-                           planning. One rule instead: a dish's NAME is how you
-                           open its dish. Picking a different meal moves onto
-                           the ▾ that was already drawn there and already meant
-                           "change", now a real button rather than decoration. */
-                        <>
-                          <div style={{ ...slotBox, padding: 0, minHeight: TAP, overflow: "hidden" }}>
-                            <button
-                              onClick={() => toggleRecipe(day, type)}
-                              aria-expanded={recipeOpen === recipeKey(day, type)}
-                              aria-label={`${day} ${type}: ${recipe.name} — view recipe`}
-                              title="View recipe"
-                              style={{ flex: 1, minWidth: 0, alignSelf: "stretch", textAlign: "left", padding: "7px 10px", border: "none", background: "transparent", cursor: "pointer", fontFamily: fontBody, fontSize: 13, fontWeight: 600, color: C.ink }}
-                            >
-                              {recipe.easy ? "⚡ " : ""}{recipe.name}
-                            </button>
-                            <button
-                              onClick={() => openPicker(day, type, "replace")}
-                              aria-label={`${day} ${type}: ${recipe.name} — pick a different meal`}
-                              title="Pick a different meal"
-                              style={{ width: TAP, alignSelf: "stretch", flexShrink: 0, border: "none", borderLeft: `1px solid ${skipped ? C.line : C.green}`, background: "transparent", color: skipped ? C.faint : C.green, cursor: "pointer", fontSize: 12, lineHeight: 1 }}
-                            >
-                              ▾
-                            </button>
-                          </div>
-                          <button
-                            onClick={() => setSlot(day, type, null)}
-                            aria-label={`Clear ${recipe.name} from ${day} ${type}`}
-                            title="Clear this slot"
-                            style={iconTap}
-                          >
-                            ✕
-                          </button>
-                        </>
-                      ) : (
-                        // Read-only: the whole bubble is the "view recipe" tap
-                        // target now (item: finding a planned meal's recipe used
-                        // to mean leaving this tab and searching Meals again).
-                        // Title spans the full width, with servings as a
-                        // subtitle underneath. Sides get their own rows below
-                        // rather than being folded into this line.
-                        /* THE SERVINGS SIT ON THE MEAL'S FIRST LINE, on the
-                           right, rather than on a line of their own beneath
-                           it. They are two characters and a unit; a whole row
-                           for them made every planned day taller than the
-                           thing it was describing.
-                           flexShrink 0 so the number never wraps or is
-                           clipped, and the name takes what is left — a long
-                           recipe name runs to two lines and the count stays
-                           put beside its first.
-                           "already have the ingredients" KEEPS ITS OWN LINE:
-                           it is the reason a meal is on the plan but not on
-                           the shopping list, which is a sentence rather than
-                           a number, and it is rare. */
-                        <button
-                          onClick={() => toggleRecipe(day, type)}
-                          aria-expanded={recipeOpen === recipeKey(day, type)}
-                          aria-label={`${day} ${type}: ${recipe.name} — view recipe`}
-                          title="View recipe"
-                          style={{ ...slotBox, cursor: "pointer", flexDirection: "column", alignItems: "stretch", gap: 1 }}
-                        >
-                          <span style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                            <span style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>{recipe.easy ? "⚡ " : ""}{recipe.name}</span>
-                            <span style={{ flexShrink: 0, fontSize: 12, color: C.faint, fontVariantNumeric: "tabular-nums" }}>
-                              {Number(slot.servings) || base} sv
-                            </span>
-                          </span>
-                          {skipped && (
-                            <span style={{ fontSize: 12, color: C.faint }}>already have the ingredients</span>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                    {/* FULL WIDTH OF THE DAY CARD, not indented under the
-                        meal-type label like the controls are. An opened
-                        recipe is the same thing the Recipes tab opens, and
-                        it is what you are reading while you cook — 78px of
-                        left margin bought nothing and cost a column of
-                        ingredient names on a phone. The label column is for
-                        the slot's CONTROLS; the recipe is not one. */}
-                    {recipe && recipeOpen === recipeKey(day, type) && (
-                      <RecipeDetail recipe={recipe} servings={Number(slot.servings) || base} />
-                    )}
-                    {recipe && slotsEditable && (
-                      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 5, marginTop: 6, marginLeft: SLOT_INDENT, fontSize: 12, color: C.faint }}>
-                        <input
-                          type="number"
-                          min="1"
-                          value={slot.servings}
-                          onChange={(e) => setSlot(day, type, { servings: e.target.value === "" ? "" : Number(e.target.value) })}
-                          onBlur={() => normalizeServings(day, type, base)}
-                          onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                          aria-label={`Servings for ${day} ${type}`}
-                          style={{ ...inputStyle, width: 54, padding: "5px 8px", fontVariantNumeric: "tabular-nums" }}
-                        />
-                        servings
-                        <label style={{ display: "flex", alignItems: "center", gap: 5, marginLeft: 10, cursor: "pointer" }}>
-                          <input
-                            type="checkbox"
-                            checked={skipped}
-                            // Unset rather than store `false` — see setSlot.
-                            onChange={(e) => setSlot(day, type, { skipList: e.target.checked || undefined })}
-                            aria-label={`Already have the ingredients for ${recipe.name} on ${day} ${type}`}
-                            style={{ width: 15, height: 15, accentColor: C.green, cursor: "pointer" }}
-                          />
-                          Already have the ingredients
-                        </label>
-                      </div>
-                    )}
-                    {/* Sides get their own rows in BOTH modes — read-only shows
-                        name + servings as plain text, editable adds the
-                        amount input and a remove ✕. Each row is a small
-                        bordered chip rather than bare text, so a side reads
-                        as part of the meal instead of an easy-to-miss aside. */}
-                    {/* THE INDENT IS ON THE ROWS, NOT ON THIS CONTAINER, so a
-                        side's opened recipe can run the full width of the day
-                        card exactly as the main's does. With the margin out
-                        here, every child inherited it and the recipe sat in a
-                        78px-narrower column than the one above it. */}
-                    {recipe && sideEntries.length > 0 && (
-                      <div style={{ marginTop: 4 }}>
-                        {sideEntries.map((s) => {
-                          const sideBase = s.recipe.servings || 4;
-                          const sideSkipped = !!s.skipList;
-                          return (
-                            <Fragment key={s.index}>
-                              {/* ONE RULE FOR BOTH, AT LAST: at rest the ROW is
-                                  how you open a recipe, for the main dish and
-                                  for every dish under it. The main had worked
-                                  that way for a while; these rows were a plain
-                                  div with a 📖 beside the name, so the same
-                                  question — what is in this? — was answered by
-                                  tapping a whole bubble on one line and hunting
-                                  a 13px icon on the next. Reported from a real
-                                  phone, with a screenshot.
-                                  THE BOOK STAYS WHILE PLANNING, on both, and
-                                  for the same reason on both: there the row's
-                                  tap belongs to something else — re-picking the
-                                  main, or the servings box and remove ✕ here —
-                                  so an icon is the only way in. A button cannot
-                                  hold a number input anyway.
-                                  AND THE NAME WRAPS IN BOTH MODES now. "Baked
-                                  Chicken & Veggie Me…" was what the screenshot
-                                  showed; the truncation bought a single line at
-                                  the cost of the answer. It used to clip while
-                                  planning, where the row carries an input and
-                                  buttons and had no width to give — and then
-                                  the ✕ grew from 17px to a thumb's 44, which
-                                  took 27 more. A row that is 44px tall for the
-                                  ✕ has room for two lines of a 13px name
-                                  anyway, so the name wraps and the row stops
-                                  hiding the answer. */}
-                              <RowTag
-                                {...(slotsEditable
-                                  ? {}
-                                  : {
-                                      onClick: () => toggleRecipe(day, type, s.index),
-                                      "aria-expanded": recipeOpen === recipeKey(day, type, s.index),
-                                      "aria-label": `${day} ${type}: ${s.recipe.name} — view recipe`,
-                                      title: "View recipe",
-                                    })}
-                                style={{ ...dishBox(sideSkipped), width: `calc(100% - ${SLOT_INDENT}px)`, boxSizing: "border-box", marginBottom: sideSkipped && !slotsEditable ? 1 : 4, marginLeft: SLOT_INDENT, cursor: slotsEditable ? undefined : "pointer", ...(slotsEditable ? { padding: "0 8px 0 0", minHeight: TAP, overflow: "hidden", gap: 6 } : {}) }}
+                    {dishes.map((d) => {
+                      const base = d.recipe.servings || 4;
+                      const servings = Number(d.servings) || base;
+                      const skipped = !!d.skipList;
+                      const first = d.dishIndex === 0;
+                      const open = recipeOpen === recipeKey(day, type, d.dishIndex);
+                      return (
+                        <Fragment key={d.dishIndex}>
+                          <div style={{ display: "flex", alignItems: "center", gap: TYPE_GAP, marginBottom: slotsEditable ? 0 : 4 }}>
+                            {/* WHICH MEAL OF THE DAY THIS IS, on the first dish
+                                only. It is what tells one row apart from the
+                                row above it on a day holding more than one
+                                meal, and the dishes under it are all the same
+                                meal — repeating "Dinner" beside each of five
+                                dishes would say they were five dinners. */}
+                            <span style={{ fontSize: 13, fontWeight: 700, color: C.ink, width: TYPE_COL, flexShrink: 0 }}>{first ? type : ""}</span>
+                            <div style={{ ...dishBox(skipped), ...(slotsEditable ? { padding: 0, minHeight: TAP, overflow: "hidden" } : {}) }}>
+                              {slotsEditable ? (
+                                <>
+                                  {/* THE NAME IS THE WAY INTO THE RECIPE, in
+                                      both modes and on every dish. It wraps
+                                      rather than clipping: the row is 44px
+                                      tall for the ✕ anyway, so two lines of a
+                                      13px name cost nothing and "Baked Cod
+                                      with Lemon and Garlic" stops being
+                                      "Baked Cod wi…". */}
+                                  <button
+                                    onClick={() => toggleRecipe(day, type, d.dishIndex)}
+                                    aria-expanded={open}
+                                    aria-label={`${day} ${type}: ${d.recipe.name} — view recipe`}
+                                    title="View recipe"
+                                    style={{ flex: 1, minWidth: 0, alignSelf: "stretch", textAlign: "left", padding: "7px 10px", border: "none", background: "transparent", cursor: "pointer", fontFamily: fontBody, fontSize: 13, fontWeight: 600, color: C.ink }}
+                                  >
+                                    {d.recipe.easy ? "⚡ " : ""}{d.recipe.name}
+                                  </button>
+                                  {/* EVERY DISH CAN BE SWAPPED, not just the
+                                      first. This ▾ existed on the first dish
+                                      alone, so changing any other one meant
+                                      removing it and choosing again. */}
+                                  <button
+                                    onClick={() => openPicker(day, type, "replace", d.dishIndex)}
+                                    aria-label={`${day} ${type}: ${d.recipe.name} — pick a different meal`}
+                                    title="Pick a different meal"
+                                    style={{ width: TAP, alignSelf: "stretch", flexShrink: 0, border: "none", borderLeft: `1px solid ${skipped ? C.line : C.green}`, background: "transparent", color: skipped ? C.faint : C.green, cursor: "pointer", fontSize: 12, lineHeight: 1, padding: 0 }}
+                                  >
+                                    ▾
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  onClick={() => toggleRecipe(day, type, d.dishIndex)}
+                                  aria-expanded={open}
+                                  aria-label={`${day} ${type}: ${d.recipe.name} — view recipe`}
+                                  title="View recipe"
+                                  style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, border: "none", background: "transparent", padding: 0, cursor: "pointer", fontFamily: fontBody, fontSize: 13, color: C.ink, textAlign: "left" }}
+                                >
+                                  <span style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>{d.recipe.easy ? "⚡ " : ""}{d.recipe.name}</span>
+                                  <span style={{ flexShrink: 0, fontSize: 12, color: C.faint, fontVariantNumeric: "tabular-nums" }}>{servings} sv</span>
+                                </button>
+                              )}
+                            </div>
+                            {/* AND EVERY ✕ TAKES OFF ONE DISH. The first
+                                dish's used to delete the meal entire —
+                                identical to look at, four other dinners gone.
+                                Removing it moves the next dish into its place;
+                                the meal goes when the last dish does. */}
+                            {slotsEditable && (
+                              <button
+                                onClick={() => dropDish(day, type, d.dishIndex)}
+                                aria-label={`Remove ${d.recipe.name} from ${day} ${type}`}
+                                title="Remove this dish"
+                                style={iconTap}
                               >
-                                {slotsEditable ? (
-                                  <>
-                                    {/* THE NAME IS THE WAY IN HERE TOO, so the
-                                        📖 that used to sit beside it — 20x17px
-                                        — is gone. At rest the whole row is the
-                                        name and the whole row opens the recipe;
-                                        while planning the row also carries a
-                                        number and a ✕, so the name keeps its
-                                        own button and the rest of the row keeps
-                                        its controls. */}
-                                    <button
-                                      onClick={() => toggleRecipe(day, type, s.index)}
-                                      aria-expanded={recipeOpen === recipeKey(day, type, s.index)}
-                                      aria-label={`${day} ${type}: ${s.recipe.name} — view recipe`}
-                                      title="View recipe"
-                                      style={{ flex: 1, minWidth: 0, alignSelf: "stretch", textAlign: "left", padding: "7px 0 7px 10px", border: "none", background: "transparent", cursor: "pointer", fontFamily: fontBody, fontSize: 13, fontWeight: 600, color: C.ink }}
-                                    >
-                                      {s.recipe.easy ? "⚡ " : ""}{s.recipe.name}
-                                    </button>
-                                    <input
-                                      type="number"
-                                      min="1"
-                                      value={s.servings}
-                                      onChange={(e) => setSlotSide(day, type, s.index, { servings: e.target.value === "" ? "" : Number(e.target.value) })}
-                                      onBlur={() => normalizeSideServings(day, type, s.index, sideBase)}
-                                      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                                      aria-label={`Servings of ${s.recipe.name} on ${day} ${type}`}
-                                      style={{ ...inputStyle, width: 44, padding: "4px 6px", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}
-                                    />
-                                    <span style={{ color: C.faint, flexShrink: 0 }}>sv</span>
-                                    <button
-                                      onClick={() => removeSide(day, type, s.index)}
-                                      aria-label={`Remove ${s.recipe.name} from ${day} ${type}`}
-                                      title="Remove this dish"
-                                      style={iconTap}
-                                    >
-                                      ✕
-                                    </button>
-                                  </>
-                                ) : (
-                                  <>
-                                    <span style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>{s.recipe.easy ? "⚡ " : ""}{s.recipe.name}</span>
-                                    <span style={{ color: C.faint, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{Number(s.servings) || sideBase} sv</span>
-                                  </>
-                                )}
-                              </RowTag>
-                              {/* WHY THIS DISH IS NOT ON THE LIST, said on the
-                                  dish itself. The main has always carried this
-                                  line; a dish under it could not be skipped at
-                                  all, so a week at rest would otherwise show a
-                                  dish whose ingredients are silently missing
-                                  from the shopping list with nothing to say
-                                  so. */}
-                              {sideSkipped && !slotsEditable && (
-                                <div style={{ fontSize: 12, color: C.faint, marginLeft: SLOT_INDENT + 10, marginBottom: 4 }}>already have the ingredients</div>
-                              )}
-                              {/* ITS OWN CHECKBOX, ONE PER DISH. This is the
-                                  whole of the fix: the box under the main used
-                                  to silence every dish on the meal, so "we have
-                                  everything for the cod but not the meatballs"
-                                  could not be said. It sits under the dish it
-                                  belongs to, in the dish's own column, worded
-                                  exactly as the main's. */}
-                              {slotsEditable && (
-                                <label style={{ display: "flex", alignItems: "center", gap: 5, marginLeft: SLOT_INDENT, marginBottom: 6, fontSize: 12, color: C.faint, cursor: "pointer" }}>
-                                  <input
-                                    type="checkbox"
-                                    checked={sideSkipped}
-                                    // Unset rather than store `false` — see setSlot.
-                                    onChange={(e) => setSlotSide(day, type, s.index, { skipList: e.target.checked || undefined })}
-                                    aria-label={`Already have the ingredients for ${s.recipe.name} on ${day} ${type}`}
-                                    style={{ width: 15, height: 15, accentColor: C.green, cursor: "pointer" }}
-                                  />
-                                  Already have the ingredients
-                                </label>
-                              )}
-                              {recipeOpen === recipeKey(day, type, s.index) && (
-                                <RecipeDetail recipe={s.recipe} servings={Number(s.servings) || sideBase} />
-                              )}
-                            </Fragment>
-                          );
-                        })}
-                      </div>
-                    )}
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                          {/* WHY THIS DISH IS NOT ON THE LIST, said on the dish
+                              itself — otherwise a week at rest shows a dish
+                              whose ingredients are silently missing from the
+                              shopping list with nothing to say so. */}
+                          {skipped && !slotsEditable && (
+                            <div style={{ fontSize: 12, color: C.faint, marginLeft: SLOT_INDENT + 10, marginBottom: 4 }}>already have the ingredients</div>
+                          )}
+                          {/* THE DISH'S SETTINGS, ON THEIR OWN LINE UNDER IT.
+                              The servings box rode ON the row for a while and
+                              starved the name: a ▾, a number, "sv" and a 44px
+                              ✕ leave about 70px for a recipe called "Baked
+                              Creamy Orzo with Chickpeas & Spinach". This line
+                              had to exist anyway for the checkbox, so the
+                              number moved onto it and the word is spelt out
+                              in full because there is room for it. */}
+                          {slotsEditable && (
+                            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 5, marginLeft: SLOT_INDENT, marginTop: 4, marginBottom: 8, fontSize: 12, color: C.faint }}>
+                              <input
+                                type="number"
+                                min="1"
+                                value={d.servings ?? ""}
+                                onChange={(e) => setDish(day, type, d.dishIndex, { servings: e.target.value === "" ? "" : Number(e.target.value) })}
+                                onBlur={() => { if (!(Number(d.servings) > 0)) setDish(day, type, d.dishIndex, { servings: base }); }}
+                                onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                                aria-label={`Servings of ${d.recipe.name} on ${day} ${type}`}
+                                style={{ ...inputStyle, width: 54, padding: "5px 8px", fontVariantNumeric: "tabular-nums" }}
+                              />
+                              servings
+                              <label style={{ display: "flex", alignItems: "center", gap: 5, marginLeft: 10, cursor: "pointer" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={skipped}
+                                  // Unset rather than store `false` — see setSlot.
+                                  onChange={(e) => setDish(day, type, d.dishIndex, { skipList: e.target.checked || undefined })}
+                                  aria-label={`Already have the ingredients for ${d.recipe.name} on ${day} ${type}`}
+                                  style={{ width: 15, height: 15, accentColor: C.green, cursor: "pointer" }}
+                                />
+                                Already have the ingredients
+                              </label>
+                            </div>
+                          )}
+                          {/* FULL WIDTH OF THE DAY CARD, not indented under the
+                              meal-type label like the controls are. An opened
+                              recipe is the same thing the Recipes tab opens,
+                              and it is what you are reading while you cook. */}
+                          {open && <RecipeDetail recipe={d.recipe} servings={servings} />}
+                        </Fragment>
+                      );
+                    })}
                   </div>
                 );
               })}

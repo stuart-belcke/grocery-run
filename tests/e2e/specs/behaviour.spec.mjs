@@ -77,7 +77,7 @@ test("SHOULD: doubling a meal's servings doubles what the list asks for", async 
   try {
     await planStirFry(page);
     // The recipe serves 2 and wants 1 lb of chicken. Four servings = 2 lb.
-    const servings = page.getByLabel("Servings for Mon Dinner");
+    const servings = page.getByLabel("Servings of Stir-fry on Mon Dinner");
     assert.equal(await servings.count(), 1, "a planned slot should have a servings control");
     await servings.fill("4");
     await servings.press("Enter");
@@ -164,7 +164,9 @@ test("SHOULD: clearing a planned slot removes its ingredients from the list", as
     assert.equal((await listRows(page)).length, 3, "the planned meal should put three items on the list");
 
     await page.tab("Plan");
-    await page.getByLabel(/^Clear Stir-fry from Mon Dinner$/).click();
+    // Every ✕ on the tab reads "Remove <dish> from <day> <meal>" and takes off
+    // one dish. The first dish's used to say "Clear" and delete the whole meal.
+    await page.getByLabel(/^Remove Stir-fry from Mon Dinner$/).click();
     await page.waitForTimeout(600);
     await page.roundTrip();
 

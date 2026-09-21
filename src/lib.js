@@ -3196,6 +3196,78 @@ export function slotFeedsList(slot) {
   return slotDishes(slot).length > 0;
 }
 
+/* TAKE ONE DISH OFF A MEAL, WHICHEVER DISH IT IS. Returns the slot without
+   it, or null when that was the last one and the meal is now empty.
+
+   `dishIndex` counts the dishes as they are drawn: 0 is the one stored in the
+   slot's own `recipeId`, 1 is `sides[0]`, and so on.
+
+   REMOVING THE FIRST ONE PROMOTES THE NEXT. It used to delete the whole meal,
+   every dish on it, because the first dish IS the slot as far as the stored
+   shape is concerned — so a ✕ that looked identical to the four below it did
+   something else entirely, and on the Recipes tab "Remove Chicken Stir-Fry
+   from Sun Dinner" silently took four other dinners with it. Nothing about
+   that distinction is visible to a person: a meal is a list of dishes, and the
+   first one is only first.
+   THE STORED SHAPE IS UNCHANGED — still one `recipeId` plus `sides` — so this
+   costs no migration and no version. Promotion is a move, not a new field.
+   EVERYTHING ELSE ON THE SLOT IS CARRIED. Only the three fields that describe
+   a DISH are overwritten by the promoted one; any other field is the meal's,
+   or belongs to a build this one has never heard of, and either way it stays. */
+export function removeDish(slot, dishIndex) {
+  if (!slot || typeof slot !== "object" || !slot.recipeId) return null;
+  const sides = asArray(slot.sides);
+  const withSides = (next, rest) => {
+    if (rest.length) next.sides = rest;
+    else delete next.sides;
+    return next;
+  };
+  if (dishIndex > 0) {
+    if (dishIndex - 1 >= sides.length) return slot;
+    return withSides({ ...slot }, sides.filter((_, i) => i !== dishIndex - 1));
+  }
+  if (sides.length === 0) return null;
+  const [promoted, ...rest] = sides;
+  /* SPREAD THE WHOLE PROMOTED DISH, not its three known fields. Copying
+     recipeId/servings/skipList by name loses anything a newer build put on
+     that dish, and every device writes the whole state back — so this one
+     would strip that field out of the SHARED copy for everybody. Its own
+     `sides`, if it somehow had one, is the MEAL's field and is dropped here
+     rather than clobbering the list below.
+     Then unset what the promoted dish does not have, so nothing is inherited
+     from the dish that just left: a leftover `skipList` would silently keep
+     the arriving dish off the shopping list, and a leftover `servings` would
+     cook it for the wrong number. */
+  const { sides: _mealField, ...dish } = promoted;
+  const next = { ...slot, ...dish };
+  for (const k of ["recipeId", "servings", "skipList"]) if (!(k in dish)) delete next[k];
+  return withSides(next, rest);
+}
+
+/* PUT A DIFFERENT RECIPE IN ONE DISH'S PLACE, whichever dish it is, keeping
+   the servings already set for it. Same dish numbering as removeDish. */
+export function replaceDish(slot, dishIndex, recipeId, servings) {
+  if (!slot || typeof slot !== "object") return slot;
+  if (dishIndex > 0) {
+    const sides = asArray(slot.sides);
+    if (dishIndex - 1 >= sides.length) return slot;
+    return { ...slot, sides: sides.map((s, i) => (i === dishIndex - 1 ? { recipeId, servings } : s)) };
+  }
+  /* THE FIRST DISH'S OTHER DISHES SURVIVE A SWAP NOW. They used to be dropped,
+     on the reasoning that a side belongs to the dish it was chosen beside —
+     true of potatoes beside a roast, and wrong once a meal is just a list of
+     dishes and this is dish number one. Swapping the third dish never touched
+     the others; there is no reason the first should. */
+  /* skipList is unset because it was said about the dish that just left. An
+     UNKNOWN field cannot be told apart from a meal-level one here, so it is
+     carried — never destroying a field a newer build wrote is the rule that
+     matters more, and the alternative is the swap silently deleting it for
+     every device in the household. */
+  const next = { ...slot, recipeId, servings };
+  delete next.skipList;
+  return next;
+}
+
 // Every day/type/role a recipe appears in the plan, as main or as a side —
 // used both for the Recipes tab's "planned meals" summary and for cleaning up
 // dangling references when a recipe is deleted.
@@ -3205,9 +3277,12 @@ export function planSlotsFor(data, recipeId) {
     for (const type of MEAL_TYPES) {
       const slot = data.plan?.[day]?.[type];
       if (!slot) continue;
-      if (slot.recipeId === recipeId) out.push({ day, type, role: "main", servings: slot.servings });
+      // dishIndex is what removeDish/replaceDish take: 0 is the dish in the
+      // slot's own recipeId, 1 is sides[0]. `role` and `index` describe the
+      // STORED shape and are kept for the same reason the shape is.
+      if (slot.recipeId === recipeId) out.push({ day, type, role: "main", dishIndex: 0, servings: slot.servings });
       asArray(slot.sides).forEach((s, index) => {
-        if (s && s.recipeId === recipeId) out.push({ day, type, role: "side", index, servings: s.servings });
+        if (s && s.recipeId === recipeId) out.push({ day, type, role: "side", index, dishIndex: index + 1, servings: s.servings });
       });
     }
   }
