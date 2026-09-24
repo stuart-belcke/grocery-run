@@ -1517,6 +1517,38 @@ export function titleAfterBreadcrumb(lines) {
   return "";
 }
 
+/* WHERE THE STEPS START WHEN NOTHING SAYS SO. A recipe somebody typed
+   themselves often has no "Instructions" heading — just the ingredients, then
+   "1. Cook the rice." With no heading there was no steps section at all, so
+   every numbered step was read as one more ingredient and the method came
+   back empty: junk rows on the shopping list, nothing to cook from.
+
+   THE SIGNAL IS A LIST THAT STARTS AT 1, AFTER AN INGREDIENT. Both halves
+   matter. "1." alone would take a numbered ingredient list ("1. 2 cups
+   flour") for steps; requiring an ingredient ABOVE it means the first item
+   of any list that is itself the ingredients never qualifies. And the text
+   after the number must not start with a digit, which keeps "1.5 cups
+   flour" and "1. 2 cups flour" out — both are quantities, not instructions.
+
+   Only used when there is no heading. A heading is always the better
+   evidence, and all five captured pages carry one, so none of them take
+   this path. Returns -1 when there is no such line, which is the old
+   behaviour exactly. */
+const FIRST_STEP_RE = /^1(?:[.)]|\t)\s*[^\s\d]/;
+const LOOSE_INGREDIENT_RE = /^([▢☐☑✓•●○\-*·]|\d)/;
+function unheadedStepsStart(lines, ingStart) {
+  let seenIngredient = false;
+  for (let i = ingStart + 1; i < lines.length; i++) {
+    const l = lines[i];
+    if (!l || BOILERPLATE_RE.test(l)) continue;
+    if (seenIngredient && FIRST_STEP_RE.test(l)) return i;
+    // With a heading, every line under it is an ingredient candidate; without
+    // one, only the lines the fallback below would take.
+    if ((ingStart !== -1 || LOOSE_INGREDIENT_RE.test(l)) && parseIngredientLine(l)) seenIngredient = true;
+  }
+  return -1;
+}
+
 export function parseRecipeText(text) {
   const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n").map((l) => l.trim());
 
@@ -1553,9 +1585,19 @@ export function parseRecipeText(text) {
   const rawIngredientLines = new Set();
   const ingredients = [];
   const ingStart = lines.findIndex((l) => /^ingredients?\s*$/i.test(l));
+  /* "Method" — wholefoodsmarket.com's own heading (item 117) — was missing
+     here, so a real paste of that recipe never found an instructions
+     section at all: every step AND every nutrition-facts line ("Total Fat",
+     "220mg", "Protein"...) fell through to the no-heading ingredient
+     fallback below and came back as fake ingredients instead. */
+  const headedSteps = lines.findIndex((l) => /^(instructions?|directions?|method)\s*$/i.test(l));
+  // With no heading the steps begin ON the "1." line rather than after it, and
+  // the ingredients have to stop there too — see unheadedStepsStart.
+  const unheaded = headedSteps === -1 ? unheadedStepsStart(lines, ingStart) : -1;
+  const ingEnd = unheaded === -1 ? lines.length : unheaded;
   if (ingStart !== -1) {
     const section = [];
-    for (let i = ingStart + 1; i < lines.length; i++) {
+    for (let i = ingStart + 1; i < ingEnd; i++) {
       const l = lines[i];
       if (SECTION_HEADING_RE.test(l)) break;
       if (!l || BOILERPLATE_RE.test(l) || SCALER_RE.test(l) || YIELDS_RE.test(l)) continue;
@@ -1583,25 +1625,20 @@ export function parseRecipeText(text) {
     // out of the instructions below is exactly the bug this set exists to
     // avoid, not cause. The duplicated-card problem it protects against only
     // happens when there IS a real Ingredients heading to duplicate.
-    for (const l of lines) {
-      if (!l || !/^([▢☐☑✓•●○\-*·]|\d)/.test(l)) continue;
+    for (const l of lines.slice(0, ingEnd)) {
+      if (!l || !LOOSE_INGREDIENT_RE.test(l)) continue;
       const parsed = parseIngredientLine(l);
       if (parsed) ingredients.push(parsed);
     }
   }
 
   let instructions = "";
-  /* "Method" — wholefoodsmarket.com's own heading (item 117) — was missing
-     here, so a real paste of that recipe never found an instructions
-     section at all: every step AND every nutrition-facts line ("Total Fat",
-     "220mg", "Protein"...) fell through to the no-heading ingredient
-     fallback below and came back as fake ingredients instead. */
-  const insStart = lines.findIndex((l) => /^(instructions?|directions?|method)\s*$/i.test(l));
-  if (insStart !== -1) {
+  const stepsFrom = headedSteps !== -1 ? headedSteps + 1 : unheaded;
+  if (stepsFrom !== -1) {
     const steps = [];
     let numbered = false;
     let lastNum = 0;
-    for (let i = insStart + 1; i < lines.length; i++) {
+    for (let i = stepsFrom; i < lines.length; i++) {
       const l = lines[i];
       if (!l) continue;
       if (END_OF_STEPS_RE.test(l)) break;

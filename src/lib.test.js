@@ -3798,6 +3798,53 @@ test("parseRecipeText falls back to scanning bulleted lines with no Ingredients 
   ]);
 });
 
+/* A RECIPE SOMEBODY TYPED, with no "Instructions" heading. Hand-typed on
+   purpose: that is the real input here, a paste of your own recipe rather
+   than a fetched page, so a typed fixture is the actual shape and not a
+   guess at one. Every numbered step used to come back as an ingredient. */
+test("parseRecipeText finds numbered steps under an Ingredients heading with no Instructions heading", () => {
+  const result = parseRecipeText("Weeknight Rice Bowl\nServes 4\n\nIngredients\n- 2 cups rice\n- 1 lb chicken thighs\n- 1 bell pepper\n\n1. Cook the rice.\n2. Fry everything else.");
+  assert.deepEqual(result.ingredients.map((i) => i.name), ["Rice", "Chicken thighs", "Bell pepper"]);
+  assert.deepEqual(result.instructions.split("\n"), ["1. Cook the rice.", "2. Fry everything else."]);
+});
+
+test("parseRecipeText finds numbered steps in a paste with no headings at all", () => {
+  const result = parseRecipeText("Pancakes\n2 cups flour\n1 egg\n1 cup milk\n1. Mix it all.\n2. Fry in butter,\nflipping once.");
+  assert.equal(result.name, "Pancakes");
+  assert.deepEqual(result.ingredients.map((i) => i.name), ["Flour", "Egg", "Milk"]);
+  assert.deepEqual(result.instructions.split("\n"), ["1. Mix it all.", "2. Fry in butter, flipping once."]);
+});
+
+test("parseRecipeText does not take a numbered ingredient list for steps", () => {
+  // The first "1." has no ingredient above it, and "1. 2 cups" is a quantity.
+  // Only that they stay ingredients — how a numbered ingredient line is READ
+  // ("1. 2 cups flour" keeps its number in the name) is a separate, older gap
+  // recorded in item 110.
+  const result = parseRecipeText("Bread\nIngredients\n1. 2 cups flour\n2. 1 tsp salt\n3. 1 cup water");
+  assert.equal(result.ingredients.length, 3);
+  assert.equal(result.instructions, "");
+});
+
+test("parseRecipeText does not take a numbered ingredient list for steps when its first item has no quantity", () => {
+  // "1. Lettuce" would pass as a step on its own — nothing about the line says
+  // otherwise. What rules it out is that no ingredient came before it.
+  const result = parseRecipeText("Salad\nIngredients\n1. Lettuce\n2. 1 tomato\n3. Olive oil");
+  assert.equal(result.ingredients.length, 3);
+  assert.equal(result.instructions, "");
+});
+
+test("parseRecipeText keeps numbered ingredients AND finds the numbered steps after them", () => {
+  const result = parseRecipeText("Bread\nIngredients\n1. 2 cups flour\n2. 1 tsp salt\n\n1. Knead.\n2. Bake.");
+  assert.equal(result.ingredients.length, 2);
+  assert.deepEqual(result.instructions.split("\n"), ["1. Knead.", "2. Bake."]);
+});
+
+test("parseRecipeText does not read \"1.5 cups\" as the first step", () => {
+  const result = parseRecipeText("Bread\nIngredients\n- 2 cups flour\n1.5 cups water\n1 tsp salt");
+  assert.deepEqual(result.ingredients.map((i) => i.name), ["Flour", "Water", "Salt"]);
+  assert.equal(result.instructions, "");
+});
+
 test("parseRecipeText returns empty ingredients and blank instructions for text with neither", () => {
   const result = parseRecipeText("just a name, no ingredient list at all");
   assert.deepEqual(result.ingredients, []);
