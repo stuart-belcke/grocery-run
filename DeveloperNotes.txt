@@ -212,13 +212,27 @@ file reached 5,886 lines with ten live items in it.
         numbered. All five fixtures bullet or number theirs.
       - PER-COMPONENT INGREDIENT GROUPS beyond the two seen so far. The
         bullet rule that separates them is the newest thing in the file.
-      - A BARE NUMBERED LIST WITH NO "INSTRUCTIONS" HEADING is read as more
-        ingredients. Found while writing item 106's tests, on a hand-typed
-        recipe rather than a captured page — all five fixtures carry the
-        heading, which is why none of them caught it. It bites a PASTE of
-        something somebody typed themselves, not a fetched page, so it is
-        smaller than it looks. tests/e2e/specs/importlink.spec.mjs says so
-        where it works around it.
+      - DONE — A BARE NUMBERED LIST WITH NO "INSTRUCTIONS" HEADING was read
+        as more ingredients, so a recipe somebody typed themselves put its
+        steps on the shopping list and saved an empty method.
+        unheadedStepsStart() in lib.js: with no heading, the steps begin at
+        the first line reading "1." (or "1)", or "1" then a tab) that comes
+        AFTER at least one ingredient and whose text does not start with a
+        digit. The ingredient guard keeps a numbered ingredient list
+        ("1. Lettuce") from being taken for steps; the digit rule keeps
+        "1.5 cups" and "1. 2 cups flour" out. Hand-typed fixtures are right
+        HERE, unusually — a typed recipe is the real input. Unit tests plus
+        a browser test (recipeimport.spec.mjs) asserting what was saved;
+        each of the three rules mutation-tested.
+        STILL OPEN UNDERNEATH IT: steps that are bulleted or plain
+        paragraphs with no heading still read as ingredients — nothing
+        separates "- Cook the rice" from "- 2 cups rice" by shape alone. A
+        paste of ONLY numbered steps, with no ingredient above, is also
+        unchanged.
+      - A NUMBERED INGREDIENT LIST ("1. 2 cups flour") keeps its number in
+        the name — "1. 2 cups flour", qty 1, no unit. Older than the item
+        above and separate from it; found while testing it. Hand-typed only,
+        never seen on a captured page.
       - DONE, AND THE LESSON IS WORTH MORE THAN THE FIX: "salt and ground
         black pepper" was ONE ingredient, and on the AllRecipes page that
         card ALSO lists "1/2 teaspoon salt" — so salt reached the list under

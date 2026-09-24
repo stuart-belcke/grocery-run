@@ -39,12 +39,9 @@ const hashFor = (text) => new URL(importUrl("https://x.test/", text)).hash;
    which is the point: this has to be announced, not just drawn. */
 const warning = (page) => page.getByRole("status").filter({ hasText: /arrived cut short|can’t add recipes/i });
 
-/* HEADINGS, because every real page has them. Without an "Instructions" line
-   the parser reads the numbered steps as three more ingredients — which is
-   true of pasting the same text today and has nothing to do with importing,
-   so it is item 110's to fix and is noted there. A fixture that pretended
-   otherwise would be testing the parser by accident and the wiring not at
-   all. */
+/* HEADINGS, because every real page has them. A recipe with none is the
+   parser's business, not the import link's — recipeimport.spec.mjs covers a
+   heading-less paste, and this file stays about the wiring. */
 const RECIPE = "Weeknight Rice Bowl\nServes 4\n\nIngredients\n- 2 cups rice\n- 1 lb chicken thighs\n- 1 bell pepper\n\nInstructions\n1. Cook the rice.\n2. Fry everything else.";
 
 test("SHOULD: arriving on an import link opens the editor filled in, on the Meals tab, without switching tabs", async () => {
