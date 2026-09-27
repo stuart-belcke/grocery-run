@@ -93,14 +93,14 @@ test("the member list puts Leave on your own row and Remove on everyone else's",
   });
   try {
     const mine = page.locator("li").filter({ hasText: "me@example.com" });
-    await assert.doesNotReject(mine.getByText("this phone").waitFor({ timeout: 3000 }));
+    await assert.doesNotReject(mine.getByText("you", { exact: true }).waitFor({ timeout: 3000 }));
     assert.equal(await mine.getByRole("button", { name: "Leave" }).count(), 1);
     assert.equal(await mine.getByRole("button", { name: "Remove" }).count(), 0);
 
     const theirs = page.locator("li").filter({ hasText: "friend@example.com" });
     assert.equal(await theirs.getByRole("button", { name: "Remove" }).count(), 1);
     assert.equal(await theirs.getByRole("button", { name: "Leave" }).count(), 0);
-    assert.equal(await theirs.getByText("this phone").count(), 0);
+    assert.equal(await theirs.getByText("you", { exact: true }).count(), 0);
 
     assertNoPageErrors(page, assert);
   } finally {
@@ -131,8 +131,11 @@ test("a guest sees no Invite or Remove controls, and is told why", async () => {
     },
   });
   try {
-    assert.equal(await page.getByRole("button", { name: "Invite another phone" }).count(), 0);
-    assert.equal(await page.getByRole("button", { name: "Guest link" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Invite someone" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Invite as member" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Invite as guest" }).count(), 0);
+    // Sending the app writes nothing to this household, so a guest keeps it.
+    assert.equal(await page.getByRole("button", { name: "Share the app" }).count(), 1);
     assert.equal(await page.getByRole("button", { name: "Remove" }).count(), 0);
     await page.getByText(/isn.t yours to do/).waitFor({ timeout: 3000 });
     // Still yours to leave, even as a guest — the restriction is on managing
@@ -195,7 +198,7 @@ test("access refused also names the account, and hides what it cannot do", async
     const body = await page.textContent("body");
     assert.match(body, new RegExp(`This account isn't in household ${HERE}`), "the explanation should name the household it cannot read");
     assert.match(body, /me@example\.com/, "it should name the account, which is what an invite has to be sent to");
-    assert.equal(await page.locator("button").filter({ hasText: /^Invite another phone$/ }).count(), 0,
+    assert.equal(await page.locator("button").filter({ hasText: /^Invite (someone|as member|as guest)$/ }).count(), 0,
       "inviting writes, and the write would be refused — it should not be offered");
     assert.equal(await page.locator("button").filter({ hasText: /^Leave household$/ }).count(), 0,
       "leaving writes, and the write would be refused — it should not be offered");
@@ -372,12 +375,63 @@ test("creating an invite reports the write that failed, and shows no unconfirmed
     members: { u1: { email: "me@example.com", updatedAt: 1 } },
   });
   try {
-    await page.getByRole("button", { name: "Invite another phone" }).click();
+    await page.getByRole("button", { name: "Invite someone" }).click();
+    await page.getByRole("button", { name: "Invite as member" }).click();
     await page.getByText(/Couldn.t create an invite/).waitFor({ timeout: 5000 });
     // getByLabel("Invite link") would also match the join field further down
     // ("Paste the invite link someone sent you…") by substring — the exact
     // element under test is the readonly input the link panel renders.
     assert.equal(await page.locator('input[aria-label="Invite link"]').count(), 0, "no link should render as live on a failed write");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* ITEM 132: one "Invite someone", then who it is for. */
+
+test("Invite someone asks who it is for, and Cancel puts the button back", async () => {
+  const page = await openSettings({
+    user: ME,
+    members: { u1: { email: "me@example.com", updatedAt: 1 } },
+  });
+  try {
+    // The two old buttons are gone — one entry point, not three siblings.
+    assert.equal(await page.getByRole("button", { name: "Invite another phone" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Guest link" }).count(), 0);
+    await page.getByRole("button", { name: "Invite someone" }).click();
+    const picker = page.getByRole("group", { name: "Who is this for?" });
+    for (const name of ["Invite as member", "Invite as guest", "Share the app"]) {
+      assert.equal(await picker.getByRole("button", { name }).count(), 1, `${name} should be offered`);
+    }
+    await picker.getByRole("button", { name: "Cancel" }).click();
+    assert.equal(await picker.count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Invite someone" }).count(), 1);
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("Share the app hands out the bare address — no invite, and nothing written", async () => {
+  /* The whole point is that the recipient lands in a household of their OWN.
+     A link carrying #join= would put them in ours, so the assertion is on the
+     link's text, and on the saved state being untouched: an app link must
+     never mint an invite. */
+  const page = await openSettings({
+    user: ME,
+    members: { u1: { email: "me@example.com", updatedAt: 1 } },
+  });
+  try {
+    const before = await page.readState();
+    await page.getByRole("button", { name: "Invite someone" }).click();
+    await page.getByRole("button", { name: "Share the app" }).click();
+    const link = await page.locator('input[aria-label="App link"]').inputValue();
+    assert.equal(link, new URL(link).origin + new URL(link).pathname, "the app link must carry no query or fragment");
+    assert.ok(!/join=|~/.test(link), "the app link must not be an invite");
+    await page.getByText("App link — send this").waitFor({ timeout: 3000 });
+    assert.equal(await page.getByText(/Invites waiting to be used/).count(), 0, "sharing the app must not create an invite");
+    assert.deepEqual(await page.readState(), before, "sharing the app must write nothing");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

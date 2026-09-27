@@ -85,13 +85,13 @@ export const FAQS = [
     keywords: ["staple", "need", "pantry", "run out", "cupboard", "home", "out of"],
   },
   {
-    q: "How do I add another phone or another person?",
-    a: "On this tab, under Household, press [[Invite another phone]] and send the link. Tapping it opens the app with the invite filled in; they sign in and they're in. A full invite lasts an hour and works once — it is used up the moment somebody joins with it.",
-    keywords: ["invite", "share", "add person", "second phone", "another device", "join", "household"],
+    q: "How do I invite someone?",
+    a: "On this tab, under Household, press [[Invite someone]] and pick who it is for. [[Invite as member]] is for somebody who lives here: they share everything, sign in, and they're in. [[Invite as guest]] is for somebody helping with a shop — see the next answer. [[Share the app]] is for somebody who wants a list of their own: it sends the app without your household, so they start their own and see nothing of yours. The link is copied as you press the button, and on a phone Share… hands it straight to Messages or email. Member and guest links last an hour, and each works once — used up the moment somebody joins. The app link never expires. The same account on a second phone or a laptop needs no invite at all: sign in there and it lands in your household.",
+    keywords: ["invite", "share", "add person", "second phone", "another device", "join", "household", "own household", "friend", "recommend", "send the app"],
   },
   {
     q: "What is a guest link?",
-    a: "A link for somebody helping with one shop. A guest sees everything and can work the shopping list — ticking off, adding items, flagging a staple as run out — but cannot change recipes, the week plan, or which store an ingredient comes from. Under Household, press [[Guest link]]. Guest is a ROLE, not a kind of account: whoever you send it to can join with just their name and no account, or sign in first and keep the access on their own account, which is what somebody who already uses this app would do. Either way they get the same limited access and you can revoke it. Like a full invite it works once — whoever opens it first uses it up, so send a second link for a second person. It also expires after an hour if nobody uses it, and you can revoke it under Household before then.",
+    a: "A link for somebody helping with one shop. A guest sees everything and can work the shopping list — ticking off, adding items, flagging a staple as run out — but cannot change recipes, the week plan, or which store an ingredient comes from. Under Household, press [[Invite someone]], then [[Invite as guest]]. Guest is a ROLE, not a kind of account: whoever you send it to can join with just their name and no account, or sign in first and keep the access on their own account, which is what somebody who already uses this app would do. Either way they get the same limited access and you can revoke it. Like a full invite it works once — whoever opens it first uses it up, so send a second link for a second person. It also expires after an hour if nobody uses it, and you can revoke it under Household before then.",
     keywords: ["guest", "link", "read only", "helper", "temporary", "no account", "sign in"],
   },
   {

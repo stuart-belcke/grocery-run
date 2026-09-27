@@ -4298,3 +4298,41 @@ into the details panel and the name grew.
      puts that name on screen deliberately. It reads the offered RECIPES now
      — the buttons carrying a "Serves N" line — and separately asserts the
      joins line is there.
+
+132. INVITING, REORGANISED: ONE "INVITE SOMEONE", THEN WHO IT IS FOR. Asked
+     as "can I invite someone to the app but not to my household?" — and the
+     answer was yes, but only by knowing to send the bare address, which
+     nothing in the app offered.
+     WHAT IT WAS: two sibling buttons under the member list, "Invite another
+     phone" and "Guest link". The first named a DEVICE when what joins is a
+     person on an account — the same account on a laptop needs no invite at
+     all, it signs in and lands in the household.
+     WHAT IT IS: one "Invite someone" that opens a small picker — Someone who
+     lives here (Invite as member), Someone helping with a shop (Invite as
+     guest), Someone who wants their own (Share the app). That is the shape
+     most apps use: pick the kind of access, then send. Every choice lands in
+     the same link card, copied in the same tap (item 68's copy-before-await
+     still holds; the member/guest choice IS the click).
+     SHARE THE APP WRITES NOTHING. It hands out appUrl(), the page's own
+     address with query and fragment dropped — a leftover #join= or #import=
+     on this device would otherwise put the recipient in OUR household. The
+     plain address already does the rest: a fresh browser gets the welcome
+     screen, and signing in there or "Start my own list" makes a household of
+     their own. So it is offered to guests, signed-out devices and refused
+     accounts too, where the picker would have had one option and collapses
+     to that one button.
+     A SHARE… BUTTON on the link card uses the phone's own share sheet where
+     the browser has one (navigator.share), beside Copy rather than instead
+     of it. Absent on most desktop browsers, including the headless one the
+     browser tests use — so it is UNTESTED by the suite; it was not tried on a
+     real phone either.
+     ALSO RENAMED: your own row in the member list says "you", not "this
+     phone" (it is an account); the switcher marks the household "open now";
+     the list heading is "People in this household". The single-use footer
+     moved into the picker, scoped to member and guest links, since the app
+     link never expires.
+     TESTED: 415 unit, 12 sync, 79 rules, 18 database, 351 browser, lint and
+     build. Two new browser tests: the picker offers all three and Cancel
+     restores the button; Share the app shows a link with no fragment and
+     leaves the saved state byte-identical. Mutation: appUrl returning the
+     href unchanged fails 2 unit tests.
