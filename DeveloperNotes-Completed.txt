@@ -4299,40 +4299,46 @@ into the details panel and the name grew.
      — the buttons carrying a "Serves N" line — and separately asserts the
      joins line is there.
 
-132. INVITING, REORGANISED: ONE "INVITE SOMEONE", THEN WHO IT IS FOR. Asked
-     as "can I invite someone to the app but not to my household?" — and the
-     answer was yes, but only by knowing to send the bare address, which
-     nothing in the app offered.
+132. INVITING, REORGANISED: ONE "INVITE", AND "SHARE GROCERY RUN" FOR
+     SOMEBODY WHO WANTS THEIR OWN. Asked as "can I invite someone to the app
+     but not to my household?" — yes, but only by knowing to send the bare
+     address, which nothing in the app offered.
      WHAT IT WAS: two sibling buttons under the member list, "Invite another
      phone" and "Guest link". The first named a DEVICE when what joins is a
-     person on an account — the same account on a laptop needs no invite at
-     all, it signs in and lands in the household.
-     WHAT IT IS: one "Invite someone" that opens a small picker — Someone who
-     lives here (Invite as member), Someone helping with a shop (Invite as
-     guest), Someone who wants their own (Share the app). That is the shape
-     most apps use: pick the kind of access, then send. Every choice lands in
-     the same link card, copied in the same tap (item 68's copy-before-await
-     still holds; the member/guest choice IS the click).
-     SHARE THE APP WRITES NOTHING. It hands out appUrl(), the page's own
-     address with query and fragment dropped — a leftover #join= or #import=
-     on this device would otherwise put the recipient in OUR household. The
-     plain address already does the rest: a fresh browser gets the welcome
-     screen, and signing in there or "Start my own list" makes a household of
-     their own. So it is offered to guests, signed-out devices and refused
-     accounts too, where the picker would have had one option and collapses
-     to that one button.
-     A SHARE… BUTTON on the link card uses the phone's own share sheet where
-     the browser has one (navigator.share), beside Copy rather than instead
-     of it. Absent on most desktop browsers, including the headless one the
-     browser tests use — so it is UNTESTED by the suite; it was not tried on a
-     real phone either.
-     ALSO RENAMED: your own row in the member list says "you", not "this
-     phone" (it is an account); the switcher marks the household "open now";
-     the list heading is "People in this household". The single-use footer
-     moved into the picker, scoped to member and guest links, since the app
-     link never expires.
+     person on an account — the same account on a laptop needs no invite, it
+     signs in and lands in the household.
+     FIRST ATTEMPT, REJECTED BY THE OWNER: an "Invite someone" picker with
+     three options, each with a sentence under it ("Someone who lives here —
+     shares everything…"). The owner's objection was right: professional apps
+     do not caption every button, and needing a caption was the sign the
+     choices were badly drawn — in particular, sending the app sat inside
+     Household although it has nothing to do with the household.
+     WHAT IT IS NOW:
+     - Household: one "Invite". It opens a Member / Guest (list only) toggle
+       with Create link and Cancel under it — the role picked beside the send
+       button, as shared-document and team apps do. The link card says what it
+       is in a fact line ("List only · no account needed · Works once ·
+       expires in 1 hour"), not a paragraph. "Invites waiting to be used —
+       nobody has joined yet" became "Pending invites". Item 68's
+       copy-before-await still holds: Create link IS the click.
+     - Foot of Settings, by the build number: "Share Grocery Run", where apps
+       keep "tell a friend". Opens the phone's share sheet where the browser
+       has one (navigator.share); otherwise copies the link and the button
+       reads "✓ Link copied". Writes nothing: appUrl() is the page's address
+       with query and fragment dropped, so a #join= this device is carrying
+       cannot put the recipient in OUR household. A fresh browser gets the
+       welcome screen, where signing in or "Start my own list" makes a
+       household of their own. Offered to everyone, guests included.
+     - Share… beside Copy on an invite card, where there is a share sheet.
+     - Your own member row says "you", not "this phone" (it is an account);
+       the switcher marks the household "open now"; the heading is "People in
+       this household".
+     UNTESTED: the share-sheet path. Headless Chromium has no navigator.share,
+     so both Share buttons are reached only on the copy path in the suite,
+     and nobody has tried them on a real phone yet.
      TESTED: 415 unit, 12 sync, 79 rules, 18 database, 351 browser, lint and
-     build. Two new browser tests: the picker offers all three and Cancel
-     restores the button; Share the app shows a link with no fragment and
-     leaves the saved state byte-identical. Mutation: appUrl returning the
-     href unchanged fails 2 unit tests.
+     build. New browser tests: Invite opens the toggle and Cancel restores the
+     button; Share Grocery Run, opened with a #join= in the address, copies a
+     link with no fragment and leaves the saved state byte-identical.
+     Mutation: sharing the raw address instead of appUrl() fails that browser
+     test; appUrl returning its input unchanged fails 2 unit tests.
