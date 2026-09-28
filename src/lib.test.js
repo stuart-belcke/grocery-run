@@ -16,6 +16,7 @@ import {
   parseInvite,
   formatInvite,
   inviteUrl,
+  appUrl,
   newInviteToken,
   validCode,
   newHouseholdCode,
@@ -3044,6 +3045,16 @@ test("an invite link round-trips back to the same invite", () => {
   });
 });
 
+test("the app link carries nothing of this device — no invite, no import", () => {
+  /* Item 132: "Share the app" is for somebody who wants their OWN household.
+     Made while this device is sitting on a tapped invite or recipe link, a
+     leftover #join= would put them in ours instead. */
+  assert.equal(appUrl("https://example.test/grocery-run/#join=home-cx2ur9zg~abcdefgh1234"), "https://example.test/grocery-run/");
+  assert.equal(appUrl("https://example.test/grocery-run/?x=1#import=abc"), "https://example.test/grocery-run/");
+  assert.equal(parseJoinHash(new URL(appUrl("https://example.test/grocery-run/#join=home-cx2ur9zg~abcdefgh1234")).hash), "");
+  assert.equal(appUrl(""), "");
+});
+
 test("a GUEST link survives the round trip as a guest link", () => {
   // The `~g` marker is the only thing saying what the invite grants, and it
   // has been dropped once already — a guest link that redeems as a member is
@@ -3489,7 +3500,7 @@ test("the FAQ says BOTH links are single-use, because now they both are", () => 
      ever reverted, this test would keep passing while the app lied again —
      which is why tests/rules/rules.test.mjs holds the clause itself. This
      one only holds the PROSE to the decision. */
-  const invite = FAQS.find((f) => /add another phone/i.test(f.q));
+  const invite = FAQS.find((f) => /invite someone/i.test(f.q));
   const guest = FAQS.find((f) => /guest link/i.test(f.q));
   assert.match(invite.a, /works once/, "the full-invite answer should still say it is single-use");
   assert.match(guest.a, /works once/, "the guest answer should now say it is single-use too");

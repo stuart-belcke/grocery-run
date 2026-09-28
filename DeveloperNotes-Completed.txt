@@ -4298,3 +4298,52 @@ into the details panel and the name grew.
      puts that name on screen deliberately. It reads the offered RECIPES now
      — the buttons carrying a "Serves N" line — and separately asserts the
      joins line is there.
+
+132. INVITING, REORGANISED: "INVITE TO HOUSEHOLD" AND "INVITE TO APP". Asked
+     as "can I invite someone to the app but not to my household?" — yes, but
+     only by knowing to send the bare address, which nothing in the app
+     offered.
+     WHAT IT WAS: two sibling buttons under the member list, "Invite another
+     phone" and "Guest link". The first named a DEVICE when what joins is a
+     person on an account — the same account on a laptop needs no invite, it
+     signs in and lands in the household.
+     TWO DESIGNS REJECTED BY THE OWNER, recorded so neither comes back:
+     - A three-option picker with a sentence under every option. "Other
+       professional apps don't have descriptions for every button."
+     - One "Invite" with a Member / Guest (list only) toggle beside Create
+       link, and "Share Grocery Run" at the foot of Settings. "I don't like
+       the toggler idea."
+     WHAT IT IS NOW, as the owner specified it:
+     - Two buttons under the member list: Invite to household, Invite to app.
+     - Invite to household opens a dialog with one sentence each on what a
+       Member and a Guest can do, and Member / Guest buttons. Words are
+       wanted HERE — it is the moment somebody decides what access to grant.
+       Item 68's copy-before-await still holds: the Member or Guest tap IS
+       the gesture.
+     - Invite to app opens a dialog saying it lets them create a household of
+       their own and they won't see anything in yours, with Share link. That
+       opens the phone's share sheet where the browser has one
+       (navigator.share); elsewhere it copies and shows the link in the same
+       card an invite uses. It writes nothing: appUrl() is the page's
+       address with query and fragment dropped, so a #join= this device is
+       carrying cannot put the recipient in OUR household. A fresh browser
+       gets the welcome screen, where signing in or "Start my own list" makes
+       a household of their own. Offered to guests, signed-out devices and
+       refused accounts too, which see only this button.
+     - The link card shows a fact line, not a paragraph ("List only · no
+       account needed · Works once · expires in 1 hour"). "Invites waiting to
+       be used — nobody has joined yet" became "Pending invites". Share…
+       sits beside Copy on an invite card where there is a share sheet.
+     - Your own member row says "you", not "this phone" (it is an account);
+       the switcher marks the household "open now"; the heading is "People in
+       this household".
+     UNTESTED: the share-sheet path. Headless Chromium has no navigator.share,
+     so the suite only reaches the copy path, and nobody has tried it on a
+     real phone yet.
+     TESTED: 415 unit, 12 sync, 79 rules, 18 database, 351 browser, lint and
+     build. New browser tests: Invite to household offers Member, Guest and
+     Cancel and spells out the guest's limits; Invite to app, opened with a
+     #join= in the address, copies a link with no fragment that matches the
+     card, and leaves the saved state byte-identical. Mutation: giving the
+     app link the raw address fails that browser test; appUrl returning its
+     input unchanged fails 2 unit tests.
