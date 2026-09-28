@@ -281,11 +281,10 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
 
   const [inviteMsg, setInviteMsg] = useState("");
   const [inviting, setInviting] = useState(false);
-  /* ITEM 132: "Invite" opens a role toggle and Create link. Plain useState,
-     not useSticky: it is something you were in the middle of DOING, so a tab
-     switch should ask again. */
-  const [invitePicker, setInvitePicker] = useState(false);
-  const [inviteRole, setInviteRole] = useState("member");
+  /* ITEM 132: which invite dialog is open — "household" (then Member or
+     Guest) or "app". Plain useState, not useSticky: it is something you were
+     in the middle of DOING, so a tab switch should ask again. */
+  const [askInvite, setAskInvite] = useState(null);
   const [askRemove, setAskRemove] = useState(null); // member pending removal
   const [askRevoke, setAskRevoke] = useState(null); // invite pending revocation
   /* TWO CONFIRMATIONS, NOT ONE, and the step is the state: 0 closed, 1 what
@@ -388,7 +387,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
   );
 
   const makeInvite = async (role) => {
-    setInvitePicker(false);
+    setAskInvite(null);
     setInviting(true);
     setInviteMsg("");
     /* COPY BEFORE THE AWAIT, NOT AFTER. The previous version showed the link
@@ -433,7 +432,8 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
   // it opens, and a code alone no longer opens anything. The role rides along
   // because the account redeeming it can't read the invite to find out what
   // it grants. Built against the URL this phone is already on.
-  const linkFor = (i) => inviteUrl(typeof window !== "undefined" ? window.location.href : "", code, i.token, i.role);
+  const here = typeof window !== "undefined" ? window.location.href : "";
+  const linkFor = (i) => (i.role === "app" ? appUrl(here) : inviteUrl(here, code, i.token, i.role));
 
   /* The phone's own share sheet — Messages, WhatsApp, email — which is how
      most apps hand a link over. Offered only where the browser has one
@@ -449,32 +449,35 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
     }
   };
 
-  /* ITEM 132: "SHARE GROCERY RUN", for somebody who wants a household of
-     their own. Not in Household, because it has nothing to do with this
-     one — that placement is what needed a paragraph to explain. It lives at
-     the foot of the tab by the build number, where apps keep "tell a friend".
-     No database write and no token: appUrl() is the plain address with any
-     #join= this device carries stripped off, and a browser that has never
-     opened the app gets the welcome screen, where signing in or "Start my
-     own list" makes a household that is theirs. The share sheet opens
-     straight away where there is one; elsewhere the link is copied. */
-  const [appCopied, setAppCopied] = useState(false);
+  /* ITEM 132: "INVITE TO APP", for somebody who wants a household of their
+     own. No database write and no token: appUrl() is the plain address with
+     any #join= this device carries stripped off, and a browser that has never
+     opened the app gets the welcome screen, where signing in or "Start my own
+     list" makes a household that is theirs.
+     The share sheet opens straight away where there is one. Elsewhere the
+     link is copied and shown in the same card as an invite, so there is one
+     place links are handed out rather than two. Both happen inside the tap on
+     Share link — navigator.share and the clipboard each need the gesture. */
   const shareApp = async () => {
-    const url = appUrl(typeof window !== "undefined" ? window.location.href : "");
+    setAskInvite(null);
+    setInviteMsg("");
+    const card = { token: "app", role: "app" };
     if (canShare) {
+      setNewInvite(null);
       try {
-        await navigator.share({ title: "Grocery Run", url });
+        await navigator.share({ title: "Grocery Run", url: linkFor(card) });
       } catch {
         /* dismissed */
       }
       return;
     }
+    setNewInvite(card);
     try {
-      await navigator.clipboard.writeText(url);
-      setAppCopied(true);
-      setTimeout(() => setAppCopied(false), 2500);
+      await navigator.clipboard.writeText(linkFor(card));
+      setCopied(card.token);
+      setTimeout(() => setCopied((t) => (t === card.token ? "" : t)), 2500);
     } catch {
-      setCopyFallback(url);
+      setCopied(""); // the card's own Copy link is the retry
     }
   };
 
@@ -841,38 +844,24 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                 </p>
               )}
 
-              {/* ITEM 132: ONE "Invite", AND THE ROLE IS A PROPERTY OF THE
-                  LINK. It was two sibling buttons, "Invite another phone" and
-                  "Guest link" — the first naming a DEVICE when what joins is
-                  a person on an account. Picking the access level beside the
-                  send button is how shared documents and team apps do it, and
-                  it reads without a sentence under each option: the toggle
-                  says what the link will grant, the button makes it.
-                  Sending the app to somebody who wants a household of their
-                  OWN is not here on purpose — it is not about this household
-                  at all. See "Share Grocery Run" at the foot of this tab. */}
-              {user && !accessDenied && !isGuest && (
+              {/* ITEM 132: TWO INVITES, NAMED FOR WHERE THEY LEAD. It was
+                  "Invite another phone" and "Guest link" — the first naming a
+                  DEVICE when what joins is a person on an account, and
+                  nothing at all for somebody who wants the app for a
+                  household of their own. Each button opens a dialog that
+                  says in a sentence what the person will get, which is the
+                  one place the owner asked for words (two rejected rounds:
+                  a captioned three-way picker, then a Member/Guest toggle).
+                  A guest, a signed-out device and a refused account see only
+                  Invite to app: the household invite writes to this
+                  household, and the rules would refuse the write. */}
               <div style={{ marginTop: 12 }}>
-                  {!invitePicker ? (
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <Btn onClick={() => { setInviteMsg(""); setInvitePicker(true); }} disabled={inviting}>{inviting ? "Creating…" : "Invite"}</Btn>
-                    </div>
-                  ) : (
-                    <div role="group" aria-label="New invite" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8 }}>
-                      <Seg
-                        options={[
-                          { value: "member", label: "Member" },
-                          { value: "guest", label: "Guest (list only)" },
-                        ]}
-                        value={inviteRole}
-                        onChange={setInviteRole}
-                      />
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <Btn kind="primary" onClick={() => makeInvite(inviteRole)}>Create link</Btn>
-                        <Btn onClick={() => setInvitePicker(false)}>Cancel</Btn>
-                      </div>
-                    </div>
-                  )}
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {user && !accessDenied && !isGuest && (
+                      <Btn onClick={() => { setInviteMsg(""); setAskInvite("household"); }} disabled={inviting}>{inviting ? "Creating…" : "Invite to household"}</Btn>
+                    )}
+                    <Btn onClick={() => { setInviteMsg(""); setAskInvite("app"); }}>Invite to app</Btn>
+                  </div>
                   {inviteMsg && <div role="status" style={{ fontSize: 13, fontWeight: 500, color: C.tomato, marginTop: 8 }}>{inviteMsg}</div>}
 
                   {/* The link, right where the button was pressed. The old code
@@ -888,7 +877,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                           copying in the same gesture is that there's nothing
                           left to click before the link is usable. */}
                       <div role="status" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
-                        {newInvite.role === "guest" ? "Guest link" : "Member link"}
+                        {newInvite.role === "app" ? "App link" : newInvite.role === "guest" ? "Guest link" : "Member link"}
                         {copied === newInvite.token && (
                           <span style={{ fontSize: 12, fontWeight: 700, color: C.green }}>✓ Copied to clipboard</span>
                         )}
@@ -897,13 +886,15 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                           grants and how long it lasts, the two things the
                           sender needs before sending it. */}
                       <div style={{ fontSize: 12, color: C.faint, margin: "0 0 8px" }}>
-                        {newInvite.role === "guest" ? "List only · no account needed · " : ""}Works once · expires in 1 hour
+                        {newInvite.role === "app"
+                          ? "For their own household · doesn't expire"
+                          : `${newInvite.role === "guest" ? "List only · no account needed · " : ""}Works once · expires in 1 hour`}
                       </div>
                       <input
                         readOnly
                         value={linkFor(newInvite)}
                         onFocus={(e) => e.target.select()}
-                        aria-label="Invite link"
+                        aria-label={newInvite.role === "app" ? "App link" : "Invite link"}
                         style={{ ...inputStyle, width: "100%", boxSizing: "border-box", fontFamily: "ui-monospace, Menlo, monospace" }}
                       />
                       <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
@@ -917,7 +908,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                     </div>
                   )}
 
-                  {inviteList.length > 0 && (
+                  {user && !accessDenied && !isGuest && inviteList.length > 0 && (
                     <div style={{ marginTop: 10 }}>
                       {/* NOT MEMBERS. An invite is written to the household the
                           moment it is created — it has to be, or there is
@@ -959,7 +950,6 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                     </div>
                   )}
               </div>
-              )}
             </div>
 
             <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
@@ -1330,9 +1320,33 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
         )}
       </Section>
 
-      <div style={{ display: "flex", justifyContent: "center", marginTop: 14 }}>
-        <Btn onClick={shareApp}>{appCopied ? "✓ Link copied" : "Share Grocery Run"}</Btn>
-      </div>
+      <ChoiceDialog
+        open={askInvite === "household"}
+        title="Invite to household"
+        onCancel={() => setAskInvite(null)}
+        choices={[
+          { label: "Guest", kind: "ghost", onClick: () => makeInvite("guest") },
+          { label: "Member", kind: "primary", onClick: () => makeInvite("member") },
+        ]}
+      >
+        <p style={{ margin: "0 0 10px" }}>
+          <b style={{ color: C.ink }}>Member</b> — shares everything: the list, the week plan and the recipes. They sign in to join.
+        </p>
+        <p style={{ margin: "0 0 10px" }}>
+          <b style={{ color: C.ink }}>Guest</b> — can shop the list, but can&apos;t change recipes or the week plan. No account needed.
+        </p>
+        <p style={{ margin: 0, fontSize: 13 }}>The link works once and expires in an hour.</p>
+      </ChoiceDialog>
+
+      <ChoiceDialog
+        open={askInvite === "app"}
+        title="Invite to app"
+        onCancel={() => setAskInvite(null)}
+        choices={[{ label: "Share link", kind: "primary", onClick: shareApp }]}
+      >
+        Invite someone to Grocery Run so they can create a household of their own. They won&apos;t see anything in yours.
+      </ChoiceDialog>
+
       <p style={{ fontSize: 12, color: C.faint, textAlign: "center", margin: "14px 0 4px", fontFamily: "ui-monospace, Menlo, monospace" }}>
         Build {__BUILD__}
       </p>

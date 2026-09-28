@@ -131,10 +131,9 @@ test("a guest sees no Invite or Remove controls, and is told why", async () => {
     },
   });
   try {
-    assert.equal(await page.getByRole("button", { name: "Invite", exact: true }).count(), 0);
-    assert.equal(await page.getByRole("button", { name: "Create link" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Invite to household" }).count(), 0);
     // Sending the app writes nothing to this household, so a guest keeps it.
-    assert.equal(await page.getByRole("button", { name: "Share Grocery Run" }).count(), 1);
+    assert.equal(await page.getByRole("button", { name: "Invite to app" }).count(), 1);
     assert.equal(await page.getByRole("button", { name: "Remove" }).count(), 0);
     await page.getByText(/isn.t yours to do/).waitFor({ timeout: 3000 });
     // Still yours to leave, even as a guest — the restriction is on managing
@@ -197,7 +196,7 @@ test("access refused also names the account, and hides what it cannot do", async
     const body = await page.textContent("body");
     assert.match(body, new RegExp(`This account isn't in household ${HERE}`), "the explanation should name the household it cannot read");
     assert.match(body, /me@example\.com/, "it should name the account, which is what an invite has to be sent to");
-    assert.equal(await page.locator("button").filter({ hasText: /^Invite$/ }).count(), 0,
+    assert.equal(await page.locator("button").filter({ hasText: /^Invite to household$/ }).count(), 0,
       "inviting writes, and the write would be refused — it should not be offered");
     assert.equal(await page.locator("button").filter({ hasText: /^Leave household$/ }).count(), 0,
       "leaving writes, and the write would be refused — it should not be offered");
@@ -374,8 +373,8 @@ test("creating an invite reports the write that failed, and shows no unconfirmed
     members: { u1: { email: "me@example.com", updatedAt: 1 } },
   });
   try {
-    await page.getByRole("button", { name: "Invite", exact: true }).click();
-    await page.getByRole("button", { name: "Create link" }).click();
+    await page.getByRole("button", { name: "Invite to household" }).click();
+    await page.getByRole("dialog", { name: "Invite to household" }).getByRole("button", { name: "Member", exact: true }).click();
     await page.getByText(/Couldn.t create an invite/).waitFor({ timeout: 5000 });
     // getByLabel("Invite link") would also match the join field further down
     // ("Paste the invite link someone sent you…") by substring — the exact
@@ -387,33 +386,34 @@ test("creating an invite reports the write that failed, and shows no unconfirmed
   }
 });
 
-/* ITEM 132: one Invite, the role chosen on a toggle beside Create link, and
-   the app itself shared from the foot of the tab rather than from here. */
+/* ITEM 132: two invites named for where they lead — into this household
+   (then Member or Guest), or into the app for a household of their own. */
 
-test("Invite opens a Member/Guest toggle beside Create link, and Cancel puts it back", async () => {
+test("Invite to household asks Member or Guest, and says what each can do", async () => {
   const page = await openSettings({
     user: ME,
     members: { u1: { email: "me@example.com", updatedAt: 1 } },
   });
   try {
-    // The two old buttons are gone — one entry point, not two siblings.
+    // The two old buttons are gone.
     assert.equal(await page.getByRole("button", { name: "Invite another phone" }).count(), 0);
     assert.equal(await page.getByRole("button", { name: "Guest link" }).count(), 0);
-    await page.getByRole("button", { name: "Invite", exact: true }).click();
-    const group = page.getByRole("group", { name: "New invite" });
-    for (const name of ["Member", "Guest (list only)", "Create link", "Cancel"]) {
-      assert.equal(await group.getByRole("button", { name, exact: true }).count(), 1, `${name} should be offered`);
+    await page.getByRole("button", { name: "Invite to household" }).click();
+    const dialog = page.getByRole("dialog", { name: "Invite to household" });
+    for (const name of ["Member", "Guest", "Cancel"]) {
+      assert.equal(await dialog.getByRole("button", { name, exact: true }).count(), 1, `${name} should be offered`);
     }
-    await group.getByRole("button", { name: "Cancel" }).click();
-    assert.equal(await group.count(), 0);
-    assert.equal(await page.getByRole("button", { name: "Invite", exact: true }).count(), 1);
+    const text = await dialog.textContent();
+    assert.match(text, /can.t change recipes/, "the guest's limits should be spelt out");
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    assert.equal(await dialog.count(), 0);
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
   }
 });
 
-test("Share Grocery Run copies the bare address — no invite, and nothing written", async () => {
+test("Invite to app hands out the bare address — no invite, and nothing written", async () => {
   /* The whole point is that the recipient lands in a household of their OWN.
      A link carrying #join= would put them in ours, so the assertion is on the
      copied text, and on the saved state being untouched. */
@@ -426,12 +426,16 @@ test("Share Grocery Run copies the bare address — no invite, and nothing writt
     // Opened from a tapped invite, so there IS a fragment to leak.
     await page.evaluate(() => history.replaceState(null, "", location.pathname + "#join=home-other~abcdefgh1234"));
     const before = await page.readState();
-    await page.getByRole("button", { name: "Share Grocery Run" }).click();
-    await page.getByRole("button", { name: "✓ Link copied" }).waitFor({ timeout: 3000 });
-    const link = await page.evaluate(() => navigator.clipboard.readText());
-    assert.equal(link, new URL(link).origin + new URL(link).pathname, "the app link must carry no query or fragment");
-    assert.equal(await page.getByText("Pending invites").count(), 0, "sharing the app must not create an invite");
-    assert.deepEqual(await page.readState(), before, "sharing the app must write nothing");
+    await page.getByRole("button", { name: "Invite to app" }).click();
+    const dialog = page.getByRole("dialog", { name: "Invite to app" });
+    assert.match(await dialog.textContent(), /household of their own/);
+    await dialog.getByRole("button", { name: "Share link" }).click();
+    const shown = await page.locator('input[aria-label="App link"]').inputValue();
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+    assert.equal(copied, shown, "what was copied should be what the card shows");
+    assert.equal(copied, new URL(copied).origin + new URL(copied).pathname, "the app link must carry no query or fragment");
+    assert.equal(await page.getByText("Pending invites").count(), 0, "inviting to the app must not create an invite");
+    assert.deepEqual(await page.readState(), before, "inviting to the app must write nothing");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
