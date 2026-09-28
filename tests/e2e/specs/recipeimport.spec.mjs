@@ -80,7 +80,7 @@ test("SHOULD: pasting a bare URL fetches it through the Worker and fills the for
     // servings — the servings box must NOT have been overwritten with 24.
     assert.equal(await page.getByLabel("Serves").inputValue(), "4");
     // The URL itself is known, so the Source field is worth filling in —
-    // something no paste or Shortcut import can offer.
+    // something a pasted page's text can never offer.
     assert.equal(await page.getByPlaceholder("Source / link (optional)").inputValue(), RECIPE_URL);
 
     await page.getByRole("button", { name: /^Save meal$/ }).click();

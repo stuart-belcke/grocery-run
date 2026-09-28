@@ -181,10 +181,22 @@ file reached 5,886 lines with ten live items in it.
     recipe links when there is time and budget for the testing. Five sites is
     where this stopped for cost reasons, not because the returns had fallen
     off — EVERY page so far broke something the previous ones did not, so
-    expect the next batch to as well. Capture them the way the five were
-    (Get Contents of URL -> Copy to Clipboard, nothing in between), run each
-    through parseRecipeText BEFORE changing anything, and fix what the output
-    actually shows.
+    expect the next batch to as well. Run each through parseRecipeText
+    BEFORE changing anything, and fix what the output actually shows.
+    HOW TO CAPTURE NOW. The five were captured with an iOS Shortcut, which
+    was DELETED from the app on 2026-09-28 — the owner does not want it in
+    anybody's workflow, so do not capture with one either. The two ways a
+    recipe actually arrives are the two to capture: the page's raw HTML
+    (what the Worker fetches — its JSON-LD is read by findRecipeNode, and
+    with none the Worker falls back to plain text), and the text a person
+    gets by selecting the recipe in a browser and copying it. A cloud
+    session needs the recipe sites allowed under its Network access setting
+    to fetch either; on 2026-09-27 every recipe site tried was refused.
+    SITES CHOSEN FOR WHAT THEY WOULD TEACH, none captured yet: bbcgoodfood.com
+    (UK metric), smittenkitchen.com (paragraph steps, no JSON-LD),
+    kingarthurbaking.com (ingredient groups), foodnetwork.com (a large
+    non-Dotdash site not on the Worker's list), jamieoliver.com (UK, a
+    second layout).
 
     WHAT TO PICK UP FIRST, in the order that would teach the most:
       - DONE — THE NAME NOW COMES BACK ON ALL FIVE. It was blank on every
