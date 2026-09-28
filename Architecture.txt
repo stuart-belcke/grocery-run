@@ -240,15 +240,21 @@ SEAM      worker/index.js owns fetching, JSON-LD extraction, the allowlist,
           URL, and returns the exact {name, servings, notes, ingredients}
           shape parseRecipeText already returns (via recipeFromJsonLd in
           lib.js) — so MealsTab's fillDraft has ONE merge path regardless of
-          whether a recipe arrived by paste, Shortcut, or Worker fetch.
+          whether a recipe arrived by paste or Worker fetch.
           Swapping the Worker for a different backend touches
           recipeImport.js and nothing else.
-          THE SHORTCUT ITSELF IS RETIRED, not deleted: parseImportHash /
-          importUrl in lib.js (RecipeImportShortcut.md) still work as a
-          receiver, so a Shortcut or any other tool that hands the app a URL
-          hash keeps functioning — it is simply no longer the primary path,
-          and nobody needs to build one by hand on a phone to use this
-          feature.
+          THE SHORTCUT IS DELETED (2026-09-28), not only retired. It was
+          first kept as a receiver — parseImportHash / importUrl in lib.js
+          read a recipe out of an `#import=` address — so a Shortcut already
+          built would keep working. The owner decided it should not be part
+          of anybody's workflow at all, and code that only an unbuilt
+          Shortcut could reach is untested surface for nobody. Removed with
+          it: RecipeImportShortcut.md, the receiver in App.jsx and MealsTab,
+          the cut-short and guest warnings only it could raise, and
+          tests/e2e/specs/importlink.spec.mjs. An old Shortcut now opens the
+          app with the recipe ignored; nothing shared was ever stored by it,
+          so no other phone is affected. There are now exactly two ways in:
+          paste a link (this Worker), or paste the page's text.
 
 
 5. CI, SCHEDULED JOBS AND SECRETS — GitHub Actions
@@ -281,9 +287,9 @@ PHASE 1   No app store, no review, no yearly developer fee, no separate builds
           all.
 CEILING   Not a quota — a capability limit. Anything needing background
           execution, real push notifications on iOS, or deep OS integration is
-          where a PWA stops. None of those are wanted today; the closest is the
-          Shortcut in entry 4, which exists precisely because the web cannot
-          reach across origins.
+          where a PWA stops. None of those are wanted today; the closest was the
+          iOS Shortcut in entry 4, since deleted — the Worker there exists
+          precisely because the web cannot reach across origins.
 PHASE 2   A wrapper (Capacitor) only if a genuinely native capability becomes
           necessary. This would be the most expensive move on this page — an
           Apple developer account, review cycles, and losing the

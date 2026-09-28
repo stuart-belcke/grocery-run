@@ -1,8 +1,13 @@
 Captured input, not authored test data.
 
-Each `*-page.txt` here is what an iOS Shortcut's "Get Contents of URL" hands
-back for one recipe — the whole document as TEXT, tags already stripped by
-Shortcuts, navigation and footer included.
+Each `*-page.txt` here is one recipe page's whole document as TEXT, tags
+stripped, navigation and footer included. They were captured with an iOS
+Shortcut's "Get Contents of URL". The Shortcut has since been DELETED from
+the app (2026-09-28) — nobody imports that way now — but the files are still
+the right test data: they are the same shape as the Worker's plain-text
+fallback (worker/index.js, pageText) and as a person selecting a whole page
+and pasting it. Do not capture new ones with a Shortcut; see item 110 in
+DeveloperNotes.txt for how to capture now.
 
 
 WHAT EACH FIXTURE IS
@@ -115,7 +120,7 @@ ONE HONEST CAVEAT
 =================
 
 These were pasted into a chat and written to disk from there, so runs of blank
-lines and some tabs may not be byte-identical to what the Shortcut produced.
+lines and some tabs may not be byte-identical to what was captured.
 The structure is faithful and every bug they were used to fix reproduces on
 them, but they are transcriptions rather than byte-exact captures. A
 re-capture straight to file would be strictly better.
