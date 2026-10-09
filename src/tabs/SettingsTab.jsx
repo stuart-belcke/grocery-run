@@ -7,7 +7,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { C, fontBody, inputStyle } from "../theme";
 import { Btn, ConfirmDialog, ChoiceDialog, AlertDialog, Section, Seg, HelpText, useUnsavedWork } from "../ui";
-import { formatCatalog, recipeForCatalogFile, compactCfg, normalizeLocal, validLocal, seedCatalog, remapStateIngredientIds, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, inviteLive, newInviteToken, searchHelp, writeErrorAdvice, householdLabel, hasHouseholdName, cleanHouseholdName, exampleHouseholdName, HOUSEHOLD_NAME_MAX } from "../lib";
+import { formatCatalog, recipeForCatalogFile, compactCfg, normalizeLocal, validLocal, seedCatalog, remapStateIngredientIds, catalogConfigKey, catalogNameCollisions, classifyJoinInput, inviteUrl, appUrl, inviteLive, newInviteToken, searchHelp, writeErrorAdvice, householdLabel, hasHouseholdName, cleanHouseholdName, exampleHouseholdName, HOUSEHOLD_NAME_MAX } from "../lib";
 import { syncEnabled } from "../sync";
 import { HOW_IT_WORKS, FAQS } from "../help";
 import { UnitConverter } from "../UnitConverter";
@@ -281,6 +281,10 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
 
   const [inviteMsg, setInviteMsg] = useState("");
   const [inviting, setInviting] = useState(false);
+  /* ITEM 132: which invite dialog is open — "household" (then Member or
+     Guest) or "app". Plain useState, not useSticky: it is something you were
+     in the middle of DOING, so a tab switch should ask again. */
+  const [askInvite, setAskInvite] = useState(null);
   const [askRemove, setAskRemove] = useState(null); // member pending removal
   const [askRevoke, setAskRevoke] = useState(null); // invite pending revocation
   /* TWO CONFIRMATIONS, NOT ONE, and the step is the state: 0 closed, 1 what
@@ -383,6 +387,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
   );
 
   const makeInvite = async (role) => {
+    setAskInvite(null);
     setInviting(true);
     setInviteMsg("");
     /* COPY BEFORE THE AWAIT, NOT AFTER. The previous version showed the link
@@ -427,7 +432,54 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
   // it opens, and a code alone no longer opens anything. The role rides along
   // because the account redeeming it can't read the invite to find out what
   // it grants. Built against the URL this phone is already on.
-  const linkFor = (i) => inviteUrl(typeof window !== "undefined" ? window.location.href : "", code, i.token, i.role);
+  const here = typeof window !== "undefined" ? window.location.href : "";
+  const linkFor = (i) => (i.role === "app" ? appUrl(here) : inviteUrl(here, code, i.token, i.role));
+
+  /* The phone's own share sheet — Messages, WhatsApp, email — which is how
+     most apps hand a link over. Offered only where the browser has one
+     (phones do; most desktop browsers do not). On an invite it sits beside
+     Copy rather than replacing it, and is its own tap after the link is
+     confirmed stored, so nothing unconfirmed can be shared. */
+  const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
+  const shareInvite = async (i) => {
+    try {
+      await navigator.share({ title: "Grocery Run", url: linkFor(i) });
+    } catch {
+      // Dismissing the sheet rejects too, and is not an error to report.
+    }
+  };
+
+  /* ITEM 132: "INVITE TO APP", for somebody who wants a household of their
+     own. No database write and no token: appUrl() is the plain address with
+     any #join= this device carries stripped off, and a browser that has never
+     opened the app gets the welcome screen, where signing in or "Start my own
+     list" makes a household that is theirs.
+     The share sheet opens straight away where there is one. Elsewhere the
+     link is copied and shown in the same card as an invite, so there is one
+     place links are handed out rather than two. Both happen inside the tap on
+     Share link — navigator.share and the clipboard each need the gesture. */
+  const shareApp = async () => {
+    setAskInvite(null);
+    setInviteMsg("");
+    const card = { token: "app", role: "app" };
+    if (canShare) {
+      setNewInvite(null);
+      try {
+        await navigator.share({ title: "Grocery Run", url: linkFor(card) });
+      } catch {
+        /* dismissed */
+      }
+      return;
+    }
+    setNewInvite(card);
+    try {
+      await navigator.clipboard.writeText(linkFor(card));
+      setCopied(card.token);
+      setTimeout(() => setCopied((t) => (t === card.token ? "" : t)), 2500);
+    } catch {
+      setCopied(""); // the card's own Copy link is the retry
+    }
+  };
 
   const copyInvite = async (i) => {
     const text = linkFor(i);
@@ -744,7 +796,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                   {nameMsg ||
                     (hasHouseholdName(householdName)
                       ? "Everyone in the household sees this name. Clear it and they see the code instead."
-                      : "Give it a name and joining phones can tell they landed in the right household.")}
+                      : "Give it a name and people who join can tell they landed in the right household.")}
                 </p>
               </div>
             )}
@@ -753,7 +805,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                 denormalized onto each record exactly so this never has to
                 read users/{uid} — which the rules keep private per account. */}
             <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
-              <div style={{ fontSize: 13, fontWeight: 500, color: C.ink, marginBottom: 6 }}>Who can open this household</div>
+              <div style={{ fontSize: 13, fontWeight: 500, color: C.ink, marginBottom: 6 }}>People in this household</div>
               {!user ? (
                 <p style={{ fontSize: 13, color: C.faint, margin: 0 }}>Sign in below to see who else is in this household.</p>
               ) : memberList.length ? (
@@ -768,7 +820,10 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                       </span>
                       {m.uid === user.uid ? (
                         <>
-                          <span style={{ fontSize: 12, color: C.green, fontWeight: 500 }}>this phone</span>
+                          {/* "you", not "this phone" (item 132): the row is an
+                              ACCOUNT, and the same account on a laptop is the
+                              same row. */}
+                          <span style={{ fontSize: 12, color: C.green, fontWeight: 500 }}>you</span>
                           <Btn small kind="danger" onClick={() => setLeaveStep(1)}>Leave</Btn>
                         </>
                       ) : (
@@ -789,11 +844,23 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                 </p>
               )}
 
-              {user && !accessDenied && !isGuest && (
-                <div style={{ marginTop: 12 }}>
+              {/* ITEM 132: TWO INVITES, NAMED FOR WHERE THEY LEAD. It was
+                  "Invite another phone" and "Guest link" — the first naming a
+                  DEVICE when what joins is a person on an account, and
+                  nothing at all for somebody who wants the app for a
+                  household of their own. Each button opens a dialog that
+                  says in a sentence what the person will get, which is the
+                  one place the owner asked for words (two rejected rounds:
+                  a captioned three-way picker, then a Member/Guest toggle).
+                  A guest, a signed-out device and a refused account see only
+                  Invite to app: the household invite writes to this
+                  household, and the rules would refuse the write. */}
+              <div style={{ marginTop: 12 }}>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <Btn onClick={() => makeInvite("member")} disabled={inviting}>{inviting ? "Creating…" : "Invite another phone"}</Btn>
-                    <Btn onClick={() => makeInvite("guest")} disabled={inviting}>Guest link</Btn>
+                    {user && !accessDenied && !isGuest && (
+                      <Btn onClick={() => { setInviteMsg(""); setAskInvite("household"); }} disabled={inviting}>{inviting ? "Creating…" : "Invite to household"}</Btn>
+                    )}
+                    <Btn onClick={() => { setInviteMsg(""); setAskInvite("app"); }}>Invite to app</Btn>
                   </div>
                   {inviteMsg && <div role="status" style={{ fontSize: 13, fontWeight: 500, color: C.tomato, marginTop: 8 }}>{inviteMsg}</div>}
 
@@ -810,21 +877,24 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                           copying in the same gesture is that there's nothing
                           left to click before the link is usable. */}
                       <div role="status" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
-                        {newInvite.role === "guest" ? "Guest link — send this" : "Invite link — send this"}
+                        {newInvite.role === "app" ? "App link" : newInvite.role === "guest" ? "Guest link" : "Member link"}
                         {copied === newInvite.token && (
                           <span style={{ fontSize: 12, fontWeight: 700, color: C.green }}>✓ Copied to clipboard</span>
                         )}
                       </div>
-                      <p style={{ fontSize: 12, color: C.faint, margin: "0 0 8px" }}>
-                        {newInvite.role === "guest"
-                          ? "Opening it lets them shop the list. They can't change recipes or the week, and they don't need an account. Good for an hour, once — send another for a second person."
-                          : "They open it, sign in, and they're in. Good for an hour, once."}
-                      </p>
+                      {/* FACTS, NOT A PARAGRAPH (item 132): what the link
+                          grants and how long it lasts, the two things the
+                          sender needs before sending it. */}
+                      <div style={{ fontSize: 12, color: C.faint, margin: "0 0 8px" }}>
+                        {newInvite.role === "app"
+                          ? "For their own household · doesn't expire"
+                          : `${newInvite.role === "guest" ? "List only · no account needed · " : ""}Works once · expires in 1 hour`}
+                      </div>
                       <input
                         readOnly
                         value={linkFor(newInvite)}
                         onFocus={(e) => e.target.select()}
-                        aria-label="Invite link"
+                        aria-label={newInvite.role === "app" ? "App link" : "Invite link"}
                         style={{ ...inputStyle, width: "100%", boxSizing: "border-box", fontFamily: "ui-monospace, Menlo, monospace" }}
                       />
                       <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
@@ -832,12 +902,13 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                             was blocked (or the flash already faded) — a tap
                             here is its own fresh gesture, same as before. */}
                         <Btn kind="primary" small onClick={() => copyInvite(newInvite)}>Copy link</Btn>
+                        {canShare && <Btn small onClick={() => shareInvite(newInvite)}>Share…</Btn>}
                         <Btn small onClick={() => setNewInvite(null)}>Done</Btn>
                       </div>
                     </div>
                   )}
 
-                  {inviteList.length > 0 && (
+                  {user && !accessDenied && !isGuest && inviteList.length > 0 && (
                     <div style={{ marginTop: 10 }}>
                       {/* NOT MEMBERS. An invite is written to the household the
                           moment it is created — it has to be, or there is
@@ -845,7 +916,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                           under the member list looking like somebody had just
                           been added. Says what it is now. */}
                       <div style={{ fontSize: 13, color: C.faint, marginBottom: 4 }}>
-                        Invites waiting to be used — nobody has joined yet
+                        Pending invites
                       </div>
                       <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
                         {inviteList.map((i) => (
@@ -878,30 +949,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                       </ul>
                     </div>
                   )}
-                  <p style={{ fontSize: 13, color: C.faint, margin: "10px 0 0" }}>
-                    {/* WHAT WENT, AND WHY IT WAS WORTH GOING.
-                        It read "Links expire in an hour. Removing someone is
-                        permanent — the household code alone won't let them
-                        back in." Three things wrong with the second half:
-                        REMOVING IS NOT PERMANENT. Send them a new invite and
-                        they are back. The Remove dialog says exactly that
-                        ("they'd need a new invite"), so this line contradicted
-                        the app three taps away.
-                        IT ARGUED WITH A MODEL NOBODY HOLDS. "The household
-                        code alone won't let them back in" only answers a
-                        question somebody carrying the OLD shared-code model
-                        would ask; a reader who never knew that model is just
-                        told a code they were not thinking about will not work.
-                        AND IT IS ALREADY SAID IN PLACE. The Remove dialog
-                        covers it at the moment it matters — same mistake as
-                        the Preferences note, a footer pre-explaining a dialog.
-                        WHAT SURVIVES is the one fact worth having BEFORE
-                        pressing Invite, and it now covers both kinds of link:
-                        since item 50 a guest link is single-use too. */}
-                    Links work once, and expire in an hour if nobody uses them.
-                  </p>
-                </div>
-              )}
+              </div>
             </div>
 
             <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
@@ -929,7 +977,7 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
                     <li key={h.code} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 13 }}>
                       <HouseholdLabel name={h.name} code={h.code} />
                       {h.code === code ? (
-                        <span style={{ fontSize: 12, color: C.green, fontWeight: 500 }}>this phone</span>
+                        <span style={{ fontSize: 12, color: C.green, fontWeight: 500 }}>open now</span>
                       ) : (
                         <Btn small onClick={() => setAskJoin(h.code)}>Switch</Btn>
                       )}
@@ -1271,6 +1319,33 @@ export function SettingsTab({ data, catalog, local, hCatalog, update, updateCata
           </div>
         )}
       </Section>
+
+      <ChoiceDialog
+        open={askInvite === "household"}
+        title="Invite to household"
+        onCancel={() => setAskInvite(null)}
+        choices={[
+          { label: "Guest", kind: "ghost", onClick: () => makeInvite("guest") },
+          { label: "Member", kind: "primary", onClick: () => makeInvite("member") },
+        ]}
+      >
+        <p style={{ margin: "0 0 10px" }}>
+          <b style={{ color: C.ink }}>Member</b> — shares everything: the list, the week plan and the recipes. They sign in to join.
+        </p>
+        <p style={{ margin: "0 0 10px" }}>
+          <b style={{ color: C.ink }}>Guest</b> — can shop the list, but can&apos;t change recipes or the week plan. No account needed.
+        </p>
+        <p style={{ margin: 0, fontSize: 13 }}>The link works once and expires in an hour.</p>
+      </ChoiceDialog>
+
+      <ChoiceDialog
+        open={askInvite === "app"}
+        title="Invite to app"
+        onCancel={() => setAskInvite(null)}
+        choices={[{ label: "Share link", kind: "primary", onClick: shareApp }]}
+      >
+        Invite someone to Grocery Run so they can create a household of their own. They won&apos;t see anything in yours.
+      </ChoiceDialog>
 
       <p style={{ fontSize: 12, color: C.faint, textAlign: "center", margin: "14px 0 4px", fontFamily: "ui-monospace, Menlo, monospace" }}>
         Build {__BUILD__}

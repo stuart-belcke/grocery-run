@@ -2595,9 +2595,20 @@ export function newInviteToken() {
    half-navigated URL is still clean. */
 export function inviteUrl(href, code, token, role) {
   const invite = formatInvite(code, token, role);
-  const base = String(href || "").split("#")[0].split("?")[0];
+  const base = appUrl(href);
   if (!base) return invite;
   return `${base}#join=${invite}`;
+}
+
+/* The app's own address, with nothing of this device in it — what "Share the
+   app" sends to somebody who wants a household of their own (item 132).
+   Same derivation as inviteUrl above and for the same reason: the address the
+   phone is already on is the one known to work. Query and fragment are both
+   dropped, because either could carry a #join= or #import= that belongs to
+   THIS device — sending one on would drop the recipient into our household
+   or our recipe instead of a fresh start. */
+export function appUrl(href) {
+  return String(href || "").split("#")[0].split("?")[0];
 }
 
 /* The invite carried by a URL somebody tapped, or "" for anything else.
