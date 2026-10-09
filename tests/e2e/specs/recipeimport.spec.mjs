@@ -80,7 +80,7 @@ test("SHOULD: pasting a bare URL fetches it through the Worker and fills the for
     // servings — the servings box must NOT have been overwritten with 24.
     assert.equal(await page.getByLabel("Serves").inputValue(), "4");
     // The URL itself is known, so the Source field is worth filling in —
-    // something no paste or Shortcut import can offer.
+    // something a pasted page's text can never offer.
     assert.equal(await page.getByPlaceholder("Source / link (optional)").inputValue(), RECIPE_URL);
 
     await page.getByRole("button", { name: /^Save meal$/ }).click();
@@ -319,6 +319,37 @@ test("SHOULD: an import that finds no ingredients says that, rather than claimin
     // is something to correct rather than a dead end.
     assert.equal(await page.getByPlaceholder("Meal name").inputValue(), "Grandma's Mystery Bake");
     assert.equal(await page.getByRole("button", { name: /^Recipe details/ }).getAttribute("aria-expanded"), "true");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+/* A RECIPE SOMEBODY TYPED THEMSELVES, pasted as text: no headings, just the
+   ingredients and then "1. …". Every numbered step used to come back as one
+   more ingredient and the method came back empty — so the steps went onto
+   the shopping list as things to buy. Asserted on what was SAVED, after a
+   round trip, because that is what the other phone receives. No Worker
+   call: plain text never leaves the device. */
+test("SHOULD: a pasted recipe with no headings saves its numbered steps as the method, not as ingredients", async () => {
+  const page = await openApp(BASE, { catalog: smallCatalog() });
+  try {
+    await openPasteWithUrl(page, "Typed Pancakes\n2 cups flour\n1 egg\n1 cup milk\n1. Mix it all.\n2. Fry in butter.");
+    await page.waitForTimeout(400);
+    assert.deepEqual(
+      await page.getByPlaceholder("Ingredient", { exact: true }).evaluateAll((els) => els.map((e) => e.value)),
+      ["Flour", "Egg", "Milk"]
+    );
+
+    await page.getByRole("button", { name: /^Save meal$/ }).click();
+    await page.waitForTimeout(500);
+    await page.roundTrip();
+
+    const cat = await page.readCatalog();
+    const recipe = Object.values(cat.recipes).find((r) => r.name === "Typed Pancakes");
+    assert.ok(recipe, "the pasted recipe should have been saved to the catalog");
+    assert.deepEqual(recipe.ingredients.map((i) => cat.ingredients[i.ingredientId]?.name), ["Flour", "Egg", "Milk"]);
+    assert.equal(recipe.instructions, "1. Mix it all.\n2. Fry in butter.");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

@@ -250,8 +250,8 @@ function findRecipeNode(html) {
 }
 
 /* No JSON-LD found — fall back to the page's visible text, the same shape
-   an iOS Shortcut's "Get Contents of URL" hands back (item 109), so
-   parseRecipeText can still have a try. Cloudflare Workers have no DOM, so
+   as the captured pages in tests/fixtures (item 109), so parseRecipeText can
+   still have a try. Cloudflare Workers have no DOM, so
    this is HTMLRewriter: strip script/style entirely (their content is never
    prose), then insert a newline at block-level boundaries so paragraphs and
    list items don't run together into one wall of text. */

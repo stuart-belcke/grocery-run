@@ -2191,8 +2191,11 @@ into the details panel and the name grew.
     it. It had sat that way for days.
     THE OWNER REDIRECTED IT DIRECTLY: building, installing and using a
     Shortcut is three more leave-the-app steps than "paste a link" should
-    cost. De-scoped on the spot — see RecipeImportShortcut.md for what
-    survives of it (the URL format the receiver still implements).
+    cost. De-scoped on the spot. The receiver was kept for a while after —
+    RecipeImportShortcut.md documented the URL format it read.
+    DELETED ENTIRELY 2026-09-28, on the owner's word that a Shortcut should
+    not be part of anybody's workflow at all: the receiver, its guide, its
+    warnings and its browser tests. Architecture.txt entry 4 lists what went.
 
     WHAT REPLACED IT: a Cloudflare Worker (worker/index.js) that fetches the
     given URL server-side and hands the app either the page's Recipe JSON-LD

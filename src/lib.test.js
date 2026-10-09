@@ -35,8 +35,6 @@ import {
   GENERIC_HOUSEHOLD_EXAMPLE,
   HOUSEHOLD_NAME_MAX,
   parseJoinHash,
-  parseImportHash,
-  importUrl,
   inviteLive,
   syncIndicator,
   writeErrorAdvice,
@@ -3089,101 +3087,6 @@ test("parseJoinHash decodes an escaped link, and survives a mangled one", () => 
   assert.doesNotThrow(() => parseJoinHash("#join=home-%E0%A4%A"));
 });
 
-/* ---------------- a recipe handed over in a URL (item 106) ----------------
-
-   THE TRUNCATION GUARD IS WHAT THESE ARE FOR. The transfer itself is one
-   encode and one decode and would be dull to test. What is worth testing is
-   the case nobody can measure from here: iOS cutting a 17k-character URL
-   somewhere in the middle. That produces a recipe missing its last few
-   ingredients, which parses cleanly and looks finished — so the only thing
-   standing between it and a wasted trip is `truncated` being right. */
-
-test("a recipe round-trips through a URL unchanged", () => {
-  const text = "Roast Chicken\nServes 4\n\n2 lb chicken\n1 tbsp olive oil & salt\n\n1. Roast it.";
-  const back = parseImportHash(new URL(importUrl("https://example.test/app/", text)).hash);
-  assert.equal(back.text, text);
-  assert.equal(back.truncated, false);
-});
-
-test("the recipe goes in the FRAGMENT, never the query", () => {
-  /* Same rule as the invite, for a different reason: a recipe page's URL is
-     somebody's browsing history, and the fragment never reaches the host or
-     its logs. */
-  const u = new URL(importUrl("https://example.test/app/?tab=meals#chars=1&import=old", "2 eggs"));
-  assert.equal(u.search, "", "the recipe must not be in the query string");
-  assert.match(u.hash, /^#chars=6&import=/);
-});
-
-test("`chars` comes BEFORE the recipe, so truncation cannot remove it", () => {
-  // The whole guard rests on this ordering. If the count were last, the cut
-  // that loses the recipe's tail would lose the evidence with it.
-  const url = importUrl("https://example.test/", "2 eggs\n1 cup flour");
-  assert.ok(url.indexOf("chars=") < url.indexOf("import="), url);
-});
-
-test("a URL cut in the middle is reported as truncated, not imported quietly", () => {
-  const text = "Roast Chicken\n\n2 lb chicken\n1 tbsp oil\n1 tsp salt\n2 sprigs thyme";
-  const full = importUrl("https://example.test/", text);
-  const cut = full.slice(0, full.length - 20); // iOS drops the tail
-  const back = parseImportHash(new URL(cut).hash);
-  assert.equal(back.truncated, true);
-  assert.ok(back.text.length < text.length);
-  assert.equal(back.declared, text.length);
-  // And what DID arrive is still handed over — three quarters of a recipe the
-  // reader has been warned about beats nothing at all.
-  assert.ok(back.text.startsWith("Roast Chicken"));
-});
-
-test("a cut landing mid-escape still yields the recipe, and still says truncated", () => {
-  /* decodeURIComponent rejects the WHOLE string over a dangling "%2", which
-     would throw away a whole recipe over its last character. */
-  // The ½ is LAST on purpose: it is the character the cut has to land inside.
-  // An earlier version of this test ended the text with a plain word, so the
-  // cut never touched an escape and the test passed with the repair removed.
-  const text = "Salad\n\n1 cup rocket\n1 lemon, ½";
-  const full = importUrl("https://example.test/", text);
-  assert.ok(full.endsWith("%C2%BD"), full.slice(-12));
-  const cut = full.slice(0, full.length - 1); // "%C2%B" — a broken escape
-  const back = parseImportHash(new URL(cut).hash);
-  assert.ok(back, "a broken escape must not throw the recipe away");
-  assert.equal(back.truncated, true);
-  assert.ok(back.text.startsWith("Salad"));
-});
-
-test("a whole captured page survives the round trip", () => {
-  /* The sizes that made the guard necessary, measured rather than assumed —
-     and the real pages are the only honest test of the encoder, because they
-     are what actually gets sent. */
-  const dir = new URL("../tests/fixtures/", import.meta.url);
-  const files = fs.readdirSync(dir).filter((f) => f.endsWith("-page.txt"));
-  assert.ok(files.length >= 5, "the fixtures are what makes this measurement real");
-  for (const f of files) {
-    const text = fs.readFileSync(new URL(f, dir), "utf8");
-    const url = importUrl("https://example.test/app/", text);
-    const back = parseImportHash(new URL(url).hash);
-    assert.equal(back.text, text, `${f} did not survive the round trip`);
-    assert.equal(back.truncated, false, `${f} reported a phantom truncation`);
-    // 7–17k encoded. Recorded so a page that grows past a limit somebody
-    // later discovers shows up here as a number rather than a surprise.
-    assert.ok(url.length < 40000, `${f} built a ${url.length}-character URL`);
-  }
-});
-
-test("parseImportHash ignores a hash that carries no recipe", () => {
-  for (const h of ["", "#", "#tab=meals", "#imported=x", "#join=home-cx2ur9zg~abcdefgh1234", "nonsense"]) {
-    assert.equal(parseImportHash(h), null, `${JSON.stringify(h)} should carry no recipe`);
-  }
-});
-
-test("a recipe with no declared length is taken at face value", () => {
-  // A hand-built Shortcut that skips `chars`. Nothing can be checked, so
-  // nothing is claimed — but the recipe still imports.
-  const back = parseImportHash("#import=2%20eggs");
-  assert.equal(back.text, "2 eggs");
-  assert.equal(back.declared, null);
-  assert.equal(back.truncated, false);
-});
-
 test("a TRUNCATED link is still refused, exactly as a truncated paste is", () => {
   /* The reason parseJoinHash returns a STRING rather than a parsed invite:
      one definition of "valid", used by both routes. cleanCode strips the `~`,
@@ -3796,6 +3699,53 @@ test("parseRecipeText falls back to scanning bulleted lines with no Ingredients 
     { name: "Chicken thighs", qty: 1, unit: "lb" },
     { name: "Bell pepper", qty: 1, unit: "" },
   ]);
+});
+
+/* A RECIPE SOMEBODY TYPED, with no "Instructions" heading. Hand-typed on
+   purpose: that is the real input here, a paste of your own recipe rather
+   than a fetched page, so a typed fixture is the actual shape and not a
+   guess at one. Every numbered step used to come back as an ingredient. */
+test("parseRecipeText finds numbered steps under an Ingredients heading with no Instructions heading", () => {
+  const result = parseRecipeText("Weeknight Rice Bowl\nServes 4\n\nIngredients\n- 2 cups rice\n- 1 lb chicken thighs\n- 1 bell pepper\n\n1. Cook the rice.\n2. Fry everything else.");
+  assert.deepEqual(result.ingredients.map((i) => i.name), ["Rice", "Chicken thighs", "Bell pepper"]);
+  assert.deepEqual(result.instructions.split("\n"), ["1. Cook the rice.", "2. Fry everything else."]);
+});
+
+test("parseRecipeText finds numbered steps in a paste with no headings at all", () => {
+  const result = parseRecipeText("Pancakes\n2 cups flour\n1 egg\n1 cup milk\n1. Mix it all.\n2. Fry in butter,\nflipping once.");
+  assert.equal(result.name, "Pancakes");
+  assert.deepEqual(result.ingredients.map((i) => i.name), ["Flour", "Egg", "Milk"]);
+  assert.deepEqual(result.instructions.split("\n"), ["1. Mix it all.", "2. Fry in butter, flipping once."]);
+});
+
+test("parseRecipeText does not take a numbered ingredient list for steps", () => {
+  // The first "1." has no ingredient above it, and "1. 2 cups" is a quantity.
+  // Only that they stay ingredients — how a numbered ingredient line is READ
+  // ("1. 2 cups flour" keeps its number in the name) is a separate, older gap
+  // recorded in item 110.
+  const result = parseRecipeText("Bread\nIngredients\n1. 2 cups flour\n2. 1 tsp salt\n3. 1 cup water");
+  assert.equal(result.ingredients.length, 3);
+  assert.equal(result.instructions, "");
+});
+
+test("parseRecipeText does not take a numbered ingredient list for steps when its first item has no quantity", () => {
+  // "1. Lettuce" would pass as a step on its own — nothing about the line says
+  // otherwise. What rules it out is that no ingredient came before it.
+  const result = parseRecipeText("Salad\nIngredients\n1. Lettuce\n2. 1 tomato\n3. Olive oil");
+  assert.equal(result.ingredients.length, 3);
+  assert.equal(result.instructions, "");
+});
+
+test("parseRecipeText keeps numbered ingredients AND finds the numbered steps after them", () => {
+  const result = parseRecipeText("Bread\nIngredients\n1. 2 cups flour\n2. 1 tsp salt\n\n1. Knead.\n2. Bake.");
+  assert.equal(result.ingredients.length, 2);
+  assert.deepEqual(result.instructions.split("\n"), ["1. Knead.", "2. Bake."]);
+});
+
+test("parseRecipeText does not read \"1.5 cups\" as the first step", () => {
+  const result = parseRecipeText("Bread\nIngredients\n- 2 cups flour\n1.5 cups water\n1 tsp salt");
+  assert.deepEqual(result.ingredients.map((i) => i.name), ["Flour", "Water", "Salt"]);
+  assert.equal(result.instructions, "");
 });
 
 test("parseRecipeText returns empty ingredients and blank instructions for text with neither", () => {
