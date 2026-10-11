@@ -5,8 +5,8 @@
 
 import { useState, useMemo, useRef } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
-import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, InfoDot, StickyBar, BackToTop, SuggestInput, useSticky, FilterMark } from "../ui";
-import { ADDED_SOURCE, UNASSIGNED, keyForName, aisleKey, unitKeyFor, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg } from "../lib";
+import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, InfoDot, StickyBar, BackToTop, SuggestInput, useSticky, FilterMark, HaveNeed } from "../ui";
+import { ADDED_SOURCE, UNASSIGNED, keyForName, aisleKey, unitKeyFor, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg, filterIngredients, withStapleNeed } from "../lib";
 
 export function ListTab({ data, update, updateCatalog, isGuest }) {
   const [view, setView] = useSticky("list.view", "store");
@@ -42,6 +42,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
   const arranged = !(view === "store" && storeSort === "az");
   const [showBought, setShowBought] = useSticky("list.showBought", false); // "already bought" review panel
   const [askStore, setAskStore] = useState(null); // { key, name, store } pending "this trip or always?"
+  const [showStaples, setShowStaples] = useSticky("list.showStaples", false); // staples review at the foot of the list
 
   const items = useMemo(() => aggregateItems(data), [data]);
   const knownItems = useMemo(() => ingredientNames(data), [data]);
@@ -50,6 +51,10 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
   // dropdown (rather than a native <datalist>, which renders unreliably) so it
   // always shows as you type and matches the Pantry tab's search feel.
   const suggestions = useMemo(() => ingredientMatches(knownItems, extra.name), [knownItems, extra.name]);
+  // Every home staple, A-Z — the same rows the Pantry tab's "Home staples
+  // only" filter shows, so the two cannot disagree about what is a staple.
+  const staples = useMemo(() => filterIngredients(data, knownItems, { staplesOnly: true }), [data, knownItems]);
+  const staplesNeeded = staples.filter((s) => data.stapleNeeds?.[s.key]).length;
   const sugOpen = showSug && suggestions.length > 0;
   // Picking a known ingredient fills in the unit its recipes usually use
   // (garlic -> "clove"), so the hand-added amount totals with them instead of
@@ -184,6 +189,15 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
   const unbuyAll = () =>
     update((d) => {
       d.list.bought = {};
+      return d;
+    });
+
+  // The same write the Pantry tab's Have/Need makes — see withStapleNeed. A
+  // guest can make it too: stapleNeeds is one of the fields the guest role
+  // is granted, because saying you are out of something is shopping.
+  const setStapleNeed = (key, need) =>
+    update((d) => {
+      d.stapleNeeds = withStapleNeed(d.stapleNeeds, key, need);
       return d;
     });
 
@@ -1003,6 +1017,71 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
         </div>
         <div style={{ borderTop: `1px dashed ${C.line}`, paddingTop: 6 }}>{body}</div>
       </div>
+
+      {/* THE STAPLES REVIEW. A staple you have is kept OFF the list even when
+          a recipe calls for it — that is what a staple is for — so the list
+          on its own never prompts "are we out of olive oil?". The only place
+          to say so was the Pantry tab, one staple at a time among every
+          other ingredient. This is the whole set in one place, at the point
+          you are checking the week's list anyway.
+          EVERY STAPLE, NOT ONLY THE ONES AT HOME. A Need tapped by mistake
+          has to be undoable where it was tapped; listing only the "have"
+          ones would make the row vanish into the list above and leave the
+          Pantry tab as the only way back.
+          AT THE FOOT, AND SHUT UNTIL OPENED, like the already-bought panel:
+          it is a review you do once while planning, not something to scroll
+          past for the whole shop. The header carries the count, so it says
+          what is in it without opening. Sticky, so a tab switch mid-review
+          brings it back open.
+          NOT SHOWN WITH NO STAPLES — there is nothing to review, and marking
+          one is a Pantry tab decision about the kitchen, not a list action.
+          40px BELOW IT so the last row's Need clears the back-to-top arrow,
+          which floats over the bottom-right corner once the page is scrolled:
+          the page's own bottom padding leaves that corner 32px short, and
+          this is the last thing on the tab. */}
+      {staples.length > 0 && (
+        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, margin: "12px 0 40px", overflow: "hidden" }}>
+          <button
+            onClick={() => setShowStaples((v) => !v)}
+            aria-expanded={showStaples}
+            style={{
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "12px 14px",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              textAlign: "left",
+              font: "inherit",
+              color: C.ink,
+            }}
+          >
+            <span style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 16 }}>🏠 Review staples</span>
+            <span style={{ flex: 1 }} />
+            <span style={{ fontSize: 13, color: staplesNeeded ? C.gold : C.faint, whiteSpace: "nowrap" }}>
+              {staplesNeeded} of {staples.length} needed
+            </span>
+            <span aria-hidden style={{ fontSize: 13, color: C.faint }}>{showStaples ? "▲" : "▾"}</span>
+          </button>
+          {showStaples && (
+            <div style={{ padding: "0 14px 12px" }}>
+              <div style={{ fontSize: 13, color: C.faint, marginBottom: 4 }}>
+                Out of something? Mark it <b style={{ color: C.gold }}>Need</b> and it goes on this list until you check it off and finish shopping.
+              </div>
+              <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                {staples.map(({ key, name }) => (
+                  <li key={key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: `1px solid ${C.line}` }}>
+                    <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{name}</span>
+                    <HaveNeed name={name} need={!!data.stapleNeeds?.[key]} onChange={(need) => setStapleNeed(key, need)} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       <ConfirmDialog
         open={confirmDone}

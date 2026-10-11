@@ -4350,3 +4350,59 @@ into the details panel and the name grew.
      card, and leaves the saved state byte-identical. Mutation: giving the
      app link the raw address fails that browser test; appUrl returning its
      input unchanged fails 2 unit tests.
+
+133. READ A RECIPE IN THE MEAL PICKER BEFORE CHOOSING IT. Asked as "tap the
+     meal to show the recipe while you are searching in the meal plan, so you
+     don't have to add it before being able to read it."
+     WHAT IT WAS: every row in the Plan tab's picker was one button that
+     planned the meal. Reading a recipe from there meant planning it, opening
+     it on the day, and taking it off again if it was the wrong one.
+     WHAT IT IS NOW, as the owner specified it: the row still plans the meal,
+     exactly as before. A 44px ▾ at the row's right edge — the same arrow,
+     and the same size, as the ▾ beside a planned meal — opens the recipe
+     under the row, inside the picker, and plans nothing.
+     A DESIGN REJECTED BY THE OWNER before it shipped, recorded so it does
+     not come back: tapping the NAME opened the recipe and an Add button
+     beside it planned the meal. It matched "tap the meal" word for word and
+     matched how a name behaves elsewhere, but it moved the tap people make
+     every week onto a smaller target to make room for the rarer one.
+     "Everything else would add the meal to the plan like it does already."
+     THE PREVIEW IS SCALED TO THE PICK. servingsIfPicked (WeekTab) is the one
+     definition of "the servings this pick would be planned at" — the
+     meal's servings when the pick joins a meal that already has a dish, the
+     recipe's own otherwise — and both the preview and assignFromPicker read
+     it, so the preview cannot show amounts the shopping list will not have.
+     Names in the picker now wrap rather than clipping, since the ▾ takes
+     44px of the row.
+
+134. A STAPLES REVIEW AT THE BOTTOM OF THE SHOPPING LIST. Asked as "a
+     staples review section at the bottom of the shopping list that you can
+     mark items back to need so they will show up on that week's shopping
+     list."
+     WHY IT WAS NEEDED: a staple you have stays OFF the list even when a
+     planned recipe calls for it (item 13 — that is what a staple is for).
+     So the list on its own never asks "are we out of soy sauce?", and the
+     only place to say so was the Pantry tab, one staple at a time among
+     every other ingredient.
+     WHAT IT IS: "🏠 Review staples" under the list, shut until opened, with
+     "N of M needed" on its header. Open, it lists every staple A-Z with the
+     same Have/Need switch the Pantry tab has. Need puts it on the list
+     straight away; Done shopping clears it once it is ticked, exactly as
+     before. A guest can use it — stapleNeeds is a field the guest role is
+     allowed to write.
+     EVERY STAPLE, NOT ONLY THE ONES AT HOME, so a Need tapped by mistake can
+     be undone where it was tapped. Listing only the "have" ones would make
+     the row vanish into the list and leave the Pantry tab as the way back.
+     SHUT BY DEFAULT and remembered across tab switches (useSticky), like the
+     already-bought panel: it is checked once while planning, not something
+     to scroll past for the whole shop. Hidden when there are no staples.
+     ONE CONTROL AND ONE WRITE FOR BOTH TABS. HaveNeed (ui.jsx) is the
+     Pantry's switch, moved so both tabs draw the same thing; withStapleNeed
+     (lib.js) is the write, stores only Need, and deletes the key rather than
+     writing false. The rows come from filterIngredients with staplesOnly —
+     the Pantry's own "Home staples only" filter — so the two tabs cannot
+     disagree about what counts as a staple.
+     40px OF SPACE BELOW IT, because the back-to-top arrow floats over the
+     bottom-right corner and covered the last row's Need. The page's own
+     bottom padding leaves that corner 32px short on EVERY long tab; this
+     only fixes it here, where the last thing on the page is a button.
