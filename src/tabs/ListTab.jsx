@@ -6,7 +6,7 @@
 import { useState, useMemo, useRef } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, InfoDot, StickyBar, BackToTop, SuggestInput, useSticky, FilterMark, HaveNeed } from "../ui";
-import { ADDED_SOURCE, UNASSIGNED, keyForName, aisleKey, unitKeyFor, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg, filterIngredients, withStapleNeed } from "../lib";
+import { ADDED_SOURCE, UNASSIGNED, keyForName, aisleKey, unitKeyFor, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg, staplesInMeals, withStapleNeed } from "../lib";
 
 export function ListTab({ data, update, updateCatalog, isGuest }) {
   const [view, setView] = useSticky("list.view", "store");
@@ -51,9 +51,8 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
   // dropdown (rather than a native <datalist>, which renders unreliably) so it
   // always shows as you type and matches the Pantry tab's search feel.
   const suggestions = useMemo(() => ingredientMatches(knownItems, extra.name), [knownItems, extra.name]);
-  // Every home staple, A-Z — the same rows the Pantry tab's "Home staples
-  // only" filter shows, so the two cannot disagree about what is a staple.
-  const staples = useMemo(() => filterIngredients(data, knownItems, { staplesOnly: true }), [data, knownItems]);
+  // The staples this week's meals use, A-Z — see staplesInMeals.
+  const staples = useMemo(() => staplesInMeals(data), [data]);
   const staplesNeeded = staples.filter((s) => data.stapleNeeds?.[s.key]).length;
   const sugOpen = showSug && suggestions.length > 0;
   // Picking a known ingredient fills in the unit its recipes usually use
@@ -1022,19 +1021,19 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
           a recipe calls for it — that is what a staple is for — so the list
           on its own never prompts "are we out of olive oil?". The only place
           to say so was the Pantry tab, one staple at a time among every
-          other ingredient. This is the whole set in one place, at the point
-          you are checking the week's list anyway.
-          EVERY STAPLE, NOT ONLY THE ONES AT HOME. A Need tapped by mistake
-          has to be undoable where it was tapped; listing only the "have"
-          ones would make the row vanish into the list above and leave the
-          Pantry tab as the only way back.
+          other ingredient.
+          ONLY THE STAPLES THIS WEEK'S MEALS USE, each naming the meals —
+          asked for that way: a staple no meal calls for has nothing this
+          week to be checked against.
+          HAVE AND NEED BOTH STAY. A Need tapped by mistake has to be undoable
+          where it was tapped; a row that vanished into the list above would
+          leave the Pantry tab as the only way back.
           AT THE FOOT, AND SHUT UNTIL OPENED, like the already-bought panel:
           it is a review you do once while planning, not something to scroll
           past for the whole shop. The header carries the count, so it says
           what is in it without opening. Sticky, so a tab switch mid-review
           brings it back open.
-          NOT SHOWN WITH NO STAPLES — there is nothing to review, and marking
-          one is a Pantry tab decision about the kitchen, not a list action.
+          NOT SHOWN WHEN NO MEAL USES A STAPLE — there is nothing to review.
           40px BELOW IT so the last row's Need clears the back-to-top arrow,
           which floats over the bottom-right corner once the page is scrolled:
           the page's own bottom padding leaves that corner 32px short, and
@@ -1068,12 +1067,15 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
           {showStaples && (
             <div style={{ padding: "0 14px 12px" }}>
               <div style={{ fontSize: 13, color: C.faint, marginBottom: 4 }}>
-                Out of something? Mark it <b style={{ color: C.gold }}>Need</b> and it goes on this list until you check it off and finish shopping.
+                Staples this week&apos;s meals use. Out of one? Mark it <b style={{ color: C.gold }}>Need</b> and it goes on this list until you check it off and finish shopping.
               </div>
               <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                {staples.map(({ key, name }) => (
+                {staples.map(({ key, name, meals }) => (
                   <li key={key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: `1px solid ${C.line}` }}>
-                    <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{name}</span>
+                    <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>
+                      {name}
+                      <span style={{ display: "block", fontSize: 12, color: C.faint }}>for {meals.join(", ")}</span>
+                    </span>
                     <HaveNeed name={name} need={!!data.stapleNeeds?.[key]} onChange={(need) => setStapleNeed(key, need)} />
                   </li>
                 ))}

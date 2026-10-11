@@ -4385,23 +4385,27 @@ into the details panel and the name grew.
      only place to say so was the Pantry tab, one staple at a time among
      every other ingredient.
      WHAT IT IS: "🏠 Review staples" under the list, shut until opened, with
-     "N of M needed" on its header. Open, it lists every staple A-Z with the
-     same Have/Need switch the Pantry tab has. Need puts it on the list
+     "N of M needed" on its header. Open, it lists the staples THIS WEEK'S
+     MEALS USE, A-Z, each naming those meals ("for Stir-fry, Tacos"), with
+     the same Have/Need switch the Pantry tab has. Need puts it on the list
      straight away; Done shopping clears it once it is ticked, exactly as
      before. A guest can use it — stapleNeeds is a field the guest role is
      allowed to write.
-     EVERY STAPLE, NOT ONLY THE ONES AT HOME, so a Need tapped by mistake can
-     be undone where it was tapped. Listing only the "have" ones would make
-     the row vanish into the list and leave the Pantry tab as the way back.
+     ONLY THE STAPLES A MEAL USES, as the owner specified after the first
+     version listed every staple: "the only staples I need to review are the
+     ones included in the meals I've planned." staplesInMeals (lib.js)
+     builds on servingsByRecipe, the same answer the list uses for which
+     meals count — planned days and unplanned meals, not a dish ticked
+     "already have the ingredients". A Need staple no meal uses is already
+     on the list, and the Pantry tab is where it is undone.
+     HAVE AND NEED BOTH STAY on each row, so a Need tapped by mistake is
+     undone where it was tapped rather than vanishing into the list.
      SHUT BY DEFAULT and remembered across tab switches (useSticky), like the
-     already-bought panel: it is checked once while planning, not something
-     to scroll past for the whole shop. Hidden when there are no staples.
+     already-bought panel. Hidden when no meal uses a staple.
      ONE CONTROL AND ONE WRITE FOR BOTH TABS. HaveNeed (ui.jsx) is the
      Pantry's switch, moved so both tabs draw the same thing; withStapleNeed
      (lib.js) is the write, stores only Need, and deletes the key rather than
-     writing false. The rows come from filterIngredients with staplesOnly —
-     the Pantry's own "Home staples only" filter — so the two tabs cannot
-     disagree about what counts as a staple.
+     writing false.
      40px OF SPACE BELOW IT, because the back-to-top arrow floats over the
      bottom-right corner and covered the last row's Need. The page's own
      bottom padding leaves that corner 32px short on EVERY long tab; this

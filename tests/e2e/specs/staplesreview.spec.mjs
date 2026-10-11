@@ -2,8 +2,8 @@
 
    A staple you have is kept OFF the list even when a recipe calls for it, so
    the list on its own never asks "are we out of soy sauce?". The review is
-   every staple in one place, with the same Have/Need the Pantry tab offers,
-   so being out of one can be said while looking at the week's list.
+   the staples this week's meals use, with the same Have/Need the Pantry tab
+   offers, so being out of one can be said while looking at the week's list.
 
    ASSERTED ON WHAT WAS PERSISTED — stapleNeeds is what the other phone
    receives — and ROUND-TRIPPED, because normalizeLocal rebuilds stapleNeeds
@@ -30,9 +30,10 @@ const openReview = async (page) => {
   }
 };
 
-/* Soy sauce made a staple as well as butter: the stir-fry calls for it, so it
-   is exactly the case the review exists for — a staple a planned meal uses,
-   kept off the list because it is assumed to be at home. */
+/* Soy sauce made a staple as well as butter. The stir-fry calls for soy
+   sauce, so it is exactly the case the review exists for — a staple a planned
+   meal uses, kept off the list because it is assumed to be at home. No meal
+   uses butter, so it is the staple the review must leave out. */
 const withTwoStaples = () => {
   const catalog = smallCatalog();
   const soy = idOf(catalog, "Soy sauce");
@@ -48,14 +49,15 @@ test("a staple a meal uses can be marked Need from the bottom of the list, and b
     await page.tab("List");
     assert.deepEqual((await listedNames(page)).sort(), ["Broccoli", "Chicken breast"], "a staple you have stays off the list even though the stir-fry calls for it");
     assert.equal(await review(page).getAttribute("aria-expanded"), "false", "the review starts shut");
-    assert.match(await review(page).textContent(), /0 of 2 needed/);
+    assert.match(await review(page).textContent(), /0 of 1 needed/);
 
     await openReview(page);
     assert.deepEqual(
       await page.evaluate(() => Array.from(document.querySelectorAll("[aria-label^='We need more ']")).map((b) => b.getAttribute("aria-label").replace(/^We need more /, ""))),
-      ["Butter", "Soy sauce"],
-      "every staple, A-Z"
+      ["Soy sauce"],
+      "only the staples a planned meal uses — butter is a staple no meal calls for"
     );
+    assert.ok(/for Stir-fry/.test(await page.locator("li").filter({ hasText: /^Soy sauce/ }).first().textContent()), "each staple names the meal using it");
 
     await page.getByRole("button", { name: "We need more Soy sauce" }).click();
     await page.waitForTimeout(400);
@@ -64,7 +66,7 @@ test("a staple a meal uses can be marked Need from the bottom of the list, and b
     await page.tab("List");
     assert.ok((await listedNames(page)).includes("Soy sauce"), "marked Need, it should be on the list");
     assert.deepEqual((await page.readState()).stapleNeeds, { [soy]: true }, "and still Need once read back");
-    assert.match(await review(page).textContent(), /1 of 2 needed/);
+    assert.match(await review(page).textContent(), /1 of 1 needed/);
 
     // A Need tapped by mistake is undone in the same place.
     await openReview(page);
@@ -84,22 +86,22 @@ test("a staple a meal uses can be marked Need from the bottom of the list, and b
 test("a staple marked Need from the review comes off when it is bought and the trip is finished", async () => {
   // The review only writes stapleNeeds; ending the trip is what clears it,
   // and this proves the two meet — the same lifecycle the Pantry's Need has.
-  const { catalog, butter } = withTwoStaples();
+  const { catalog, soy } = withTwoStaples();
   const page = await openApp(BASE, { catalog, state: stirFryMonday() });
   try {
     await openReview(page);
-    await page.getByRole("button", { name: "We need more Butter" }).click();
+    await page.getByRole("button", { name: "We need more Soy sauce" }).click();
     await page.waitForTimeout(400);
-    await page.getByLabel("Bought Butter").check();
+    await page.getByLabel("Bought Soy sauce").check();
     await page.waitForTimeout(300);
     await page.locator("button").filter({ hasText: /^Done shopping$/ }).first().click();
     await page.waitForTimeout(300);
     await page.locator("button").filter({ hasText: /^Done shopping$/ }).last().click();
     await page.waitForTimeout(500);
     await page.roundTrip();
-    assert.equal(((await page.readState()).stapleNeeds || {})[butter], undefined, "bought, so back in the cupboard");
+    assert.equal(((await page.readState()).stapleNeeds || {})[soy], undefined, "bought, so back in the cupboard");
     await page.tab("List");
-    assert.ok(!(await listedNames(page)).includes("Butter"));
+    assert.ok(!(await listedNames(page)).includes("Soy sauce"));
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
@@ -109,26 +111,25 @@ test("a staple marked Need from the review comes off when it is bought and the t
 test("a guest can say a staple has run out from the review", async () => {
   // stapleNeeds is one of the fields the guest role is granted, so the
   // review is theirs as much as anybody's.
-  const { catalog, butter } = withTwoStaples();
+  const { catalog, soy } = withTwoStaples();
   const page = await openApp(BASE, { catalog, state: stirFryMonday(), guest: true });
   try {
     await openReview(page);
-    await page.getByRole("button", { name: "We need more Butter" }).click();
+    await page.getByRole("button", { name: "We need more Soy sauce" }).click();
     await page.waitForTimeout(400);
     await page.roundTrip();
-    assert.equal((await page.readState()).stapleNeeds[butter], true);
+    assert.equal((await page.readState()).stapleNeeds[soy], true);
     await page.tab("List");
-    assert.ok((await listedNames(page)).includes("Butter"));
+    assert.ok((await listedNames(page)).includes("Soy sauce"));
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
   }
 });
 
-test("a household with no staples has no review to show", async () => {
-  const catalog = smallCatalog();
-  delete catalog.ingredients[idOf(catalog, "Butter")].staple;
-  const page = await openApp(BASE, { catalog, state: stirFryMonday() });
+test("with no planned meal using a staple, there is no review to show", async () => {
+  // Butter is a staple, but the stir-fry does not use it.
+  const page = await openApp(BASE, { catalog: smallCatalog(), state: stirFryMonday() });
   try {
     await page.tab("List");
     assert.equal(await review(page).count(), 0);

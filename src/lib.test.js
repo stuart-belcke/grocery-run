@@ -64,6 +64,7 @@ import {
   ingredientMatches,
   filterIngredients,
   withStapleNeed,
+  staplesInMeals,
   commonUnitFor,
   storeFor,
   listSections,
@@ -485,6 +486,40 @@ test("withStapleNeed stores only Need, and deletes rather than writing false", (
   assert.deepEqual(withStapleNeed(undefined, "salt", true), { salt: true });
   assert.deepEqual(withStapleNeed(null, "salt", true), { salt: true });
   assert.deepEqual(withStapleNeed("junk", "salt", true), { salt: true });
+});
+
+test("staplesInMeals lists only staples that a meal feeding the list uses", () => {
+  const recipe = (id, name, ...ings) => ({ id, name, servings: 2, ingredients: ings.map((n) => ({ name: n, ingredientId: n, qty: 1, unit: "" })) });
+  const data = {
+    recipes: [
+      recipe("r-tacos", "Tacos", "salt", "cumin", "beef"),
+      recipe("r-chili", "Chili", "cumin", "beans"),
+      recipe("r-soup", "Soup", "oil"),
+      recipe("r-cake", "Cake", "sugar"),
+      recipe("r-bread", "Bread", "flour"),
+    ],
+    config: {
+      salt: { name: "Salt", staple: true },
+      cumin: { name: "Cumin", staple: true },
+      oil: { name: "Olive oil", staple: true },
+      sugar: { name: "Sugar", staple: true },
+      flour: { name: "Flour", staple: true },
+      vanilla: { name: "Vanilla", staple: true },
+      beef: { name: "Beef" },
+      beans: { name: "Beans" },
+    },
+    plan: {
+      Mon: { Dinner: { recipeId: "r-tacos", servings: 2, sides: [{ recipeId: "r-soup", servings: 2, skipList: true }] } },
+      Tue: { Dinner: { recipeId: "r-chili", servings: 2 } },
+    },
+    list: { selections: { "r-cake": 2 }, overrides: {}, checked: {}, extras: {}, bought: {} },
+  };
+  assert.deepEqual(staplesInMeals(data), [
+    { key: "cumin", name: "Cumin", meals: ["Chili", "Tacos"] },
+    { key: "salt", name: "Salt", meals: ["Tacos"] },
+    { key: "sugar", name: "Sugar", meals: ["Cake"] },
+  ], "planned days and unplanned meals count; a staple no meal uses (vanilla), a dish marked already-have (soup) and a recipe on neither (bread) do not");
+  assert.deepEqual(staplesInMeals({ ...data, plan: {}, list: { ...data.list, selections: {} } }), [], "no meals, nothing to review");
 });
 
 test("commonUnitFor picks the unit recipes use most", () => {

@@ -3311,6 +3311,36 @@ export function servingsByRecipe(data) {
   return totals;
 }
 
+/* THE STAPLES THIS WEEK'S MEALS USE — the List tab's staples review. A staple
+   you have is kept off the list even when a recipe calls for it, so these are
+   exactly the ones the list will never ask about. Staples no meal uses are
+   not here: there is nothing about this week to check them against.
+   "This week's meals" is whatever feeds the list — servingsByRecipe, so a
+   planned day, an unplanned meal from the Recipes tab, and NOT a dish ticked
+   "already have the ingredients" — so the review and the list cannot
+   disagree about which meals count. Each entry names the meals using it,
+   A-Z; entries are A-Z by name. */
+export function staplesInMeals(data) {
+  const byKey = new Map();
+  for (const [id, servings] of Object.entries(servingsByRecipe(data))) {
+    if (!(servings > 0)) continue;
+    const r = data.recipes.find((x) => x.id === id);
+    if (!r) continue;
+    for (const ing of r.ingredients || []) {
+      const key = ing.ingredientId || norm(ing.name);
+      if (!normalizeCfg(data.config[key]).staple) continue;
+      const name = ingredientNameFor(data, key);
+      if (!name) continue;
+      if (!byKey.has(key)) byKey.set(key, { key, name, meals: [] });
+      const e = byKey.get(key);
+      if (!e.meals.includes(r.name)) e.meals.push(r.name);
+    }
+  }
+  return [...byKey.values()]
+    .map((e) => ({ ...e, meals: [...e.meals].sort((a, b) => a.localeCompare(b)) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 // Recipes sitting on the shopping list with no day/slot in the week plan —
 // added via the Recipes tab's "Add unplanned", not a picker here. Used by
 // the Week tab so one of these is visible without switching tabs to notice
