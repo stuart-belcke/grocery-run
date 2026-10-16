@@ -58,7 +58,12 @@ test("a staple a meal uses can be marked Need from the bottom of the list, and b
       ["Soy sauce"],
       "only the staples a planned meal uses — butter is a staple no meal calls for"
     );
-    assert.ok(/for Stir-fry/.test(await page.locator("li").filter({ has: needButton(page, "Soy sauce") }).first().textContent()), "each staple names the meal using it");
+    const row = page.locator("li").filter({ has: needButton(page, "Soy sauce") }).first();
+    assert.ok(!/Stir-fry/.test(await row.textContent()), "which meals use it stays hidden until asked for");
+    await page.getByRole("button", { name: "Which meals use Soy sauce" }).click();
+    await page.waitForTimeout(200);
+    assert.ok(/For Stir-fry/.test(await row.textContent()), "a tap on the name shows the meal using it");
+    assert.deepEqual((await page.readState()).stapleNeeds || {}, {}, "and changes nothing");
 
     await needButton(page, "Soy sauce").click();
     await page.waitForTimeout(400);

@@ -4386,8 +4386,9 @@ into the details panel and the name grew.
      every other ingredient.
      WHAT IT IS: "🏠 This week’s staples" under the list, shut until opened,
      with "N of M needed" on its header. Open, it lists the staples THIS WEEK'S
-     MEALS USE, A-Z, each naming those meals ("for Stir-fry, Tacos"), with
-     the Pantry tab's Have/Need at the left of the row. Need puts it on the list
+     MEALS USE, A-Z, with the Pantry tab's Have/Need at the left of the row.
+     Tapping a staple's name shows which meals use it ("For Stir-fry,
+     Tacos"), one at a time; shown under every row it was "overwhelming". Need puts it on the list
      straight away; Done shopping clears it once it is ticked, exactly as
      before. A guest can use it — stapleNeeds is a field the guest role is
      allowed to write.

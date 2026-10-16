@@ -43,6 +43,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
   const [showBought, setShowBought] = useSticky("list.showBought", false); // "already bought" review panel
   const [askStore, setAskStore] = useState(null); // { key, name, store } pending "this trip or always?"
   const [showStaples, setShowStaples] = useSticky("list.showStaples", false); // staples review at the foot of the list
+  const [stapleMealsKey, setStapleMealsKey] = useSticky("list.stapleMealsKey", null); // the staple whose meals are showing
 
   const items = useMemo(() => aggregateItems(data), [data]);
   const knownItems = useMemo(() => ingredientNames(data), [data]);
@@ -1088,15 +1089,33 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
           {showStaples && (
             <div style={{ padding: "0 14px 12px" }}>
               <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                {staples.map(({ key, name, meals }) => (
-                  <li key={key} onClickCapture={noteRow} style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 44, padding: "6px 0", borderTop: `1px solid ${C.line}` }}>
-                    <HaveNeed name={name} need={!!data.stapleNeeds?.[key]} onChange={(need) => setStapleNeed(key, need)} />
-                    <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>
-                      {name}
-                      <span style={{ display: "block", fontSize: 12, color: C.faint }}>for {meals.join(", ")}</span>
-                    </span>
-                  </li>
-                ))}
+                {staples.map(({ key, name, meals }) => {
+                  const showMeals = stapleMealsKey === key;
+                  return (
+                    <li key={key} onClickCapture={noteRow} style={{ borderTop: `1px solid ${C.line}` }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 44, padding: "6px 0" }}>
+                        <HaveNeed name={name} need={!!data.stapleNeeds?.[key]} onChange={(need) => setStapleNeed(key, need)} />
+                        {/* WHICH MEALS USE IT, BEHIND A TAP ON THE NAME. Shown
+                            under every row it was a second line of recipe
+                            names per staple — "overwhelming" — for a question
+                            asked about one staple at a time. One open at a
+                            time, like the list rows' panels above. */}
+                        <button
+                          onClick={() => setStapleMealsKey(showMeals ? null : key)}
+                          aria-expanded={showMeals}
+                          aria-label={`Which meals use ${name}`}
+                          style={{ flex: 1, minWidth: 0, alignSelf: "stretch", display: "flex", alignItems: "center", gap: 6, padding: 0, background: "none", border: "none", cursor: "pointer", textAlign: "left", font: "inherit", color: C.ink }}
+                        >
+                          <span style={{ overflowWrap: "anywhere" }}>{name}</span>
+                          <span aria-hidden style={{ fontSize: 12, color: C.faint, flexShrink: 0 }}>{showMeals ? "▴" : "▾"}</span>
+                        </button>
+                      </div>
+                      {showMeals && (
+                        <div style={{ fontSize: 13, color: C.faint, padding: "0 0 8px" }}>For {meals.join(", ")}</div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
