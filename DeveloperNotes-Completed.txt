@@ -4384,8 +4384,8 @@ into the details panel and the name grew.
      So the list on its own never asks "are we out of soy sauce?", and the
      only place to say so was the Pantry tab, one staple at a time among
      every other ingredient.
-     WHAT IT IS: "🏠 Review staples" under the list, shut until opened, with
-     "N of M needed" on its header. Open, it lists the staples THIS WEEK'S
+     WHAT IT IS: "🏠 This week’s staples" under the list, shut until opened,
+     with "N of M needed" on its header. Open, it lists the staples THIS WEEK'S
      MEALS USE, A-Z, each naming those meals ("for Stir-fry, Tacos"), with
      the Pantry tab's Have/Need at the left of the row. Need puts it on the list
      straight away; Done shopping clears it once it is ticked, exactly as
@@ -4407,15 +4407,22 @@ into the details panel and the name grew.
      A whole-row switch with the switch at the left was tried next. The
      owner preferred the Have/Need that matches the Pantry tab, so the pill
      came back, on the left.
-     STILL OPEN — REPORTED AND NOT REPRODUCED: on the owner's phone, in the
-     PR preview against the real database, a tap on the switch "flickers and
-     nothing happens". Tried and working every time: the local-only build;
-     the REAL build (sync on) against the emulator with the real rules, by
-     mouse and by real touch events; and the same with the stored updatedAt
-     10 minutes ahead of the device clock. The write is the same one the
-     Pantry's Have/Need makes. What would settle it: whether the Pantry's
-     Have/Need for the same staple works in the same preview, and whether
-     any banner shows.
+     NAMED BY THE OWNER, AND NO NOTE. It was "Review staples" with a
+     sentence under the header explaining Need. "The behavior is self
+     explanatory" — the gold Need and the count say it.
+     THE ROW YOU TAPPED STAYS PUT. Need adds a row to the list above, which
+     moved the tapped row 45px under the finger whenever list rows were on
+     screen above it (Chrome's scroll anchoring only covers the off-screen
+     case; Safari has none). The row is measured before the tap's render and
+     the page scrolled by the difference before paint. Chose holding over
+     letting it move as feedback: the next tap would land on the wrong
+     staple, and the pill and count already say what changed.
+     A TAP THAT "FLICKERED AND DID NOTHING" WAS THE BROWSER. Reported from
+     the PR preview on a phone; never reproduced here — the real build with
+     sync on, against the emulator and the real rules, saved on every tap.
+     It was DuckDuckGo's browser: the same link in Chrome worked. Why DDG
+     drops the change was not investigated; if anybody uses the app in it,
+     the Pantry's Need and the list's ticks are worth trying there first.
      Both answers stay on every row, so a mistaken tap is undone where it
      was made.
      SHUT BY DEFAULT and remembered across tab switches (useSticky), like the

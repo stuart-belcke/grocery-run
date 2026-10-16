@@ -3,7 +3,7 @@
     store-grouped, checkable list with per-item store overrides.  */
 /* ------------------------------------------------------------------ */
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useLayoutEffect } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
 import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, InfoDot, StickyBar, BackToTop, SuggestInput, useSticky, FilterMark, HaveNeed } from "../ui";
 import { ADDED_SOURCE, UNASSIGNED, keyForName, aisleKey, unitKeyFor, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg, staplesInMeals, withStapleNeed } from "../lib";
@@ -199,6 +199,29 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
       d.stapleNeeds = withStapleNeed(d.stapleNeeds, key, need);
       return d;
     });
+
+  /* THE ROW YOU TAPPED STAYS UNDER YOUR FINGER. Need adds a row to the list
+     ABOVE the review (Have takes one away), so everything below it — the row
+     just tapped included — moved 45px, and the next tap could land on the
+     staple beside the one you meant. The gold Need and the header's count
+     already say what changed; the jump said nothing more.
+     Chrome holds the page still on its own when the new row is off screen
+     (scroll anchoring) but not when it is on screen, and Safari does not do
+     scroll anchoring at all. So: note where the tapped row was, and after
+     the render — before it is painted — scroll by however far it moved. A
+     page too short to scroll cannot be held, and is not. */
+  const holdRow = useRef(null); // { el, top } of the review row last tapped
+  const noteRow = (e) => {
+    holdRow.current = { el: e.currentTarget, top: e.currentTarget.getBoundingClientRect().top };
+  };
+  useLayoutEffect(() => {
+    const held = holdRow.current;
+    if (!held) return;
+    holdRow.current = null;
+    if (!held.el.isConnected) return;
+    const moved = held.el.getBoundingClientRect().top - held.top;
+    if (Math.abs(moved) >= 1) window.scrollBy(0, moved);
+  });
 
   // End of trip. The rule throughout: what you CHECKED OFF is done with, and
   // what you didn't get carries to the next list rather than being wiped.
@@ -1055,7 +1078,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
               color: C.ink,
             }}
           >
-            <span style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 16 }}>🏠 Review staples</span>
+            <span style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 16 }}>🏠 This week’s staples</span>
             <span style={{ flex: 1 }} />
             <span style={{ fontSize: 13, color: staplesNeeded ? C.gold : C.faint, whiteSpace: "nowrap" }}>
               {staplesNeeded} of {staples.length} needed
@@ -1064,12 +1087,9 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
           </button>
           {showStaples && (
             <div style={{ padding: "0 14px 12px" }}>
-              <div style={{ fontSize: 13, color: C.faint, marginBottom: 4 }}>
-                Staples this week&apos;s meals use. Out of one? Mark it <b style={{ color: C.gold }}>Need</b> and it goes on this list until you check it off and finish shopping.
-              </div>
               <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
                 {staples.map(({ key, name, meals }) => (
-                  <li key={key} style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 44, padding: "6px 0", borderTop: `1px solid ${C.line}` }}>
+                  <li key={key} onClickCapture={noteRow} style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 44, padding: "6px 0", borderTop: `1px solid ${C.line}` }}>
                     <HaveNeed name={name} need={!!data.stapleNeeds?.[key]} onChange={(need) => setStapleNeed(key, need)} />
                     <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>
                       {name}

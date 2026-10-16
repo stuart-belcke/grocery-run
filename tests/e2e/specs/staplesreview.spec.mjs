@@ -20,7 +20,7 @@ const BASE = process.env.E2E_BASE_URL;
 const listedNames = (page) =>
   page.evaluate(() => Array.from(document.querySelectorAll("[aria-label^='Bought ']")).map((e) => e.getAttribute("aria-label").replace(/^Bought /, "")));
 
-const review = (page) => page.getByRole("button", { name: /Review staples/ });
+const review = (page) => page.getByRole("button", { name: /This week’s staples/ });
 const needButton = (page, name) => page.getByRole("button", { name: `We need more ${name}` });
 
 const openReview = async (page) => {
@@ -176,6 +176,40 @@ test("a staple's Have and Need are never under the back-to-top arrow, wherever t
       }
     }
     assert.ok(seen > 0, "no Have/Need buttons were ever on screen — the test measured nothing");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("marking a staple Need keeps the row you tapped where it was, though the list above grows", async () => {
+  /* Need adds a row to the list ABOVE the review, so without a hold the row
+     just tapped jumped 45px down under the finger — measured with list rows
+     on screen above it, which is the case Chrome's own scroll anchoring does
+     not cover (and Safari has none). Have takes the row away again, which
+     must not jump the other way. */
+  const catalog = cleanCatalog();
+  const ids = Object.keys(catalog.recipes).slice(0, 3);
+  const state = stateWith({ plan: Object.fromEntries(["Mon", "Tue", "Wed"].map((d, i) => [d, { Dinner: { recipeId: ids[i], servings: 4 } }])) });
+  const page = await openApp(BASE, { catalog, state });
+  try {
+    await page.setViewportSize({ width: 390, height: 744 });
+    await openReview(page);
+    const need = page.getByRole("button", { name: /^We need more / }).nth(1);
+    const name = (await need.getAttribute("aria-label")).replace(/^We need more /, "");
+    // Scrolled so that list rows are on screen above the review.
+    await need.evaluate((e) => window.scrollTo(0, e.getBoundingClientRect().top + scrollY - 450));
+    await page.waitForTimeout(300);
+    const before = (await need.boundingBox()).y;
+    const rowsBefore = (await listedNames(page)).length;
+    await need.click();
+    await page.waitForTimeout(400);
+    assert.equal((await listedNames(page)).length, rowsBefore + 1, "the staple went onto the list above");
+    assert.ok(Math.abs((await need.boundingBox()).y - before) < 2, `Need: the tapped row moved from y=${before} to y=${(await need.boundingBox()).y}`);
+    await page.getByRole("button", { name: `We have ${name}` }).click();
+    await page.waitForTimeout(400);
+    assert.equal((await listedNames(page)).length, rowsBefore, "and came off again");
+    assert.ok(Math.abs((await need.boundingBox()).y - before) < 2, `Have: the tapped row moved from y=${before} to y=${(await need.boundingBox()).y}`);
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

@@ -81,7 +81,7 @@ export const FAQS = [
   },
   {
     q: "What is a staple, and what does Need mean?",
-    a: "A staple is something you keep in the house, so recipes calling for it do not pad the list. When you run out, mark it Need and it appears on the list on its own, with no amount — it means get more, not get 2 lb. Make something a staple on {Pantry}. Mark it Need there, or open [[Review staples]] at the bottom of {List} to go through the ones this week's meals use.",
+    a: "A staple is something you keep in the house, so recipes calling for it do not pad the list. When you run out, mark it Need and it appears on the list on its own, with no amount — it means get more, not get 2 lb. Make something a staple on {Pantry}. Mark it Need there, or under [[This week’s staples]] at the bottom of {List}, which lists the ones this week's meals use.",
     keywords: ["staple", "need", "pantry", "run out", "cupboard", "home", "out of"],
   },
   {
