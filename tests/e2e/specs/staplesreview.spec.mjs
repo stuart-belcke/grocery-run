@@ -21,7 +21,7 @@ const listedNames = (page) =>
   page.evaluate(() => Array.from(document.querySelectorAll("[aria-label^='Bought ']")).map((e) => e.getAttribute("aria-label").replace(/^Bought /, "")));
 
 const review = (page) => page.getByRole("button", { name: /Review staples/ });
-const needSwitch = (page, name) => page.getByRole("switch", { name: `Need more ${name}` });
+const needButton = (page, name) => page.getByRole("button", { name: `We need more ${name}` });
 
 const openReview = async (page) => {
   await page.tab("List");
@@ -54,13 +54,13 @@ test("a staple a meal uses can be marked Need from the bottom of the list, and b
 
     await openReview(page);
     assert.deepEqual(
-      await page.evaluate(() => Array.from(document.querySelectorAll("[role='switch'][aria-label^='Need more ']")).map((b) => b.getAttribute("aria-label").replace(/^Need more /, ""))),
+      await page.evaluate(() => Array.from(document.querySelectorAll("[aria-label^='We need more ']")).map((b) => b.getAttribute("aria-label").replace(/^We need more /, ""))),
       ["Soy sauce"],
       "only the staples a planned meal uses — butter is a staple no meal calls for"
     );
-    assert.ok(/for Stir-fry/.test(await page.locator("li").filter({ hasText: /^Soy sauce/ }).first().textContent()), "each staple names the meal using it");
+    assert.ok(/for Stir-fry/.test(await page.locator("li").filter({ has: needButton(page, "Soy sauce") }).first().textContent()), "each staple names the meal using it");
 
-    await needSwitch(page, "Soy sauce").click();
+    await needButton(page, "Soy sauce").click();
     await page.waitForTimeout(400);
     assert.deepEqual((await page.readState()).stapleNeeds, { [soy]: true });
     await page.roundTrip();
@@ -71,8 +71,8 @@ test("a staple a meal uses can be marked Need from the bottom of the list, and b
 
     // A Need tapped by mistake is undone in the same place.
     await openReview(page);
-    assert.equal(await needSwitch(page, "Soy sauce").getAttribute("aria-checked"), "true", "a staple already on the list stays in the review, switched on");
-    await needSwitch(page, "Soy sauce").click();
+    assert.equal(await needButton(page, "Soy sauce").getAttribute("aria-pressed"), "true", "a staple already on the list stays in the review, showing Need");
+    await page.getByRole("button", { name: "We have Soy sauce" }).click();
     await page.waitForTimeout(400);
     await page.roundTrip();
     await page.tab("List");
@@ -91,7 +91,7 @@ test("a staple marked Need from the review comes off when it is bought and the t
   const page = await openApp(BASE, { catalog, state: stirFryMonday() });
   try {
     await openReview(page);
-    await needSwitch(page, "Soy sauce").click();
+    await needButton(page, "Soy sauce").click();
     await page.waitForTimeout(400);
     await page.getByLabel("Bought Soy sauce").check();
     await page.waitForTimeout(300);
@@ -116,7 +116,7 @@ test("a guest can say a staple has run out from the review", async () => {
   const page = await openApp(BASE, { catalog, state: stirFryMonday(), guest: true });
   try {
     await openReview(page);
-    await needSwitch(page, "Soy sauce").click();
+    await needButton(page, "Soy sauce").click();
     await page.waitForTimeout(400);
     await page.roundTrip();
     assert.equal((await page.readState()).stapleNeeds[soy], true);
@@ -140,17 +140,14 @@ test("with no planned meal using a staple, there is no review to show", async ()
   }
 });
 
-test("a staple's switch is never under the back-to-top arrow, wherever the page is scrolled", async () => {
-  /* THE BUG THIS REPLACED: the review used the Pantry tab's Have/Need pill,
-     51x27px at the right edge of the row — where the back-to-top arrow
-     floats. A row near the bottom of the screen sent a tap for Need to the
-     arrow, which scrolled the page to the top instead. Reported as "I can't
-     toggle the item to need".
-     Hit-tested at every scroll position, because a screenshot of the
-     covered row looks fine. Each row has to be a thumb-sized target, and the
-     switch drawn in it — the part a person aims for — must never be under
-     the arrow. The real shipped catalog, so the review is long enough to
-     scroll and the arrow actually appears. */
+test("a staple's Have and Need are never under the back-to-top arrow, wherever the page is scrolled", async () => {
+  /* THE BUG THIS GUARDS: the first version put the Pantry's Have/Need pill at
+     the right edge of the row — where the back-to-top arrow floats. A row
+     near the bottom of the screen sent a tap for Need to the arrow, which
+     scrolled the page to the top instead.
+     Hit-tested at every scroll position, because a screenshot of a covered
+     button looks fine. The real shipped catalog, so the review is long
+     enough to scroll and the arrow actually appears. */
   const catalog = cleanCatalog();
   const ids = Object.keys(catalog.recipes).slice(0, 3);
   const state = stateWith({ plan: Object.fromEntries(["Mon", "Tue", "Wed"].map((d, i) => [d, { Dinner: { recipeId: ids[i], servings: 4 } }])) });
@@ -163,24 +160,22 @@ test("a staple's switch is never under the back-to-top arrow, wherever the page 
     for (let y = 0; y < height; y += 60) {
       await page.evaluate((y) => window.scrollTo(0, y), y);
       await page.waitForTimeout(80);
-      const rows = await page.evaluate(() =>
-        Array.from(document.querySelectorAll("[role='switch'][aria-label^='Need more ']")).map((b) => {
+      const buttons = await page.evaluate(() =>
+        Array.from(document.querySelectorAll("[aria-label^='We need more '], [aria-label^='We have ']")).map((b) => {
           const r = b.getBoundingClientRect();
-          const track = b.querySelector("span").getBoundingClientRect();
-          const [x, cy] = [track.x + track.width / 2, track.y + track.height / 2];
+          const [x, cy] = [r.x + r.width / 2, r.y + r.height / 2];
           const nav = document.querySelector('nav[aria-label="Main"]');
           if (cy < 0 || cy > (nav ? nav.getBoundingClientRect().top : innerHeight)) return null;
           const owner = document.elementFromPoint(x, cy)?.closest("button");
-          return { label: b.getAttribute("aria-label"), h: Math.round(r.height), w: Math.round(r.width), hit: owner === b ? "self" : owner ? owner.getAttribute("aria-label") || owner.textContent.trim() : "nothing" };
+          return { label: b.getAttribute("aria-label"), hit: owner === b ? "self" : owner ? owner.getAttribute("aria-label") || owner.textContent.trim() : "nothing" };
         }).filter(Boolean)
       );
-      for (const r of rows) {
+      for (const b of buttons) {
         seen++;
-        assert.ok(r.h >= 44 && r.w >= 200, `${r.label}: the whole row is the target, measured ${r.w}x${r.h}`);
-        assert.notEqual(r.hit, "Back to top", `${r.label}: at scroll ${y} its switch is under the back-to-top arrow`);
+        assert.notEqual(b.hit, "Back to top", `${b.label}: at scroll ${y} it is under the back-to-top arrow`);
       }
     }
-    assert.ok(seen > 0, "no staple rows were ever on screen — the test measured nothing");
+    assert.ok(seen > 0, "no Have/Need buttons were ever on screen — the test measured nothing");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
