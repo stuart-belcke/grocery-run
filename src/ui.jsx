@@ -773,37 +773,6 @@ export function Btn({ children, onClick, kind = "ghost", small, style, title, di
   );
 }
 
-/* HAVE / NEED, for a home staple. Drawn in two places — a staple's row on the
-   Pantry tab and the staples review at the foot of the List tab — and one
-   component is what keeps them reading the same. It only draws the choice;
-   the write is the caller's (withStapleNeed in lib.js). Need is gold, the
-   colour a staple wears on the shopping list. */
-const haveNeedWrap = { display: "inline-flex", border: `1px solid ${C.line}`, borderRadius: 999, overflow: "hidden", flexShrink: 0 };
-const haveNeedBtn = { padding: "4px 10px", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, lineHeight: 1.6 };
-
-export function HaveNeed({ name, need, onChange }) {
-  return (
-    <span style={haveNeedWrap} title={need ? `We're out of ${name} — it's on the shopping list` : `We have ${name} — it stays off the list`}>
-      <button
-        onClick={() => onChange(false)}
-        aria-pressed={!need}
-        aria-label={`We have ${name}`}
-        style={{ ...haveNeedBtn, background: !need ? C.green : "transparent", color: !need ? "#fff" : C.faint }}
-      >
-        Have
-      </button>
-      <button
-        onClick={() => onChange(true)}
-        aria-pressed={need}
-        aria-label={`We need more ${name}`}
-        style={{ ...haveNeedBtn, background: need ? C.gold : "transparent", color: need ? "#fff" : C.faint }}
-      >
-        Need
-      </button>
-    </span>
-  );
-}
-
 export function Seg({ options, value, onChange }) {
   return (
     <div style={{ display: "inline-flex", border: `1px solid ${C.line}`, borderRadius: 8, overflow: "hidden", background: "#fff" }}>

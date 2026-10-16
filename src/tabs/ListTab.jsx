@@ -5,7 +5,7 @@
 
 import { useState, useMemo, useRef } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
-import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, InfoDot, StickyBar, BackToTop, SuggestInput, useSticky, FilterMark, HaveNeed } from "../ui";
+import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, InfoDot, StickyBar, BackToTop, SuggestInput, useSticky, FilterMark } from "../ui";
 import { ADDED_SOURCE, UNASSIGNED, keyForName, aisleKey, unitKeyFor, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg, staplesInMeals, withStapleNeed } from "../lib";
 
 export function ListTab({ data, update, updateCatalog, isGuest }) {
@@ -1025,19 +1025,23 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
           ONLY THE STAPLES THIS WEEK'S MEALS USE, each naming the meals —
           asked for that way: a staple no meal calls for has nothing this
           week to be checked against.
-          HAVE AND NEED BOTH STAY. A Need tapped by mistake has to be undoable
-          where it was tapped; a row that vanished into the list above would
-          leave the Pantry tab as the only way back.
+          EACH ROW IS ONE SWITCH, THE WHOLE ROW. It was the Pantry tab's
+          Have/Need pill, 51x27px at the right edge — exactly where the
+          back-to-top arrow floats, so a row near the bottom of the screen
+          sent a tap for Need to the arrow and scrolled the page to the top
+          instead. Measured, not guessed. Now the row is 52px tall and the
+          full width of the card, and the switch you see sits at its LEFT
+          end, where nothing floats. A row tapped by mistake is undone by
+          tapping it again; it stays in the review either way.
           AT THE FOOT, AND SHUT UNTIL OPENED, like the already-bought panel:
           it is a review you do once while planning, not something to scroll
           past for the whole shop. The header carries the count, so it says
           what is in it without opening. Sticky, so a tab switch mid-review
           brings it back open.
           NOT SHOWN WHEN NO MEAL USES A STAPLE — there is nothing to review.
-          40px BELOW IT so the last row's Need clears the back-to-top arrow,
-          which floats over the bottom-right corner once the page is scrolled:
-          the page's own bottom padding leaves that corner 32px short, and
-          this is the last thing on the tab. */}
+          40px BELOW IT so the last row clears the back-to-top arrow at the
+          end of the page: the page's own bottom padding leaves that corner
+          32px short, and this is the last thing on the tab. */}
       {staples.length > 0 && (
         <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, margin: "12px 0 40px", overflow: "hidden" }}>
           <button
@@ -1067,18 +1071,37 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
           {showStaples && (
             <div style={{ padding: "0 14px 12px" }}>
               <div style={{ fontSize: 13, color: C.faint, marginBottom: 4 }}>
-                Staples this week&apos;s meals use. Out of one? Mark it <b style={{ color: C.gold }}>Need</b> and it goes on this list until you check it off and finish shopping.
+                Staples this week&apos;s meals use. Out of one? Tap it to <b style={{ color: C.gold }}>Need</b> and it goes on this list until you check it off and finish shopping.
               </div>
               <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                {staples.map(({ key, name, meals }) => (
-                  <li key={key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: `1px solid ${C.line}` }}>
-                    <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>
-                      {name}
-                      <span style={{ display: "block", fontSize: 12, color: C.faint }}>for {meals.join(", ")}</span>
-                    </span>
-                    <HaveNeed name={name} need={!!data.stapleNeeds?.[key]} onChange={(need) => setStapleNeed(key, need)} />
-                  </li>
-                ))}
+                {staples.map(({ key, name, meals }) => {
+                  const need = !!data.stapleNeeds?.[key];
+                  return (
+                    <li key={key} style={{ borderTop: `1px solid ${C.line}` }}>
+                      <button
+                        role="switch"
+                        aria-checked={need}
+                        aria-label={`Need more ${name}`}
+                        onClick={() => setStapleNeed(key, !need)}
+                        style={{ width: "100%", minHeight: 52, display: "flex", alignItems: "center", gap: 12, padding: "8px 0", background: "none", border: "none", cursor: "pointer", textAlign: "left", font: "inherit", color: C.ink }}
+                      >
+                        {/* The same switch as "Keep screen on" in a recipe,
+                            gold rather than green: gold is what a staple you
+                            need wears on the list above. */}
+                        <span aria-hidden style={{ width: 34, height: 20, flexShrink: 0, boxSizing: "border-box", borderRadius: 999, padding: 2, display: "inline-flex", alignItems: "center", background: need ? C.gold : "#fff", border: `1px solid ${need ? C.gold : C.line}` }}>
+                          <span style={{ width: 14, height: 14, borderRadius: "50%", background: need ? "#fff" : C.faint, transform: need ? "translateX(14px)" : "none", transition: "transform 120ms ease" }} />
+                        </span>
+                        <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>
+                          {name}
+                          {need && (
+                            <span style={{ marginLeft: 6, fontSize: 12, fontWeight: 600, background: C.goldSoft, color: C.gold, padding: "1px 6px", borderRadius: 999, whiteSpace: "nowrap" }}>Need</span>
+                          )}
+                          <span style={{ display: "block", fontSize: 12, color: C.faint }}>for {meals.join(", ")}</span>
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}

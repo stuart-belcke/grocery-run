@@ -6,7 +6,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { C, fontDisplay, inputStyle } from "../theme";
-import { Btn, ConfirmDialog, ChoiceDialog, Section, StickyBar, BackToTop, SearchField, SuggestInput, useSticky, FilterMark, HaveNeed } from "../ui";
+import { Btn, ConfirmDialog, ChoiceDialog, Section, StickyBar, BackToTop, SearchField, SuggestInput, useSticky, FilterMark } from "../ui";
 import { UNASSIGNED, norm, cap, r2, aisleKey, aisleFor, normalizeCfg, ingredientNames, unitMatches, usedInRecipes, filterIngredients, commonUnitFor, mintIngredientId, normalizeIngredient, ensureIngredientId, ingredientIdByName, mergeIngredients, setIngredientCfg, planIngredientRename, withStapleNeed } from "../lib";
 
 // Shopping-list quantity stepper, mirroring the Recipes tab's "unplanned" pill so
@@ -14,6 +14,10 @@ import { UNASSIGNED, norm, cap, r2, aisleKey, aisleFor, normalizeCfg, ingredient
 const pillWrap = { display: "inline-flex", alignItems: "center", gap: 2, background: C.greenSoft, border: `1px solid ${C.green}`, borderRadius: 999, padding: "2px 3px", flexShrink: 0 };
 const pillBtn = { minWidth: 24, height: 24, padding: "0 3px", borderRadius: 999, border: "none", background: "transparent", cursor: "pointer", fontSize: 13, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", color: C.green };
 const pillCount = { minWidth: 22, textAlign: "center", fontWeight: 700, fontVariantNumeric: "tabular-nums", fontSize: 13, color: C.green, padding: "0 2px" };
+// Have/Need segment shown on staple rows in place of "+ List" — on a staple the
+// two would mean the same thing, so only one control is offered.
+const segWrap = { display: "inline-flex", border: `1px solid ${C.line}`, borderRadius: 999, overflow: "hidden", flexShrink: 0 };
+const segBtn = { padding: "4px 10px", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 12, fontWeight: 600, lineHeight: 1.6 };
 // Section heading inside the expanded row panel.
 
 export function PantryTab({ data, update, updateCatalog, isGuest }) {
@@ -504,10 +508,26 @@ export function PantryTab({ data, update, updateCatalog, isGuest }) {
                         </span>
                         <span aria-hidden style={{ paddingLeft: 6, color: open ? C.green : C.faint, fontSize: 15, flexShrink: 0, lineHeight: 1 }}>⚙</span>
                       </button>
-                      {/* Have/Need in place of "+ List" on a staple — there
-                          the two would mean the same thing, so only one
-                          control is offered. */}
-                      {cfg.staple && <HaveNeed name={name} need={needsMore(key)} onChange={(need) => setNeedsMore(key, need)} />}
+                      {cfg.staple && (
+                        <span style={segWrap} title={needsMore(key) ? `We're out of ${name} — it's on the shopping list` : `We have ${name} — it stays off the list`}>
+                          <button
+                            onClick={() => setNeedsMore(key, false)}
+                            aria-pressed={!needsMore(key)}
+                            aria-label={`We have ${name}`}
+                            style={{ ...segBtn, background: !needsMore(key) ? C.green : "transparent", color: !needsMore(key) ? "#fff" : C.faint }}
+                          >
+                            Have
+                          </button>
+                          <button
+                            onClick={() => setNeedsMore(key, true)}
+                            aria-pressed={needsMore(key)}
+                            aria-label={`We need more ${name}`}
+                            style={{ ...segBtn, background: needsMore(key) ? C.gold : "transparent", color: needsMore(key) ? "#fff" : C.faint }}
+                          >
+                            Need
+                          </button>
+                        </span>
+                      )}
                       {editList && editList.key === key ? (
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
                           <input

@@ -4386,8 +4386,8 @@ into the details panel and the name grew.
      every other ingredient.
      WHAT IT IS: "🏠 Review staples" under the list, shut until opened, with
      "N of M needed" on its header. Open, it lists the staples THIS WEEK'S
-     MEALS USE, A-Z, each naming those meals ("for Stir-fry, Tacos"), with
-     the same Have/Need switch the Pantry tab has. Need puts it on the list
+     MEALS USE, A-Z, each naming those meals ("for Stir-fry, Tacos"). Each
+     row is one switch; switched on means Need, which puts it on the list
      straight away; Done shopping clears it once it is ticked, exactly as
      before. A guest can use it — stapleNeeds is a field the guest role is
      allowed to write.
@@ -4398,15 +4398,27 @@ into the details panel and the name grew.
      meals count — planned days and unplanned meals, not a dish ticked
      "already have the ingredients". A Need staple no meal uses is already
      on the list, and the Pantry tab is where it is undone.
-     HAVE AND NEED BOTH STAY on each row, so a Need tapped by mistake is
-     undone where it was tapped rather than vanishing into the list.
+     THE WHOLE ROW IS THE SWITCH, AND THE SWITCH IS ON THE LEFT. The first
+     version reused the Pantry tab's Have/Need pill, 51x27px at the right
+     edge of the row — exactly where the back-to-top arrow floats. Reported
+     as "I can't toggle the item to need": measured on a 390x664 screen,
+     three rows' Need sat under the arrow (or the pinned bar) at some scroll
+     position, and a tap there scrolled the page to the top instead. That is
+     the one failure that could be reproduced; the preview runs against the
+     real database, which this sandbox cannot drive, so it is the likely
+     cause rather than a proven one. Now each row is a role="switch" button
+     at least 52px tall and the card's full width, with the switch drawn at
+     its left end. staplesreview.spec hit-tests every row at every scroll
+     position; moving the switch to the right edge, or shrinking the row,
+     fails it. A row stays in the review either way, so a mistaken tap is
+     undone by tapping it again.
      SHUT BY DEFAULT and remembered across tab switches (useSticky), like the
      already-bought panel. Hidden when no meal uses a staple.
-     ONE CONTROL AND ONE WRITE FOR BOTH TABS. HaveNeed (ui.jsx) is the
-     Pantry's switch, moved so both tabs draw the same thing; withStapleNeed
-     (lib.js) is the write, stores only Need, and deletes the key rather than
-     writing false.
-     40px OF SPACE BELOW IT, because the back-to-top arrow floats over the
-     bottom-right corner and covered the last row's Need. The page's own
-     bottom padding leaves that corner 32px short on EVERY long tab; this
-     only fixes it here, where the last thing on the page is a button.
+     ONE WRITE FOR BOTH TABS. withStapleNeed (lib.js) is what the Pantry's
+     Have/Need and the review's switch both call; it stores only Need and
+     deletes the key rather than writing false.
+     40px OF SPACE BELOW IT, so the last row clears the back-to-top arrow at
+     the end of the page. The page's own bottom padding leaves that corner
+     32px short on EVERY long tab, and any control at a row's right edge —
+     the Pantry's Have/Need, the List's "i" — can sit under the arrow
+     mid-scroll. Not fixed app-wide here.
