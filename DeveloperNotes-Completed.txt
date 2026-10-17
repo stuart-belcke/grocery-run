@@ -4409,7 +4409,7 @@ into the details panel and the name grew.
           report that prompted them turned out to be DuckDuckGo (below).
        3. Back on the right, by the owner's choice: matching the Pantry row
           matters more than one tab dodging an arrow the Pantry rows sit
-          under too. The arrow is roadmap item 135, to fix once for every tab.
+          under too. The arrow was then fixed for every tab: item 135.
      NAMED BY THE OWNER, AND NO NOTE. It was "Review staples" with a
      sentence under the header explaining Need. "The behavior is self
      explanatory" — the gold Need and the count say it.
@@ -4438,3 +4438,41 @@ into the details panel and the name grew.
      32px short on EVERY long tab, and any control at a row's right edge —
      the Pantry's Have/Need, the List's "i" — can sit under the arrow
      mid-scroll. Not fixed app-wide here.
+
+135. THE BACK-TO-TOP ARROW SAT OVER THE RIGHT EDGE OF WHATEVER ROW PASSED
+     UNDER IT. The arrow (BackToTop in ui.jsx) floated 44px square over the
+     bottom-right corner the whole time a page was more than 500px down —
+     and the right edge is where rows keep their controls: the Pantry's
+     Have/Need and "+ List", the List rows' "i", This week's staples'
+     Have/Need. A tap meant for one of those hit the arrow and threw the
+     page to the top. Found on the staples rows (item 134): at 390x664,
+     three of ten Needs were covered at some scroll position. Logged as a
+     roadmap item, then fixed when the owner asked.
+     NOW IT SHOWS ONLY WHILE SCROLLING BACK UP — at least 40px of upward
+     scrolling, the moment somebody wants to go back — and goes the instant
+     the page scrolls down, or 2 seconds after scrolling stops. Reading down
+     a list and tapping things in it never meets it.
+     AN UPWARD SCROLL THE APP MAKES IN ANSWER TO A TAP DOES NOT COUNT. The
+     staples review scrolls the page up 45px when Have takes a row off the
+     list above (to keep the tapped row still), which would otherwise summon
+     the arrow right beside the finger. A scroll within 300ms of a click is
+     treated as the app's.
+     NOT DONE, CONSIDERED: moving the arrow (there is no free column on a
+     phone — the left edge holds the List's checkboxes), padding the page
+     (only clears the LAST row at full scroll), and dodging it per tab (the
+     staples Have/Need sat on the left for a while; the owner wanted it to
+     match the Pantry row, which had the same exposure).
+     STILL POSSIBLE: scroll up, stop, and tap a row control under the arrow
+     within 2 seconds. Accepted — that is the one moment the arrow is wanted.
+     TESTED: backtotop.spec hit-tests every Pantry row control at every
+     scroll position on the way down; asserts it stays away while scrolling
+     down, shows on scrolling up, ignores 20px of drift, and goes after 2s
+     and on scrolling down again; staplesreview.spec asserts Have's own
+     45px scroll does not summon it. Mutation-tested: the old always-on
+     behaviour fails 5 tests (including the Pantry hit-test), counting the
+     app's scroll fails the staples test, and never hiding fails the pause
+     test. tabbar.spec's scroll helper now heads back up 200px, the way a
+     person reaches for the arrow, so its two arrow tests still measure it.
+     NOT TRIED ON A REAL PHONE: iOS momentum scrolling and the rubber-band
+     bounce at the bottom of a page both produce small upward scrolls; the
+     40px threshold is meant to absorb them.

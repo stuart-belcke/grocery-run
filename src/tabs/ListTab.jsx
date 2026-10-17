@@ -1050,18 +1050,14 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
           asked for that way: a staple no meal calls for has nothing this
           week to be checked against.
           THE PANTRY'S HAVE/NEED, AT THE RIGHT, exactly where a Pantry row
-          has it — the owner asked for the two to match. The back-to-top
-          arrow floats over that edge, so a row passing under it mid-scroll
-          has its Need covered; the Pantry rows have the same exposure, and
-          it is roadmap item 135 rather than something one tab works around.
-          Both answers stay on every row, so a mistaken tap is undone where
-          it was made.
-          NOT SHOWN WHEN NO MEAL USES A STAPLE — there is nothing to review.
-          40px BELOW IT so the last row clears the back-to-top arrow at the
-          end of the page: the page's own bottom padding leaves that corner
-          32px short, and this is the last thing on the tab. */}
+          has it — the owner asked for the two to match. That edge used to
+          sit under the back-to-top arrow mid-scroll; the arrow now only
+          shows while scrolling up (item 135, BackToTop in ui.jsx). Both
+          answers stay on every row, so a mistaken tap is undone where it
+          was made.
+          NOT SHOWN WHEN NO MEAL USES A STAPLE — there is nothing to review. */}
       {staples.length > 0 && (
-        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, margin: "12px 0 40px", overflow: "hidden" }}>
+        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, marginTop: 12, overflow: "hidden" }}>
           <button
             onClick={() => setShowStaples((v) => !v)}
             aria-expanded={showStaples}

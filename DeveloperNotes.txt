@@ -1,7 +1,7 @@
 Grocery Run — Roadmap
 =====================
 
-What is still open. Eleven items, none of them urgent — this app does its job.
+What is still open. Ten items, none of them urgent — this app does its job.
 
 THE NUMBERS ARE IDs, NOT POSITIONS, AND ARE NEVER REUSED OR REASSIGNED. They
 were allocated chronologically, so a low number here means the item is OLD and
@@ -306,20 +306,3 @@ file reached 5,886 lines with ten live items in it.
     scope, not a reuse of the parser's existing skip rule.
     TRIGGER: somebody wants to track nutrition, not just avoid it being
     mis-parsed into the steps.
-
-135. THE BACK-TO-TOP ARROW COVERS WHATEVER IS AT THE RIGHT EDGE OF A ROW.
-    The arrow (BackToTop in ui.jsx) floats 44px square over the bottom-right
-    corner once a page is scrolled. Any row passing under it mid-scroll has
-    its right-hand control covered, and a tap there scrolls to the top
-    instead: the Pantry's Have/Need and "+ List", the List rows' "i", and
-    This week's staples' Have/Need. Measured on the staples rows at 390x664
-    (item 134) — three of ten were covered at some scroll position.
-    WHY NOT FIXED IN 134: the owner chose Have/Need on the right to match
-    the Pantry row, and the Pantry rows have the same exposure, so this is
-    a fix for every tab rather than one tab working around it. Page bottom
-    padding only clears the LAST row at full scroll, not rows mid-scroll.
-    WHAT A FIX LOOKS LIKE: the arrow showing only while scrolling UP (the
-    usual pattern — it is wanted when heading back, not while reading
-    down), or moving off the column the row controls sit in.
-    TRIGGER: somebody reports a tap that jumped to the top, or the next
-    change to BackToTop.

@@ -174,7 +174,27 @@ export function StickyBar({ children, style }) {
    requestAnimationFrame, so it costs a boolean compare per frame at most.
 
    Hidden until you're actually deep enough to want it, so a short list looks
-   exactly as it did before. */
+   exactly as it did before.
+
+   ONLY WHILE YOU ARE SCROLLING BACK UP (item 135). It used to sit in the
+   corner the whole time you were deep in a list, 44px square over the right
+   edge of whatever row was passing under it — and the right edge is where
+   rows keep their controls: the Pantry's Have/Need and "+ List", the List's
+   "i", This week's staples' Have/Need. A tap meant for one of those landed
+   on the arrow and threw the page to the top. Measured on the staples rows
+   at 390x664: three of ten were covered at some scroll position.
+   Scrolling UP is the one moment somebody wants to go back, so that is when
+   it shows; scrolling down, or stopping for IDLE_MS, takes it away. Reading
+   down a list and tapping things in it never meets it.
+   AN UPWARD SCROLL THE APP MADE IS NOT ONE. The staples review scrolls the
+   page up 45px when Have takes a row off the list above, to keep the tapped
+   row under the finger — and that would summon the arrow right beside it.
+   A scroll within TAP_SCROLL_MS of a click is the app answering the tap, so
+   it does not count towards UP_INTENT. */
+const UP_INTENT = 40; // px of upward scrolling that means "heading back"
+const IDLE_MS = 2000; // gone this long after scrolling stops
+const TAP_SCROLL_MS = 300; // a scroll this soon after a click was the app's
+
 export function BackToTop({ showAfter = 500 }) {
   const [show, setShow] = useState(false);
   // Goes with the tab bar. It is anchored above the bar, so leaving it behind
@@ -183,18 +203,42 @@ export function BackToTop({ showAfter = 500 }) {
 
   useEffect(() => {
     let frame = 0;
+    let lastY = window.scrollY;
+    let upRun = 0;
+    let idle = 0;
+    let lastClick = -Infinity;
+    const hide = () => {
+      upRun = 0;
+      clearTimeout(idle);
+      setShow(false);
+    };
     const read = () => {
       frame = 0;
-      setShow(window.scrollY > showAfter);
+      const y = window.scrollY;
+      const dy = y - lastY;
+      lastY = y;
+      if (y <= showAfter || dy > 0) return hide();
+      if (dy < 0 && performance.now() - lastClick > TAP_SCROLL_MS) upRun -= dy;
+      if (upRun >= UP_INTENT) {
+        setShow(true);
+        clearTimeout(idle);
+        idle = setTimeout(hide, IDLE_MS);
+      }
     };
     const onScroll = () => {
       if (!frame) frame = requestAnimationFrame(read);
     };
-    read();
+    const onClick = () => {
+      lastClick = performance.now();
+    };
     window.addEventListener("scroll", onScroll, { passive: true });
+    // Capture, so it is stamped before any handler that moves the page runs.
+    document.addEventListener("click", onClick, true);
     return () => {
       window.removeEventListener("scroll", onScroll);
+      document.removeEventListener("click", onClick, true);
       if (frame) cancelAnimationFrame(frame);
+      clearTimeout(idle);
     };
   }, [showAfter]);
 

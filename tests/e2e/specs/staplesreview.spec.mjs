@@ -173,6 +173,10 @@ test("marking a staple Need keeps the row you tapped where it was, though the li
     await page.waitForTimeout(400);
     assert.equal((await listedNames(page)).length, rowsBefore, "and came off again");
     assert.ok(Math.abs((await need.boundingBox()).y - before) < 2, `Have: the tapped row moved from y=${before} to y=${(await need.boundingBox()).y}`);
+    /* Keeping the row still meant scrolling the page UP 45px — which is what
+       summons the back-to-top arrow, right beside the finger. A scroll the
+       app made in answer to a tap must not count as heading back (item 135). */
+    assert.equal(await page.isVisible('button[aria-label="Back to top"]'), false, "the app's own scroll summoned the back-to-top arrow");
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();
