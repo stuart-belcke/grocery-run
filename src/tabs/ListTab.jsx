@@ -3,10 +3,10 @@
     store-grouped, checkable list with per-item store overrides.  */
 /* ------------------------------------------------------------------ */
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useLayoutEffect } from "react";
 import { C, fontDisplay, fontBody, inputStyle } from "../theme";
-import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, InfoDot, StickyBar, BackToTop, SuggestInput, useSticky, FilterMark } from "../ui";
-import { ADDED_SOURCE, UNASSIGNED, keyForName, aisleKey, unitKeyFor, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg } from "../lib";
+import { Stripe, Btn, Seg, ConfirmDialog, ChoiceDialog, InfoDot, StickyBar, BackToTop, SuggestInput, useSticky, FilterMark, HaveNeed } from "../ui";
+import { ADDED_SOURCE, UNASSIGNED, keyForName, aisleKey, unitKeyFor, r2, normalizeCfg, ingredientIdByName, ensureIngredientId, aisleFor, aggregateItems, qtyLabel, unitMatches, ingredientNames, ingredientMatches, storeFor, listSections, cap, commonUnitFor, ingredientNameFor, setIngredientCfg, staplesInMeals, withStapleNeed } from "../lib";
 
 export function ListTab({ data, update, updateCatalog, isGuest }) {
   const [view, setView] = useSticky("list.view", "store");
@@ -42,6 +42,8 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
   const arranged = !(view === "store" && storeSort === "az");
   const [showBought, setShowBought] = useSticky("list.showBought", false); // "already bought" review panel
   const [askStore, setAskStore] = useState(null); // { key, name, store } pending "this trip or always?"
+  const [showStaples, setShowStaples] = useSticky("list.showStaples", false); // staples review at the foot of the list
+  const [stapleMealsKey, setStapleMealsKey] = useSticky("list.stapleMealsKey", null); // the staple whose meals are showing
 
   const items = useMemo(() => aggregateItems(data), [data]);
   const knownItems = useMemo(() => ingredientNames(data), [data]);
@@ -50,6 +52,9 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
   // dropdown (rather than a native <datalist>, which renders unreliably) so it
   // always shows as you type and matches the Pantry tab's search feel.
   const suggestions = useMemo(() => ingredientMatches(knownItems, extra.name), [knownItems, extra.name]);
+  // The staples this week's meals use, A-Z — see staplesInMeals.
+  const staples = useMemo(() => staplesInMeals(data), [data]);
+  const staplesNeeded = staples.filter((s) => data.stapleNeeds?.[s.key]).length;
   const sugOpen = showSug && suggestions.length > 0;
   // Picking a known ingredient fills in the unit its recipes usually use
   // (garlic -> "clove"), so the hand-added amount totals with them instead of
@@ -186,6 +191,38 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
       d.list.bought = {};
       return d;
     });
+
+  // The same write the Pantry tab's Have/Need makes — see withStapleNeed. A
+  // guest can make it too: stapleNeeds is one of the fields the guest role
+  // is granted, because saying you are out of something is shopping.
+  const setStapleNeed = (key, need) =>
+    update((d) => {
+      d.stapleNeeds = withStapleNeed(d.stapleNeeds, key, need);
+      return d;
+    });
+
+  /* THE ROW YOU TAPPED STAYS UNDER YOUR FINGER. Need adds a row to the list
+     ABOVE the review (Have takes one away), so everything below it — the row
+     just tapped included — moved 45px, and the next tap could land on the
+     staple beside the one you meant. The gold Need and the header's count
+     already say what changed; the jump said nothing more.
+     Chrome holds the page still on its own when the new row is off screen
+     (scroll anchoring) but not when it is on screen, and Safari does not do
+     scroll anchoring at all. So: note where the tapped row was, and after
+     the render — before it is painted — scroll by however far it moved. A
+     page too short to scroll cannot be held, and is not. */
+  const holdRow = useRef(null); // { el, top } of the review row last tapped
+  const noteRow = (e) => {
+    holdRow.current = { el: e.currentTarget, top: e.currentTarget.getBoundingClientRect().top };
+  };
+  useLayoutEffect(() => {
+    const held = holdRow.current;
+    if (!held) return;
+    holdRow.current = null;
+    if (!held.el.isConnected) return;
+    const moved = held.el.getBoundingClientRect().top - held.top;
+    if (Math.abs(moved) >= 1) window.scrollBy(0, moved);
+  });
 
   // End of trip. The rule throughout: what you CHECKED OFF is done with, and
   // what you didn't get carries to the next list rather than being wiped.
@@ -1003,6 +1040,83 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
         </div>
         <div style={{ borderTop: `1px dashed ${C.line}`, paddingTop: 6 }}>{body}</div>
       </div>
+
+      {/* THE STAPLES REVIEW. A staple you have is kept OFF the list even when
+          a recipe calls for it — that is what a staple is for — so the list
+          on its own never prompts "are we out of olive oil?". The only place
+          to say so was the Pantry tab, one staple at a time among every
+          other ingredient.
+          ONLY THE STAPLES THIS WEEK'S MEALS USE, each naming the meals —
+          asked for that way: a staple no meal calls for has nothing this
+          week to be checked against.
+          THE PANTRY'S HAVE/NEED, AT THE RIGHT, exactly where a Pantry row
+          has it — the owner asked for the two to match. That edge used to
+          sit under the back-to-top arrow mid-scroll; the arrow now only
+          shows while scrolling up (item 135, BackToTop in ui.jsx). Both
+          answers stay on every row, so a mistaken tap is undone where it
+          was made.
+          NOT SHOWN WHEN NO MEAL USES A STAPLE — there is nothing to review. */}
+      {staples.length > 0 && (
+        <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, marginTop: 12, overflow: "hidden" }}>
+          <button
+            onClick={() => setShowStaples((v) => !v)}
+            aria-expanded={showStaples}
+            style={{
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "12px 14px",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              textAlign: "left",
+              font: "inherit",
+              color: C.ink,
+            }}
+          >
+            <span style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 16 }}>🏠 This week’s staples</span>
+            <span style={{ flex: 1 }} />
+            <span style={{ fontSize: 13, color: staplesNeeded ? C.gold : C.faint, whiteSpace: "nowrap" }}>
+              {staplesNeeded} of {staples.length} needed
+            </span>
+            <span aria-hidden style={{ fontSize: 13, color: C.faint }}>{showStaples ? "▲" : "▾"}</span>
+          </button>
+          {showStaples && (
+            <div style={{ padding: "0 14px 12px" }}>
+              <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                {staples.map(({ key, name, meals }) => {
+                  const showMeals = stapleMealsKey === key;
+                  return (
+                    <li key={key} onClickCapture={noteRow} style={{ borderTop: `1px solid ${C.line}` }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 44, padding: "6px 0" }}>
+                        {/* WHICH MEALS USE IT, BEHIND A TAP ON THE NAME. Shown
+                            under every row it was a second line of recipe
+                            names per staple — "overwhelming" — for a question
+                            asked about one staple at a time. One open at a
+                            time, like the list rows' panels above. */}
+                        <button
+                          onClick={() => setStapleMealsKey(showMeals ? null : key)}
+                          aria-expanded={showMeals}
+                          aria-label={`Which meals use ${name}`}
+                          style={{ flex: 1, minWidth: 0, alignSelf: "stretch", display: "flex", alignItems: "center", gap: 6, padding: 0, background: "none", border: "none", cursor: "pointer", textAlign: "left", font: "inherit", color: C.ink }}
+                        >
+                          <span style={{ overflowWrap: "anywhere" }}>{name}</span>
+                          <span aria-hidden style={{ fontSize: 12, color: C.faint, flexShrink: 0 }}>{showMeals ? "▴" : "▾"}</span>
+                        </button>
+                        <HaveNeed name={name} need={!!data.stapleNeeds?.[key]} onChange={(need) => setStapleNeed(key, need)} />
+                      </div>
+                      {showMeals && (
+                        <div style={{ fontSize: 13, color: C.faint, padding: "0 0 8px" }}>For {meals.join(", ")}</div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       <ConfirmDialog
         open={confirmDone}

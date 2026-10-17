@@ -306,4 +306,3 @@ file reached 5,886 lines with ten live items in it.
     scope, not a reuse of the parser's existing skip rule.
     TRIGGER: somebody wants to track nutrition, not just avoid it being
     mis-parsed into the steps.
-

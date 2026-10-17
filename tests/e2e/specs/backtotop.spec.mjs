@@ -45,9 +45,17 @@ for (const tab of ["List", "Pantry", "Recipes"]) {
       await page.waitForTimeout(250);
       assert.equal(await page.isVisible(BTN), false, "offered before there was anything to scroll back from");
 
+      /* READING DOWN THE PAGE, IT STAYS AWAY (item 135). It used to show the
+         moment you were 500px down, over the right edge of whatever row was
+         passing under it — where the rows keep their controls. */
+      await page.evaluate(() => window.scrollTo(0, 2000));
+      await page.waitForTimeout(350);
+      assert.equal(await page.isVisible(BTN), false, "showing while scrolling DOWN, where it sits over row controls");
+
+      // Heading back up is when it is wanted.
       await page.evaluate(() => window.scrollTo(0, 1500));
       await page.waitForTimeout(350);
-      assert.equal(await page.isVisible(BTN), true, "never appeared, however far down the page");
+      assert.equal(await page.isVisible(BTN), true, "never appeared on scrolling back up");
       assert.equal(await hitTest(page), "button", "rendered but something else owns that corner");
 
       /* THE GLYPH ITSELF. This shipped reading the six literal characters
@@ -87,13 +95,83 @@ test("a dialog covers the back-to-top button rather than the other way round", a
     assert.equal(await page.locator('[role="dialog"]').count(), 1, "no dialog opened");
 
     // Clicking the control auto-scrolled the page to reach it, which unmounts
-    // the button — put the scroll back so there is something to compare.
+    // the button — put the scroll back so there is something to compare:
+    // down, then back up, since it only shows while scrolling up.
+    await page.evaluate(() => window.scrollTo(0, 2000));
+    await page.waitForTimeout(250);
     await page.evaluate(() => window.scrollTo(0, 1500));
     await page.waitForTimeout(350);
 
     if (await page.isVisible(BTN)) {
       assert.notEqual(await hitTest(page), "button", "the button floats over an open dialog");
     }
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("it takes itself away once scrolling stops, and on scrolling down again", async () => {
+  /* Shown only while somebody is heading back up. Left up after they stop,
+     it sits over whatever row they stopped at — the case item 135 exists
+     for — so it goes after a pause, and at once if they read on down. */
+  const page = await openApp(BASE);
+  try {
+    await page.tab("Pantry");
+    const up = async () => {
+      await page.evaluate(() => window.scrollTo(0, 2500));
+      await page.waitForTimeout(250);
+      await page.evaluate(() => window.scrollTo(0, 2000));
+      await page.waitForTimeout(350);
+    };
+    await up();
+    assert.equal(await page.isVisible(BTN), true, "not shown on scrolling up");
+    await page.waitForTimeout(2300);
+    assert.equal(await page.isVisible(BTN), false, "still showing two seconds after scrolling stopped");
+
+    await up();
+    assert.equal(await page.isVisible(BTN), true);
+    await page.evaluate(() => window.scrollTo(0, 2100));
+    await page.waitForTimeout(250);
+    assert.equal(await page.isVisible(BTN), false, "still showing after scrolling down again");
+
+    // A few pixels of upward drift is not heading back.
+    await page.evaluate(() => window.scrollTo(0, 2080));
+    await page.waitForTimeout(250);
+    assert.equal(await page.isVisible(BTN), false, "20px of drift summoned it");
+    assertNoPageErrors(page, assert);
+  } finally {
+    await page.done();
+  }
+});
+
+test("scrolling down the Pantry, no row's control is ever under it", async () => {
+  /* The bug itself, hit-tested at every scroll position: the right edge of a
+     Pantry row holds its Have/Need or "+ List", and the arrow used to float
+     over whichever row was passing the bottom corner. */
+  const page = await openApp(BASE);
+  try {
+    await page.setViewportSize({ width: 390, height: 664 });
+    await page.tab("Pantry");
+    const height = await page.evaluate(() => document.documentElement.scrollHeight);
+    let seen = 0;
+    for (let y = 0; y < Math.min(height, 6000); y += 60) {
+      await page.evaluate((y) => window.scrollTo(0, y), y);
+      await page.waitForTimeout(60);
+      const covered = await page.evaluate(() =>
+        Array.from(document.querySelectorAll("[aria-label^='We need more '], [aria-label^='We have '], [aria-label$=' to the shopping list']")).flatMap((b) => {
+          const r = b.getBoundingClientRect();
+          const [x, cy] = [r.x + r.width / 2, r.y + r.height / 2];
+          if (cy < 0 || cy > innerHeight) return [];
+          const owner = document.elementFromPoint(x, cy)?.closest("button");
+          return [{ label: b.getAttribute("aria-label"), hit: owner === b ? "self" : owner?.getAttribute("aria-label") || "other" }];
+        })
+      );
+      seen += covered.length;
+      const under = covered.filter((c) => c.hit === "Back to top");
+      assert.deepEqual(under, [], `at scroll ${y}: ${JSON.stringify(under)}`);
+    }
+    assert.ok(seen > 50, `only ${seen} row controls were ever on screen — the test measured too little`);
     assertNoPageErrors(page, assert);
   } finally {
     await page.done();

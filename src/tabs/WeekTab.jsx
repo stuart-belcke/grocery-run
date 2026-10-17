@@ -37,6 +37,9 @@ export function WeekTab({ data, update, isGuest }) {
   // one path that swaps a meal out, reached by tapping the meal itself.
   const [picker, setPicker] = useState(null);
   const [pickQuery, setPickQuery] = useState("");
+  // The recipe opened for reading inside the picker, by id. Work in progress
+  // like the picker itself, so useState: reopening the picker starts closed.
+  const [pickPreview, setPickPreview] = useState(null);
   const [editing, setEditing] = useSticky("week.editing", false); // whole-plan edit mode: reveals per-slot change + clear
   const [confirmClear, setConfirmClear] = useState(false);
   const [unplannedOpen, setUnplannedOpen] = useSticky("week.unplannedOpen", false); // "Unplanned meals" disclosure
@@ -143,7 +146,20 @@ export function WeekTab({ data, update, isGuest }) {
      first was the only one that had a ▾. */
   const openPicker = (day, type, role = "main", dishIndex = 0) => {
     setPickQuery("");
+    setPickPreview(null);
     setPicker({ day, type, role, dishIndex });
+  };
+
+  /* THE SERVINGS A PICK WOULD BE PLANNED AT. Joining a meal that already has
+     a dish takes that meal's servings (see assignFromPicker); anything else
+     starts at the recipe's own. ONE DEFINITION, because the recipe preview in
+     the picker shows its amounts at this number — a preview that scaled
+     differently from the pick would be showing quantities the shopping list
+     will not have. */
+  const servingsIfPicked = (r) => {
+    const slot = picker && data.plan?.[picker.day]?.[picker.type];
+    if (slot?.recipeId && picker.role !== "replace") return Number(slot.servings) || r.servings || 4;
+    return r.servings || 4;
   };
 
   // Write a slot that removeDish/replaceDish worked out, or delete it when the
@@ -181,9 +197,8 @@ export function WeekTab({ data, update, isGuest }) {
        dishes on one dinner feed the same table, and a "serves 6" recipe
        joining a dinner for 4 was the wrong number more often than not. */
     if (slot?.recipeId && picker.role !== "replace") {
-      const mainServings = Number(slot.servings) || 0;
       setSlot(picker.day, picker.type, {
-        sides: [...asArray(slot.sides), { recipeId: r.id, servings: mainServings || r.servings || 4 }],
+        sides: [...asArray(slot.sides), { recipeId: r.id, servings: servingsIfPicked(r) }],
       });
       setPicker(null);
       return;
@@ -197,12 +212,12 @@ export function WeekTab({ data, update, isGuest }) {
        list of dishes with no privileged one. Swapping the third never touched
        the others, and now neither does swapping the first. */
     if (slot?.recipeId) {
-      putSlot(picker.day, picker.type, replaceDish(slot, picker.dishIndex || 0, r.id, r.servings || 4));
+      putSlot(picker.day, picker.type, replaceDish(slot, picker.dishIndex || 0, r.id, servingsIfPicked(r)));
       setPicker(null);
       return;
     }
     // An empty meal of the day: the picked recipe simply fills it.
-    setSlot(picker.day, picker.type, { recipeId: r.id, servings: r.servings || 4, skipList: undefined, sides: undefined });
+    setSlot(picker.day, picker.type, { recipeId: r.id, servings: servingsIfPicked(r), skipList: undefined, sides: undefined });
     setPicker(null);
   };
 
@@ -758,40 +773,82 @@ export function WeekTab({ data, update, isGuest }) {
                     </div>
                     {g.recipes.map((r) => {
                       // Main: highlighted means "currently assigned here", a tap
-                      // replaces it and closes. Side: highlighted means "picked
-                      // this session", a tap toggles it and the picker stays open
-                      // for more.
+                      // replaces it and closes.
                       const chosen = r.id === activeSlotRecipeId;
+                      const reading = pickPreview === r.id;
+                      /* THE ROW PICKS THE MEAL, AS IT ALWAYS HAS; ONLY THE ▾
+                         READS IT. Without this, reading a recipe from here
+                         meant planning it, opening it on the day, and taking it
+                         off again if it was the wrong one.
+                         Picking keeps the whole row, because it is the tap
+                         people make every week; reading is the rarer one and
+                         gets the 44px ▾ at the row's edge — the same arrow,
+                         and the same size, as the ▾ beside a planned meal.
+                         The recipe opens under its row, inside the picker, so
+                         the row that picks it stays on screen. (Item 133
+                         records the design this replaced before it shipped.) */
                       return (
-                        <button
-                          key={r.id}
-                          onClick={() => assignFromPicker(r)}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            width: "calc(100% - 8px)",
-                            textAlign: "left",
-                            padding: "9px 12px",
-                            margin: "2px 4px",
-                            borderRadius: 8,
-                            border: `1px solid ${chosen ? C.green : "transparent"}`,
-                            background: chosen ? C.greenSoft : "transparent",
-                            cursor: "pointer",
-                            fontFamily: fontBody,
-                          }}
-                        >
-                          <div style={{ minWidth: 0, flex: 1 }}>
-                            <div style={{ fontSize: 14, fontWeight: 600, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {r.easy ? "⚡ " : ""}{r.side ? "🥗 " : ""}{r.name}
-                            </div>
-                            <div style={{ fontSize: 12, color: C.faint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              Serves {r.servings || 4}
-                              {(r.mealTypes || []).length ? ` · ${r.mealTypes.join(", ")}` : ""}
-                            </div>
+                        <Fragment key={r.id}>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "stretch",
+                              margin: "2px 4px",
+                              borderRadius: 8,
+                              overflow: "hidden",
+                              border: `1px solid ${chosen ? C.green : reading ? C.line : "transparent"}`,
+                              background: chosen ? C.greenSoft : "transparent",
+                            }}
+                          >
+                            <button
+                              onClick={() => assignFromPicker(r)}
+                              style={{
+                                flex: 1,
+                                minWidth: 0,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                textAlign: "left",
+                                padding: "9px 12px",
+                                border: "none",
+                                background: "transparent",
+                                cursor: "pointer",
+                                fontFamily: fontBody,
+                              }}
+                            >
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                {/* WRAPS RATHER THAN CLIPPING, now the ▾ takes
+                                    44px of the row: "Baked Cod wi…" is no help
+                                    choosing between two cod recipes. */}
+                                <div style={{ fontSize: 14, fontWeight: 600, color: C.ink, overflowWrap: "anywhere" }}>
+                                  {r.easy ? "⚡ " : ""}{r.side ? "🥗 " : ""}{r.name}
+                                </div>
+                                <div style={{ fontSize: 12, color: C.faint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  Serves {r.servings || 4}
+                                  {(r.mealTypes || []).length ? ` · ${r.mealTypes.join(", ")}` : ""}
+                                </div>
+                              </div>
+                              {chosen && <span aria-hidden style={{ color: C.green, fontSize: 14, flexShrink: 0 }}>✓</span>}
+                            </button>
+                            <button
+                              onClick={() => setPickPreview(reading ? null : r.id)}
+                              aria-expanded={reading}
+                              aria-label={`${r.name} — view recipe`}
+                              title="View recipe"
+                              style={{ width: TAP, flexShrink: 0, border: "none", borderLeft: `1px solid ${C.line}`, background: "transparent", color: C.green, cursor: "pointer", fontSize: 18, lineHeight: 1, padding: 0 }}
+                            >
+                              {reading ? "▴" : "▾"}
+                            </button>
                           </div>
-                          {chosen && <span aria-hidden style={{ color: C.green, fontSize: 14, flexShrink: 0 }}>✓</span>}
-                        </button>
+                          {/* UNDER ITS ROW, at the servings the pick would
+                              plan it for — so a second dish joining a dinner
+                              for 6 reads for 6. */}
+                          {reading && (
+                            <div style={{ margin: "0 4px 8px" }}>
+                              <RecipeDetail recipe={r} servings={servingsIfPicked(r)} />
+                            </div>
+                          )}
+                        </Fragment>
                       );
                     })}
                   </div>

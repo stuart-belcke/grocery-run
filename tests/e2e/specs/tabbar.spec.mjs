@@ -29,7 +29,12 @@ const openScrolled = async (width = 390) => {
   await page.setViewportSize({ width, height: 780 });
   await page.tab("List");
   await page.evaluate(() => window.scrollTo(0, 3000));
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(250);
+  // A little way back up, the way a person heads for the top: the back-to-top
+  // button only shows while scrolling up (item 135), and two tests here
+  // measure it.
+  await page.evaluate(() => window.scrollBy(0, -200));
+  await page.waitForTimeout(300);
   return page;
 };
 

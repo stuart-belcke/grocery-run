@@ -3028,6 +3028,20 @@ export function filterIngredients(data, known, { query = "", store = "", staples
   });
 }
 
+/* SAY A STAPLE HAS RUN OUT, OR THAT IT HAS NOT. Two places offer it — a
+   staple's row on the Pantry tab and the staples review at the foot of the
+   List tab — and one function is what keeps them writing the same shape.
+   Only "need" is stored: going back to "have" DELETES the key rather than
+   writing `false`, so an all-clear map is empty, the database drops it, and
+   normalizeLocal rebuilds it as {}. Returns a new map; the old one is not
+   touched, and anything else in it (another staple's need) is carried. */
+export function withStapleNeed(needs, key, need) {
+  const next = { ...asObject(needs) };
+  if (need) next[key] = true;
+  else delete next[key];
+  return next;
+}
+
 // The unit an ingredient is most often measured in across the household's
 // recipes (garlic → "clove"), so a hand-add totals with those recipes instead
 // of sitting as a bare count. Items no recipe measures stay unitless.
@@ -3295,6 +3309,36 @@ export function servingsByRecipe(data) {
     }
   }
   return totals;
+}
+
+/* THE STAPLES THIS WEEK'S MEALS USE — the List tab's staples review. A staple
+   you have is kept off the list even when a recipe calls for it, so these are
+   exactly the ones the list will never ask about. Staples no meal uses are
+   not here: there is nothing about this week to check them against.
+   "This week's meals" is whatever feeds the list — servingsByRecipe, so a
+   planned day, an unplanned meal from the Recipes tab, and NOT a dish ticked
+   "already have the ingredients" — so the review and the list cannot
+   disagree about which meals count. Each entry names the meals using it,
+   A-Z; entries are A-Z by name. */
+export function staplesInMeals(data) {
+  const byKey = new Map();
+  for (const [id, servings] of Object.entries(servingsByRecipe(data))) {
+    if (!(servings > 0)) continue;
+    const r = data.recipes.find((x) => x.id === id);
+    if (!r) continue;
+    for (const ing of r.ingredients || []) {
+      const key = ing.ingredientId || norm(ing.name);
+      if (!normalizeCfg(data.config[key]).staple) continue;
+      const name = ingredientNameFor(data, key);
+      if (!name) continue;
+      if (!byKey.has(key)) byKey.set(key, { key, name, meals: [] });
+      const e = byKey.get(key);
+      if (!e.meals.includes(r.name)) e.meals.push(r.name);
+    }
+  }
+  return [...byKey.values()]
+    .map((e) => ({ ...e, meals: [...e.meals].sort((a, b) => a.localeCompare(b)) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // Recipes sitting on the shopping list with no day/slot in the week plan —

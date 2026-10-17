@@ -4350,3 +4350,129 @@ into the details panel and the name grew.
      card, and leaves the saved state byte-identical. Mutation: giving the
      app link the raw address fails that browser test; appUrl returning its
      input unchanged fails 2 unit tests.
+
+133. READ A RECIPE IN THE MEAL PICKER BEFORE CHOOSING IT. Asked as "tap the
+     meal to show the recipe while you are searching in the meal plan, so you
+     don't have to add it before being able to read it."
+     WHAT IT WAS: every row in the Plan tab's picker was one button that
+     planned the meal. Reading a recipe from there meant planning it, opening
+     it on the day, and taking it off again if it was the wrong one.
+     WHAT IT IS NOW, as the owner specified it: the row still plans the meal,
+     exactly as before. A 44px ▾ at the row's right edge — the same arrow,
+     and the same size, as the ▾ beside a planned meal — opens the recipe
+     under the row, inside the picker, and plans nothing.
+     A DESIGN REJECTED BY THE OWNER before it shipped, recorded so it does
+     not come back: tapping the NAME opened the recipe and an Add button
+     beside it planned the meal. It matched "tap the meal" word for word and
+     matched how a name behaves elsewhere, but it moved the tap people make
+     every week onto a smaller target to make room for the rarer one.
+     "Everything else would add the meal to the plan like it does already."
+     THE PREVIEW IS SCALED TO THE PICK. servingsIfPicked (WeekTab) is the one
+     definition of "the servings this pick would be planned at" — the
+     meal's servings when the pick joins a meal that already has a dish, the
+     recipe's own otherwise — and both the preview and assignFromPicker read
+     it, so the preview cannot show amounts the shopping list will not have.
+     Names in the picker now wrap rather than clipping, since the ▾ takes
+     44px of the row.
+
+134. A STAPLES REVIEW AT THE BOTTOM OF THE SHOPPING LIST. Asked as "a
+     staples review section at the bottom of the shopping list that you can
+     mark items back to need so they will show up on that week's shopping
+     list."
+     WHY IT WAS NEEDED: a staple you have stays OFF the list even when a
+     planned recipe calls for it (item 13 — that is what a staple is for).
+     So the list on its own never asks "are we out of soy sauce?", and the
+     only place to say so was the Pantry tab, one staple at a time among
+     every other ingredient.
+     WHAT IT IS: "🏠 This week’s staples" under the list, shut until opened,
+     with "N of M needed" on its header. Open, it lists the staples THIS WEEK'S
+     MEALS USE, A-Z, with the Pantry tab's Have/Need at the right of the row.
+     Tapping a staple's name shows which meals use it ("For Stir-fry,
+     Tacos"), one at a time; shown under every row it was "overwhelming". Need puts it on the list
+     straight away; Done shopping clears it once it is ticked, exactly as
+     before. A guest can use it — stapleNeeds is a field the guest role is
+     allowed to write.
+     ONLY THE STAPLES A MEAL USES, as the owner specified after the first
+     version listed every staple: "the only staples I need to review are the
+     ones included in the meals I've planned." staplesInMeals (lib.js)
+     builds on servingsByRecipe, the same answer the list uses for which
+     meals count — planned days and unplanned meals, not a dish ticked
+     "already have the ingredients". A Need staple no meal uses is already
+     on the list, and the Pantry tab is where it is undone.
+     HAVE/NEED AT THE RIGHT, MATCHING THE PANTRY ROW. Placement went round
+     three times and is recorded so it does not go round again:
+       1. Right edge, the Pantry's pill. Measured on a 390x664 screen, three
+          rows' Need sat under the back-to-top arrow at some scroll position,
+          so a tap for Need there scrolled the page to the top instead.
+       2. A whole-row switch with the switch at the left, then the pill at
+          the left, both to clear the arrow. Meanwhile the "tap does nothing"
+          report that prompted them turned out to be DuckDuckGo (below).
+       3. Back on the right, by the owner's choice: matching the Pantry row
+          matters more than one tab dodging an arrow the Pantry rows sit
+          under too. The arrow was then fixed for every tab: item 135.
+     NAMED BY THE OWNER, AND NO NOTE. It was "Review staples" with a
+     sentence under the header explaining Need. "The behavior is self
+     explanatory" — the gold Need and the count say it.
+     THE ROW YOU TAPPED STAYS PUT. Need adds a row to the list above, which
+     moved the tapped row 45px under the finger whenever list rows were on
+     screen above it (Chrome's scroll anchoring only covers the off-screen
+     case; Safari has none). The row is measured before the tap's render and
+     the page scrolled by the difference before paint. Chose holding over
+     letting it move as feedback: the next tap would land on the wrong
+     staple, and the pill and count already say what changed.
+     A TAP THAT "FLICKERED AND DID NOTHING" WAS THE BROWSER. Reported from
+     the PR preview on a phone; never reproduced here — the real build with
+     sync on, against the emulator and the real rules, saved on every tap.
+     It was DuckDuckGo's browser: the same link in Chrome worked. Why DDG
+     drops the change was not investigated; if anybody uses the app in it,
+     the Pantry's Need and the list's ticks are worth trying there first.
+     Both answers stay on every row, so a mistaken tap is undone where it
+     was made.
+     SHUT BY DEFAULT and remembered across tab switches (useSticky), like the
+     already-bought panel. Hidden when no meal uses a staple.
+     ONE CONTROL AND ONE WRITE FOR BOTH TABS. HaveNeed (ui.jsx) is drawn by
+     both; withStapleNeed (lib.js) is the write, stores only Need, and
+     deletes the key rather than writing false.
+     40px OF SPACE BELOW IT, so the last row clears the back-to-top arrow at
+     the end of the page. The page's own bottom padding leaves that corner
+     32px short on EVERY long tab, and any control at a row's right edge —
+     the Pantry's Have/Need, the List's "i" — can sit under the arrow
+     mid-scroll. Not fixed app-wide here.
+
+135. THE BACK-TO-TOP ARROW SAT OVER THE RIGHT EDGE OF WHATEVER ROW PASSED
+     UNDER IT. The arrow (BackToTop in ui.jsx) floated 44px square over the
+     bottom-right corner the whole time a page was more than 500px down —
+     and the right edge is where rows keep their controls: the Pantry's
+     Have/Need and "+ List", the List rows' "i", This week's staples'
+     Have/Need. A tap meant for one of those hit the arrow and threw the
+     page to the top. Found on the staples rows (item 134): at 390x664,
+     three of ten Needs were covered at some scroll position. Logged as a
+     roadmap item, then fixed when the owner asked.
+     NOW IT SHOWS ONLY WHILE SCROLLING BACK UP — at least 40px of upward
+     scrolling, the moment somebody wants to go back — and goes the instant
+     the page scrolls down, or 2 seconds after scrolling stops. Reading down
+     a list and tapping things in it never meets it.
+     AN UPWARD SCROLL THE APP MAKES IN ANSWER TO A TAP DOES NOT COUNT. The
+     staples review scrolls the page up 45px when Have takes a row off the
+     list above (to keep the tapped row still), which would otherwise summon
+     the arrow right beside the finger. A scroll within 300ms of a click is
+     treated as the app's.
+     NOT DONE, CONSIDERED: moving the arrow (there is no free column on a
+     phone — the left edge holds the List's checkboxes), padding the page
+     (only clears the LAST row at full scroll), and dodging it per tab (the
+     staples Have/Need sat on the left for a while; the owner wanted it to
+     match the Pantry row, which had the same exposure).
+     STILL POSSIBLE: scroll up, stop, and tap a row control under the arrow
+     within 2 seconds. Accepted — that is the one moment the arrow is wanted.
+     TESTED: backtotop.spec hit-tests every Pantry row control at every
+     scroll position on the way down; asserts it stays away while scrolling
+     down, shows on scrolling up, ignores 20px of drift, and goes after 2s
+     and on scrolling down again; staplesreview.spec asserts Have's own
+     45px scroll does not summon it. Mutation-tested: the old always-on
+     behaviour fails 5 tests (including the Pantry hit-test), counting the
+     app's scroll fails the staples test, and never hiding fails the pause
+     test. tabbar.spec's scroll helper now heads back up 200px, the way a
+     person reaches for the arrow, so its two arrow tests still measure it.
+     NOT TRIED ON A REAL PHONE: iOS momentum scrolling and the rubber-band
+     bounce at the bottom of a page both produce small upward scrolls; the
+     40px threshold is meant to absorb them.
