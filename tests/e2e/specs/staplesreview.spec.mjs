@@ -145,48 +145,6 @@ test("with no planned meal using a staple, there is no review to show", async ()
   }
 });
 
-test("a staple's Have and Need are never under the back-to-top arrow, wherever the page is scrolled", async () => {
-  /* THE BUG THIS GUARDS: the first version put the Pantry's Have/Need pill at
-     the right edge of the row — where the back-to-top arrow floats. A row
-     near the bottom of the screen sent a tap for Need to the arrow, which
-     scrolled the page to the top instead.
-     Hit-tested at every scroll position, because a screenshot of a covered
-     button looks fine. The real shipped catalog, so the review is long
-     enough to scroll and the arrow actually appears. */
-  const catalog = cleanCatalog();
-  const ids = Object.keys(catalog.recipes).slice(0, 3);
-  const state = stateWith({ plan: Object.fromEntries(["Mon", "Tue", "Wed"].map((d, i) => [d, { Dinner: { recipeId: ids[i], servings: 4 } }])) });
-  const page = await openApp(BASE, { catalog, state });
-  try {
-    await page.setViewportSize({ width: 390, height: 664 });
-    await openReview(page);
-    const height = await page.evaluate(() => document.documentElement.scrollHeight);
-    let seen = 0;
-    for (let y = 0; y < height; y += 60) {
-      await page.evaluate((y) => window.scrollTo(0, y), y);
-      await page.waitForTimeout(80);
-      const buttons = await page.evaluate(() =>
-        Array.from(document.querySelectorAll("[aria-label^='We need more '], [aria-label^='We have ']")).map((b) => {
-          const r = b.getBoundingClientRect();
-          const [x, cy] = [r.x + r.width / 2, r.y + r.height / 2];
-          const nav = document.querySelector('nav[aria-label="Main"]');
-          if (cy < 0 || cy > (nav ? nav.getBoundingClientRect().top : innerHeight)) return null;
-          const owner = document.elementFromPoint(x, cy)?.closest("button");
-          return { label: b.getAttribute("aria-label"), hit: owner === b ? "self" : owner ? owner.getAttribute("aria-label") || owner.textContent.trim() : "nothing" };
-        }).filter(Boolean)
-      );
-      for (const b of buttons) {
-        seen++;
-        assert.notEqual(b.hit, "Back to top", `${b.label}: at scroll ${y} it is under the back-to-top arrow`);
-      }
-    }
-    assert.ok(seen > 0, "no Have/Need buttons were ever on screen — the test measured nothing");
-    assertNoPageErrors(page, assert);
-  } finally {
-    await page.done();
-  }
-});
-
 test("marking a staple Need keeps the row you tapped where it was, though the list above grows", async () => {
   /* Need adds a row to the list ABOVE the review, so without a hold the row
      just tapped jumped 45px down under the finger — measured with list rows

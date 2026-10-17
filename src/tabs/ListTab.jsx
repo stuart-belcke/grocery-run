@@ -1049,13 +1049,13 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
           ONLY THE STAPLES THIS WEEK'S MEALS USE, each naming the meals —
           asked for that way: a staple no meal calls for has nothing this
           week to be checked against.
-          THE PANTRY'S HAVE/NEED, AT THE ROW'S LEFT END. The same control the
-          Pantry tab draws, which is what the owner asked for. On the left
-          because the right edge is where the back-to-top arrow floats: the
-          first version put it there, and measured on a 390x664 screen three
-          rows' Need sat under the arrow at some scroll position, so a tap
-          for Need scrolled the page to the top instead. Both answers stay on
-          every row, so a mistaken tap is undone where it was made.
+          THE PANTRY'S HAVE/NEED, AT THE RIGHT, exactly where a Pantry row
+          has it — the owner asked for the two to match. The back-to-top
+          arrow floats over that edge, so a row passing under it mid-scroll
+          has its Need covered; the Pantry rows have the same exposure, and
+          it is roadmap item 135 rather than something one tab works around.
+          Both answers stay on every row, so a mistaken tap is undone where
+          it was made.
           NOT SHOWN WHEN NO MEAL USES A STAPLE — there is nothing to review.
           40px BELOW IT so the last row clears the back-to-top arrow at the
           end of the page: the page's own bottom padding leaves that corner
@@ -1094,7 +1094,6 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
                   return (
                     <li key={key} onClickCapture={noteRow} style={{ borderTop: `1px solid ${C.line}` }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 44, padding: "6px 0" }}>
-                        <HaveNeed name={name} need={!!data.stapleNeeds?.[key]} onChange={(need) => setStapleNeed(key, need)} />
                         {/* WHICH MEALS USE IT, BEHIND A TAP ON THE NAME. Shown
                             under every row it was a second line of recipe
                             names per staple — "overwhelming" — for a question
@@ -1109,6 +1108,7 @@ export function ListTab({ data, update, updateCatalog, isGuest }) {
                           <span style={{ overflowWrap: "anywhere" }}>{name}</span>
                           <span aria-hidden style={{ fontSize: 12, color: C.faint, flexShrink: 0 }}>{showMeals ? "▴" : "▾"}</span>
                         </button>
+                        <HaveNeed name={name} need={!!data.stapleNeeds?.[key]} onChange={(need) => setStapleNeed(key, need)} />
                       </div>
                       {showMeals && (
                         <div style={{ fontSize: 13, color: C.faint, padding: "0 0 8px" }}>For {meals.join(", ")}</div>

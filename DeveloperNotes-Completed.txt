@@ -4386,7 +4386,7 @@ into the details panel and the name grew.
      every other ingredient.
      WHAT IT IS: "🏠 This week’s staples" under the list, shut until opened,
      with "N of M needed" on its header. Open, it lists the staples THIS WEEK'S
-     MEALS USE, A-Z, with the Pantry tab's Have/Need at the left of the row.
+     MEALS USE, A-Z, with the Pantry tab's Have/Need at the right of the row.
      Tapping a staple's name shows which meals use it ("For Stir-fry,
      Tacos"), one at a time; shown under every row it was "overwhelming". Need puts it on the list
      straight away; Done shopping clears it once it is ticked, exactly as
@@ -4399,15 +4399,17 @@ into the details panel and the name grew.
      meals count — planned days and unplanned meals, not a dish ticked
      "already have the ingredients". A Need staple no meal uses is already
      on the list, and the Pantry tab is where it is undone.
-     HAVE/NEED AT THE LEFT OF THE ROW, NOT THE RIGHT. The first version put
-     the Pantry's pill (51x27px) at the right edge — where the back-to-top
-     arrow floats. Measured on a 390x664 screen, three rows' Need sat under
-     the arrow at some scroll position, and a tap there scrolled the page to
-     the top instead. staplesreview.spec hit-tests every Have and Need at
-     every scroll position; putting the pill back on the right fails it.
-     A whole-row switch with the switch at the left was tried next. The
-     owner preferred the Have/Need that matches the Pantry tab, so the pill
-     came back, on the left.
+     HAVE/NEED AT THE RIGHT, MATCHING THE PANTRY ROW. Placement went round
+     three times and is recorded so it does not go round again:
+       1. Right edge, the Pantry's pill. Measured on a 390x664 screen, three
+          rows' Need sat under the back-to-top arrow at some scroll position,
+          so a tap for Need there scrolled the page to the top instead.
+       2. A whole-row switch with the switch at the left, then the pill at
+          the left, both to clear the arrow. Meanwhile the "tap does nothing"
+          report that prompted them turned out to be DuckDuckGo (below).
+       3. Back on the right, by the owner's choice: matching the Pantry row
+          matters more than one tab dodging an arrow the Pantry rows sit
+          under too. The arrow is roadmap item 135, to fix once for every tab.
      NAMED BY THE OWNER, AND NO NOTE. It was "Review staples" with a
      sentence under the header explaining Need. "The behavior is self
      explanatory" — the gold Need and the count say it.
